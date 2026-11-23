@@ -1925,6 +1925,21 @@ def evaluate_condition(condition: AutomationCondition, payload: Any, old_payload
         return False
 
 
+def errore_cooldown(expected_value: Any) -> str:
+    """Messaggio d'errore per un valore di pausa scritto male, stringa vuota se va bene (audit P16).
+
+    Al momento dell'esecuzione un valore sbagliato lascia passare la regola (fail-open):
+    qui lo si ferma al salvataggio e lo si segnala sulle regole già salvate.
+    """
+    raw = str(expected_value or "").strip()
+    _namespace, sep, raw_minutes = raw.rpartition(":")
+    minuti = (raw_minutes if sep else raw).strip()
+    if not minuti.isdigit() or int(minuti) < 1:
+        return ("Pausa scritta male: usa «nome:minuti» oppure solo i minuti, con un numero intero "
+                "(es. «mail_anomalie_op:5»). Così com'è la regola partirebbe sempre.")
+    return ""
+
+
 def _parse_cooldown_spec(condition: Any) -> tuple[str, int] | None:
     """Estrae (namespace, minuti) dall'expected_value di una condizione cooldown_group.
 

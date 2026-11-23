@@ -81,6 +81,25 @@ def _user_ids_attivi_per_mansione(mansione_nome: str) -> set[int]:
     )
 
 
+def _user_ids_attivi_per_mansioni(nomi: list[str]) -> dict[str, set[int]]:
+    """Come :func:`_user_ids_attivi_per_mansione` per tutte le mansioni insieme: una lettura
+    dell'anagrafica e una dei profili, non due per mansione (audit P8)."""
+    from core.models import Profile
+
+    from .services.assegnazioni import utenti_legacy_per_mansione_rischio
+
+    legacy_per = utenti_legacy_per_mansione_rischio(nomi)
+    tutti = {uid for ids in legacy_per.values() for uid in ids}
+    if not tutti:
+        return {k: set() for k in legacy_per}
+    user_per_legacy: dict[int, set[int]] = {}
+    for legacy_id, user_id in Profile.objects.filter(
+        legacy_user_id__in=tutti, user__is_active=True
+    ).values_list("legacy_user_id", "user_id"):
+        user_per_legacy.setdefault(int(legacy_id), set()).add(int(user_id))
+    return {k: {u for lid in ids for u in user_per_legacy.get(lid, ())} for k, ids in legacy_per.items()}
+
+
 def matrice_presa_visione() -> list[MansioneMatricePresaVisione]:
     """Copertura della presa visione per mansione e SDS corrente assegnata."""
     from django.db.models import Count, Prefetch
@@ -98,8 +117,10 @@ def matrice_presa_visione() -> list[MansioneMatricePresaVisione]:
         .distinct()
         .order_by("nome")
     )
+    mansioni = list(mansioni)
+    user_ids_per = _user_ids_attivi_per_mansioni([m.nome for m in mansioni])
     for mansione in mansioni:
-        user_ids = _user_ids_attivi_per_mansione(mansione.nome)
+        user_ids = user_ids_per.get((mansione.nome or "").strip().casefold(), set())
         # Schede correnti in prefetch e conferme in un colpo solo per mansione:
         # a corpo di ciclo, ogni prodotto costava due query (scheda corrente +
         # conteggio prese visione).

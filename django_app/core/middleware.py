@@ -359,6 +359,10 @@ class AdaptiveSecureCookieMiddleware:
         response = self.get_response(request)
         if request.is_secure():
             return response
+        # Con i cookie sicuri chiesti dalla configurazione (produzione) non si declassa
+        # niente: se IIS non segnalasse l'HTTPS, il cookie resta comunque Secure (audit P2).
+        if getattr(settings, "SESSION_COOKIE_SECURE", False):
+            return response
 
         for cookie_name in (self.csrf_cookie_name, self.session_cookie_name):
             morsel = response.cookies.get(cookie_name)

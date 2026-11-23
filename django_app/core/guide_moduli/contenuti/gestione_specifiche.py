@@ -55,6 +55,7 @@ GUIDA = {
                 ("ul", [
                     "Promemoria, escalation e verifica periodica partono da soli (mail e notifica).",
                     "Gli allegati sono in archivio privato cifrato.",
+                    "Cartelle cliente: la cartella si sceglie fra quelle che esistono sulla share; un nome che non c'è viene rifiutato (se la share non risponde si accetta e si verifica dopo).",
                     "Ogni passaggio di stato resta nello storico, esportabile in PDF e CSV.",
                 ]),
             ],

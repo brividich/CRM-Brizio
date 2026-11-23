@@ -110,6 +110,7 @@ GUIDA = {
                     "(«Inizia oggi», «Entro 7 giorni», «Gia iniziate»).",
                     "Clicca «Approva» per approvare.",
                     "Per rifiutare clicca «Rifiuta», scrivi il motivo e clicca «Conferma rifiuto».",
+                    "Se in alto compare l'avviso che «Il mio team» non si è potuto calcolare, l'elenco mostra solo le richieste assegnate a te come capo: avvisa l'amministratore.",
                 ]),
                 ("p", "Il dipendente riceve subito l'esito, anche per mail. Se decidi dal portale, il link «Approva/Rifiuta» "
                       "della mail di approvazione si chiude: chi lo apre dopo legge «Questa richiesta è già stata gestita». "
@@ -276,6 +277,9 @@ GUIDA = {
             "id": "hr",
             "titolo": "Area HR: saldi, calendario aziendale, contatori, copertura",
             "blocchi": [
+                ("nota", "Riconciliazione (/assenze/riconciliazione/): presenze certificate e assenze a giornata intera approvate "
+                         "si confrontano per nome. Se in anagrafica più dipendenti hanno lo stesso nome, la riga porta «Omonimo, da verificare»: "
+                         "controlla che presenza e assenza siano della stessa persona."),
                 ("p", "Assenze → «Area HR» (la vede chi vede «Impostazioni»). Nessun controllo blocca le richieste: "
                       "tutti producono avvisi per chi chiede e per chi approva."),
                 ("def", [

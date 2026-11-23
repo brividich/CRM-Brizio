@@ -156,12 +156,16 @@ class VisteTests(TestCase):
 
     def test_storyline_eliminazione_e_ripristino(self):
         self.client.post(reverse("diario_preposto:elimina", args=[self.segnalazione.pk]), {"motivo": "Doppione"})
-        self.client.post(reverse("diario_preposto:ripristina", args=[self.segnalazione.pk]))
+        self.client.post(reverse("diario_preposto:ripristina", args=[self.segnalazione.pk]),
+                         {"motivo": "Non era un doppione"})
         self.segnalazione.refresh_from_db()
-        tipi = [e.tipo for e in costruisci_storyline(self.segnalazione)["eventi"]]
+        eventi = costruisci_storyline(self.segnalazione)["eventi"]
+        tipi = [e.tipo for e in eventi]
         self.assertIn("eliminata", tipi)
         self.assertIn("ripristinata", tipi)
         self.assertLess(tipi.index("eliminata"), tipi.index("ripristinata"))
+        # Il motivo del ripristino compare nella storia (audit P6).
+        self.assertIn("Motivo: Non era un doppione", eventi[tipi.index("ripristinata")].note)
 
     def test_scheda_mostra_storia_e_sintesi(self):
         resp = self.client.get(reverse("diario_preposto:dettaglio", args=[self.segnalazione.pk]))

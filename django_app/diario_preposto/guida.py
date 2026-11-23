@@ -116,7 +116,8 @@ SEZIONI: list[dict] = [
             ]),
             ("p", "La segnalazione sparisce dall'elenco, dagli export e dai conteggi, ma non viene cancellata: "
                   "chi gestisce il modulo la ritrova con il filtro «Eliminate» nell'elenco, vede chi l'ha "
-                  "eliminata e perché, e può cliccare «Ripristina» per rimetterla nel registro."),
+                  "eliminata e perché, e può rimetterla nel registro scrivendo il motivo del ripristino "
+                  "(almeno 5 caratteri) e cliccando «Ripristina». Il motivo resta nella storia della segnalazione."),
         ],
     },
     {

@@ -595,6 +595,8 @@ def _sp_fields_to_kwargs(sp_fields: dict) -> dict:
 
 def _fetch_items_local(*, archiviate: bool = False) -> list[dict]:
     qs = RilevazioneIncidente.tutte.filter(archiviata_il__isnull=False) if archiviate else RilevazioneIncidente.objects.all()
+    # Area e punto della planimetria in una sola query, non riga per riga (audit P7).
+    qs = qs.select_related("planimetria_area", "planimetria_layout")
     items = []
     for inst in qs:
         items.append({"id": str(inst.pk), "fields": inst.as_sp_fields()})
