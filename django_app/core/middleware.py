@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import logging
 import secrets
+from functools import lru_cache
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from django.urls import reverse
+from django.urls import get_script_prefix, get_urlconf, reverse
 
 from core.impersonation import is_impersonation_stop_path, resolve_impersonation_context
 from core.acl_v2 import resolve_acl_access
@@ -213,6 +214,20 @@ def _path_matches_prefixes(path: str, prefixes: tuple[str, ...]) -> bool:
 
 
 def _route_names_to_paths(route_names: tuple[str, ...]) -> frozenset[str]:
+    """Percorsi delle rotte indicate, calcolati una volta per processo.
+
+    Le liste sono costanti di modulo e le rotte non cambiano a processo acceso: prima
+    ogni controllo ACL rifaceva decine di ``reverse()`` (una barra di sottomenu con 50
+    link = migliaia di reverse per pagina). La chiave include URLconf e prefisso, così
+    un ``override_settings(ROOT_URLCONF=...)`` nei test non riusa percorsi vecchi.
+    """
+    return _route_names_to_paths_cached(
+        tuple(route_names), str(get_urlconf() or settings.ROOT_URLCONF), get_script_prefix()
+    )
+
+
+@lru_cache(maxsize=64)
+def _route_names_to_paths_cached(route_names: tuple[str, ...], _urlconf: str, _prefix: str) -> frozenset[str]:
     paths: set[str] = set()
     for route_name in route_names:
         try:
