@@ -34,23 +34,6 @@
     return match ? match[1] : '';
   }
 
-  /* Le modalita' attrezzatura chiedono campi diversi: mostrarli tutti sempre
-   * rendeva il pannello illeggibile proprio nel momento in cui serve, a
-   * riunione in corso. */
-  function syncToolingFields() {
-    var mode = el('ctm-tooling-mode') ? el('ctm-tooling-mode').value : 'none';
-    var show = {
-      'ctm-tooling-existing-field': mode === 'link_existing',
-      'ctm-tooling-pn-field': mode === 'request_new' || mode === 'verification_required',
-      'ctm-tooling-code-field': mode === 'request_new',
-      'ctm-tooling-note-field': mode === 'request_new' || mode === 'verification_required'
-    };
-    Object.keys(show).forEach(function (id) {
-      var node = el(id);
-      if (node) { node.hidden = !show[id]; }
-    });
-  }
-
   /* In aggiornamento il titolo non e' piu' obbligatorio: si sta correggendo
    * un'attivita' che esiste gia'. */
   function syncExistingMode() {
@@ -110,7 +93,6 @@
     fillExistingTasks();
     var title = el('ctm-title');
     if (title) { title.value = stepText || ''; }
-    syncToolingFields();
     syncExistingMode();
 
     var err = el('ctm-error');
@@ -201,11 +183,8 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     fillExistingTasks();
-    var mode = el('ctm-tooling-mode');
-    if (mode) { mode.addEventListener('change', syncToolingFields); }
     var existing = el('ctm-existing');
     if (existing) { existing.addEventListener('change', syncExistingMode); }
-    syncToolingFields();
   });
 
   document.addEventListener('keydown', function (event) {

@@ -16,14 +16,10 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
-from attrezzature.models import (
-    Attrezzatura,
-)
 
 from ..forms import (
     KickoffMeetingForm,
     KickoffMeetingMinuteForm,
-    TaskForm,
     task_active_users_queryset,
 )
 from ..minute_email import note_generali
@@ -93,9 +89,6 @@ from ._shared import (
     _safe_int,
     _tasks_shell_context,
     _utenti_riga_rapida,
-)
-from ._tooling import (
-    _apply_task_tooling_action,
 )
 
 logger = logging.getLogger(__name__)
@@ -275,7 +268,6 @@ def _meeting_task_modal_context(project: Project, *, project_id: int, meeting_id
     return {
         "project_tasks_json": _project_tasks_for_picker(project),
         "task_categories": TaskCategory.objects.filter(is_active=True).order_by("name"),
-        "attrezzature": Attrezzatura.objects.order_by("codice", "part_number", "id"),
         "task_from_step_url": reverse(
             "tasks:project_meeting_task_from_step",
             kwargs={"project_id": project_id, "meeting_id": meeting_id},
@@ -2182,31 +2174,6 @@ def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
             return _vrf_blocked_response(project)
         created = True
 
-    tooling_mode = (request.POST.get("tooling_mode") or TaskForm.TOOLING_NONE).strip()
-    valid_tooling = {value for value, _ in TaskForm.TOOLING_MODE_CHOICES}
-    if tooling_mode in valid_tooling and tooling_mode != TaskForm.TOOLING_NONE:
-        tool = None
-        tool_id = (request.POST.get("tooling_existing_attrezzatura") or "").strip()
-        if tool_id:
-            try:
-                tool = Attrezzatura.objects.get(pk=int(tool_id))
-            except (Attrezzatura.DoesNotExist, ValueError):
-                tool = None
-        try:
-            _apply_task_tooling_action(
-                request,
-                task,
-                mode=tooling_mode,
-                existing_attrezzatura=tool,
-                part_number=(request.POST.get("tooling_part_number") or "").strip(),
-                code=(request.POST.get("tooling_code") or "").strip(),
-                description=(request.POST.get("tooling_description") or "").strip(),
-            )
-        except Exception:
-            # L'attivita' e' gia' salvata: un inciampo sull'attrezzatura non
-            # deve far sembrare all'utente che non sia stato creato nulla.
-            logger.exception("Azione attrezzatura fallita da incontro (task=%s)", task.pk)
-
     log_action(
         request,
         "kickoff_task_from_step" if created else "kickoff_task_from_step_update",
@@ -2217,7 +2184,6 @@ def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
             "meeting_id": meeting.pk,
             "meeting_numero": meeting.numero,
             "project_id": project_id,
-            "tooling_mode": tooling_mode,
         },
     )
 

@@ -71,11 +71,6 @@ def macchine_disponibili():
     )
 
 
-def _asset_del_task(task):
-    ref = next((r for r in task.extra_refs.all() if r.asset_id and r.field_code == CAMPO_MACCHINA), None)
-    return ref.asset if ref else None
-
-
 def _finestra(task) -> tuple[date, date]:
     oggi = timezone.localdate()
     inizio = task.next_step_due or oggi
@@ -85,14 +80,6 @@ def _finestra(task) -> tuple[date, date]:
     return inizio, fine
 
 
-def dettaglio_macchina(task, *, con_nomi: bool) -> dict | None:
-    asset = _asset_del_task(task)
-    if asset is None:
-        return None
-    inizio, fine = _finestra(task)
-    return disponibilita_macchina(asset, inizio, fine, con_nomi=con_nomi, escludi_task_id=task.pk)
-
-
 def periodo(inizio: date | None, fine: date | None) -> tuple[date, date]:
     """Periodo da controllare: senza date, da oggi per due settimane."""
     inizio = inizio or timezone.localdate()
@@ -100,10 +87,13 @@ def periodo(inizio: date | None, fine: date | None) -> tuple[date, date]:
     return (fine, inizio) if fine < inizio else (inizio, fine)
 
 
-def disponibilita_macchina(asset, inizio: date, fine: date, *, con_nomi: bool, escludi_task_id=None, con_impegni: bool = True) -> dict:
-    """Abilitati, assenze nel periodo e impegni dell'asset. Mai un errore a video."""
-    task_pk = escludi_task_id
-    esito = {"asset": asset, "inizio": inizio, "fine": fine, "abilitati": None, "assenti": [], "impegni": []}
+def disponibilita_macchina(asset, inizio: date, fine: date, *, con_nomi: bool) -> dict:
+    """Abilitati e assenze nel periodo. Mai un errore a video.
+
+    Gli impegni della macchina (altre attività, manutenzione) sono l'avviso del
+    riquadro «Collegamenti»: ``collegamenti.conflitti_macchina``.
+    """
+    esito = {"asset": asset, "inizio": inizio, "fine": fine, "abilitati": None, "assenti": []}
     try:
         from anagrafica.services.skillmatrix_resolver import pool_abilitati
 
@@ -131,20 +121,6 @@ def disponibilita_macchina(asset, inizio: date, fine: date, *, con_nomi: bool, e
             esito["disponibili"] = len(ids) - len(esito["assenti"])
     except Exception:
         logger.exception("Percorso kickoff: abilitati/assenze non letti (asset=%s)", asset.pk)
-    if not con_impegni:
-        # Il riquadro «Collegamenti» li mostra già sulla riga della macchina, come avviso.
-        return esito
-    try:
-        from .asset_conflicts import _asset_availability_report
-
-        report = _asset_availability_report(asset, inizio, fine, exclude_task_id=task_pk)
-        esito["impegni"] = [
-            {"titolo": c.get("title", ""), "quando": c.get("when", ""), "grave": c.get("severity") == "block",
-             "url": c.get("url", "")}
-            for c in (report.get("conflicts") or [])[:4]
-        ]
-    except Exception:
-        logger.exception("Percorso kickoff: disponibilità asset non letta (asset=%s)", asset.pk)
     return esito
 
 
@@ -249,15 +225,7 @@ def percorso(project, *, con_nomi: bool = False, utente=None) -> dict:
 
 # --- Scrittura --------------------------------------------------------------
 
-def _titolo(key: str, tipo: TaskCategory, *, asset=None, testo: str = "", attrezzatura=None) -> str:
-    if key == TappaKickoff.ATTREZZATURA and attrezzatura and attrezzatura != "nuova":
-        from attrezzature.models import Attrezzatura
-
-        a = Attrezzatura.objects.filter(pk=int(attrezzatura)).first() if str(attrezzatura).isdigit() else None
-        if a is not None:
-            return f"{tipo.name} {a.codice}".strip()
-    if key == TappaKickoff.ATTREZZATURA and attrezzatura == "nuova":
-        return f"{tipo.name} nuova" + (f" - {testo}" if testo else "")
+def _titolo(key: str, tipo: TaskCategory, *, asset=None, testo: str = "") -> str:
     if key == TappaKickoff.MACCHINA and asset is not None:
         return f"Macchina {asset.asset_tag} {asset.name}".strip()
     if key in CAMPO_TESTO and testo:
@@ -268,7 +236,7 @@ def _titolo(key: str, tipo: TaskCategory, *, asset=None, testo: str = "", attrez
 @transaction.atomic
 def assegna(
     project, key: str, user, *, assigned_to=None, due_date=None, start_date=None, asset=None, testo: str = "",
-    meeting=None, outlook: bool = False, request=None, attrezzatura=None, titolo: str = "",
+    meeting=None, outlook: bool = False, request=None, titolo: str = "",
 ) -> Task:
     """Crea l'attività della tappa. ``titolo``: quello scritto in riunione; senza, il nome del tipo."""
     from .meeting_tasks import (
@@ -301,7 +269,7 @@ def assegna(
     if key in CAMPO_TESTO and testo:
         extra[CAMPO_TESTO[key]] = testo[:200]
     task = Task.objects.create(
-        title=titolo_attivita(titolo) or titolo_attivita(_titolo(key, tipo, asset=asset, testo=testo, attrezzatura=attrezzatura)),
+        title=titolo_attivita(titolo) or titolo_attivita(_titolo(key, tipo, asset=asset, testo=testo)),
         project=project,
         assigned_to=assigned_to,
         category=tipo,
@@ -318,8 +286,6 @@ def assegna(
     if key in _escluse(project):
         project.tappe_escluse = [v for v in project.tappe_escluse if v != key]
         project.save(update_fields=["tappe_escluse"])
-    if key == TappaKickoff.ATTREZZATURA and attrezzatura:
-        collega_attrezzatura(task, attrezzatura, user, descrizione=testo)
     notify_task_assignment(task, actor=user)
     dopo_assegnazione(task, outlook=outlook, request=request)
     return task
@@ -378,19 +344,6 @@ def escludi(project, key: str, *, valore: bool) -> None:
     project.save(update_fields=["tappe_escluse"])
 
 
-def assenze_persona(user, inizio: date, fine: date) -> list[tuple[date, date]]:
-    """Periodi di assenza del responsabile nel periodo, senza il motivo."""
-    if user is None:
-        return []
-    try:
-        from .absences import _load_user_absences
-
-        return [(r["start_date"], r["end_date"]) for r in _load_user_absences(user, date_start=inizio, date_end=fine)][:4]
-    except Exception:
-        logger.exception("Percorso kickoff: assenze del responsabile non lette (user=%s)", getattr(user, "pk", None))
-        return []
-
-
 def agenda_items(project) -> list[dict]:
     """Tappe da discutere: da assegnare, in ritardo o aperte. Entrano nell'ordine del giorno.
 
@@ -429,66 +382,6 @@ def agenda_items(project) -> list[dict]:
             "done": False,
         })
     return voci
-
-
-
-def attrezzature_commessa(project) -> list[dict]:
-    """Attrezzature collegate alla commessa o allo stesso P/N, con stato, disponibilità e consegna."""
-    try:
-        from attrezzature.models import Attrezzatura, AttrezzaturaKickoffLink
-        from attrezzature.services.kickoff_integration import get_attrezzature_for_part_number
-    except Exception:
-        return []
-    collegate = set(AttrezzaturaKickoffLink.objects.filter(project=project).values_list("attrezzatura_id", flat=True))
-    strumenti = {a.pk: a for a in Attrezzatura.objects.filter(pk__in=collegate)}
-    for a in get_attrezzature_for_part_number(project.part_number or "")[:30]:
-        strumenti.setdefault(a.pk, a)
-    return [
-        {
-            "obj": a, "collegata": a.pk in collegate,
-            "stato": a.get_stato_display(), "disponibilita": a.get_disponibilita_stato_display(),
-            "pronta": a.disponibilita_stato == "disponibile" or a.stato in ("available", "ready_for_production"),
-            "consegna": a.data_consegna_prevista,
-        }
-        for a in sorted(strumenti.values(), key=lambda x: (x.codice or "", x.pk))
-    ]
-
-
-def collega_attrezzatura(task, scelta, user, *, descrizione: str = ""):
-    """Dopo l'assegnazione della tappa: collega un'attrezzatura esistente o ne chiede una nuova (bozza)."""
-    from attrezzature.models import Attrezzatura, AttrezzaturaKickoffRelationType
-    from attrezzature.services import kickoff_integration as ki
-
-    project = task.project
-    if scelta == "nuova":
-        return ki.create_draft_attrezzatura_from_kickoff(
-            part_number=project.part_number or "", description=descrizione or task.title,
-            kickoff_ref=project.pk, kickoff_activity_ref=task.pk, user=user,
-        )
-    attrezzatura = Attrezzatura.objects.filter(pk=int(scelta)).first() if str(scelta).isdigit() else None
-    if attrezzatura is not None:
-        ki.upsert_kickoff_link(
-            attrezzatura=attrezzatura, kickoff_ref=project.pk, kickoff_activity_ref=task.pk,
-            relationship_type=AttrezzaturaKickoffRelationType.LINKED_EXISTING, user=user,
-        )
-    return attrezzatura
-
-
-def aggiungi_utensile(project, user, testo: str, *, quantita: int = 1, entro=None):
-    """«codice descrizione» scritto o scelto: se il codice non c'è nel catalogo, nasce."""
-    from ..models import ProjectUtensile, Utensile
-
-    testo = (testo or "").strip()
-    if not testo:
-        raise TappaNonValida("Scrivi il codice dell'utensile.")
-    codice, _, descrizione = testo.partition(" ")
-    codice = codice.strip()[:80]
-    utensile = Utensile.objects.filter(codice__iexact=codice).first()
-    if utensile is None:
-        utensile = Utensile.objects.create(codice=codice, descrizione=descrizione.strip()[:255])
-    return ProjectUtensile.objects.create(
-        project=project, utensile=utensile, quantita=max(1, min(int(quantita or 1), 999)), entro=entro, created_by=user,
-    )
 
 
 

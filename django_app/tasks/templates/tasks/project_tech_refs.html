@@ -4,7 +4,7 @@
 {% block tasks_shell_guide_anchor %}#programmi-fai{% endblock %}
 
 {% block tasks_shell_content %}
-{% comment %}Registro costruito dalle attività; negli incontri resta la tabella di _tech_refs.html.{% endcomment %}
+{% comment %}Registro costruito dalle attività: lo stesso partial sta nella scheda dell'incontro e nell'esito.{% endcomment %}
 <section class="tr-block rc" data-rc data-url="{{ reg_url }}" data-csrf="{{ csrf_token }}" aria-label="Programmi, FAI e risorse della commessa">
   {% include "tasks/_registro_collegamenti_body.html" %}
 </section>

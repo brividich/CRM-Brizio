@@ -24,6 +24,15 @@ class ProgrammiBase(TasksBaseTestCase):
         self.cam = TaskCategory.objects.get(richiede=TechRefKind.CAM)
         self.cmm = TaskCategory.objects.get(richiede=TechRefKind.CMM)
 
+    def _scrivi(self, task, codice, percorso=""):
+        """Codice e cartella del programma dal riquadro «Collegamenti» dell'attività."""
+        ref = ProjectTechRef.objects.filter(task=task).order_by("id").first()
+        return self.client.post(
+            reverse("tasks:collegamenti_azione", args=[task.pk]),
+            {"action": "aggiorna", "chiave": f"ref:{ref.pk}", "code": codice, "path": percorso},
+            HTTP_ACCEPT="application/json",
+        )
+
     def attivita(self, categoria=None, **altri):
         dati = {
             "title": "Programmare fasi", "project": self.project, "created_by": self.user,
@@ -77,7 +86,7 @@ class RegolaTests(ProgrammiBase):
         task.save()
         ref = ProjectTechRef.objects.get(task=task)
         self.assertEqual(ref.status, TechRefStatus.OPEN)
-        self.client.post(reverse("tasks:task_programma", args=[task.pk]), {"code": "O5", "path": ""})
+        self._scrivi(task, "O5")
         ref.refresh_from_db()
         self.assertEqual(ref.status, TechRefStatus.DONE)
 
@@ -131,7 +140,7 @@ class VisteTests(ProgrammiBase):
 
     def test_salva_dall_attivita(self):
         task = self.attivita()
-        self.client.post(reverse("tasks:task_programma", args=[task.pk]), {"code": "O9", "path": r"\\server\cam\pn1"})
+        self._scrivi(task, "O9", r"\\server\cam\pn1")
         ref = ProjectTechRef.objects.get(task=task)
         self.assertEqual((ref.code, ref.path), ("O9", r"\\server\cam\pn1"))
         # Con il codice scritto il programma passa da «Da scrivere» a «In scrittura».
@@ -139,7 +148,7 @@ class VisteTests(ProgrammiBase):
 
     def test_percorso_non_valido(self):
         task = self.attivita()
-        self.client.post(reverse("tasks:task_programma", args=[task.pk]), {"code": "O9", "path": "C:\\locale\\x"})
+        self.assertEqual(self._scrivi(task, "O9", "C:\\locale\\x").status_code, 400)
         self.assertEqual(ProjectTechRef.objects.get(task=task).code, "")
 
     def test_chiusura_avvisa_se_manca(self):

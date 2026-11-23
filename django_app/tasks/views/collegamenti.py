@@ -90,9 +90,7 @@ def collegamenti_context(request, task: Task, *, apri: str = "") -> dict:
     for voce in dati["voci"]:
         if voce["tipo"] == svc.MACCHINA and "conflitti" in voce:
             # Abilitati e assenze nel periodo: gli impegni sono già l'avviso della riga.
-            voce["operatori"] = disponibilita_macchina(
-                voce["asset"], *_finestra(task), con_nomi=con_nomi, escludi_task_id=task.pk, con_impegni=False,
-            )
+            voce["operatori"] = disponibilita_macchina(voce["asset"], *_finestra(task), con_nomi=con_nomi)
         voce["puo"] = (
             _puo(perm, voce["tipo"]) and not voce.get("vuoto")
             and (voce["tipo"] != svc.INCONTRO or voce.get("pianificato"))

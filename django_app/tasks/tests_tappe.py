@@ -80,7 +80,7 @@ class TappeTests(_TappeBase):
         self.assertEqual([(c["tipo"], c["codice"]) for c in riga["collegamenti"]], [("macchina", "CNC-T1")])
         self.assertEqual(riga["manca"], [])
         self.assertIn("CNC-T1", risposta.json()["html"])
-        dettaglio = svc.dettaglio_macchina(task, con_nomi=False)
+        dettaglio = svc.disponibilita_macchina(asset, date(2026, 12, 1), date(2026, 12, 10), con_nomi=False)
         self.assertEqual((dettaglio["asset"], dettaglio["abilitati"]), (asset, 0))
 
     def test_macchina_non_di_produzione_rifiutata(self):
@@ -156,19 +156,16 @@ class TappeDateFlussiTests(_TappeBase):
         self.assertEqual(risposta.status_code, 400)
         self.assertFalse(Task.objects.exists())
 
-    def test_anteprima_responsabile_e_macchina(self):
-        from assets.models import Asset
+    def test_vecchi_indirizzi_del_percorso_tolti(self):
+        from django.urls import NoReverseMatch
 
-        asset = Asset.objects.create(asset_tag="CNC-A1", name="Fresa prova", asset_type="CNC")
-        url = reverse("tasks:tappa_anteprima", args=[self.project.pk])
-        risposta = self.client.get(url, {
-            "tappa": "MACCHINA", "asset": asset.pk, "assigned_to": self.altro.pk,
-            "start_date": "2026-12-01", "due_date": "2026-12-10",
-        }, HTTP_ACCEPT="application/json")
-        self.assertEqual(risposta.status_code, 200)
-        html = risposta.json()["html"]
-        self.assertIn("disponibile dal 01/12 al 10/12", html)
-        self.assertIn("Nessun abilitato operativo", html)
+        for nome in ("tasks:tappa_anteprima", "tasks:utensili_azione"):
+            with self.assertRaises(NoReverseMatch):
+                reverse(nome, args=[self.project.pk])
+        with self.assertRaises(NoReverseMatch):
+            reverse("tasks:task_programma", args=[1])
+        self.assertEqual(self.client.get(f"/tasks/projects/{self.project.pk}/tappe/anteprima/").status_code, 404)
+        self.assertEqual(self.client.post(f"/tasks/projects/{self.project.pk}/utensili/", {"action": "aggiungi"}).status_code, 404)
 
     def test_promemoria_spento_di_default(self):
         from .models import TaskReminder
@@ -241,15 +238,15 @@ class AttrezzaturaUtensiliTests(_TappeBase):
         from .models import ProjectUtensile, Utensile
         from .services import collegamenti
 
-        # Il vecchio indirizzo resta per compatibilità e salva ancora la riga della commessa...
-        url = reverse("tasks:utensili_azione", args=[self.project.pk])
-        risposta = self.client.post(url, {"action": "aggiungi", "utensile": "FR12 Fresa D12", "quantita": "2"}, HTTP_ACCEPT="application/json")
-        self.assertEqual(risposta.status_code, 200)
-        self.assertEqual((Utensile.objects.count(), ProjectUtensile.objects.filter(project=self.project).count()), (1, 1))
-        # ...ma il Percorso non la legge: niente stati, niente quantità, la tappa aspetta la sua attività.
+        # Una riga della commessa registrata dal vecchio Percorso (con quantità e stato)...
+        ProjectUtensile.objects.create(
+            project=self.project, utensile=Utensile.objects.create(codice="FR12", descrizione="Fresa D12"),
+            quantita=2, created_by=self.user,
+        )
+        # ...il Percorso non la legge: niente stati, niente quantità, la tappa aspetta la sua attività.
         riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "UTENSILI")
         self.assertEqual((riga["stato"], riga["stato_label"]), ("vuota", "Da assegnare"))
-        html = risposta.json()["html"]
+        html = self.client.get(reverse("tasks:tappa_azione", args=[self.project.pk]), HTTP_ACCEPT="application/json").json()["html"]
         for vietato in ("da ordinare", "Da ordinare", " pz", "Disponibile a magazzino", "data-tp-ut"):
             self.assertNotIn(vietato, html)
         self._post(tappa="UTENSILI", action="assegna")

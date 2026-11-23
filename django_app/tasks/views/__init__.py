@@ -130,10 +130,7 @@ from ._shared import (  # noqa: F401
 )
 from ._tooling import (  # noqa: F401
     ATTREZZATURA_KICKOFF_TASK_TYPES,
-    _apply_task_tooling_action,
-    _build_task_attrezzatura_context,
     _ensure_attrezzatura_task_link_for_kickoff_task,
-    _handle_task_tooling_form_action,
     _task_attrezzatura_part_number,
     _task_attrezzatura_tipo,
 )
@@ -272,12 +269,11 @@ from .tech_refs import (  # noqa: F401,E402
     fai_non_richiesto,
     programmi_registro,
     project_tech_refs,
-    task_programma,
     tech_ref_action,
     tech_ref_save,
     programma_fase,
 )
-from .tappe import tappa_anteprima, tappa_azione, utensili_azione  # noqa: F401,E402
+from .tappe import tappa_azione  # noqa: F401,E402
 from .collegamenti import collegamenti_azione, collegamenti_cerca, collegamenti_registro  # noqa: F401,E402
 from .projects import project_chiudi  # noqa: F401,E402
 from .cruscotto import cruscotto_commesse  # noqa: F401,E402

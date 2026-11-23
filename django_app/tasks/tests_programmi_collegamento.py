@@ -33,13 +33,19 @@ class CollegamentoTests(ProgrammiBase):
     # --- Programma svuotato o chiuso a mano
     def test_programma_svuotato_su_attivita_chiusa_torna_da_inserire(self):
         task = self.attivita()
-        url = reverse("tasks:task_programma", args=[task.pk])
-        self.client.post(url, {"code": "O1", "path": ""})
+        self._scrivi(task, "O1")
         task.status = TaskStatus.DONE
         task.save()
-        self.assertFalse(ProjectTechRef.objects.get(task=task).is_open)
-        self.client.post(url, {"code": "", "path": ""})
-        self.assertTrue(ProjectTechRef.objects.get(task=task).is_open)
+        ref = ProjectTechRef.objects.get(task=task)
+        self.assertFalse(ref.is_open)
+        # Il programma si toglie dal riquadro «Collegamenti»: torna la riga da inserire, aperta.
+        self.client.post(
+            reverse("tasks:collegamenti_azione", args=[task.pk]), {"action": "scollega", "chiave": f"ref:{ref.pk}"},
+            HTTP_ACCEPT="application/json",
+        )
+        nuova = ProjectTechRef.objects.get(task=task)
+        self.assertNotEqual(nuova.pk, ref.pk)
+        self.assertTrue(nuova.is_open)
 
     def test_da_le_mie_azioni_non_si_chiude_con_attivita_aperta(self):
         ref = self.attivita().tech_refs.get()

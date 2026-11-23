@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: pulizia di ciò che era rimasto senza interfaccia
+
+- **Tolti** (nessun uso in `django_app/`): URL `tasks:tappa_anteprima`, `tasks:utensili_azione`, `tasks:task_programma` con i loro binding ACL (bootstrap v30); partial `_tappe_anteprima.html`, `_tappe_macchina.html`, `_task_programma.html`, `_tech_refs.html`; campi `tooling_*` di `TaskForm` e le azioni attrezzatura dal form (`views/_tooling.py`), il ramo `tooling_mode` della creazione attività dall'incontro, i residui in `quick_task_bar.js` e `meeting_task_modal.js`; funzioni del vecchio Percorso in `services/tappe.py`. I vecchi campi, se arrivano in una richiesta, sono ignorati.
+- **Lasciati:** `tasks:attrezzature_action` (binding ACL del modulo Attrezzature), `tech_ref_save` / `tech_ref_action` con `_tech_refs_body.html` (da decidere: da lì passa «riga assegnata → attività»), `tech_refs.js` e `tappe.js` (ancora usati). I registri «Programmi», «Registro FAI», «Report FAI» non cambiano. Nessuna migrazione, serve collectstatic.
+- File: `tasks/forms.py`, `tasks/urls.py`, `tasks/acl_bootstrap.py`, `tasks/views/__init__.py`, `_tooling.py`, `meetings.py`, `tappe.py`, `tech_refs.py`, `collegamenti.py`, `tasks/services/tappe.py`, `tasks/static/tasks/js/quick_task_bar.js`, `meeting_task_modal.js`, template d'incontro (versione degli script), `project_tech_refs.html`, `docs/moduli/tasks.md`; test `tasks/tests_tappe.py`, `tests_programmi.py`, `tests_programmi_collegamento.py`, `tests_meeting_flow.py`.
+
 ### KICK-OFF: «Assegna la tappa» in riunione apre i collegamenti; registro nella scheda dell'incontro
 
 - **Conduci incontro:** «Assegna la tappa» chiede solo titolo, responsabile e date (via i campi macchina, fornitore e processo). «Crea e apri i collegamenti» crea l'attività della tappa, la collega al punto e la apre nel pannello laterale sul riquadro «Collegamenti», già sul collegamento atteso: si resta in riunione. La nota del punto si salva anche uscendo dal campo e lasciando la pagina.
