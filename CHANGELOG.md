@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: «Il mio team» con la persona scelta, mansioni e competenze
+
+- **Elenco a sinistra, persona a destra:** cliccando un nome compare «Persona scelta» con ogni dato etichettato («Persona:», «Reparto:», «Ruolo:», «Centro di costo:», «Obblighi della mansione:»), le «Mansioni» con livello e stato e le «Competenze» con il livello raggiunto accanto al livello richiesto, con l'avviso «Sotto il livello richiesto». Stesse regole del Mansionario. Si apre sulla prima persona dell'elenco; una persona fuori dal team non si apre (`?persona=` vale solo per le righe dell'elenco). Restano semaforo, segnali di carico e filtri; tolto il testo introduttivo.
+- **Stili condivisi** delle viste semplici in `anagrafica/components/_semplice_stili.html`, usati anche da «Esplora la struttura».
+- File: `anagrafica/services/persona_semplice.py` (nuovo), `anagrafica/views_mio_team.py`, `anagrafica/templates/anagrafica/pages/mio_team.html`, `anagrafica/templates/anagrafica/components/_semplice_stili.html` (nuovo), `anagrafica/templates/anagrafica/pages/esplora_struttura.html`, `anagrafica/templates/anagrafica/partials/_esplora_semplice.html`, `anagrafica/tests_centro_filtro.py`, Centro guide (`core/guide_moduli/contenuti/anagrafica.py`), `docs/moduli/anagrafica.md`.
+
 ### Anagrafica: «Esplora la struttura» in vista semplice
 
 - **Vista semplice di default:** la pagina si apre con quattro colonne (centro di costo, reparto, ruolo, mansione) e, sotto, la scheda del punto scelto con ogni dato etichettato («Mansione:», «Ruolo:», «Reparto:», «Responsabile del reparto:», «Centro di costo:»). Sulla mansione compaiono «Competenze richieste dalla mansione», con il livello richiesto scritto per esteso, e «Persone con questa mansione», con livello e stato calcolato come nel Mansionario. Su reparto e ruolo l'elenco delle persone con ruolo e mansioni; sul centro di costo i suoi reparti con responsabile e persone. Tolti il sottotitolo e, in questa vista, numeri, costi, carichi e collegamenti.

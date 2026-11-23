@@ -7,13 +7,29 @@
 {% block extra_head %}
 {% include "anagrafica/components/_info_styles.html" %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
 <style>
-.mt-kpi { display:flex; gap:8px; flex-wrap:wrap; }
-.mt-table-wrap { overflow-x:auto; }
+.mt-kpi { display:flex; gap:8px; flex-wrap:wrap; padding:10px 12px 4px; }
 .mt-mansione { color:var(--hr-muted); font-size:12px; }
 .mt-carico { color:var(--hr-warning, #b45309); font-size:12px; }
-@media (max-width:640px) {
-  .mt-col-area { display:none; }
+.mt-due { display:grid; grid-template-columns:minmax(260px, 340px) minmax(0, 1fr); gap:14px; align-items:start; }
+.mt-lista { list-style:none; margin:0; padding:6px; max-height:70vh; overflow-y:auto; }
+.mt-voce { display:block; padding:9px 12px; border-radius:8px; text-decoration:none; color:#1e293b; }
+.mt-voce:hover { background:#f1f5f9; }
+.mt-voce.is-scelta { background:#e8f3fb; color:#0c2545; }
+.mt-voce:focus-visible { outline:2px solid #1f87cd; outline-offset:-2px; }
+.mt-nome { display:block; font-weight:600; font-size:13.5px; }
+.mt-pill { display:block; margin-top:4px; }
+.mt-filtrato { padding:8px 14px 0; font-size:12.5px; color:var(--hr-muted); }
+.mt-sotto, .es-s-tab td small.mt-sotto { color:#b91c1c; font-weight:600; }
+.mt-due .es-s-due { grid-template-columns:minmax(0, 1fr) minmax(0, 1.35fr); }
+body.theme-dark .mt-voce { color:var(--text-mid); }
+body.theme-dark .mt-voce:hover { background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .mt-voce.is-scelta { background:#1e3a5f; color:#fff; }
+body.theme-dark .mt-sotto, body.theme-dark .es-s-tab td small.mt-sotto { color:#fca5a5; }
+@media (max-width:900px) {
+  .mt-due { grid-template-columns:minmax(0, 1fr); }
+  .mt-lista { max-height:260px; }
 }
 </style>
 {% endblock %}
@@ -23,42 +39,78 @@
 {% block content %}
 <div class="hr-shell">
   {% url 'guida_modulo' 'anagrafica' as guida_url %}
-  {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Persone" title="Il mio team" desc="Le persone di cui sei responsabile (area aziendale o reparto) e se sono in regola con gli obblighi della loro mansione. Nessun dato sanitario: solo il semaforo." guida_url=guida_url|add:"#il-mio-team" %}
+  {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Persone" title="Il mio team" guida_url=guida_url|add:"#il-mio-team" %}
 
   {% if righe or filtro %}
   {% url 'anagrafica:mio_team' as u_team %}
-  <section class="hr-card">
-    <div class="hr-card-head">
-      <div>
-        <div class="hr-card-title">{% if filtro %}{{ righe|length }} su {{ n_team }} person{{ n_team|pluralize:"a,e" }} · <a href="{{ u_team }}">mostra tutti</a>{% else %}{{ righe|length }} person{{ righe|length|pluralize:"a,e" }}{% endif %}</div>
-        <div class="hr-card-desc">Prima chi non è conforme, poi chi ha adempimenti in scadenza. {% info_hint "conformita" %}</div>
-      </div>
+  <div class="mt-due">
+    <section class="es-s-card" aria-label="Persone del team">
+      <h2 class="es-s-h">Persone <span>{% if filtro %}{{ righe|length }} su {{ n_team }}{% else %}{{ righe|length }}{% endif %}</span></h2>
       <div class="mt-kpi">
         {% if conteggi.ko %}{% include "anagrafica/components/hr_pill.html" with tone="danger" dot=1 label=conteggi.ko|stringformat:"d"|add:" non conformi" url=u_team|add:"?esito=ko" title="Apri l'elenco filtrato: persone non conformi" %}{% endif %}
         {% if conteggi.warn %}{% include "anagrafica/components/hr_pill.html" with tone="warning" dot=1 label=conteggi.warn|stringformat:"d"|add:" in scadenza" url=u_team|add:"?esito=warn" title="Apri l'elenco filtrato: adempimenti in scadenza" %}{% endif %}
         {% if conteggi.ok %}{% include "anagrafica/components/hr_pill.html" with tone="ok" dot=1 label=conteggi.ok|stringformat:"d"|add:" in regola" url=u_team|add:"?esito=ok" title="Apri l'elenco filtrato: persone in regola" %}{% endif %}
         {% if conteggi.carico %}{% include "anagrafica/components/hr_pill.html" with tone="warning" label=conteggi.carico|stringformat:"d"|add:" con segnali di carico" url=u_team|add:"?esito=carico" title="Apri l'elenco filtrato: persone con segnali di carico" %}{% endif %}
       </div>
+      {% if filtro %}<div class="mt-filtrato">Elenco filtrato · <a href="{{ u_team }}">mostra tutti</a></div>{% endif %}
+      {% if righe %}
+      <ul class="mt-lista">
+        {% for r in righe %}
+        <li><a class="mt-voce{% if scelta.id == r.id %} is-scelta{% endif %}" href="{{ u_team }}?persona={{ r.id }}{% if filtro %}&amp;esito={{ filtro }}{% endif %}"{% if scelta.id == r.id %} aria-current="true"{% endif %}>
+          <span class="mt-nome">{{ r.nome }}{% pallino_presenza r.id %}</span>
+          <span class="mt-mansione">{{ r.area|default:r.reparto|default:"Nessun reparto" }}{% if r.centro %} · {{ r.centro }}{% endif %}</span>
+          {% for s in r.carico %}<div class="mt-carico">{{ s }}</div>{% endfor %}
+          <span class="mt-pill">{% include "anagrafica/components/hr_pill.html" with tone=r.tono dot=1 label=r.esito_label %}</span>
+        </a></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="es-s-vuoto">Nessuna persona con questo filtro.</p>{% endif %}
+    </section>
+
+    <div>
+      {% if scelta and persona %}
+      <section class="es-s-card">
+        <h2 class="es-s-h">Persona scelta</h2>
+        <div class="es-s-testa">
+          <dl class="es-s-campi">
+            {% for c in persona.campi %}<div class="es-s-campo"><dt>{{ c.etichetta }}:</dt><dd>{{ c.valore }}</dd></div>{% endfor %}
+            <div class="es-s-campo"><dt>Obblighi della mansione:</dt><dd>{% include "anagrafica/components/hr_pill.html" with tone=scelta.tono dot=1 label=scelta.esito_label %} {% info_hint "conformita" %}</dd></div>
+          </dl>
+          {% if scelta.scheda %}<div class="es-s-azioni"><a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' scelta.id %}">Apri la scheda</a></div>{% endif %}
+        </div>
+      </section>
+      <div class="es-s-due">
+        <section class="es-s-card">
+          <h2 class="es-s-h">Mansioni <span>{{ persona.mansioni|length }}</span></h2>
+          {% if persona.mansioni %}
+          <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+            <thead><tr><th>Mansione</th><th>Livello</th><th>Stato</th></tr></thead>
+            <tbody>{% for m in persona.mansioni %}<tr>
+              <td><b>{{ m.nome }}</b></td>
+              <td>{% include "anagrafica/partials/_esplora_livello.html" with l=m.livello %}</td>
+              <td><span class="es-s-stato es-s-stato-{{ m.tono }}">{{ m.stato }}</span></td>
+            </tr>{% endfor %}</tbody>
+          </table></div>
+          {% else %}<p class="es-s-vuoto">Nessuna mansione assegnata.</p>{% endif %}
+        </section>
+        <section class="es-s-card">
+          <h2 class="es-s-h">Competenze <span>{{ persona.competenze|length }}</span></h2>
+          {% if persona.competenze %}
+          <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+            <thead><tr><th>Competenza</th><th>Livello</th><th>Livello richiesto</th></tr></thead>
+            <tbody>{% for c in persona.competenze %}<tr>
+              <td><b>{{ c.nome }}</b><small>Mansione: {{ c.mansione }}</small>{% if c.manca %}<small class="mt-sotto">Manca: {{ c.manca }}</small>{% endif %}</td>
+              <td>{% include "anagrafica/partials/_esplora_livello.html" with l=c.livello %}{% if c.sotto and not c.manca %}<small class="mt-sotto">Sotto il livello richiesto</small>{% endif %}</td>
+              <td>{% include "anagrafica/partials/_esplora_livello.html" with l=c.richiesto %}</td>
+            </tr>{% endfor %}</tbody>
+          </table></div>
+          {% else %}<p class="es-s-vuoto">Nessuna competenza richiesta dalle sue mansioni.</p>{% endif %}
+          <div class="es-s-legenda">{% for l in persona.legenda %}<span><b>{{ l.codice }}</b> {{ l.parola }}</span>{% endfor %}</div>
+        </section>
+      </div>
+      {% endif %}
     </div>
-    <div class="mt-table-wrap">
-      <table class="hr-table">
-        <thead><tr><th>Persona</th><th class="mt-col-area">Area / centro di costo</th><th>Conformità</th></tr></thead>
-        <tbody>
-          {% for r in righe %}
-          <tr>
-            <td>
-              {% if r.scheda %}<a href="{% url 'anagrafica:dipendente_detail' r.id %}">{{ r.nome }}</a>{% else %}{{ r.nome }}{% endif %}{% pallino_presenza r.id %}
-              {% if r.mansione %}<div class="mt-mansione">{{ r.mansione }}</div>{% endif %}
-              {% for s in r.carico %}<div class="mt-carico">{{ s }}</div>{% endfor %}
-            </td>
-            <td class="mt-col-area">{{ r.area|default:r.reparto|default:"—" }}{% if r.centro %}<div class="mt-mansione">{{ r.centro }}</div>{% endif %}</td>
-            <td>{% include "anagrafica/components/hr_pill.html" with tone=r.tono dot=1 label=r.esito_label %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
+  </div>
   {% elif not collegato %}
   <section class="hr-card">
     {% include "anagrafica/components/hr_empty.html" with icon="🔗" title="Account non collegato a un dipendente" text="Il tuo utente del portale non è collegato a una scheda in anagrafica: chiedi all'ufficio HR di collegarlo." %}
