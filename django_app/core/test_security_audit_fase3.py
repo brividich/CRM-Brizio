@@ -34,6 +34,12 @@ PUBLIC_VIEWS = frozenset({
     # è spento; email da confermare, limiti per IP e globali, campo trappola (reception/views_pubbliche.py).
     "reception.views_pubbliche.richiesta",
     "reception.views_pubbliche.conferma",
+    # Corso e-learning dal link aperto: 404 senza token valido di un corso pubblicato; slide in ordine,
+    # media solo delle slide aperte, limiti di invio, campo trappola (anagrafica/views_corso_aperto.py).
+    "anagrafica.views_corso_aperto.corso",
+    "anagrafica.views_corso_aperto.quiz_finale",
+    "anagrafica.views_corso_aperto.immagine",
+    "anagrafica.views_corso_aperto.video",
     # Aperto solo finche' SETUP_COMPLETED manca dal .env (audit M9): nei test
     # il flag non c'e'; in produzione il wizard risponde redirect/404.
     "setup_wizard.views.wizard_home",

@@ -732,3 +732,106 @@ def formazione_online_gradimento(request, corso_id: int):
         "scala": [(1, "Per niente"), (2, "Poco"), (3, "Abbastanza"), (4, "Molto"), (5, "Del tutto")],
         "commento": request.POST.get("commento", "") if request.method == "POST" else "",
     }, status=400 if errore else 200)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Link aperto (chi non ha un utente del portale): attivazione e controllo HR
+# ═══════════════════════════════════════════════════════════════════════════
+
+def url_link_aperto(request, link) -> str:
+    """Indirizzo completo del link aperto: quello pubblico (Entra) se configurato."""
+    from django.conf import settings
+    base = ((getattr(settings, "ELEARNING_LINK_APERTO_URL_PUBBLICO", "") or "").strip()
+            or (getattr(settings, "RECEPTION_RICHIESTE_URL_PUBBLICO", "") or "").strip())
+    percorso = reverse("corso_aperto:corso", args=[link.token])
+    return base.rstrip("/") + percorso if base else request.build_absolute_uri(percorso)
+
+
+@login_required
+@require_POST
+def elearning_link_aperto(request, corso_id: int):
+    """Attiva, rigenera o spegne il link aperto del corso (solo editor formazione)."""
+    from datetime import date
+
+    from .models_elearning import TrainingElearningLinkAperto
+    from .services import elearning_link_aperto as link_aperto
+
+    _legacy_id, is_editor = _ctx_utente(request)
+    if not is_editor:
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    azione = request.POST.get("azione")
+    if azione == "spegni":
+        TrainingElearningLinkAperto.objects.filter(corso=corso).update(attivo=False, aggiornato_il=timezone.now())
+        messages.info(request, "Link aperto spento: chi lo apre trova una pagina inesistente.")
+    elif azione in ("attiva", "rigenera"):
+        try:
+            scade_il = date.fromisoformat(request.POST.get("scade_il") or "") if request.POST.get("scade_il") else None
+        except ValueError:
+            scade_il = None
+        link_aperto.attiva_o_rigenera(corso, request.user, rigenera=azione == "rigenera", scade_il=scade_il)
+        messages.success(request, "Nuovo link creato: quello vecchio non funziona più." if azione == "rigenera"
+                         else "Link aperto attivo.")
+    else:
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+    log_action(request, f"elearning_link_aperto_{azione}", MODULE, {"corso": corso.pk}, oggetto=corso)
+    return redirect(reverse("anagrafica:formazione_elearning_manage", args=[corso.pk]) + "#link-aperto")
+
+
+@login_required
+def elearning_link_aperto_qr(request, corso_id: int):
+    """QR del link aperto (PNG) da stampare o mostrare in officina."""
+    import io
+
+    import qrcode
+
+    from .models_elearning import TrainingElearningLinkAperto
+
+    _legacy_id, is_editor = _ctx_utente(request)
+    if not is_editor:
+        return HttpResponse(status=403)
+    link = get_object_or_404(TrainingElearningLinkAperto, corso_id=corso_id, attivo=True)
+    code = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=12, border=2)
+    code.add_data(url_link_aperto(request, link))
+    code.make(fit=True)
+    buf = io.BytesIO()
+    code.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
+    resp = HttpResponse(buf.getvalue(), content_type="image/png")
+    resp["Content-Disposition"] = f'inline; filename="corso_{corso_id}_link_aperto.png"'
+    resp["Cache-Control"] = "private, no-store"
+    return resp
+
+
+@login_required
+@require_POST
+def elearning_risposta_aperta(request, corso_id: int, risposta_id: int):
+    """Controllo HR di un quiz dal link aperto: abbina (o correggi) o scarta."""
+    from .models_elearning import TrainingElearningRispostaAperta
+    from .services import elearning_link_aperto as link_aperto
+
+    _legacy_id, is_editor = _ctx_utente(request)
+    if not is_editor:
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+    risposta = get_object_or_404(TrainingElearningRispostaAperta, pk=risposta_id, corso_id=corso_id)
+    azione = request.POST.get("azione")
+    if azione == "abbina":
+        try:
+            legacy_id = int(request.POST.get("legacy_anagrafica_id") or 0)
+        except ValueError:
+            legacy_id = 0
+        if legacy_id not in {d["id"] for d in link_aperto.dipendenti_attivi()}:
+            messages.error(request, "Scegli un dipendente attivo dall'elenco.")
+        else:
+            link_aperto.abbina(risposta, legacy_id, user=request.user)
+            messages.success(request, f"Abbinato: {risposta.cognome} {risposta.nome}."
+                             + (" Corso registrato sulla scheda." if risposta.superato else ""))
+            log_action(request, "elearning_risposta_aperta_abbinata", MODULE,
+                       {"corso": corso_id, "risposta": risposta.pk, "legacy_anagrafica_id": legacy_id}, oggetto=risposta)
+    elif azione == "scarta":
+        link_aperto.scarta(risposta, user=request.user, nota=request.POST.get("nota") or "")
+        messages.info(request, "Risposta scartata." + (" Il completamento creato è stato annullato." if risposta.record_id else ""))
+        log_action(request, "elearning_risposta_aperta_scartata", MODULE,
+                   {"corso": corso_id, "risposta": risposta.pk}, oggetto=risposta)
+    return redirect(reverse("anagrafica:formazione_elearning_manage", args=[corso_id]) + "#link-aperto")

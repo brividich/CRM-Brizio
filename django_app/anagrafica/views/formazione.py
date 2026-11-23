@@ -5362,7 +5362,24 @@ def formazione_elearning_manage(request, corso_id: int):
     for v in versioni:
         v.n_completamenti = per_versione.get(v.version_label, 0)
 
+    # Link aperto (chi non ha un utente del portale) e quiz arrivati da lì, da controllare.
+    from ..models_elearning import TrainingElearningLinkAperto, TrainingElearningRispostaAperta
+    from ..services.elearning_link_aperto import dipendenti_attivi as _attivi_link
+    from ..views_elearning import url_link_aperto
+    link_aperto = TrainingElearningLinkAperto.objects.filter(corso=corso).first()
+    risposte_aperte = list(TrainingElearningRispostaAperta.objects.filter(corso=corso)[:300])
+    if risposte_aperte:
+        nomi_ra = nomi or _helpers._build_nomi_map()
+        for r in risposte_aperte:
+            r.nome_abbinato = nomi_ra.get(r.legacy_anagrafica_id, "") if r.legacy_anagrafica_id else ""
+    n_da_abbinare = sum(1 for r in risposte_aperte if r.stato == "DA_ABBINARE")
+
     return render(request, "anagrafica/pages/formazione_elearning_manage.html", {
+        "link_aperto": link_aperto,
+        "link_aperto_url": url_link_aperto(request, link_aperto) if link_aperto and link_aperto.attivo else "",
+        "risposte_aperte": risposte_aperte,
+        "n_da_abbinare": n_da_abbinare,
+        "dipendenti_link": _attivi_link() if (is_editor and risposte_aperte) else [],
         "corso": corso,
         "versioni": versioni,
         "is_editor": is_editor,

@@ -205,3 +205,72 @@ class TrainingElearningImport(models.Model):
     @property
     def in_lavorazione(self) -> bool:
         return self.stato in (self.IN_CODA, self.IN_CORSO)
+
+
+class TrainingElearningLinkAperto(models.Model):
+    """Link aperto di un corso e-learning: chi non ha un utente del portale (es. l'officina)
+    segue slide, video e quiz senza login e alla fine scrive nome e cognome.
+
+    Un link per corso; il token si rigenera (il vecchio smette di funzionare) e si spegne."""
+
+    corso = models.OneToOneField("anagrafica.TrainingCourse", on_delete=models.CASCADE, related_name="link_aperto")
+    token = models.CharField(max_length=64, unique=True)
+    attivo = models.BooleanField(default=True)
+    scade_il = models.DateField(null=True, blank=True, help_text="Ultimo giorno valido; vuoto = senza scadenza.")
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Link aperto e-learning"
+        verbose_name_plural = "Link aperti e-learning"
+
+    def __str__(self) -> str:
+        return f"Link aperto corso {self.corso_id} ({'attivo' if self.attivo else 'spento'})"
+
+
+class TrainingElearningRispostaAperta(models.Model):
+    """Un quiz inviato dal link aperto, con il nome scritto a mano.
+
+    L'abbinamento alla persona dell'anagrafica è automatico quando nome e cognome
+    corrispondono a un solo dipendente attivo; altrimenti resta «Da abbinare» per l'HR.
+    Il completamento (``TrainingEmployeeRecord``) nasce solo da un quiz superato e abbinato."""
+
+    AUTO, MANUALE, DA_ABBINARE, SCARTATA = "AUTO", "MANUALE", "DA_ABBINARE", "SCARTATA"
+    STATO_CHOICES = [
+        (AUTO, "Abbinata in automatico"),
+        (MANUALE, "Abbinata a mano"),
+        (DA_ABBINARE, "Da abbinare"),
+        (SCARTATA, "Scartata"),
+    ]
+
+    corso = models.ForeignKey("anagrafica.TrainingCourse", on_delete=models.CASCADE, related_name="risposte_aperte")
+    nome = models.CharField(max_length=100)
+    cognome = models.CharField(max_length=100)
+    punteggio_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    n_corrette = models.PositiveSmallIntegerField(default=0)
+    n_totali = models.PositiveSmallIntegerField(default=0)
+    superato = models.BooleanField(default=False)
+    risposte_json = models.JSONField(default=dict)
+    versione_corso = models.CharField(max_length=40, blank=True, default="")
+    avviato_il = models.DateTimeField(null=True, blank=True)
+    inviato_il = models.DateTimeField(auto_now_add=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    ua_hash = models.CharField(max_length=64, blank=True, default="")
+    stato = models.CharField(max_length=12, choices=STATO_CHOICES, default=DA_ABBINARE, db_index=True)
+    legacy_anagrafica_id = models.IntegerField(null=True, blank=True, db_index=True)
+    record = models.ForeignKey("anagrafica.TrainingEmployeeRecord", null=True, blank=True, on_delete=models.SET_NULL,
+                               related_name="+")
+    abbinata_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="+")
+    abbinata_il = models.DateTimeField(null=True, blank=True)
+    nota = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        ordering = ["-inviato_il"]
+        verbose_name = "Risposta da link aperto"
+        verbose_name_plural = "Risposte da link aperto"
+
+    def __str__(self) -> str:
+        return f"{self.cognome} {self.nome} · corso {self.corso_id} · {self.get_stato_display()}"

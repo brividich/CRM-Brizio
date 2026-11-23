@@ -11,7 +11,7 @@ Lavora in modo conservativo: preserva confini di sicurezza, tracciabilità, comp
 - Mai segreti, dati reali di persone o clienti, contenuto di caselle, log di produzione, credenziali, certificati o export di dati personali in prompt, documenti, commit, esempi, screenshot o fixture: solo dati sintetici.
 - Materiale sensibile a runtime: `.env` (anche `config/.env` del deploy), credenziali Graph/LDAP/SMTP, certificati, dump di database, media con dati personali, log di produzione.
 - ACL v2 è il livello di autorizzazione primario; l'ACL legacy è solo il fallback dove manca un binding canonico. La visibilità nel menu non protegge niente: decide il server.
-- Superfici pubbliche a token strette: solo `/automazioni/approvazione/*` e `/approval-actions/*`; via Entra Application Proxy si pubblica solo `/approval-actions/*`. Ogni nuova esenzione da login/ACL va in `MIDDLEWARE_EXEMPT_PREFIXES` (`config/settings/base.py`) **e** in `PUBLIC_VIEWS` di `core/test_security_audit_fase3.py`.
+- Superfici pubbliche a token strette: solo `/automazioni/approvazione/*`, `/approval-actions/*` e `/corso-aperto/*`; via Entra Application Proxy si pubblicano solo `/approval-actions/*`, `/richiesta-visita/*` e `/corso-aperto/*`. Ogni nuova esenzione da login/ACL va in `MIDDLEWARE_EXEMPT_PREFIXES` (`config/settings/base.py`) **e** in `PUBLIC_VIEWS` di `core/test_security_audit_fase3.py`.
 - Endpoint API/AJAX protetti: JSON `401/403`, mai redirect HTML.
 - Security Center AI (`diario_preposto`, `rilevazione_incidenti`, `procedure_refresh`, `dpi`, `rentri`): preserva audit trail, fonti di verità, privacy e tracciabilità visibile all'utente.
 

@@ -1022,6 +1022,10 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     # RECEPTION_RICHIESTE_PUBBLICHE non vale 1 (404). Email da confermare, limite per IP e
     # globale, campo trappola. Unica parte della reception pensata per Entra Application Proxy.
     "/richiesta-visita/",
+    # Corso e-learning dal link aperto (chi non ha un utente del portale, es. l'officina):
+    # token per corso che l'HR spegne/rigenera, slide in ordine, quiz con nome e cognome,
+    # limite per IP e globale, campo trappola. Pensato anche per Entra Application Proxy.
+    "/corso-aperto/",
     # Letture contatori dai collector (es. OPC UA delle CNC): token per collector +
     # allowlist IP nella view (ASSETS_METER_INGEST_ALLOWED_IPS). Solo rete interna,
     # MAI pubblicato su Entra Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md).
