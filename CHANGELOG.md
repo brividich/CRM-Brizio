@@ -22,6 +22,10 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - **Sezione dedicata in Qualifiche:** barra «Cerca in tutta la pagina» che filtra tutte le sezioni insieme, con conteggi «trovate/totale» e righe non corrispondenti nascoste (come nella pagina Asset).
 - File: `core/views.py` (`_cerca_processi_qualificati`, `api_global_search`), `core/static/core/js/command-palette.js`, `anagrafica/templates/anagrafica/pages/mpq_sezione.html`, `assets/tests_sezione_processo.py`, `core/guide_moduli/contenuti/home.py`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/core.md`, `docs/moduli/anagrafica.md`.
 
+### Audit 22/11, ondata 7: verifica delle piste
+
+- Rilette sul codice le voci «Pista» dell'audit: 11 confermate (2 solo documentazione), 4 scartate, 2 in parte; esito e proposte P1-P16 in `docs/audit/PIANO_RIMEDIO_2026-11-22.md`. Solo documentazione.
+
 ### Processi qualificati: spunta «Crea sezione dedicata» (P11TF12 primo caso) e «↓ Scarica» PDF/Excel
 
 - **Spunta sul processo (MOD.128):** nella modifica del processo, riquadro «Sezione dedicata»: «Crea sezione dedicata», sigla (es. P11TF12, diventa il nome della voce e l'indirizzo), titolo della pagina, dove compare (Qualifiche e Asset, solo Qualifiche, solo Asset). Al salvataggio nascono le voci di menu in Competenze › Qualifiche (accanto a «Processi qualificati») e nella sidebar Asset (accanto a «PART 145»); togliendo la spunta o eliminando il processo spariscono, i dati restano. Più processi con la stessa sigla = una pagina. Indirizzi unici per tutte le sigle: `/anagrafica/mod128/sezione/<sigla>/` (`anagrafica:mpq_sezione`) e `/assets/processi/<sigla>/` (`assets:processo_sezione`), quindi nessun permesso nuovo per ogni processo.
