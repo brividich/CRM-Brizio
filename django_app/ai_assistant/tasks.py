@@ -36,6 +36,32 @@ def run_warmup_ollama(timeout: int | None = None) -> dict:
 _INDEX_SGI_LOCK_SECONDS = 960
 
 
+def run_ricostruisci_indice_rag(force: bool = False) -> dict:
+    """Costruisce l'indice RAG nel cluster e lo salva su file per il portale.
+
+    Schedulato a intervalli brevi e accodato dal portale quando i documenti cambiano:
+    se il file è già allineato ai documenti esce subito. **Fail-safe**: non solleva.
+    """
+    from django.core.cache import cache
+
+    from ai_assistant import indice_file
+    from ai_assistant.services import build_and_save_knowledge_index
+
+    if not indice_file.attivo():
+        return {"ok": True, "skipped": True, "message": "Indice su file disattivato."}
+    lock_key = "ai_assistant:indice_rag:lock"
+    if not cache.add(lock_key, "1", _INDEX_SGI_LOCK_SECONDS):
+        return {"ok": True, "skipped": True, "message": "Ricostruzione gia' in corso."}
+    try:
+        return build_and_save_knowledge_index(force=force)
+    except Exception:
+        logger.exception("run_ricostruisci_indice_rag: errore inatteso")
+        return {"ok": False, "skipped": False, "message": "errore inatteso"}
+    finally:
+        cache.delete(lock_key)
+        cache.delete(indice_file._RICHIESTA_CHIAVE)
+
+
 def run_index_sgi_documents() -> dict:
     """Indicizza/scalda il corpus documentale SGI nel RAG dell'assistente.
 

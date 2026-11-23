@@ -349,6 +349,9 @@ OLLAMA_RAG_MAX_CONTEXT_CHARS = int(env("OLLAMA_RAG_MAX_CONTEXT_CHARS", "7000") o
 # 0 = nessuna cache, rebuild sincrono a ogni domanda (solo test/diagnosi).
 OLLAMA_RAG_CACHE_SECONDS = int(env("OLLAMA_RAG_CACHE_SECONDS", "300") or "300")
 OLLAMA_RAG_BACKGROUND_REBUILD = env_bool("OLLAMA_RAG_BACKGROUND_REBUILD", True)
+# Indice RAG costruito dal cluster django-q e letto da file dal portale (ai_assistant/indice_file.py).
+OLLAMA_RAG_INDEX_FILE_ENABLED = env_bool("OLLAMA_RAG_INDEX_FILE_ENABLED", True)
+OLLAMA_RAG_INDEX_FILE = env("OLLAMA_RAG_INDEX_FILE", "")
 OLLAMA_EMBED_INLINE_MAX = int(env("OLLAMA_EMBED_INLINE_MAX", "200") or "200")
 # All'apertura di /assistente-ai/ prepara in background indice RAG, vettori del
 # routing e modello chat (warmup al piu' ogni 10 minuti).

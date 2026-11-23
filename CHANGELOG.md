@@ -9,6 +9,17 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: processi pronti all'avvio e indice AI costruito dalla coda
+
+- **Riscaldamento all'avvio** (`core/avvio.py`, chiamato da `config/wsgi.py`): prima di accettare richieste, ogni processo IIS prepara l'indice delle rotte, i cancelli del sottomenu di anagrafica (solo le pagine linkate, circa 60) e i template di base. Prima ogni processo pagava 2-8 s sui primi utenti dopo ogni riavvio o deploy, ed erano 6 processi. Circa 1 s per processo; `HUB_WARMUP=0` lo spegne.
+- **Indice dell'assistente AI costruito dal cluster django-q e letto da file** (`ai_assistant/indice_file.py`): prima ogni processo web lo costruiva da sé, circa 10.000 brani, all'apertura della chat e poi ogni 5 minuti, rallentando le altre pagine dello stesso processo.
+  - Il nuovo task `ai_indice_rag_file`, ogni 15 minuti, lo salva in `media_private/rag/` firmato con HMAC, ed esce subito se i documenti non sono cambiati.
+  - Il portale lo carica e lo rilegge solo quando il file cambia. Con documenti cambiati risponde con l'indice del file e chiede una ricostruzione alla coda.
+  - Anche l'indicizzazione notturna SGI salva il file.
+  - `OLLAMA_RAG_INDEX_FILE_ENABLED=0` torna al comportamento precedente; `OLLAMA_RAG_INDEX_FILE` cambia il percorso.
+- **Deploy:** riavviare qcluster, perché il nuovo schedule si registra con i flussi gestiti. Il primo file nasce entro 15 minuti; nel frattempo vale il comportamento precedente.
+- File: `core/avvio.py` (nuovo), `config/wsgi.py`, `ai_assistant/indice_file.py` (nuovo), `ai_assistant/services.py`, `ai_assistant/tasks.py`, `automazioni/schedules.py`, `config/settings/base.py`, `config/settings/test.py`, `ai_assistant/tests_indice_file.py` (nuovo), `core/test_avvio.py` (nuovo).
+
 ### Fix: Mansionario → Struttura → Importa andava in errore 500
 
 - `anagrafica/services/struttura_excel.py`: il catalogo dei processi MOD.128 leggeva un campo `codice` che `ProcessoQualificato` non ha; con almeno un processo in archivio (produzione) ogni anteprima/import del file Struttura dava 500. Il processo si abbina per nome esatto, come dicono le istruzioni del file.
