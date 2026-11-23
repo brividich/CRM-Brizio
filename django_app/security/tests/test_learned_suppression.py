@@ -157,8 +157,13 @@ class LearningTests(_Base):
     def test_bulk_action_counts_once(self):
         alerts = [self._alert_from_engine()[1] for _ in range(3)]
         # Tre alert attivi con la stessa impronta non possono coesistere solo se dedup diversi: qui lo sono.
+        from security.services.alert_lifecycle import TransizioneNonAmmessa
+
         for alert in alerts:
-            mark_false_positive(alert, actor="analista", reason="Massivo", batch="bulk-1", user=self.user)
+            try:
+                mark_false_positive(alert, actor="analista", reason="Massivo", batch="bulk-1", user=self.user)
+            except TransizioneNonAmmessa:
+                pass  # stesso alert gia' segnato: dal 23/11 (audit C1) la seconda volta e' rifiutata
         self.assertFalse(SecurityAlertSuppressionRule.objects.exists())
 
     def test_dismissals_outside_window_do_not_count(self):

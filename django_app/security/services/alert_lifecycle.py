@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils import timezone
 
 from security.models import SecurityAlertActionLog, Status
@@ -27,6 +28,29 @@ CLOSED_ALERT_STATUSES = [
     Status.RESOLVED,
     Status.SUPPRESSED,
 ]
+
+
+class TransizioneNonAmmessa(ValueError):
+    """Passaggio di stato non ammesso dallo stato attuale dell'alert (letto sotto blocco)."""
+
+
+# Da quali stati si puo' fare ogni azione a mano (audit C1). Un alert chiuso esce solo con
+# «Riapri»; due operatori che agiscono insieme: il secondo trova lo stato gia' cambiato.
+STATI_AMMESSI = {
+    "acknowledge": {Status.NEW, Status.OPEN, Status.SNOOZED, Status.MUTED},
+    "close": set(ACTIVE_ALERT_STATUSES),
+    "false_positive": set(ACTIVE_ALERT_STATUSES),
+    "mute": set(ACTIVE_ALERT_STATUSES) - {Status.MUTED},
+    "snooze": set(ACTIVE_ALERT_STATUSES),
+    "reopen": set(CLOSED_ALERT_STATUSES) | {Status.SNOOZED, Status.MUTED},
+}
+
+ETICHETTE_STATO = {
+    Status.NEW: "nuovo", Status.OPEN: "aperto", Status.ACKNOWLEDGED: "preso in carico",
+    Status.IN_PROGRESS: "in lavorazione", Status.SNOOZED: "rimandato", Status.MUTED: "silenziato",
+    Status.CLOSED: "chiuso", Status.FALSE_POSITIVE: "falso positivo", Status.RESOLVED: "risolto",
+    Status.SUPPRESSED: "soppresso",
+}
 
 
 def acknowledge_alert(alert, actor="system", reason=""):
@@ -134,7 +158,22 @@ def reopen_alert(alert, actor="system", reason="", user=None):
 
 
 def _transition_alert(alert, new_status, action, actor, reason="", extra_details=None, **field_updates):
-    old_status = alert.status
+    with transaction.atomic():
+        return _transition_alert_bloccato(alert, new_status, action, actor, reason, extra_details, **field_updates)
+
+
+def _transition_alert_bloccato(alert, new_status, action, actor, reason="", extra_details=None, **field_updates):
+    # Riga riletta sotto blocco: il controllo e il registro usano lo stato vero, non quello
+    # che l'operatore aveva in pagina (audit C1).
+    attuale = type(alert).objects.select_for_update().get(pk=alert.pk)
+    ammessi = STATI_AMMESSI.get(action)
+    if ammessi is not None and attuale.status not in ammessi:
+        alert.status = attuale.status
+        raise TransizioneNonAmmessa(
+            f"L'alert è già {ETICHETTE_STATO.get(attuale.status, attuale.status)}: azione non applicata."
+            + (" Per lavorarlo di nuovo usa «Riapri»." if attuale.status in CLOSED_ALERT_STATUSES else "")
+        )
+    old_status = attuale.status
     alert.status = new_status
     alert.status_reason = reason or ""
     for field_name, value in field_updates.items():

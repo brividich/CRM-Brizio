@@ -11,7 +11,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from .models import SecurityAlert, SecurityCaseTask, SecurityRemediationTicket, Severity, Status
-from .services.alert_lifecycle import ACTIVE_ALERT_STATUSES, acknowledge_alert, close_alert, mark_false_positive, snooze_alert
+from .services.alert_lifecycle import ACTIVE_ALERT_STATUSES, TransizioneNonAmmessa, acknowledge_alert, close_alert, mark_false_positive, snooze_alert
 from .services.cases import (
     ACTIVE_CASE_STATUSES,
     CASE_STATUSES,
@@ -361,7 +361,10 @@ def alerts_bulk(request):
     done = 0
     for alert in alerts:
         if alert.status in allowed:
-            handler(alert)
+            try:
+                handler(alert)
+            except TransizioneNonAmmessa:
+                continue  # cambiato nel frattempo da un altro operatore: conta fra i saltati
             done += 1
     skipped = len(alerts) - done
     messages.success(request, f"Azione applicata a {done} alert" + (f"; {skipped} saltati perché già in uno stato non compatibile." if skipped else "."))

@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit 22/11, ondata 4: SOC
+
+- **Passaggi di stato degli alert (C1):** ogni azione rilegge l'alert sotto blocco e si applica solo dagli stati ammessi; un alert chiuso torna in lavorazione solo con «Riapri». Due operatori insieme: il secondo vede «L'alert è già chiuso: azione non applicata» e il registro non si sdoppia; nelle azioni massive, nei gruppi e nelle proposte AI l'alert già cambiato viene saltato. File: `security/services/alert_lifecycle.py`, `security/views.py`, `views_cases.py`, `services/alert_gruppi.py`, `services/ai_proposte.py`.
+- **Una sola scala di gravità (C2):** critica > alta > attenzione > media > bassa > info in tutto il SOC (`security/services/gravita.py`). Cambiano solo l'ordinamento degli avvisi, i gruppi e la scheda asset, che mettevano «attenzione» sotto «media»; notifiche, postura, ticket e report erano già così. File: `rule_engine.py`, `alert_gruppi.py`, `asset_overview.py`, `notifications.py`, `diagnostics.py`.
+- **Permessi delle pagine SOC (S8):** nuovo test che apre tutte le rotte del SOC con un utente senza permesso e pretende il rifiuto (oggi nessuna pagina scoperta), con un controllo che l'amministratore le apra. File: `security/tests/test_rotte_negate.py`.
+- Guida SOC `security/guide/07_ALERT_LIFECYCLE.md` («Passaggi ammessi», «Gravità»); `docs/moduli/security.md`. Test `security/tests/test_stati_e_gravita.py`, adeguato `test_learned_suppression.py`. Nessuna migrazione.
+
 ### Audit 22/11, ondata 3: segnalazioni di sicurezza, schede di sicurezza, diario
 
 - **Indice infortuni TRIR (G1-G2):** le ore lavorate sono stimate sulla parte d'anno trascorsa (organico × 2.000 × giorni trascorsi/365), non sull'anno intero: a giugno l'indice non vale più la metà del reale. Sotto il numero è scritto il calcolo; se l'anagrafica non risponde compare «Organico non disponibile» (prima un trattino muto). File: `rilevazione_incidenti/services.py`, `pages/statistiche.html`, `dashboard_hub_preview.html`, `ai_assistant/tools.py`.

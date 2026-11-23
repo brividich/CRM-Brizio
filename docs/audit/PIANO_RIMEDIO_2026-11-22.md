@@ -70,6 +70,8 @@ Guide: Segnalazioni (Archivia/Ripristina, spiegazione del TRIR), Schede di sicur
 
 ### Ondata 4 — SOC · `feature/soc-rimedi-audit` · nessuna migrazione
 
+**Stato 23/11: fatta** (C1, C2, S8). C2 rivista con l'utente: le scale nel codice erano sette e la maggioranza (modello, notifiche, postura, ticket, report) metteva «attenzione» sopra «media»; si è tenuto quell'ordine e allineati i tre punti discordanti, così soglie delle notifiche e voto di postura non cambiano. S8: nessuna pagina SOC scoperta.
+
 | Voce | Intervento | File | Test |
 |---|---|---|---|
 | C1 [6] | Mappa dei passaggi ammessi (es. chiuso → solo «riapri»); `_transition_alert` rilegge la riga con `select_for_update` dentro `transaction.atomic`, rifiuta i passaggi non ammessi con un messaggio chiaro; il registro conserva il vecchio stato letto sotto blocco | `security/services/alert_lifecycle.py:136-180` e chiamanti | chiuso → in lavorazione rifiutato; due operatori: il secondo vede lo stato aggiornato |
