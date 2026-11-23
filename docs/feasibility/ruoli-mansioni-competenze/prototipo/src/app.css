@@ -5,6 +5,12 @@
 .px-tour b { color:#9a3412; }
 .px-tour-txt { flex:1 1 260px; min-width:0; }
 .px-tour-nav { display:flex; gap:6px; align-items:center; }
+/* «Vedi come»: il ruolo con cui si guarda «Da fare» */
+.px-ruolo { display:inline-flex; align-items:center; gap:8px; font-weight:700; color:#9a3412; white-space:nowrap; }
+.px-ruolo select { min-height:36px; padding:6px 30px 6px 10px; border-radius:8px; border:2px solid #ea580c; background:#fff; color:#0c2545; font:inherit; font-weight:700; cursor:pointer; }
+/* Voci del menu che il prototipo non costruisce: si vedono, ma più leggere */
+.hrnav-sub-voci a.px-fuori { color:#94a3b8; font-weight:500; }
+.hrnav-sub-voci a.px-fuori::after { content:"·"; margin-left:5px; color:#cbd5e1; }
 .px-btn { min-height:36px; padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; background:#fff; color:#0c2545; font:inherit; font-weight:600; cursor:pointer; }
 .px-btn:hover { background:#f1f5f9; }
 .px-btn[aria-pressed="true"] { background:#0c2545; color:#fff; border-color:#0c2545; }
