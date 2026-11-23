@@ -662,6 +662,10 @@ urlpatterns = [
     path("formazione/elearning/<int:corso_id>/regole/", views_elearning.elearning_regola_corso, name="elearning_regola_corso"),
     path("formazione/elearning/cruscotto/", views_elearning.elearning_cruscotto, name="elearning_cruscotto"),
     path("formazione/elearning/registro/", views_elearning.elearning_registro, name="elearning_registro"),
+    path("formazione/elearning/<int:corso_id>/link-aperto", views_elearning.elearning_link_aperto, name="elearning_link_aperto"),
+    path("formazione/elearning/<int:corso_id>/link-aperto/qr.png", views_elearning.elearning_link_aperto_qr, name="elearning_link_aperto_qr"),
+    path("formazione/elearning/<int:corso_id>/link-aperto/risposte/<int:risposta_id>", views_elearning.elearning_risposta_aperta,
+         name="elearning_risposta_aperta"),
     # ── fine e-learning professionale ──
 
     # ── Formazione HR — Istruttori ─────────────────────────────────────────

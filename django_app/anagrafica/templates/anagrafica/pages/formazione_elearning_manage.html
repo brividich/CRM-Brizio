@@ -180,6 +180,81 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
       {% endif %}
     </section>
 
+    {# ── Link aperto: chi non ha un utente del portale (officina) ────────── #}
+    <section class="fmd-panel" id="link-aperto" style="padding:18px 22px;">
+      <div class="fmd-toolbar">
+        <span class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg> Link aperto
+          {% if link_aperto.attivo %}<span class="fmd-badge fmd-b-green">Attivo</span>{% else %}<span class="fmd-badge fmd-b-grey">Spento</span>{% endif %}
+          {% if n_da_abbinare %}<span class="fmd-badge fmd-b-amber">{{ n_da_abbinare }} da abbinare</span>{% endif %}
+        </span>
+      </div>
+      <p class="fmd-fhelp" style="margin:0 0 10px;">Per chi non ha un utente del portale: apre il link (anche da internet), segue slide e video in ordine e alla fine del quiz scrive nome e cognome. Se il nome corrisponde a un solo dipendente attivo il quiz si abbina da solo e, se superato, il corso va sulla sua scheda; altrimenti resta «Da abbinare» qui sotto.</p>
+      {% if link_aperto.attivo %}
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+        {% if is_editor %}<a href="{% url 'anagrafica:elearning_link_aperto_qr' corso.pk %}" target="_blank" title="Apri il QR da stampare"><img src="{% url 'anagrafica:elearning_link_aperto_qr' corso.pk %}" alt="QR del link aperto" width="120" height="120" style="border-radius:8px;border:1px solid var(--fmd-line,#d8e1ec);"></a>{% endif %}
+        <div style="flex:1;min-width:240px;">
+          <input type="text" readonly value="{{ link_aperto_url }}" class="fm-input" style="width:100%;font-family:monospace;font-size:13px;" aria-label="Link aperto">
+          <p class="fmd-muted" style="margin:6px 0 0;">{% if link_aperto.scade_il %}Valido fino al {{ link_aperto.scade_il|date:"d/m/Y" }}.{% else %}Senza scadenza.{% endif %}{% if not pubblicato %} <strong>Il corso è in bozza: il link si apre solo dopo la pubblicazione.</strong>{% endif %}</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if is_editor %}
+      <form method="post" action="{% url 'anagrafica:elearning_link_aperto' corso.pk %}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:12px;">
+        {% csrf_token %}
+        <label class="fmd-field"><span>Valido fino al (facoltativo)</span><input type="date" name="scade_il" class="fm-input" value="{{ link_aperto.scade_il|date:'Y-m-d' }}"></label>
+        {% if link_aperto.attivo %}
+        <button type="submit" name="azione" value="attiva" class="fmd-btn fmd-btn-ghost">Salva scadenza</button>
+        <button type="submit" name="azione" value="rigenera" class="fmd-btn fmd-btn-ghost" data-hub-confirm="Creare un nuovo link? Quello vecchio (e il QR stampato) smette di funzionare.">Nuovo link</button>
+        <button type="submit" name="azione" value="spegni" class="fmd-btn fmd-btn-ghost" style="color:#c0392b;">Spegni</button>
+        {% else %}
+        <button type="submit" name="azione" value="attiva" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Attiva il link aperto</button>
+        {% endif %}
+      </form>
+      {% endif %}
+
+      {% if risposte_aperte %}
+      <div class="fmd-tablewrap" style="margin-top:14px;">
+        <table class="fmd-table">
+          <thead><tr><th>Nome scritto</th><th>Inviato</th><th>Quiz</th><th>Abbinamento</th>{% if is_editor %}<th class="fmd-nowrap">Controllo</th>{% endif %}</tr></thead>
+          <tbody>
+          {% for r in risposte_aperte %}
+            <tr>
+              <td><strong>{{ r.cognome }} {{ r.nome }}</strong></td>
+              <td class="fmd-nowrap">{{ r.inviato_il|date:"d/m/Y H:i" }}</td>
+              <td>{% if r.superato %}<span class="fmd-badge fmd-b-green">Superato</span>{% else %}<span class="fmd-badge fmd-b-orange">Non superato</span>{% endif %} <span class="fmd-muted">{{ r.n_corrette }}/{{ r.n_totali }}</span></td>
+              <td>
+                {% if r.stato == "AUTO" or r.stato == "MANUALE" %}{{ r.nome_abbinato|default:r.legacy_anagrafica_id }} <span class="fmd-badge {% if r.stato == 'AUTO' %}fmd-b-grey{% else %}fmd-b-green{% endif %}">{{ r.get_stato_display }}</span>
+                {% elif r.stato == "SCARTATA" %}<span class="fmd-badge fmd-b-grey">Scartata</span>{% if r.nota %} <span class="fmd-muted">{{ r.nota }}</span>{% endif %}
+                {% else %}<span class="fmd-badge fmd-b-amber">Da abbinare</span>{% if r.nota %} <span class="fmd-muted">{{ r.nota }}</span>{% endif %}{% endif %}
+              </td>
+              {% if is_editor %}
+              <td class="fmd-nowrap">
+                {% if r.stato != "SCARTATA" %}
+                <details>
+                  <summary class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">{% if r.stato == "DA_ABBINARE" %}Abbina{% else %}Correggi{% endif %}</summary>
+                  <form method="post" action="{% url 'anagrafica:elearning_risposta_aperta' corso.pk r.pk %}" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                    {% csrf_token %}
+                    <select name="legacy_anagrafica_id" class="fm-input" required aria-label="Dipendente">
+                      <option value="">Scegli il dipendente…</option>
+                      {% for d in dipendenti_link %}<option value="{{ d.id }}"{% if d.id == r.legacy_anagrafica_id %} selected{% endif %}>{{ d.nome }}</option>{% endfor %}
+                    </select>
+                    <button type="submit" name="azione" value="abbina" class="fmd-btn fmd-btn-primary" style="padding:4px 10px;">Abbina</button>
+                    <button type="submit" name="azione" value="scarta" formnovalidate class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;color:#c0392b;" data-hub-confirm="Scartare questa risposta?{% if r.record_id %} Il corso registrato verrà annullato.{% endif %}">Scarta</button>
+                  </form>
+                </details>
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
+              </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% elif link_aperto %}
+      <p class="fmd-muted" style="margin:12px 0 0;">Nessun quiz arrivato dal link aperto.</p>
+      {% endif %}
+    </section>
+
     {# ── Versioni (prompt 05, fase 2) ──────────────────────────────────── #}
     <section class="fmd-panel" style="padding:18px 22px;">
       <div class="fmd-block-title" style="margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-clipboard"/></svg> Versioni <span class="fmd-count">{{ versioni|length }}</span></div>

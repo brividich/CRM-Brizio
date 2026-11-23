@@ -242,6 +242,21 @@ GUIDA = {
             ],
         },
         {
+            "id": "corso-link-aperto",
+            "titolo": "Corso online per chi non ha un utente (link aperto)",
+            "blocchi": [
+                ("p", "Gestione e-learning → pagina del corso → riquadro «Link aperto» (serve il permesso di modifica della formazione): "
+                      "«Attiva il link aperto» crea un indirizzo e un QR da stampare o mandare all'officina. Il link si apre anche da "
+                      "internet senza login, solo con il corso pubblicato: slide e video in ordine, poi il quiz con «Nome» e «Cognome»."),
+                ("p", "Se nome e cognome corrispondono a un solo dipendente attivo (ordine, accenti e maiuscole non contano) il quiz si "
+                      "abbina da solo e, se superato, il corso va sulla scheda come un e-learning con login. Altrimenti la riga resta "
+                      "«Da abbinare»: «Abbina» sceglie la persona; «Correggi» sposta un abbinamento sbagliato (il completamento "
+                      "precedente viene annullato con motivo); «Scarta» butta una risposta non valida."),
+                ("p", "«Nuovo link» cambia l'indirizzo (quello vecchio e il QR stampato smettono di funzionare), «Spegni» lo chiude, "
+                      "«Valido fino al» gli dà una scadenza."),
+            ],
+        },
+        {
             "id": "cercare",
             "titolo": "Trovare un dipendente",
             "blocchi": [
@@ -1275,6 +1290,16 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Un quiz dal link aperto resta «Da abbinare»",
+            "perche": "il nome scritto non corrisponde a nessun dipendente attivo, oppure a più di uno (omonimi). Si abbina a mano dal riquadro «Link aperto» della pagina del corso; finché non è abbinato il corso non va sulla scheda.",
+            "fare": ["Pagina del corso → «Link aperto» → «Abbina» sulla riga, scegli il dipendente e conferma."],
+        },
+        {
+            "sintomo": "Il link aperto risponde «pagina non trovata»",
+            "perche": "il link è spento, scaduto o rigenerato (vale solo l'ultimo), oppure il corso è tornato in bozza. Controlla il riquadro «Link aperto» nella pagina del corso.",
+            "fare": ["Pubblica il corso o premi «Attiva il link aperto»; dopo «Nuovo link» ristampa il QR."],
+        },
         {
             "sintomo": "Nella scheda dipendente «Ticket aperti» o «Ticket totali» sono cambiati",
             "perche": "prima erano cercati con l'identificativo sbagliato e potevano essere quelli di un'altra persona; ora sono i ticket chiesti da quella persona.",

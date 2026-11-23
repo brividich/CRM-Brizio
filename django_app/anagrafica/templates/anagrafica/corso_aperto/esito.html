@@ -1,0 +1,19 @@
+{% extends "anagrafica/corso_aperto/_base.html" %}
+{% block corpo %}
+<h2>{{ titolo }}</h2>
+{% if inviato %}
+  <div class="pb-esito {% if superato %}ok{% else %}ko{% endif %}">
+    {% if superato %}
+      Grazie {{ nominativo }}. Risposte giuste: {{ n_corrette }} su {{ n_totali }} ({{ punteggio|floatformat:0 }}%). Il corso verrà registrato sulla tua scheda.
+    {% else %}
+      Risposte giuste: {{ n_corrette }} su {{ n_totali }} ({{ punteggio|floatformat:0 }}%). Per superare il quiz serve almeno il {{ minimo|floatformat:0 }}%: ripassa le slide e riprova.
+    {% endif %}
+  </div>
+  {% if not superato %}
+  <div class="pb-nav"><a class="pb-btn pb-btn-ghost" href="{{ torna }}?s=1">Ripassa le slide</a><a class="pb-btn" href="{{ quiz_url }}">Rifai il quiz</a></div>
+  {% endif %}
+{% else %}
+  {% if testo %}<p>{{ testo }}</p>{% endif %}
+  {% if torna %}<div class="pb-nav"><a class="pb-btn pb-btn-ghost" href="{{ torna }}">Torna al corso</a></div>{% endif %}
+{% endif %}
+{% endblock %}
