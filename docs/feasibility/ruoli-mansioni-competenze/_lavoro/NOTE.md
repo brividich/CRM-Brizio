@@ -334,3 +334,20 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
   cattura nascondendo `.devgit`, poi `build/prepara_guscio.py`, `build/costruisci_prototipo.py`, `build/verifica_prototipo.py`;
   fermare il server e cancellare il db. Gli script di seed e cattura erano nello scratchpad della sessione (da riscrivere).
 - Poi: pubblicare `prototipo/pubblicazione/prototipo-competenze-hub.html` (approvato: privato), attendere il riscontro, Fase 4 (PDF).
+
+## 23/11/2026 sera — cambio di mandato: dal prototipo all'ambiente di test
+
+- Il proprietario chiede un ambiente di test con dati reali al posto del prototipo. Decisioni: server PCLOGSYS,
+  ambiente di test rifatto da zero; tutti dati reali; via allo sviluppo, le modifiche entrano nel pacchetto normale
+  (feature → main → release/prod). Finisce il vincolo di sola analisi.
+- Prima cosa: carico delle competenze richieste da ogni mansione dalla matrice della Qualità (ok ricevuto).
+  Il portale ha già l'importazione (Mansionario → Struttura → Importa, `anagrafica/services/struttura_excel.py`):
+  nessun codice nuovo. `build/costruisci_carico_matrice.py` scrive `carico/Carico_competenze_mansioni.xlsx`.
+- Misure (produzione, sola lettura, solo conteggi): 242 mansioni attive, struttura v8 caricata, 0 competenze di
+  mansione, 0 livelli per competenza. Matrice: 74 mansioni compilate in 5 fogli (uffici), 664 «Sì», 58 competenze.
+  Nel file: 635 righe su 71 mansioni, tutte abbinate per nome (verifica con il lettore e l'abbinamento del portale).
+- Fuori dal file: «Responsabilità del reparto» di UFFICIO TECNICO (ING), UFFICIO TECNICO (CAM) e UFFICIO FAI
+  (29 «Sì»): nel portale quelle aree non hanno un ruolo responsabile, quindi la mansione non esiste. Una cella «?».
+- Proposta da confermare: «Gestione e mantenimento del SGI» (v9) abbinata a «Governance e mantenimento del SGI» (v8).
+- L'elenco v9 ha 8 mansioni che il portale non ha (allineamento v8 → v9 ancora da fare) e 8 reparti con il prefisso
+  «UFFICIO» che nel portale sono aree senza prefisso.
