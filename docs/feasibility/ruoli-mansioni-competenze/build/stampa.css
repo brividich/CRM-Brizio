@@ -403,6 +403,12 @@ figcaption b { color: var(--navy); font-weight: 600; }
 .menu2 .v.dop { border-color: #D9822B; background: #FFF1E0; }
 .menu2 .v.nuo { border-color: #2E8B57; background: #E6F4EC; }
 .menu2 .leg { font-size: 7.8pt; color: var(--soft); margin-top: 1.6mm; padding-top: 1.6mm; border-top: .2mm solid var(--line); line-height: 1.5; }
+.dir .foglio figure.sch { margin: 0 0 3.2mm; text-align: center; break-inside: avoid; }
+.dir .foglio figure.sch img { display: block; margin: 0 auto; border: .3mm solid var(--line); border-radius: 1.2mm; }
+.dir .foglio figure.sch figcaption { font-size: 8.8pt; line-height: 1.36; color: var(--mid); margin-top: 1.5mm; text-align: left; }
+.doc.light figure.schermata img { max-width: 100%; }
+.doc.light figure.schermata .coppia img:first-child { max-width: 76%; }
+.doc.light figure.schermata .coppia img:last-child { max-width: 19%; }
 .dir .foglio .menu-h2 { font-size: 12.5pt; color: var(--navy); margin: 7mm 0 2.5mm; font-weight: 600; }
 .ruoli6 { display: grid; grid-template-columns: 34mm 48mm 1fr; font-size: 10pt; line-height: 1.34; }
 .ruoli6 > div { padding: 2mm 3mm 2mm 0; border-top: .2mm solid var(--line); }

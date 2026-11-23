@@ -497,6 +497,12 @@ figcaption b { color: var(--navy); font-weight: 600; }
 .menu2 .v.dop { border-color: #D9822B; background: #FFF1E0; }
 .menu2 .v.nuo { border-color: #2E8B57; background: #E6F4EC; }
 .menu2 .leg { font-size: 7.8pt; color: var(--soft); margin-top: 1.6mm; padding-top: 1.6mm; border-top: .2mm solid var(--line); line-height: 1.5; }
+.dir .foglio figure.sch { margin: 0 0 3.2mm; text-align: center; break-inside: avoid; }
+.dir .foglio figure.sch img { display: block; margin: 0 auto; border: .3mm solid var(--line); border-radius: 1.2mm; }
+.dir .foglio figure.sch figcaption { font-size: 8.8pt; line-height: 1.36; color: var(--mid); margin-top: 1.5mm; text-align: left; }
+.doc.light figure.schermata img { max-width: 100%; }
+.doc.light figure.schermata .coppia img:first-child { max-width: 76%; }
+.doc.light figure.schermata .coppia img:last-child { max-width: 19%; }
 .dir .foglio .menu-h2 { font-size: 12.5pt; color: var(--navy); margin: 7mm 0 2.5mm; font-weight: 600; }
 .ruoli6 { display: grid; grid-template-columns: 34mm 48mm 1fr; font-size: 10pt; line-height: 1.34; }
 .ruoli6 > div { padding: 2mm 3mm 2mm 0; border-top: .2mm solid var(--line); }
@@ -506,47 +512,53 @@ figcaption b { color: var(--navy); font-weight: 600; }
 <body class="">
 <main class="dir">
 <section class="foglio">
-  <div class="occhiello">Menu di Anagrafica</div>
-  <h1>Da 53 voci a 34, con le parole della Qualità</h1>
-  <p class="attacco">Oggi lo stesso tipo di pagina compare più volte e la mansione sta in tre posti. La proposta segue l'ordine della Qualità: reparto, mansione, competenza.</p>
-
-  <div class="menu2">
-    <div class="col">
-      <div class="tit">Oggi</div>
-      <div class="pil"><b>Dashboard e Scadenzario <span>2</span></b><span class="v dop">Dashboard</span><span class="v dop">Scadenzario</span></div>
-      <div class="pil"><b>Persone <span>8</span></b><span class="v">Elenco dipendenti</span><span class="v">Il mio team</span><span class="v">Nuovo dipendente</span><span class="v">Ex dipendenti</span><span class="v">Documenti</span><span class="v">Recruiting</span><span class="v">Posizioni aperte</span><span class="v">Onboarding</span></div>
-      <div class="pil"><b>Organizzazione <span>7</span></b><span class="v">Struttura organizzativa</span><span class="v">Esplora la struttura</span><span class="v">Organigramma</span><span class="v">Prospetto dei cambiamenti</span><span class="v">Mansionario</span><span class="v">Reparti</span><span class="v">Centri di costo</span></div>
-      <div class="pil"><b>Competenze <span>20</span></b><span class="v dop">Dashboard</span><span class="v">Piani formativi</span><span class="v">Corsi</span><span class="v">Sessioni</span><span class="v">Istruttori</span><span class="v">E-learning</span><span class="v">Corsi online</span><span class="v dop">Copertura / gap</span><span class="v dop">Cruscotto</span><span class="v">Catalogo qualifiche</span><span class="v">Processi qualificati</span><span class="v dop">Matrice processi qualificati</span><span class="v">Sessioni di rinnovo</span><span class="v dop">Scadenzario qualifiche</span><span class="v dop">Matrice competenze</span><span class="v dop">Abilitazioni macchina</span><span class="v">Validazione abbinamento macchine</span><span class="v dop">Scadenzario abilitazioni</span><span class="v">Refresh semestrale</span><span class="v dop">Copertura abilitazioni</span></div>
-      <div class="pil"><b>Salute e sicurezza <span>9</span></b><span class="v dop">Cruscotto sicurezza</span><span class="v">Visite mediche</span><span class="v">Sessioni di visita</span><span class="v">Referti da rivedere</span><span class="v">Registro referti</span><span class="v">Libretto sanitario</span><span class="v">Conformità mansione</span><span class="v">Cambi mansione</span><span class="v">Mansioni di rischio</span></div>
-      <div class="pil"><b>Amministrazione, Report, Impostazioni <span>7</span></b><span class="v">Cedolini</span><span class="v">Costo orario</span><span class="v">Ferie e permessi</span><span class="v">Reportistica</span><span class="v">Chiedi un report</span><span class="v">Report dipendenti</span><span class="v">Impostazioni</span></div>
-      <div class="leg"><span class="v dop">in arancio</span> lo stesso tipo di pagina ripetuto: 3 scadenzari, 4 cruscotti, 3 matrici, 2 coperture.</div>
-    </div>
-    <div class="col dopo">
-      <div class="tit">Proposta</div>
-      <div class="pil"><b>Oggi <span>Che cosa aspetta me?</span></b><span class="v nuo">Da fare</span><span class="v">Scadenze</span><span class="v nuo">Il mio reparto</span><span class="v nuo">La mia scheda</span></div>
-      <div class="pil"><b>Persone <span>Chi c'è?</span></b><span class="v">Dipendenti</span><span class="v">Selezione</span><span class="v">Inserimenti</span><span class="v nuo">Uscite</span><span class="v">Documenti</span></div>
-      <div class="pil"><b>Organizzazione <span>Che cosa serve?</span></b><span class="v">Organigramma</span><span class="v">Reparti</span><span class="v">Mansioni</span><span class="v nuo">Competenze</span><span class="v">Cambiamenti</span></div>
-      <div class="pil"><b>Competenze <span>Chi sa fare che cosa?</span></b><span class="v">Skill matrix</span><span class="v nuo">Richieste di mansione</span><span class="v nuo">Sessioni formative</span><span class="v">Emissione semestrale</span><span class="v">Copertura</span></div>
-      <div class="pil"><b>Formazione <span>Come si impara?</span></b><span class="v">Corsi</span><span class="v">Edizioni</span><span class="v">Pianificazione</span><span class="v">Corsi online</span><span class="v">Istruttori</span></div>
-      <div class="pil"><b>Sicurezza <span>È idonea?</span></b><span class="v">Visite mediche</span><span class="v">Referti</span><span class="v">Idoneità alla mansione</span><span class="v">Rischi per mansione</span></div>
-      <div class="pil"><b>Amministrazione, Report, Impostazioni <span>6</span></b><span class="v">Cedolini</span><span class="v">Costo orario</span><span class="v">Ferie e permessi</span><span class="v">Report</span><span class="v nuo">Indicatori</span><span class="v">Impostazioni</span></div>
-      <div class="leg"><span class="v nuo">in verde</span> voci nuove. Al massimo sei voci per pilastro.</div>
-    </div>
-  </div>
-
-  <div class="fascia giu"><b>Una pagina per tipo.</b> Una skill matrix, uno scadenzario, una copertura. Le pagine di oggi non spariscono: diventano viste o filtri della stessa voce, e i loro indirizzi restano.</div>
+  <div class="occhiello">Menu di Anagrafica · oggi</div>
+  <h1>Cinque strati prima del contenuto</h1>
+  <p class="attacco">Il menu ha tre livelli: pilastro, sezione, voce. Le voci si vedono una sezione alla volta.</p>
+  <figure class="sch"><img src="../menu/01_oggi_strati.png" style="width:180mm" alt="">
+    <figcaption><b>La pagina «Mansionario».</b> Il contenuto comincia a un quinto dello schermo. Nella fila 5, sei pulsanti su nove portano ad altre pagine: è un menu in più.</figcaption></figure>
+  <figure class="sch"><img src="../menu/02_oggi_barre.png" style="width:172mm" alt="">
+    <figcaption><b>Tutti gli stati della barra: 14.</b> Per 25 voci su 53 servono tre clic. Per Sicurezza il computer e il telefono mostrano due menu diversi. 22 voci su 50 aprono una pagina che si chiama in un altro modo.</figcaption></figure>
 </section>
 
 <section class="foglio">
-  <div class="occhiello">Come cambia</div>
-  <h1>Tre idee, sei ingressi</h1>
-  <p class="attacco">La forma del menu resta quella di oggi, a due righe. Cambia che cosa c'è dentro e come si chiama.</p>
-
-  <div class="tre">
-    <div><b>Segue la struttura.</b>Reparto, mansione, competenza: lo stesso ordine con cui la Qualità sta scrivendo le mansioni.</div>
-    <div><b>Una parola, una cosa.</b>«Skill matrix» al posto di «Abilitazioni macchina». «Abilitazione» per ciò che ha una scadenza.</div>
-    <div><b>Si entra da «Oggi».</b>La prima voce mostra a ciascuno ciò che lo aspetta: firme, conferme, scadenze.</div>
+  <div class="occhiello">Menu di Anagrafica · proposta</div>
+  <h1>Due livelli invece di tre</h1>
+  <p class="attacco">Sei pilastri, al massimo sei voci ciascuno, tutte visibili insieme. In testa alla pagina restano solo le sue azioni.</p>
+  <figure class="sch"><img src="../menu/06_proposta_strati.png" style="width:180mm" alt="">
+    <figcaption><b>La stessa pagina, che diventa «Mansioni».</b> Tre strati. I numeri accanto ai pilastri dicono dove c'è qualcosa da fare.</figcaption></figure>
+  <figure class="sch"><img src="../menu/07_proposta_barre.png" style="width:180mm" alt="">
+    <figcaption><b>Tutti gli stati della barra: 8.</b> A destra restano Amministrazione, Report e Impostazioni.</figcaption></figure>
+  <div class="tre giu">
+    <div><b>Livelli del menu</b>Da 3 a 2. Ogni voce è al massimo a due clic.</div>
+    <div><b>Voci mostrate</b>Da 60 a 34, con dentro le funzioni nuove.</div>
+    <div><b>Un solo elenco</b>Da lì nascono barra, telefono e percorso: non possono più dire cose diverse.</div>
   </div>
+</section>
+
+<section class="foglio">
+  <div class="occhiello">Le pagine nuove · 1</div>
+  <h1>Si entra da «Oggi»</h1>
+  <figure class="sch"><img src="../menu/08_proposta_da_fare.png" style="width:170mm" alt="">
+    <figcaption><b>Oggi › Da fare.</b> Un elenco solo, dal più urgente, con una azione per riga. Qui è visto da un capo reparto. Prende il posto di Dashboard e Scadenzario come ingresso.</figcaption></figure>
+  <figure class="sch"><img src="../menu/09_proposta_mio_reparto.png" style="width:170mm" alt="">
+    <figcaption><b>Oggi › Il mio reparto.</b> Persone, livelli, copertura per turno e richieste del proprio reparto. Il responsabile si ricava dalla mansione «Responsabilità del reparto» che la Qualità sta scrivendo.</figcaption></figure>
+</section>
+
+<section class="foglio">
+  <div class="occhiello">Le pagine nuove · 2</div>
+  <h1>Una pagina per tipo</h1>
+  <figure class="sch"><img src="../menu/10_proposta_mansioni.png" style="width:170mm" alt="">
+    <figcaption><b>Organizzazione › Mansioni.</b> Al posto del Mansionario: due azioni invece di nove pulsanti, filtri invece di dieci riquadri.</figcaption></figure>
+  <figure class="sch"><img src="../menu/11_proposta_skill_matrix.png" style="width:170mm" alt="">
+    <figcaption><b>Competenze › Skill matrix.</b> Una matrice sola, con tre viste: per mansione, per competenza, solo abilitazioni. Oggi sono tre pagine con tre nomi.</figcaption></figure>
+</section>
+
+<section class="foglio">
+  <div class="occhiello">Variante e tempi</div>
+  <h1>Come arrivarci</h1>
+  <figure class="sch"><img src="../menu/12_proposta_anteprima.png" style="width:180mm" alt="">
+    <figcaption><b>Variante: l'anteprima del pilastro.</b> Fermando il puntatore su un pilastro se ne vedono le voci, senza lasciare la pagina. Si può aggiungere in un secondo momento.</figcaption></figure>
 
   <h2 class="menu-h2">Chi entra da dove</h2>
   <div class="ruoli6">
@@ -559,14 +571,14 @@ figcaption b { color: var(--navy); font-weight: 600; }
     <div><b>Sicurezza</b></div><div>Sicurezza</div><div>Visite, referti, idoneità, rischi per mansione</div>
   </div>
 
-  <h2 class="menu-h2">Come arrivarci</h2>
+  <h2 class="menu-h2">Tre passi</h2>
   <div class="tre">
-    <div><b>1. Il menu.</b>Voci riordinate e rinominate, pagina «Oggi», voci accorpate come viste. 5-10 giorni, subito.</div>
+    <div><b>1. La navigazione.</b>Voci riordinate senza sezioni, un solo elenco, nomi uguali ai titoli, «Da fare» e «Il mio reparto». 10-19 giorni.</div>
     <div><b>2. Le pagine uniche.</b>Uno scadenzario, una skill matrix, una copertura. 6-12 giorni.</div>
     <div><b>3. Le voci nuove.</b>Richieste, sessioni formative, emissione, indicatori: arrivano con le tappe del progetto.</div>
   </div>
 
-  <div class="fascia giu"><b>Che cosa non cambia.</b> Gli indirizzi delle pagine e i permessi: ciascuno continua a vedere solo le voci che può aprire. Amministrazione e Impostazioni restano come sono.</div>
+  <div class="fascia giu"><b>Che cosa non cambia.</b> Gli indirizzi delle pagine e i permessi: ciascuno continua a vedere solo le voci che può aprire.</div>
 </section>
 </main>
 </body></html>

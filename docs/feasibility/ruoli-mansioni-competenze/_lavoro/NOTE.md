@@ -263,10 +263,11 @@ Script usati: scratchpad della sessione (`dq_rmc.py`, `dq2.py`…), non committa
       voce), 14 stati della barra, 25 voci a tre clic, due menu diversi per Sicurezza (elenco nel codice
       `anagrafica_extras.py:585` contro menu configurato letto dal telefono), 22 nomi su 50 diversi dal percorso. Proposta: 2
       livelli, 6 pilastri, 34 voci, 8 stati. Immagini in `menu/` (12 PNG: oggi reale + bozzetti sulla pagina vera).
-      **DA FINIRE (sessione interrotta per limite d'uso):** `RMC_Menu_foglio.pdf` e `RMC_Menu_studio.pdf` sono ancora la
-      versione 1.0 senza immagini. Rifare `build/light_menu.html` con le immagini (4 pagine), in `fai_light` sostituire
-      `src="menu/` con `src="../menu/` per lo studio, rigenerare, controllare a vista. Script di cattura nello scratchpad della
-      sessione (`menu_crawl.py`, `menu_shots.py`, `menu_proposta.py`, `menu_componi.py`): da riscrivere se servono altre immagini.
+      PDF rigenerati il 23/11 con le immagini: `RMC_Menu_foglio.pdf` (5 pagine, quasi solo immagini: oggi, proposta, quattro
+      pagine nuove, variante e passi) e `RMC_Menu_studio.pdf` (12 pagine, dal markdown). In `fai_light` il percorso
+      `src="menu/` diventa `src="../menu/` perché i file di stampa stanno in `build/`. Script di cattura nello scratchpad
+      della sessione (`menu_crawl.py`, `menu_shots.py`, `menu_proposta.py`, `menu_componi.py`): da riscrivere se servono
+      altre immagini. Resta da fare, dopo l'approvazione: allineare il prototipo al nuovo menu.
 
 ## Risposte del proprietario al GATE 1 (21/11/2026) — domande tecniche
 

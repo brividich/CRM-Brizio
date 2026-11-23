@@ -803,10 +803,12 @@ def fai_light(browser, raster: Path | None) -> list[str]:
          '<main class="doc light">' + md(traduci_rimandi(leggi("05_approfondimenti.md"), "05", {})) + "</main>", False),
         ("RMC_IT_scheda.pdf", "Scheda tecnica", 4,
          '<main class="doc light">' + md(re.sub(r"<!--.*?-->", "", leggi("build/light_it.md"), flags=re.S)) + "</main>", False),
-        ("RMC_Menu_foglio.pdf", "Menu di Anagrafica", 2,
+        ("RMC_Menu_foglio.pdf", "Menu di Anagrafica", 5,
          '<main class="dir">' + re.sub(r"<!--.*?-->", "", leggi("build/light_menu.html"), flags=re.S) + "</main>", True),
+        # le immagini stanno in menu/, accanto al markdown: dal file di stampa (in build/) il percorso sale di un livello
         ("RMC_Menu_studio.pdf", "Menu di Anagrafica: studio", None,
-         '<main class="doc light">' + md(traduci_rimandi(leggi("06_menu_anagrafica.md"), "06", {})) + "</main>", False),
+         '<main class="doc light">' + md(traduci_rimandi(leggi("06_menu_anagrafica.md"), "06", {})).replace('src="menu/', 'src="../menu/')
+         + "</main>", False),
     ]
     for nome, titolo, attese, corpo, per_direzione in lavori:
         sorgente = QUI / ("stampa_" + nome[:-4].lower() + ".html")
