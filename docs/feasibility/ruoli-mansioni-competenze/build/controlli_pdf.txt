@@ -1,4 +1,4 @@
-Tecnico: 92 pagine, 8.3 MB; pagine vuote: nessuna
+Tecnico: 93 pagine, 8.2 MB; pagine vuote: nessuna
 Tecnico: caratteri incorporati: , Consolas, Consolas-Bold, SegoeUI, SegoeUI-Bold, SegoeUI-Semibold, SegoeUISymbol
 Tecnico: elementi che sbordano dall'area di stampa: 0
 Tecnico: diagrammi Mermaid convertiti in SVG: 16; schermate: 21
@@ -9,7 +9,7 @@ Direzione: elementi che sbordano dall'area di stampa: 0
 Direzione: termini vietati dalla missione (FSM, motore, cache, ACL, HTMX, DB): NESSUNO
 Direzione: altri termini informatici (database, algoritmo, algoritmi, Django, template, migrazione, migrazioni, backend, frontend, server, query, script, software, API, SQL, JSON, CSS, HTML, workflow, repository, deploy, bug, codice, sistema informativo, lorem): NESSUNO
 RMC_Direzione_foglio.pdf: 2 pagine (OK: 2); elementi che sbordano: 0; termini vietati: NESSUNO; dati di prova del portale: NESSUNO
-RMC_Qualita_scheda.pdf: 2 pagine (OK: 2); elementi che sbordano: 0
+RMC_Qualita.pdf: 6 pagine; elementi che sbordano: 0
 RMC_Approfondimenti.pdf: 8 pagine; elementi che sbordano: 0
 RMC_IT_scheda.pdf: 4 pagine (OK: 4); elementi che sbordano: 0
 RMC_Menu_foglio.pdf: 5 pagine (OK: 5); elementi che sbordano: 0; termini vietati: NESSUNO; dati di prova del portale: NESSUNO

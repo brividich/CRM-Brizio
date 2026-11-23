@@ -233,8 +233,8 @@ sessioni formative, emissione, indicatori) arrivano con le tappe del progetto e 
   aggiornate (`anagrafica/tests_subnav_due_livelli.py`, dieci prove).
 - **Un solo punto di vista.** Ho misurato il menu come lo vede un amministratore, con il database vuoto: gli altri
   ruoli vedono meno voci, e i numeri sui pilastri erano a zero.
-- **Bozzetti.** Mostrano la forma, non il funzionamento. Il prototipo navigabile ha ancora il menu della prima
-  stesura: si allinea dopo l'approvazione.
+- **Bozzetti.** Mostrano la forma, non il funzionamento. Il prototipo navigabile usa dal 23/11/2026 lo stesso menu a
+  due livelli; le pagine «Da fare» e «Il mio reparto» lì sono quelle della prima stesura, non i bozzetti di qui.
 - **Barra del portale.** Resta fuori: quel riordino è stato accantonato l'8/11/2026.
 
 ---

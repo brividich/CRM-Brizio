@@ -37,6 +37,8 @@ from playwright.sync_api import sync_playwright
 
 QUI = Path(__file__).resolve().parent
 RADICE = QUI.parent
+ARCHIVIO = RADICE / "archivio"  # i documenti lunghi, di riferimento: in radice restano solo quelli da presentare
+ARCHIVIO.mkdir(exist_ok=True)
 REPO = RADICE.parents[2]
 SVG = QUI / "svg"
 
@@ -739,7 +741,7 @@ def fai_tecnico(browser, chromium: str, raster: Path | None) -> list[str]:
         stampa(browser, cop, tmp / "cop.pdf", None)
         segnalibri = [[1 if t == "c" else 2, (f"{n}  " if not (t == "c" and n == "A") else "") + tit, pagine[a] + 1]
                       for t, n, tit, a in indice]
-        uscita = RADICE / "Fattibilita_RMC_Tecnico.pdf"
+        uscita = ARCHIVIO / "Fattibilita_RMC_Tecnico.pdf"
         unisci(tmp / "cop.pdf", tmp / "corpo.pdf", uscita, "Fattibilità Ruoli → Mansioni → Competenze · documento tecnico",
                segnalibri)
     esiti = controlli_comuni("Tecnico", uscita)
@@ -765,7 +767,7 @@ def fai_direzione(browser, raster: Path | None) -> list[str]:
         "È una proposta: nulla è stato cambiato nel portale. I numeri sul presente vengono dalla skill matrix in vigore; "
         "gli esempi usano nomi e dati inventati."), "", "Fattibilità RMC · sintesi per la Direzione"),
         encoding="utf-8")
-    uscita = RADICE / "Fattibilita_RMC_Direzione.pdf"
+    uscita = ARCHIVIO / "Fattibilita_RMC_Direzione.pdf"
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         stampa(browser, sorgente, tmp / "corpo.pdf", "Sintesi per la Direzione")
@@ -797,7 +799,7 @@ def fai_light(browser, raster: Path | None) -> list[str]:
     lavori = [
         ("RMC_Direzione_foglio.pdf", "Foglio per la Direzione", 2,
          '<main class="dir">' + re.sub(r"<!--.*?-->", "", leggi("build/light_direzione.html"), flags=re.S) + "</main>", True),
-        ("RMC_Qualita_scheda.pdf", "Scheda per la Qualità", 2,
+        ("RMC_Qualita.pdf", "Proposta per la Qualità", None,
          '<main class="doc light">' + md(re.sub(r"<!--.*?-->", "", leggi("build/light_qualita.md"), flags=re.S)) + "</main>", False),
         ("RMC_Approfondimenti.pdf", "Approfondimenti", None,
          '<main class="doc light">' + md(traduci_rimandi(leggi("05_approfondimenti.md"), "05", {})) + "</main>", False),
@@ -813,7 +815,7 @@ def fai_light(browser, raster: Path | None) -> list[str]:
     for nome, titolo, attese, corpo, per_direzione in lavori:
         sorgente = QUI / ("stampa_" + nome[:-4].lower() + ".html")
         sorgente.write_text(pagina(corpo, "", "Fattibilità RMC · " + titolo), encoding="utf-8")
-        uscita = RADICE / nome
+        uscita = (ARCHIVIO if nome in ("RMC_Approfondimenti.pdf", "RMC_Menu_studio.pdf") else RADICE) / nome
         stampa(browser, sorgente, uscita, titolo)
         doc = fitz.open(uscita)
         n = doc.page_count
@@ -837,8 +839,8 @@ def coerenza() -> list[str]:
     """Numeri chiave: devono comparire uguali nei markdown, nei risultati del motore di riferimento e nei PDF."""
     ris = json.loads((QUI / "risultati.json").read_text(encoding="utf-8"))
     q, qb = ris["quadro"], ris["quadro_blocco"]
-    tecnico = " ".join(testo_pdf(RADICE / "Fattibilita_RMC_Tecnico.pdf"))
-    direzione = " ".join(testo_pdf(RADICE / "Fattibilita_RMC_Direzione.pdf"))
+    tecnico = " ".join(testo_pdf(ARCHIVIO / "Fattibilita_RMC_Tecnico.pdf"))
+    direzione = " ".join(testo_pdf(ARCHIVIO / "Fattibilita_RMC_Direzione.pdf"))
     tecnico, direzione = (re.sub(r"\s+", " ", t).lower() for t in (tecnico, direzione))  # i titoletti sono in maiuscolo
     s = q["stati"]
     sb = qb["stati"]
