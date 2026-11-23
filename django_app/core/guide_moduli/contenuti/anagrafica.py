@@ -127,6 +127,30 @@ GUIDA = {
             ],
         },
         {
+            "id": "organizzazione-panoramica",
+            "titolo": "Organizzazione: la pagina d'ingresso",
+            "blocchi": [
+                ("p", "Anagrafica → Organizzazione si apre su «Panoramica»: da qui si arriva a tutte le pagine della "
+                      "sezione senza passare dal menu."),
+                ("ul", [
+                    "In alto i numeri della struttura: «Centri di costo», «Reparti», «Aree», «Ruoli», «Mansioni», "
+                    "«Competenze», «Persone in forza». Ogni numero apre il suo elenco; li vede chi vede la Struttura "
+                    "organizzativa.",
+                    "«Collegamenti diretti»: una tessera per pagina, con una riga che dice a che cosa serve: «Esplora "
+                    "la struttura», «Mansioni», «Richieste», «Reparti e capi», «Centri di costo», «Organigramma», "
+                    "«Prova un cambiamento», «Struttura e revisioni». Compaiono solo le pagine che puoi aprire. Il "
+                    "pallino arancione su «Richieste» conta quelle che aspettano te.",
+                    "«Da fare»: solo ciò che aspetta in questa sezione, con il numero e il pulsante. «Richieste da "
+                    "approvare», «Le mie richieste in attesa di altri», «Mansioni senza competenze», «Reparti senza "
+                    "responsabile», «Rischi da confermare», «Altro da completare nella struttura». Una riga a zero "
+                    "non compare.",
+                    "Sotto «Da fare» una riga dice se la struttura è ancora una bozza, qual è la revisione in vigore e "
+                    "quante modifiche non sono ancora emesse.",
+                    "«Nuova richiesta», in alto a destra, compare a chi può aprirne una.",
+                ]),
+            ],
+        },
+        {
             "id": "richieste-competenze",
             "titolo": "Richieste su mansioni e competenze",
             "blocchi": [
