@@ -462,6 +462,113 @@ PAGINE["05_centri_di_costo"] = ("Centri di costo", testa(
 </div>""")
 
 
+# ─ Altre informazioni e pagine collegate ─────────────────────────────────────────────────────────
+# In ogni pagina, accanto alla cosa scelta: altri dati che la riguardano e i collegamenti diretti
+# alle pagine dove si prosegue, già aperte su quella cosa.
+STILE += """
+.m-lk{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #eef2f7;text-decoration:none;color:#0f172a;font-size:13.5px}
+.m-lk:last-child{border-bottom:0}
+.m-lk .ic{display:inline-flex;width:28px;height:28px;flex:none;border-radius:8px;background:#e8f3fb;color:#1f6fb0;align-items:center;justify-content:center;font-size:14px}
+.m-lk b{display:block;font-weight:600}
+.m-lk small{display:block;font-size:12px;color:#64748b}
+.m-lk .fr{margin-left:auto;color:#94a3b8;font-size:15px;display:inline-flex}
+.m-lk .n{margin-left:auto;display:inline-flex;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:#ea580c;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center}
+.m-lk .n + .fr{margin-left:8px}
+"""
+
+
+def _collegate(voci):
+    righe = ""
+    for nome, spiega, icona, n in voci:
+        conta = f'<span class="n">{n}</span>' if n else ""
+        righe += (f'<a class="m-lk" href="#"><span class="ic">{ico(icona)}</span><span><b>{nome}</b><small>{spiega}</small></span>'
+                  f'{conta}<span class="fr">{ico("arrow-right")}</span></a>')
+    return h("Pagine collegate", f"{len(voci)} · già aperte su ciò che hai scelto") + f'<div class="m-card">{righe}</div>'
+
+
+def _altre(coppie, titolo="Altre informazioni"):
+    return h(titolo, "") + f'<div class="m-card m-pad">{campi(coppie)}</div>'
+
+
+def _arricchisci(chiave, altre, collegate, dove="dopo_la_scheda", prima=""):
+    attiva, html = PAGINE[chiave]
+    taglio = html.index("<section>", html.index("<section>") + 1)
+    sinistra, destra = html[:taglio], html[taglio:]
+    nuovo = prima + (_altre(altre) if altre else "") + _collegate(collegate)
+    if dove == "in_cima":
+        destra = destra.replace("<section>", "<section>" + nuovo, 1)
+    elif dove == "in_fondo":
+        i = destra.rindex("</section>")
+        destra = destra[:i] + nuovo + destra[i:]
+    else:
+        i = destra.index("</div></div>", destra.index('class="m-card m-pad"')) + len("</div></div>")
+        destra = destra[:i] + nuovo + destra[i:]
+    PAGINE[chiave] = (attiva, sinistra + destra)
+
+
+for _chiave in ("01_esplora_la_struttura", "01b_esplora_mansioni_per_prime"):
+    _arricchisci(_chiave, [("Processo", "Produzione"), ("Mansioni di rischio", "Addetto macchine utensili"),
+                           ("Abilitazione con scadenza", "No"), ("Copertura", "2 persone autonome su 4"),
+                           ("Richieste aperte", "2")],
+                 [("Apri la mansione", "Competenze, persone e valutazioni", "clipboard", 0),
+                  ("Richieste su questa mansione", "2 aperte, 1 da approvare", "edit", 1),
+                  ("Reparto CN5GL", "Responsabile, persone e ruoli", "users", 0),
+                  ("Centro di costo CN5G", "Reparti e persone del centro", "coins", 0),
+                  ("Organigramma del reparto", "Chi riporta a chi", "building", 0)], dove="in_fondo")
+
+_arricchisci("02_mansioni", [("Processo", "Produzione"), ("Macchina", "DM7 · DMC 160U"), ("Mansioni di rischio", "Addetto macchine utensili"),
+                             ("Persone abilitate", "2 su 4"), ("In formazione", "1 persona"), ("Richieste aperte", "2")],
+             [("Esplora la struttura", "Aperta su questa mansione", "grid", 0),
+              ("Richieste su questa mansione", "2 aperte, 1 da approvare", "edit", 1),
+              ("Persone con la mansione", "Livello e stato di ognuna", "users", 0),
+              ("Reparto CN5GL", "Responsabile, persone e ruoli", "building", 0),
+              ("Corsi collegati", "Formazione prevista per le competenze", "book", 0)])
+
+_arricchisci("03_richieste", [], [("Apri la richiesta", "Passi, competenze che servono, storia", "edit", 0),
+                                  ("Scheda di Ivo Marendi", "Mansioni e competenze della persona", "users", 0),
+                                  ("Mansione DM12 - DMC 160U Duoblock", "Che cosa richiede e chi ce l'ha", "clipboard", 0),
+                                  ("Reparto CN5GL", "Responsabile, persone e ruoli", "building", 0)],
+             dove="in_cima",
+             prima=h("Richiesta scelta", "") + '<div class="m-card m-pad">' + campi([
+                 ("Richiesta", "RAM-2027-0021"), ("Tipo di richiesta", "Assegnazione di mansione"), ("Persona", "Ivo Marendi"),
+                 ("Mansione", "DM12 - DMC 160U Duoblock"), ("Livello da raggiungere", lv("U")), ("Richiesta da", "Elio Vantaro · 18/01/2027"),
+                 ("Stato", st("In approvazione", "warn")), ("Tocca a", "RDD: approvare")]) + "</div>")
+PAGINE["03_richieste"] = (PAGINE["03_richieste"][0], PAGINE["03_richieste"][1].replace("<tbody><tr>", "<tbody><tr class=on>", 1))
+
+_arricchisci("04_reparti_e_capi", [("Aree", "CN5GL"), ("Ruoli previsti", "Operatore macchina utensile, Capo reparto"),
+                                   ("Mansioni", "4"), ("In formazione", "1 persona"), ("Richieste aperte", "2")],
+             [("Esplora la struttura", "Aperta su questo reparto", "grid", 0),
+              ("Persone del reparto", "6 persone, con ruolo e mansioni", "users", 0),
+              ("Richieste del reparto", "2 aperte, 1 da approvare", "edit", 1),
+              ("Centro di costo CN5G", "Reparti e persone del centro", "coins", 0),
+              ("Organigramma del reparto", "Chi riporta a chi", "building", 0)])
+
+_arricchisci("05_centri_di_costo", [("Responsabili", "Elio Vantaro, Nora Castelvi"), ("Mansioni", "9"), ("Richieste aperte", "3")],
+             [("Esplora la struttura", "Aperta su questo centro di costo", "grid", 0),
+              ("Persone del centro", "14 persone, con reparto e ruolo", "users", 0),
+              ("Costo orario del centro", "Solo per chi lavora sui dati HR", "clock", 0),
+              ("Report per centro di costo", "Organico e costo orario, in Excel", "download", 0)])
+
+_arricchisci("06_organigramma", [("Centro di costo", "CN5G"), ("Mansioni del reparto", "4"), ("In formazione", "1 persona")],
+             [("Reparto CN5GL", "Responsabile, persone e ruoli", "users", 0),
+              ("Esplora la struttura", "Aperta su questo reparto", "grid", 0),
+              ("Prova un cambiamento", "Sposta una persona di questo reparto", "refresh", 0),
+              ("Scheda di Elio Vantaro", "Il responsabile del reparto", "users", 0)])
+
+_arricchisci("07_prova_un_cambiamento", [("Mansioni di oggi", "DM6, DM12"), ("Mansioni del nuovo reparto", "7, nessuna assegnata"),
+                                         ("Richieste da aprire", "2 sospensioni, fino a 7 assegnazioni")],
+             [("Scheda di Ivo Marendi", "Mansioni e competenze di oggi", "users", 0),
+              ("Reparto CN5GL", "Il reparto di partenza", "building", 0),
+              ("Reparto CN5GS", "Il reparto di arrivo e le sue mansioni", "building", 0),
+              ("Nuova richiesta", "Per le mansioni del nuovo reparto", "plus", 0)])
+
+_arricchisci("08_struttura_e_revisioni", [], [("Reparti e capi", "3 reparti senza ruolo responsabile", "users", 3),
+                                              ("Mansioni", "5 mansioni senza ruolo", "clipboard", 5),
+                                              ("Rischi da confermare", "Mansioni di rischio proposte", "shield", 4),
+                                              ("Scarica la revisione 3", "La revisione in vigore, in PDF", "download", 0)],
+             dove="in_fondo")
+
+
 SCRIPT = """
 ([contenuto, attiva, voci, stile]) => {
   const st = document.createElement('style'); st.textContent = stile; document.head.appendChild(st);
