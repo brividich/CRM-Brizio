@@ -1,0 +1,12 @@
+{# Etichetta dell'ambiente di test: inclusa solo con HUB_AMBIENTE_TEST=1 (context processor ambiente_test). In basso al centro: in alto coprirebbe la barra del portale. #}
+<style>
+  .ambtest{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);z-index:9998;pointer-events:none;
+    padding:4px 14px;border-radius:999px;border:1px solid #b45309;background:#fef3c7;color:#78350f;
+    font:700 12px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;white-space:nowrap;
+    box-shadow:0 2px 8px rgba(15,23,42,.18)}
+  .ambtest span{font-weight:500}
+  body.theme-dark .ambtest{background:rgba(245,158,11,.18);border-color:#f59e0b;color:#fcd34d}
+  @media (max-width:640px){.ambtest span{display:none}}
+  @media print{.ambtest{display:none}}
+</style>
+<div class="ambtest" role="status">AMBIENTE DI TEST <span>· le mail non partono, le automazioni sono ferme</span></div>
