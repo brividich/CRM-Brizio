@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### RENTRI: rettifica (R) prima dello scarico effettivo (M) (23/11)
+
+- **Ordine come sul registro**: in produzione le 71 coppie R+M hanno sempre la R registrata prima della M (R = peso a destino in positivo, M = stesso peso in negativo, stesso numero, entrambe collegate allo scarico originale O). Il portale proponeva M → R. Ora la catena è **O → R → M**: menu, barra di navigazione e filtro dell'elenco mostrano «R - Rettifica scarico» prima di «M - Scarico effettivo».
+- **Pulsante del passo successivo** (`rentri/views.py` `_PROSSIMO`, `_m_della_rettifica`): dalla O «Rettifica scarico (R)», dalla R «Registra scarico effettivo (M)»; quest'ultimo sparisce quando esiste la M con lo stesso numero o sulla stessa O. La M aperta dalla R eredita la O collegata, il numero della R e il peso con il segno opposto; la R aperta dalla O propone il peso stimato in positivo.
+- **Movimenti collegabili** (`rentri/fili.py` `fili_del_codice`): la R propone gli scarichi originali senza R/M, la M quelli senza M (prima la R cercava una M già registrata). Testi del modulo e del campo «Rettifica scarico» aggiornati; `catena.ORDINE_CATENA` R prima di M.
+- File: `rentri/views.py`, `rentri/fili.py`, `rentri/catena.py`, `templates/rentri/components/subnav.html`, `templates/rentri/pages/menu.html`, `templates/rentri/pages/elenco.html`, `templates/rentri/pages/movimento_form.html`, `core/guide_moduli/contenuti/rentri.py`, test `rentri/tests_automazioni.py`, `tests_fili.py`, `tests_wizard_step_by_step.py`. Nessuna migrazione, nessun dato toccato.
+
 ### Anagrafica: corso e-learning dal link aperto (23/11)
 
 - **Link aperto per chi non ha un utente del portale** (officina): nella pagina di gestione del corso e-learning, riquadro «Link aperto» con indirizzo, QR da stampare, scadenza facoltativa, «Nuovo link» e «Spegni». Chi apre `/corso-aperto/<token>/` (anche da internet, senza login, solo con corso pubblicato) segue slide e video in ordine con la permanenza minima per slide e il tempo minimo del corso misurati dal server, poi fa il quiz e scrive nome e cognome. Limiti di invio per IP (60/ora) e globali (400/ora), campo trappola, media serviti solo per le slide già aperte.

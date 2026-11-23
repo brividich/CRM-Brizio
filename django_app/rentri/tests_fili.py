@@ -58,16 +58,17 @@ class FiloTests(TestCase):
     def test_m_e_r_mostrano_il_carico(self):
         c = _mov("C", self.ieri - timedelta(days=10), quantita=3200)
         o = _mov("O", self.ieri - timedelta(days=9), quantita=-3200, rif_op=c.id_registrazione, arrivo_fir="FIR 0001")
-        cand = self.candidati("M", "12 01 01")
+        # Sul registro: O → R → M, entrambe collegate alla O.
+        cand = self.candidati("R", "12 01 01")
         self.assertEqual(len(cand), 1)
         self.assertEqual(cand[0]["id_registrazione"], o.id_registrazione)
         self.assertEqual(cand[0]["carichi"], [c.id_registrazione])
         self.assertEqual(cand[0]["stato"], "attesa_m")
+        _mov("R", self.ieri, quantita=None, rettifica_scarico=Decimal("5420"), rif_op=o.id_registrazione)
         self.assertEqual(self.candidati("R", "12 01 01"), [])
-        m = _mov("M", self.ieri, quantita=None, rettifica_scarico=Decimal("-5420"), rif_op=o.id_registrazione)
+        self.assertEqual([x["id_registrazione"] for x in self.candidati("M", "12 01 01")], [o.id_registrazione])
+        _mov("M", self.ieri, quantita=None, rettifica_scarico=Decimal("-5420"), rif_op=o.id_registrazione)
         self.assertEqual(self.candidati("M", "12 01 01"), [])
-        cand_r = self.candidati("R", "12 01 01")
-        self.assertEqual([x["id_registrazione"] for x in cand_r], [m.id_registrazione])
         # «Mostra anche i già collegati».
         tutti = self.candidati("M", "12 01 01", tutti="1")
         self.assertEqual([x["id_registrazione"] for x in tutti], [o.id_registrazione])

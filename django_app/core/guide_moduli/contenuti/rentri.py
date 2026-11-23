@@ -14,8 +14,10 @@ GUIDA = {
                 ("def", [
                     ("C - Carico", "il rifiuto viene prodotto e messo nel deposito."),
                     ("O - Scarico originale", "il rifiuto parte con il formulario (quantità stimata)."),
-                    ("M - Scarico effettivo", "la quantità vera pesata dal destinatario."),
-                    ("R - Rettifica scarico", "correzione di uno scarico già registrato: positiva o negativa."),
+                    ("R - Rettifica scarico", "al rientro della quarta copia del FIR: storna lo scarico originale con il "
+                     "peso verificato a destino, in positivo."),
+                    ("M - Scarico effettivo", "subito dopo la rettifica: lo stesso peso a destino in negativo, con lo stesso "
+                     "numero della R e il numero FIR."),
                 ]),
             ],
         },
@@ -30,8 +32,8 @@ GUIDA = {
                     "Le frecce ↑ ↓ e Invio scelgono un suggerimento.",
                     "Per gli scarichi spunta il movimento collegato nella sezione «Collegato a»: l'elenco si aggiorna da solo "
                     "quando cambi codice e ogni voce mostra il carico da cui parte il filo. Nello scarico originale (O) compaiono "
-                    "i carichi con qualcosa «da scaricare»; nello scarico effettivo (M) gli scarichi originali senza M; nella "
-                    "rettifica (R) gli scarichi effettivi senza rettifica. Il codice vale per le sei cifre: «12 01 01» trova "
+                    "i carichi con qualcosa «da scaricare»; nella rettifica (R) gli scarichi originali senza rettifica; nello "
+                    "scarico effettivo (M) gli scarichi originali senza M. Il codice vale per le sei cifre: «12 01 01» trova "
                     "anche i carichi scritti «12.01.01 Sfridi Ferro Kg».",
                     "Il collegamento è facoltativo: se non spunti niente lo scarico si salva «non collegato» e la «Verifica» lo "
                     "elenca. «Mostra anche i già collegati» fa vedere anche i fili già completi per quel passo.",
@@ -56,7 +58,7 @@ GUIDA = {
                     "Negli scarichi O e M la prima sezione è «Formulario (FIR)»: scegli il PDF o la foto e clicca "
                     "«Leggi i dati dal FIR» per farti proporre i dati (vedi sotto).",
                     "«Numero di registrazione»: lasciato vuoto lo assegna il portale al salvataggio. Aprendo lo scarico "
-                    "effettivo da una O (o la rettifica da una M) il campo propone lo stesso numero, «Stesso numero di …, "
+                    "effettivo dalla sua rettifica R il campo propone lo stesso numero, «Stesso numero di …, "
                     "come sul registro di carta»: svuotalo per averne uno nuovo. Scrivilo a mano solo per riportare una "
                     "registrazione storica (anno della data, non già usato).",
                     "Per riportare una registrazione che sul registro di carta è già annullata spunta «Registrazione già "
@@ -87,8 +89,8 @@ GUIDA = {
                      "È solo un confronto: il salvataggio non si blocca. Nel carico la ricerca trova anche per nome "
                      "(per esempio «imballaggi»)."),
                     ("Dalla scheda", "nella scheda di un movimento il pulsante del passo dopo apre il modulo già compilato: "
-                     "«Scarica (O)» da un carico, «Registra scarico effettivo (M)» da uno scarico originale, «Rettifica (R)» da "
-                     "uno scarico effettivo. «Scarica (O)» resta finché il carico ha un residuo; gli altri spariscono quando il "
+                     "«Scarica (O)» da un carico, «Rettifica scarico (R)» da uno scarico originale, «Registra scarico effettivo (M)» "
+                     "da una rettifica (stesso scarico originale, stesso numero, peso con il segno opposto). «Scarica (O)» resta finché il carico ha un residuo; gli altri spariscono quando il "
                      "seguito è già registrato. La scheda mostra anche lo stato del «Filo del carico»."),
                     ("Duplica", "nella scheda apre un nuovo movimento dello stesso tipo con lo stesso codice e la stessa unità, "
                      "con la data di oggi."),
@@ -130,7 +132,7 @@ GUIDA = {
                 ]),
                 ("passi", [
                     "Nell'«Elenco registrazioni» clicca la lente 🔍 della riga: si apre la scheda del movimento.",
-                    "«Consolida filo» consolida tutto il blocco: il carico con i suoi scarichi O, M e R. Il pulsante sta "
+                    "«Consolida filo» consolida tutto il blocco: il carico con i suoi scarichi O, R e M. Il pulsante sta "
                     "sull'intestazione del filo nell'«Elenco registrazioni» (con il conto, es. «Consolida filo · 1/3»), nella "
                     "scheda del movimento e nello «Scadenzario», sezione «Bozze da consolidare». Il popup elenca le righe che "
                     "verranno consolidate, quelle già consolidate e quelle incomplete (senza data, codice o quantità) con il link "
@@ -183,7 +185,7 @@ GUIDA = {
                     "ogni tabella ha la colonna «FIR».",
                     "«Giacenze»: quanto rifiuto c'è per codice, con l'unità, il semaforo del deposito temporaneo e il totale in m³ "
                     "(limite 30 m³, di cui 10 pericolosi). La giacenza è la somma di quanto resta dei carichi: lo scarico "
-                    "originale (O) la riduce, la coppia scarico effettivo/rettifica (M/R) corregge il peso a destino e non la "
+                    "originale (O) la riduce, la coppia rettifica/scarico effettivo (R/M) corregge il peso a destino e non la "
                     "tocca. I «Giorni dep.» contano dal carico più vecchio non ancora scaricato.",
                     "«Verifica»: controllo di sola lettura del registro con export CSV (vedi sotto).",
                     "«Riepilogo annuale»: scegli l'anno; per ogni codice CER «Giacenza 1/1», «Caricato», «Scaricato», "
