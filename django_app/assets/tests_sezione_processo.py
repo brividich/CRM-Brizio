@@ -201,3 +201,30 @@ class SezioneProcessoTests(TestCase):
         self.assertEqual(SubnavLinkAnagrafica.objects.filter(
             url_value=reverse("anagrafica:mpq_sezione", args=["P11TF12"])).count(), 1)
         self.assertEqual(AssetSidebarButton.objects.filter(code="sezione-p11tf12").count(), 1)
+
+    def test_ricerca_globale_trova_sezione_e_processi(self):
+        risposta = self.client.get(reverse("api_global_search"), {"q": "p11tf"})
+        processi = [r for r in risposta.json()["results"] if r["tipo"] == "processo"]
+        self.assertEqual([r["url"] for r in processi], [reverse("anagrafica:mpq_sezione", args=["P11TF12"])])
+        self.assertEqual(processi[0]["label"], "P11TF12 – Foratura su particolari critici")
+        self.assertEqual(processi[0]["module"], "Processi qualificati")
+        altro = self.client.get(reverse("api_global_search"), {"q": "trattamento sint"}).json()["results"]
+        self.assertIn(reverse("anagrafica:mpq_processo_detail", args=[self.altro.pk]),
+                      [r["url"] for r in altro if r["tipo"] == "processo"])
+        # Solo Asset: porta alla pagina Asset.
+        ProcessoQualificato.objects.filter(pk=self.processo.pk).update(sezione_dove=ProcessoQualificato.DOVE_ASSET)
+        asset = self.client.get(reverse("api_global_search"), {"q": "p11tf"}).json()["results"]
+        self.assertEqual([r["url"] for r in asset if r["tipo"] == "processo"],
+                         [reverse("assets:processo_sezione", args=["P11TF12"])])
+
+    def test_ricerca_globale_senza_permesso_mod128_niente_processi(self):
+        self.client.force_login(_utente("p11.nessuno"))
+        with patch("anagrafica.views_mpq._check_mpq_permission", return_value=False), \
+             patch("core.views._global_search_module_allowed", return_value=True):
+            risultati = self.client.get(reverse("api_global_search"), {"q": "p11tf"}).json()["results"]
+        self.assertFalse([r for r in risultati if r["tipo"] == "processo"])
+
+    def test_pagina_qualifiche_ha_la_ricerca_su_tutte_le_sezioni(self):
+        pagina = self.client.get(reverse("anagrafica:mpq_sezione", args=["P11TF12"]))
+        self.assertContains(pagina, 'id="p11-cerca"')
+        self.assertContains(pagina, 'data-fm-hide-search="1"')
