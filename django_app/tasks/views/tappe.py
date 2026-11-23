@@ -6,8 +6,7 @@ from datetime import date
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
-from django.utils import timezone
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from core.audit import log_action
 
@@ -15,7 +14,6 @@ from ..access import can_manage_project, scoped_projects_queryset, task_permissi
 from ..models import KickoffMeeting, TappaKickoff
 from ..services import tappe as svc
 from ..services.meeting_tasks import KickoffBloccatoVRF
-from ._shared import _utenti_riga_rapida
 
 
 def _fornitori():
@@ -48,16 +46,10 @@ def _con_nomi(request) -> bool:
         return False
 
 
-def _utensili_catalogo():
-    from ..models import Utensile
-
-    return list(Utensile.objects.filter(attivo=True).order_by("codice")[:500])
-
-
 def tappe_context(request, project, meeting=None) -> dict:
+    """Il Percorso è l'indice delle tappe: niente elenchi per campi propri, solo stato e collegamenti."""
     gestisce = can_manage_project(request, project)
     dati = svc.percorso(project, con_nomi=_con_nomi(request), utente=request.user)
-    serve = {r["key"] for r in dati["righe"] if r["puo_aggiungere"]}
     return {
         "project": project,
         "tappe": dati,
@@ -65,13 +57,6 @@ def tappe_context(request, project, meeting=None) -> dict:
         "tappe_puo_assegnare": gestisce or request.user.pk in project.team_user_ids,
         "tappe_puo_escludere": gestisce,
         "tappe_puo_fissare_piano": gestisce,
-        "tappe_utenti": _utenti_riga_rapida(project),
-        "tappe_macchine": list(svc.macchine_disponibili()) if TappaKickoff.MACCHINA in serve else [],
-        "tappe_fornitori": _fornitori() if TappaKickoff.TERZISTA in serve else [],
-        "tappe_processi": _processi() if TappaKickoff.PROCESSI in serve else [],
-        "tappe_outlook": svc.outlook_disponibile(),
-        "tappe_utensili_catalogo": _utensili_catalogo() if TappaKickoff.UTENSILI in {r["key"] for r in dati["righe"]} else [],
-        "tappe_oggi": timezone.localdate(),
     }
 
 
@@ -84,11 +69,18 @@ def _errore(motivo: str, status: int = 400) -> JsonResponse:
     return JsonResponse({"ok": False, "reason": motivo}, status=status)
 
 
-@require_POST
+@require_http_methods(["GET", "POST"])
 @task_permissions_required("tasks_view", api=True)
 def tappa_azione(request, project_id: int):
+    """POST: assegna una tappa o dice che non serve. GET: l'indice aggiornato (dopo un collegamento cambiato)."""
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     gestisce = can_manage_project(request, project)
+    if request.method == "GET":
+        meeting = None
+        if (request.GET.get("meeting_id") or "").isdigit():
+            meeting = KickoffMeeting.objects.filter(pk=int(request.GET["meeting_id"]), project=project).first()
+        html = render_to_string("tasks/_tappe_body.html", tappe_context(request, project, meeting), request=request)
+        return JsonResponse({"ok": True, "html": html})
     post = request.POST
     key = (post.get("tappa") or "").strip()
     azione = (post.get("action") or "").strip()
@@ -98,6 +90,7 @@ def tappa_azione(request, project_id: int):
     if (post.get("meeting_id") or "").isdigit():
         meeting = KickoffMeeting.objects.filter(pk=int(post["meeting_id"]), project=project).first()
 
+    nuova = None
     try:
         if azione == "assegna":
             if not (gestisce or request.user.pk in project.team_user_ids):
@@ -122,8 +115,8 @@ def tappa_azione(request, project_id: int):
                 project, key, request.user, assigned_to=assegnato, due_date=due, start_date=inizio, asset=asset,
                 testo=(post.get("testo") or "").strip(), meeting=meeting,
                 outlook=post.get("outlook") == "1" and svc.outlook_disponibile(), request=request,
-                attrezzatura=(post.get("attrezzatura") or "").strip() or None,
             )
+            nuova = task
             log_action(request, "kickoff_tappa_assegna", "tasks", {"project_id": project.pk, "tappa": key, "task_id": task.pk})
         elif azione in ("escludi", "ripristina"):
             if not gestisce:
@@ -139,7 +132,20 @@ def tappa_azione(request, project_id: int):
 
     project.refresh_from_db()
     html = render_to_string("tasks/_tappe_body.html", tappe_context(request, project, meeting), request=request)
-    return JsonResponse({"ok": True, "html": html})
+    risposta = {"ok": True, "html": html}
+    if nuova is not None:
+        # L'attività si apre nel pannello laterale, già sul collegamento che la tappa si aspetta.
+        from django.urls import reverse
+
+        from ..services.collegamenti import attesi
+
+        primo = next(iter(attesi(nuova)), "")
+        risposta.update(
+            task_id=nuova.pk,
+            apri=reverse("tasks:detail", args=[nuova.pk]) + (f"?kc={primo}" if primo else ""),
+            messaggio=f"Attività «{nuova.title}» creata: scegli responsabile e collegamenti",
+        )
+    return JsonResponse(risposta)
 
 
 @require_GET

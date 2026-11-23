@@ -62,10 +62,11 @@ def cosa_manca(project, *, tappe: dict, readiness, azioni, can_manage: bool, puo
             continue
         aperte = [v for v in r["voci"] if v["task"].status != TaskStatus.DONE]
         voce = aperte[0] if aperte else r["voci"][0]
-        dettaglio = " · ".join(x for x in ("Tappa del Percorso", r["stato_label"].lower(), _voce_tappa(voce)) if x)
-        righe.append(_riga(
-            "danger" if stato == "ritardo" else "info", r["label"], dettaglio, voce["url"], "Apri", pannello=True,
-        ))
+        # «Manca: programma CAM» resta com'è scritto (le sigle non si abbassano).
+        cosa = r["stato_label"] if stato == "manca" else r["stato_label"].lower()
+        dettaglio = " · ".join(x for x in ("Tappa del Percorso", cosa, _voce_tappa(voce)) if x)
+        tono = "danger" if stato == "ritardo" else "warn" if stato == "manca" else "info"
+        righe.append(_riga(tono, r["label"], dettaglio, voce["url"], "Apri", pannello=True))
 
     url_percorso = "#percorso" if puo_assegnare else ""
     if len(vuote) > MAX_TAPPE_SINGOLE:

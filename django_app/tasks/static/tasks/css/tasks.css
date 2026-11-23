@@ -5301,3 +5301,8 @@ body.theme-dark .kc-chip[aria-pressed="true"] { background: var(--primary-mid); 
   .kc-lista > li, .kc-ris > li { padding: 6px 8px; }
   .kc-x { padding: 6px 10px; }
 }
+/* Percorso come indice: i collegamenti delle attività sotto la tappa. */
+.tp-colleg { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; min-width: 0; }
+.tp-lk { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 100%; padding: 1px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-alt, var(--surface)); color: var(--text-mid); font-size: 11.5px; overflow-wrap: anywhere; }
+.tp-lk b { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; color: var(--text); }
+.tp-lk .ts-chip { font-size: 10.5px; padding: 0 6px; }

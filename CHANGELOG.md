@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: il Percorso è l'indice delle tappe (passo 2 di 3)
+
+- **Percorso del kickoff senza campi propri:** «Assegna» (e «+ Altra») crea l'attività del tipo giusto e la apre nel pannello laterale, con il riquadro «Collegamenti» già sul collegamento che la tappa si aspetta. Via i campi di assegnazione (responsabile, date, macchina, attrezzatura, fornitore, processo) e la riga sempre aperta degli utensili con stati e quantità. Vale anche nella scheda dell'incontro.
+- **Stato «Manca: …»:** una tappa con l'attività ma senza il collegamento atteso lo dice («Manca: programma CMM»); sotto ogni tappa si leggono i collegamenti delle sue attività. In «Cosa manca» della Panoramica la stessa tappa è una riga di avviso con lo stesso testo.
+- File: `tasks/services/tappe.py`, `tasks/services/cosa_manca.py`, `tasks/views/tappe.py`, `tasks/templates/tasks/_tappe.html`, `_tappe_body.html`, `base_shell.html`, `base_shell_pannello.html`, `tasks/static/tasks/js/tappe.js`, `tasks/static/tasks/css/tasks.css`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`; test `tasks/tests_collegamenti.py`, `tests_tappe.py`.
+
 ### KICK-OFF: riquadro unico «Collegamenti» dell'attività (passo 1 di 3)
 
 - **Scheda e form dell'attività:** macchina, attrezzatura, utensili, programma CAM, programma CMM, FAI e incontro stanno in un solo riquadro «Collegamenti». Stesso gesto per tutti: «+ tipo», ricerca per codice o nome, «Collega»; se il codice non esiste «Aggiungi e collega» lo mette in catalogo (per il FAI «Apri nuovo FAI»). I collegamenti attesi dal tipo dell'attività sono evidenziati e lo stato dice «Manca: …». Tolti il riquadro del programma, il pannello attrezzatura della scheda e i modi «Collega esistente / Richiedi nuovo attrezzo / Richiedi verifica» del form.

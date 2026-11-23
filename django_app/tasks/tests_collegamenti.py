@@ -445,3 +445,92 @@ class SchedaFormTests(CollegamentiBase):
         task = Task.objects.get(title="Nata dal form")
         self.assertEqual(self.tipi(task), ["macchina", "utensile", "incontro"])
         self.assertTrue(Utensile.objects.filter(codice="FR-30").exists())
+
+
+class PercorsoIndiceTests(CollegamentiBase):
+    """Passo 2: il Percorso è l'indice delle tappe, senza campi propri."""
+
+    def setUp(self):
+        super().setUp()
+        self.url_tappe = reverse("tasks:tappa_azione", args=[self.project.pk])
+
+    def assegna(self, tappa):
+        return self.client.post(self.url_tappe, {"tappa": tappa, "action": "assegna"}, HTTP_ACCEPT="application/json")
+
+    def riga(self, tappa):
+        from .services import tappe
+
+        return next(r for r in tappe.percorso(self.project)["righe"] if r["key"] == tappa)
+
+    def test_assegna_crea_l_attivita_e_dice_dove_aprirla(self):
+        risposta = self.assegna("CMM")
+        self.assertEqual(risposta.status_code, 200, risposta.content)
+        dati = risposta.json()
+        task = Task.objects.get(pk=dati["task_id"])
+        self.assertEqual((task.category.tappa, task.title, task.assigned_to), ("CMM", "Programmazione CMM", None))
+        # Si apre nel pannello laterale, già sul collegamento che la tappa si aspetta.
+        self.assertEqual(dati["apri"], f"{reverse('tasks:detail', args=[task.pk])}?kc=cmm")
+        self.assertIn(f'data-tp-task="{task.pk}"', dati["html"])
+        self.assertIn("Manca: programma CMM", dati["html"])
+        scheda = self.client.get(dati["apri"], HTTP_X_REQUESTED_WITH="XMLHttpRequest").content.decode()
+        self.assertIn('data-kc-apri="cmm"', scheda)
+        self.assertNotIn("<html", scheda)
+        # Una tappa senza collegamenti attesi si apre sulla scheda e basta.
+        materiali = self.assegna("MATERIALI").json()
+        self.assertNotIn("?kc=", materiali["apri"])
+
+    def test_stato_manca_finche_il_collegamento_non_c_e(self):
+        task = Task.objects.get(pk=self.assegna("CAM").json()["task_id"])
+        riga = self.riga("CAM")
+        self.assertEqual((riga["stato"], riga["stato_label"], riga["chip"]), ("manca", "Manca: programma CAM, macchina", "warn"))
+        self.post(task, action="aggiungi", tipo="cam", testo="O1234")
+        self.assertEqual(self.riga("CAM")["stato_label"], "Manca: macchina")
+        self.post(task, action="collega", tipo="macchina", id=self.macchina().pk)
+        riga = self.riga("CAM")
+        self.assertEqual(riga["stato"], "fare")
+        self.assertEqual([(c["tipo"], c["codice"]) for c in riga["collegamenti"]], [("macchina", "CNC-K1"), ("cam", "O1234 rev. A")])
+        html = self.client.get(self.url_tappe, HTTP_ACCEPT="application/json").json()["html"]
+        self.assertIn('<span class="tp-lk">Programma CAM <b>O1234 rev. A</b>', html)
+        # Chiusa l'attività la tappa è fatta, anche se qualcosa non era stato collegato.
+        altra = Task.objects.get(pk=self.assegna("UTENSILI").json()["task_id"])
+        altra.status = TaskStatus.DONE
+        altra.save()
+        self.assertEqual(self.riga("UTENSILI")["stato"], "fatta")
+
+    def test_il_ritardo_viene_prima_di_manca(self):
+        task = Task.objects.get(pk=self.assegna("FAI").json()["task_id"])
+        self.assertEqual(self.riga("FAI")["stato_label"], "Manca: FAI")
+        task.due_date = date(2020, 1, 1)
+        task.save()
+        self.assertEqual(self.riga("FAI")["stato"], "ritardo")
+
+    def test_indice_si_rilegge_in_get_e_non_scrive(self):
+        risposta = self.client.get(self.url_tappe, HTTP_ACCEPT="application/json")
+        self.assertEqual(risposta.status_code, 200)
+        self.assertIn("Percorso del kickoff", risposta.json()["html"])
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 1)
+        self.client.logout()
+        self.assertEqual(self.client.get(self.url_tappe, HTTP_ACCEPT="application/json").status_code, 401)
+
+    def test_percorso_nella_scheda_dell_incontro(self):
+        incontro = self.incontro()
+        self.assegna("CMM")
+        pagina = self.client.get(reverse("tasks:project_meeting_detail", args=[self.project.pk, incontro.pk])).content.decode()
+        self.assertIn("Manca: programma CMM", pagina)
+        self.assertNotIn("data-tp-form", pagina)
+        self.assertIn("tasks/js/collegamenti.js", pagina)
+
+    def test_cosa_manca_dice_il_collegamento_mancante(self):
+        self.assegna("CMM")
+        pagina = self.client.get(reverse("tasks:project_overview", args=[self.project.pk]))
+        righe = [r for r in pagina.context["cosa_manca"]["righe"] if r["titolo"] == "Programma CMM"]
+        self.assertEqual(len(righe), 1)
+        self.assertEqual(righe[0]["tono"], "warn")
+        self.assertIn("Manca: programma CMM", righe[0]["dettaglio"])
+
+    def test_chi_non_e_del_team_non_assegna(self):
+        lettore = _create_user_with_legacy(username="col-fuori-team", legacy_user_id=693, role_id=2, role_name="tasks")
+        self.client.force_login(lettore)
+        risposta = self.assegna("CMM")
+        self.assertIn(risposta.status_code, (403, 404))
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 1)

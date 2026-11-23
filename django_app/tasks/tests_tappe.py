@@ -55,13 +55,15 @@ class TappeTests(_TappeBase):
         task = Task.objects.get(project=self.project)
         self.assertEqual(task.tech_ref.kind, "CAM")
 
-    def test_terzista_richiede_fornitore_e_ammette_piu_righe(self):
-        self.assertEqual(self._post(tappa="TERZISTA", action="assegna").status_code, 400)
+    def test_terzista_ammette_piu_righe_e_il_fornitore_e_facoltativo(self):
         for nome in ("Ditta Uno", "Ditta Due"):
             self.assertEqual(self._post(tappa="TERZISTA", action="assegna", testo=nome).status_code, 200)
         titoli = sorted(Task.objects.filter(project=self.project).values_list("title", flat=True))
         self.assertEqual(titoli, ["Lavorazione terzista - Ditta Due", "Lavorazione terzista - Ditta Uno"])
         self.assertEqual(Task.objects.filter(project=self.project).order_by("id").first().extra_data["fornitore"], "Ditta Uno")
+        # Il Percorso non ha campi propri: «+ Altra» crea l'attività anche senza fornitore, che si scrive sull'attività.
+        self.assertEqual(self._post(tappa="TERZISTA", action="assegna").status_code, 200)
+        self.assertEqual(Task.objects.filter(project=self.project, title="Lavorazione terzista").count(), 1)
 
     def test_macchina_salva_asset_e_mostra_disponibilita(self):
         from assets.models import Asset
@@ -74,16 +76,22 @@ class TappeTests(_TappeBase):
         self.assertTrue(TaskExtraRef.objects.filter(task=task, asset=asset, field_code="macchina").exists())
         self.assertIn("CNC-T1", task.title)
         riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "MACCHINA")
-        dettaglio = riga["voci"][0]["macchina"]
-        self.assertEqual(dettaglio["asset"], asset)
-        self.assertEqual(dettaglio["abilitati"], 0)
-        self.assertIn("abilitato", risposta.json()["html"])
+        # La macchina è un collegamento dell'attività: sotto la tappa si legge il codice, la disponibilità sta nella scheda.
+        self.assertEqual([(c["tipo"], c["codice"]) for c in riga["collegamenti"]], [("macchina", "CNC-T1")])
+        self.assertEqual(riga["manca"], [])
+        self.assertIn("CNC-T1", risposta.json()["html"])
+        dettaglio = svc.dettaglio_macchina(task, con_nomi=False)
+        self.assertEqual((dettaglio["asset"], dettaglio["abilitati"]), (asset, 0))
 
     def test_macchina_non_di_produzione_rifiutata(self):
         from assets.models import Asset
 
         pc = Asset.objects.create(asset_tag="PC-1", name="PC ufficio", asset_type="PC")
-        self.assertEqual(self._post(tappa="MACCHINA", action="assegna", asset=pc.pk).status_code, 400)
+        # Non è una macchina di produzione: l'attività nasce senza macchina, e la tappa dice che manca.
+        self.assertEqual(self._post(tappa="MACCHINA", action="assegna", asset=pc.pk).status_code, 200)
+        self.assertFalse(TaskExtraRef.objects.filter(asset=pc).exists())
+        riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "MACCHINA")
+        self.assertEqual((riga["stato"], riga["stato_label"]), ("manca", "Manca: macchina"))
 
     def test_non_serve_e_ripristina(self):
         self.assertEqual(self._post(tappa="TERZISTA", action="escludi").status_code, 200)
@@ -188,52 +196,68 @@ class TappeDateFlussiTests(_TappeBase):
             self._post(tappa="MATERIALI", action="assegna", assigned_to=self.altro.pk, due_date="2026-12-10")
         self.assertTrue(TaskReminder.objects.filter(task__project=self.project).exists())
 
-    def test_spunta_outlook_solo_con_flusso_acceso(self):
+    def test_percorso_senza_campi_propri(self):
         pagina = self.client.get(reverse("tasks:project_overview", args=[self.project.pk]))
         self.assertNotContains(pagina, "Anche in Outlook")
-        self.assertContains(pagina, 'data-tp="start"')
+        for campo in ('data-tp="start"', 'data-tp="due"', 'data-tp="owner"', "data-tp-form", "data-tp-ut-add", 'data-tp="asset"'):
+            self.assertNotContains(pagina, campo)
+        self.assertContains(pagina, 'data-tp-action="assegna"', count=9)
 
 
 
 class AttrezzaturaUtensiliTests(_TappeBase):
-    def test_attrezzatura_esistente_collegata(self):
-        from attrezzature.models import Attrezzatura, AttrezzaturaKickoffLink
+    def test_attrezzatura_si_collega_all_attivita_della_tappa(self):
+        from attrezzature.models import Attrezzatura, AttrezzaturaKickoffLink, AttrezzaturaTask
+
+        from .services import collegamenti
 
         self.project.part_number = "PN-ATT-1"
         self.project.save()
         att = Attrezzatura.objects.create(codice="ATT-9", descrizione="Maschera di prova", part_number="PN-ATT-1")
-        riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "ATTREZZATURA")
-        self.assertEqual([a["obj"] for a in riga["attrezzature"]], [att])
-        self.assertEqual(self._post(tappa="ATTREZZATURA", action="assegna").status_code, 400)
-        risposta = self._post(tappa="ATTREZZATURA", action="assegna", attrezzatura=str(att.pk), assigned_to=self.altro.pk)
+        # «Assegna» non chiede quale attrezzatura: crea l'attività, il codice si collega da lei.
+        risposta = self._post(tappa="ATTREZZATURA", action="assegna")
         self.assertEqual(risposta.status_code, 200, risposta.content)
         task = Task.objects.get(project=self.project)
-        self.assertIn("ATT-9", task.title)
+        self.assertEqual(task.title, "Attrezzatura")
+        riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "ATTREZZATURA")
+        self.assertEqual((riga["stato"], riga["stato_label"]), ("manca", "Manca: attrezzatura"))
+        collegamenti.collega(task, "attrezzatura", att.pk, self.user)
         self.assertTrue(AttrezzaturaKickoffLink.objects.filter(attrezzatura=att, project=self.project, task=task).exists())
+        riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "ATTREZZATURA")
+        self.assertEqual(riga["stato"], "fare")
+        self.assertEqual([c["codice"] for c in riga["collegamenti"]], ["ATT-9"])
+        self.assertFalse(AttrezzaturaTask.objects.exists(), "nessuna richiesta o verifica: è solo un codice")
 
-    def test_attrezzatura_nuova_crea_bozza(self):
+    def test_il_percorso_non_chiede_piu_attrezzature_nuove(self):
         from attrezzature.models import Attrezzatura
 
         self.project.part_number = "PN-ATT-2"
         self.project.save()
+        # I vecchi parametri, se arrivano, non creano richieste.
         self._post(tappa="ATTREZZATURA", action="assegna", attrezzatura="nuova", testo="Staffaggio fresatura")
-        self.assertTrue(Attrezzatura.objects.filter(part_number="PN-ATT-2", descrizione="Staffaggio fresatura").exists())
+        self.assertFalse(Attrezzatura.objects.exists())
 
-    def test_utensili_aggiungi_stato_togli(self):
+    def test_utensili_stati_e_quantita_non_contano_piu(self):
         from .models import ProjectUtensile, Utensile
+        from .services import collegamenti
 
+        # Il vecchio indirizzo resta per compatibilità e salva ancora la riga della commessa...
         url = reverse("tasks:utensili_azione", args=[self.project.pk])
-        self.client.post(url, {"action": "aggiungi", "utensile": "FR12 Fresa D12", "quantita": "2"}, HTTP_ACCEPT="application/json")
-        self.client.post(url, {"action": "aggiungi", "utensile": "fr12", "quantita": "1"}, HTTP_ACCEPT="application/json")
-        self.assertEqual(Utensile.objects.count(), 1, "il codice già in catalogo non si duplica")
-        righe = list(ProjectUtensile.objects.filter(project=self.project))
-        self.assertEqual(len(righe), 2)
+        risposta = self.client.post(url, {"action": "aggiungi", "utensile": "FR12 Fresa D12", "quantita": "2"}, HTTP_ACCEPT="application/json")
+        self.assertEqual(risposta.status_code, 200)
+        self.assertEqual((Utensile.objects.count(), ProjectUtensile.objects.filter(project=self.project).count()), (1, 1))
+        # ...ma il Percorso non la legge: niente stati, niente quantità, la tappa aspetta la sua attività.
         riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "UTENSILI")
-        self.assertEqual(riga["stato_label"], "2 da ordinare")
-        for r in righe:
-            self.client.post(url, {"action": "stato", "riga": r.pk, "stato": "ARRIVATO"}, HTTP_ACCEPT="application/json")
+        self.assertEqual((riga["stato"], riga["stato_label"]), ("vuota", "Da assegnare"))
+        html = risposta.json()["html"]
+        for vietato in ("da ordinare", "Da ordinare", " pz", "Disponibile a magazzino", "data-tp-ut"):
+            self.assertNotIn(vietato, html)
+        self._post(tappa="UTENSILI", action="assegna")
+        task = Task.objects.get(project=self.project)
         riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "UTENSILI")
-        self.assertEqual(riga["stato"], "fatta")
-        risposta = self.client.post(url, {"action": "togli", "riga": righe[0].pk}, HTTP_ACCEPT="application/json")
-        self.assertIn("FR12", risposta.json()["html"])
-        self.assertEqual(ProjectUtensile.objects.filter(project=self.project).count(), 1)
+        self.assertEqual(riga["stato_label"], "Manca: utensile")
+        collegamenti.aggiungi(task, "utensile", "fr12", self.user)
+        vecchia = ProjectUtensile.objects.get(project=self.project)
+        self.assertEqual((vecchia.task, vecchia.quantita), (task, 2), "la riga già registrata passa all'attività con i suoi dati")
+        riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "UTENSILI")
+        self.assertEqual((riga["stato"], [c["codice"] for c in riga["collegamenti"]]), ("fare", ["FR12"]))
