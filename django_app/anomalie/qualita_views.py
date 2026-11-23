@@ -46,7 +46,7 @@ def puo_decisione_qualita(request) -> bool:
         if user_can_modulo_action(request, "anomalie", "admin_anomalie"):
             return True
     except Exception:
-        pass
+        logger.exception("puo_decisione_qualita: errore ignorato")
     return _is_referente_rdc(request)
 
 
@@ -210,7 +210,7 @@ def api_qualita_salva(request):
         log_action(request, "anomalia_decisione_qualita", "anomalie",
                    {"local_id": local_id, "op_id": op_id, "avanzamento_qualita": av_qualita, "chiusa": chiusa})
     except Exception:
-        pass
+        logger.exception("api_qualita_salva: registro attività non scritto")
     try:
         with transaction.atomic():
             sync_da_anomalia(local_id)
@@ -289,7 +289,7 @@ def api_qualita_richiedi_info(request):
         log_action(request, "anomalia_richiesta_info", "anomalie",
                    {"local_id": local_id, "op_id": op_id, "destinatari": destinatari})
     except Exception:
-        pass
+        logger.exception("api_qualita_richiedi_info: registro attività non scritto")
     esito = {}
     try:
         esito = invia_richiesta_info(richiesta=richiesta, op_id=op_id, seriale=str(row.get("seriale") or ""),

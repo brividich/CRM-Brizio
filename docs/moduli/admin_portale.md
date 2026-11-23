@@ -67,3 +67,5 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Tessere di ACL, log e ruoli collegate agli elenchi; «persone con ruolo» = persone attive con ruolo valido (`_id_con_ruolo_valido`).
+
+**Bacheca (audit [56], 23/11/2026):** il file di un collegamento passa da `core.upload_mime.valida_per_estensione`; `content_type` è quello rilevato dal contenuto, non quello dichiarato dal browser.

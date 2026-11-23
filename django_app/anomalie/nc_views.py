@@ -407,7 +407,7 @@ def _log(request, nc, action: str) -> None:
     try:
         log_action(request, f"anomalia_nc_{action}", "anomalie", {"nc": nc.protocollo, "op": nc.op_titolo})
     except Exception:
-        pass
+        logger.exception("_log: registro attività non scritto")
 
 
 # ── Allegati ───────────────────────────────────────────────────────────────

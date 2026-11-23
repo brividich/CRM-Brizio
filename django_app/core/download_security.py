@@ -69,11 +69,19 @@ _FIRME = (
     (b"%PDF-", "application/pdf"),
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+    (b"BM", "image/bmp"),
 )
+
+# Allegati delle anomalie (audit [56]): foto e PDF si aprono nel browser solo se il contenuto è davvero quello.
+ALLEGATI_INLINE_MIME_TYPES = frozenset({"application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"})
 
 
 def sniff_head(head: bytes) -> str:
-    """Tipo reale dai primi byte (solo PDF/PNG/JPEG); stringa vuota se altro."""
+    """Tipo reale dai primi byte (PDF e immagini comuni); stringa vuota se altro."""
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
     for firma, mime in _FIRME:
         if head.startswith(firma):
             return mime

@@ -307,21 +307,9 @@ class StatoRichiesta(models.TextChoices):
 def _next_numero_dpi(year: int | None = None) -> str:
     if year is None:
         year = datetime.now(dt_timezone.utc).year
-    prefix = f"DPI-{year}-"
-    last = (
-        RichiestaDPI.objects.filter(numero__startswith=prefix)
-        .order_by("-numero")
-        .values_list("numero", flat=True)
-        .first()
-    )
-    if last:
-        try:
-            seq = int(last.split("-")[-1]) + 1
-        except (ValueError, IndexError):
-            seq = 1
-    else:
-        seq = 1
-    return f"{prefix}{seq:04d}"
+    from core.numeratori import prossimo_progressivo
+
+    return prossimo_progressivo(RichiestaDPI.objects.all(), "numero", f"DPI-{year}-")
 
 
 class RichiestaDPI(models.Model):

@@ -174,7 +174,18 @@ def mpq_tp_approva(request, rev_id: int):
         data = date.fromisoformat(request.POST.get("data") or "")
     except ValueError:
         data = timezone.localdate()
-    servizio_utensili.approva(rev, approvato_da=chi[:150], data=data, documento=request.FILES.get("documento"))
+    documento = request.FILES.get("documento")
+    if documento is not None:
+        from core.upload_limits import DOCUMENT_MAX_BYTES
+        from core.upload_mime import UploadMimeValidationError, valida_per_estensione
+
+        try:
+            valida_per_estensione(documento, servizio_utensili.DOCUMENTO_APPROVAZIONE_EST,
+                                  max_bytes=DOCUMENT_MAX_BYTES, label="Documento firmato")
+        except UploadMimeValidationError as exc:
+            messages.error(request, f"{exc} Ammessi: PDF, JPG, PNG, Word.")
+            return redirect(reverse("anagrafica:mpq_tp", args=[rev.plan_id]) + f"?rev={rev.numero}")
+    servizio_utensili.approva(rev, approvato_da=chi[:150], data=data, documento=documento)
     _mpq_log(request, processo=rev.plan.processo, evento="Technical Plan approvato",
              dettaglio=f"{rev.plan} rev. {rev.numero} da {chi}")
     messages.success(request, f"Revisione {rev.numero} approvata: è quella valida in produzione.")

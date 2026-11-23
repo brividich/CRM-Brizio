@@ -53,7 +53,7 @@ GUIDA = {
                 ("passi", [
                     "Apri «Modifiche» → «Nuova modifica» (o «Avvia una modifica» dalla scheda, da una segnalazione o da «Da rivedere»).",
                     "Scrivi cosa si modifica e perché, scegli chi redige, verifica e approva, spunta le segnalazioni da recepire e clicca «Apri la modifica».",
-                    "Chi redige carica la bozza Word e la invia in verifica; chi verifica la passa in approvazione o la rimanda; chi approva firma con «Approva».",
+                    "Chi redige carica la bozza (Word, Excel o PDF fino a 25 MB; un file rinominato con un'estensione non sua viene rifiutato) e la invia in verifica; chi verifica la passa in approvazione o la rimanda; chi approva firma con «Approva».",
                     "Salva il PDF nella cartella SGI e sposta la revisione vecchia in SUPERATO: al controllo orario la modifica diventa «Emessa», le segnalazioni «Recepita» e parte la rilettura.",
                 ]),
                 ("p", "«Chi firma cosa» fissa le persone proposte per tipo di documento. Il registro di ogni modifica (chi, ruolo, quando, impronta della bozza) è l'evidenza per gli audit e non si può modificare."),

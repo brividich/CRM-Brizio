@@ -147,21 +147,9 @@ def _next_ticket_number(tipo: str, year: int | None = None) -> str:
     """
     if year is None:
         year = datetime.now(dt_timezone.utc).year
-    prefix = f"{tipo}-{year}-"
-    last = (
-        Ticket.objects.filter(numero_ticket__startswith=prefix)
-        .order_by("-numero_ticket")
-        .values_list("numero_ticket", flat=True)
-        .first()
-    )
-    if last:
-        try:
-            seq = int(last.split("-")[-1]) + 1
-        except (ValueError, IndexError):
-            seq = 1
-    else:
-        seq = 1
-    return f"{prefix}{seq:04d}"
+    from core.numeratori import prossimo_progressivo
+
+    return prossimo_progressivo(Ticket.objects.all(), "numero_ticket", f"{tipo}-{year}-")
 
 
 # ---------------------------------------------------------------------------

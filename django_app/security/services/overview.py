@@ -4,6 +4,7 @@ Ispirazione (Microsoft Defender «Home», Wazuh, WatchGuard Cloud): in alto UN e
 ordinate per gravita' («Da guardare adesso»), sotto un riquadro per area con stato, pochi numeri e
 quanto sono freschi i dati. Il dettaglio sta un clic piu' in la' (KPI, alert, accessi VPN, backup).
 """
+import logging
 from datetime import timedelta
 
 from django.urls import reverse
@@ -11,6 +12,8 @@ from django.utils import timezone
 
 from security.models import BackupJobRecord, SecurityAlert, SecurityReport, Severity
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
+
+logger = logging.getLogger(__name__)
 
 LEVELS = {"critical": 0, "high": 1, "warning": 2, "info": 3}
 LEVEL_LABELS = {"critical": "Critico", "high": "Alto", "warning": "Attenzione", "info": "Info"}
@@ -105,7 +108,7 @@ def attention_items(now=None):
         for missing in missing_backup_candidates()[:3]:
             items.append(_item("high", "Backup", f"Backup atteso non arrivato: {missing['job_name']}", "", reverse("security:backup")))
     except Exception:  # noqa: BLE001 - un controllo che fallisce non blocca la panoramica
-        pass
+        logger.exception("attention_items: controllo backup attesi non eseguito")
 
     _report, epdr = _latest_metrics(("watchguard_epdr_executive_report",))
     if epdr.get("watchguard_epdr_unprotected_endpoints"):
@@ -135,7 +138,7 @@ def attention_items(now=None):
             if finding["level"] == "high":
                 items.append(_item("high", "Accessi VPN", finding["title"], finding["detail"], reverse("security:vpn_history") + "?" + finding["filter"]))
     except Exception:  # noqa: BLE001
-        pass
+        logger.exception("attention_items: controllo accessi VPN non eseguito")
 
     cve = metriche.cve_sui_pc()
     if cve.extra["gravi"]:
@@ -150,7 +153,7 @@ def attention_items(now=None):
                                    f"ultimo report {row['last_report_at']:%d/%m %H:%M}" if row["last_report_at"] else "nessun report ricevuto",
                                    reverse("security:admin_mailbox_sources_list")))
     except Exception:  # noqa: BLE001
-        pass
+        logger.exception("attention_items: controllo fonti dati non eseguito")
     return sorted(items, key=lambda item: LEVELS[item["level"]])
 
 

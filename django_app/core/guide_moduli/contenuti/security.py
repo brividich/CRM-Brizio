@@ -42,7 +42,8 @@ GUIDA = {
                     "Ogni alert va preso in carico entro un tempo per gravità (critica 1 ora, alta 4, media 24, bassa 72): oltre, l'alert mostra «oltre il tempo di presa in carico» e, se acceso, parte un avviso.",
                     "Incidente risolto o chiuso: compila «Lezioni apprese» (causa, cosa ha funzionato, cosa migliorare) e le azioni correttive con responsabile e scadenza. Finché manca, l'incidente dice «Riesame mancante» e dopo 7 giorni arriva un promemoria; nessuna chiusura viene bloccata.",
                     "Evidenze di un alert: «Verifica integrità» ricalcola l'impronta SHA-256 e dice se sono integre o alterate; «Esporta» scarica tutto con la catena di custodia.",
-                    "Backup › Prove di ripristino: registra ogni prova di ripristino; una fallita apre un alert, una in ritardo oltre i 90 giorni manda un promemoria.",
+                    "Backup › Prove di ripristino: registra ogni prova di ripristino; una fallita apre un alert, una in ritardo oltre i 90 giorni manda un promemoria. "
+                    "L'allegato (facoltativo, max 10 MB) può essere PDF, PNG/JPG, TXT/LOG/CSV, Word o Excel e il contenuto deve corrispondere all'estensione.",
                     "Backup: clic su un PC o su un job apre il pannello laterale con gli alert di backup aperti, «Prendo in carico» e «Chiudi» (esito e motivo); "
                     "seleziona più PC, job o righe del Log per aprire un ticket, prendere in carico o chiudere insieme i loro alert.",
                     "Dispositivi e Installazioni non riuscite: seleziona più PC e «Apri un ticket per questi PC» (un'attività per PC). "

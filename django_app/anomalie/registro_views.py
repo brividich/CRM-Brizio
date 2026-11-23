@@ -68,7 +68,7 @@ def puo_vedere_registro(request) -> bool:
         if user_can_modulo_action(request, "anomalie", "admin_anomalie"):
             return True
     except Exception:
-        pass
+        logger.exception("puo_vedere_registro: errore ignorato")
     try:
         from .escalation_config import LISTA_SUPERVISORI_KEY
         from .views import _load_anomalie_lists
@@ -232,7 +232,7 @@ def api_registro_nota(request, pk: int):
 
         log_action(request, "anomalia_registro_nota", "anomalie", {"log_id": log.pk, "anomalia_id": log.anomalia_id})
     except Exception:
-        pass
+        logger.exception("api_registro_nota: errore ignorato")
     return JsonResponse({"success": True, "nota": _nota_json(nota)})
 
 

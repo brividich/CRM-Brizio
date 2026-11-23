@@ -19,8 +19,10 @@ def nuova_revisione(plan, *, modifiche: str, data=None):
     from ..models_mpq import TechnicalPlanRevisione
 
     base = plan.revisione_corrente or plan.revisioni.order_by("-numero").first()
-    numero = (plan.revisioni.aggregate(m=Max("numero"))["m"] or 0) + 1
     with transaction.atomic():
+        # Il piano resta bloccato fino al salvataggio: due richieste insieme non prendono lo stesso numero.
+        type(plan).objects.select_for_update().filter(pk=plan.pk).first()
+        numero = (plan.revisioni.aggregate(m=Max("numero"))["m"] or 0) + 1
         rev = TechnicalPlanRevisione.objects.create(plan=plan, numero=numero, modifiche=modifiche,
                                                     data=data or timezone.localdate())
         if base is not None:
@@ -29,6 +31,9 @@ def nuova_revisione(plan, *, modifiche: str, data=None):
                 p.revisione = rev
                 p.save()
     return rev
+
+
+DOCUMENTO_APPROVAZIONE_EST = {".pdf", ".jpg", ".jpeg", ".png", ".docx", ".doc"}
 
 
 def approva(revisione, *, approvato_da: str, data=None, documento=None) -> None:

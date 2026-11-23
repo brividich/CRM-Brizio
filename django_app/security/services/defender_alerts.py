@@ -100,7 +100,7 @@ def _get(url: str, token: str, params: dict | None = None) -> dict:
 
             invalidate_graph_token_cache(*_graph_credentials())
         except Exception:  # noqa: BLE001 - l'errore vero è quello sotto
-            pass
+            logger.exception("_get: errore ignorato")
         raise DefenderError(
             f"Graph ha risposto {resp.status_code}: manca il permesso SecurityAlert.Read.All "
             "(con consenso amministratore) sull'app del portale, oppure le credenziali non sono valide."

@@ -127,3 +127,5 @@ Logica in `dpi/report.py`, viste in `dpi/views_report.py`, gate `_is_gestore`, p
 
 - Nuova richiesta: campanella `dpi_da_approvare` agli stessi destinatari della mail (`flusso._campanella`), mail con pulsante «Approva o rifiuta».
 - `flusso.notifica_esito_richiedente` (approvata/rifiutata), `notifica_annullata` (agli approvatori), `notifica_commento` (commento non interno del gestore). `_notifica_richiedente` ha il parametro `tipo` (`dpi_pronta`, `dpi_ordinata`, `dpi_commento`).
+
+**Numero richiesta (audit [50], 23/11/2026):** `_next_numero_dpi` usa `core.numeratori.prossimo_progressivo` (ordine numerico anche oltre 9999).

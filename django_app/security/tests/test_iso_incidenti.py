@@ -263,6 +263,14 @@ class RipristiniTests(_Base):
         self.assertEqual(self.client.get(reverse("security:backup_ripristino_allegato", args=[prova.pk])).status_code, 200)
         self.assertContains(self.client.get(reverse("security:backup")), "Prove di ripristino")
 
+    def test_allegato_non_ammesso_rifiutato(self):
+        url = reverse("security:backup_ripristini")
+        dati = {"data": timezone.localdate().isoformat(), "sistema": "NAS-02", "cosa_ripristinato": "share", "esito": "ok",
+                "durata_minuti": "5", "eseguito_da": "Prova", "note": ""}
+        for nome, contenuto in (("pagina.html", b"<html></html>"), ("finto.pdf", b"<html></html>")):
+            self.client.post(url, {**dati, "allegato": SimpleUploadedFile(nome, contenuto)})
+        self.assertFalse(BackupRestoreTest.objects.filter(sistema="NAS-02").exists())
+
 
 class RiepilogoTests(_Base):
     def test_chiavi_e_valori(self):
