@@ -36,9 +36,11 @@
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_vista' %}">
               <svg class="fmd-ico"><use href="#i-clipboard"/></svg>Vista per cliente (MOD.128) · export
             </a>
-            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_p11tf12' %}" title="Foratura su particolari critici (MT CN 69)">
-              <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>P11TF12 – Foratura critica
+            {% for v in sezioni_dedicate %}
+            <a class="fmd-btn fmd-btn-ghost" href="{{ v.url_qualifiche }}" title="Sezione dedicata del processo">
+              <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>{{ v.etichetta }}
             </a>
+            {% endfor %}
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_matrice' %}">
               <svg class="fmd-ico"><use href="#i-grid"/></svg>Matrice persone × processi
             </a>

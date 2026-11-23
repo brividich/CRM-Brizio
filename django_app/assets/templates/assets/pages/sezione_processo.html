@@ -1,0 +1,27 @@
+{% extends "assets/pages/part_145_list.html" %}
+{# Sezione dedicata di un processo qualificato (MOD.128): stessa impaginazione del Dossier PART 145; dati da assets/services/sezione_processo.py. #}
+
+{% block title %}{{ dossier.titolo }}{% endblock %}
+
+{% block assets_shell_title %}{{ dossier.titolo }}{% endblock %}
+{% block assets_shell_subtitle %}<p>Processo qualificato (MOD.128){% for p in dossier.processi %}{% if forloop.first %} · {% else %}, {% endif %}{{ p.nome }}{% endfor %} · aggiornato al {{ dossier.oggi|date:"d/m/Y" }}</p>{% endblock %}
+
+{% block assets_shell_toolbar %}
+{% if dossier.con_personale %}<a class="btn btn-secondary" href="{% url 'anagrafica:mpq_sezione' dossier.sigla %}">Vista persone (Qualifiche)</a>{% endif %}
+{% if dossier.con_personale and dossier.processi|length == 1 %}<a class="btn btn-secondary" href="{% url 'anagrafica:mpq_processo_detail' dossier.processi.0.pk %}">Apri il processo</a>{% endif %}
+<a class="btn btn-secondary" href="{% url 'assets:guida' %}#sezione-dedicata">? Guida</a>
+{% endblock %}
+
+{% block p145_info %}{% if not dossier.con_personale %}<div class="p145-info">Persone e formazione non sono mostrate: servono i permessi sui processi qualificati (MOD.128).</div>{% endif %}{% endblock %}
+
+{% block p145_scarica %}
+<details class="p145-menu">
+  <summary class="btn">&#8595; Scarica</summary>
+  <div class="p145-menu-list" role="menu">
+    <a href="{% url 'assets:processo_sezione_export' dossier.sigla 'pdf' %}" role="menuitem">Sezione in PDF<small>Tutte le parti mostrate, pronto per l'audit</small></a>
+    <a href="{% url 'assets:processo_sezione_export' dossier.sigla 'xlsx' %}" role="menuitem">Sezione in Excel<small>Riepilogo + un foglio per parte</small></a>
+  </div>
+</details>
+{% endblock %}
+
+{% block p145_foot %}<p class="p145-foot">Pagina creata dalla spunta «Crea sezione dedicata» del processo in Processi qualificati (MOD.128). Mostra solo le parti che il processo usa: macchine, utensili e Technical Plan si aggiungono dalla pagina del processo.</p>{% endblock %}

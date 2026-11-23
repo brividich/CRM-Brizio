@@ -182,6 +182,32 @@ class ProcessoQualificato(models.Model):
         help_text="Processo speciale autorizzato per le attività Part 145 (es. elenco DQP dell'accordo "
                   "con l'organizzazione di manutenzione): compare nel Dossier PART 145.",
     )
+    # Sezione dedicata: una pagina solo per questo processo (es. P11TF12), con voce di
+    # menu in Qualifiche e/o in Asset. Più processi con la stessa sigla = una pagina.
+    DOVE_ENTRAMBE = "ENTRAMBE"
+    DOVE_QUALIFICHE = "QUALIFICHE"
+    DOVE_ASSET = "ASSET"
+    DOVE_CHOICES = [
+        (DOVE_ENTRAMBE, "Qualifiche e Asset"),
+        (DOVE_QUALIFICHE, "Solo Qualifiche (persone)"),
+        (DOVE_ASSET, "Solo Asset (macchine)"),
+    ]
+    sezione_dedicata = models.BooleanField(
+        default=False, verbose_name="Crea sezione dedicata",
+        help_text="Togliendo la spunta sparisce la voce di menu, i dati restano.",
+    )
+    sezione_sigla = models.CharField(
+        max_length=30, blank=True, default="", db_index=True, verbose_name="Sigla della sezione",
+        help_text="Es. P11TF12: è il nome della voce di menu e finisce nell'indirizzo. Più processi con la "
+                  "stessa sigla (es. un processo per cliente) finiscono nella stessa pagina.",
+    )
+    sezione_titolo = models.CharField(
+        max_length=120, blank=True, default="", verbose_name="Titolo della pagina",
+        help_text="Es. «Foratura su particolari critici».",
+    )
+    sezione_dove = models.CharField(
+        max_length=10, choices=DOVE_CHOICES, default=DOVE_ENTRAMBE, verbose_name="Dove compare",
+    )
     reparti = models.ManyToManyField(
         "anagrafica.Reparto", blank=True, related_name="processi_qualificati",
         verbose_name="Distribuzione a reparto",
@@ -259,6 +285,14 @@ class ProcessoQualificato(models.Model):
 
     def __str__(self) -> str:
         return f"{self.cliente_id} — {self.nome}"
+
+    @property
+    def sezione_in_qualifiche(self) -> bool:
+        return bool(self.sezione_dedicata and self.sezione_sigla and self.sezione_dove != self.DOVE_ASSET)
+
+    @property
+    def sezione_in_asset(self) -> bool:
+        return bool(self.sezione_dedicata and self.sezione_sigla and self.sezione_dove != self.DOVE_QUALIFICHE)
 
     @property
     def scadenza_effettiva(self):

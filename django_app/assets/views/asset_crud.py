@@ -857,17 +857,57 @@ def asset_part_145_list(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def asset_p11tf12(request: HttpRequest) -> HttpResponse:
-    """P11TF12 (MT CN 69): macchine qualificate, utensili critici e Technical Plan del processo MOD.128."""
-    from ..services import p11tf12_dossier
+    """Vecchio indirizzo della pagina P11TF12: ora è la sezione dedicata del processo."""
+    return redirect("assets:processo_sezione", sigla="P11TF12")
+
+
+def _sezione_processo(request: HttpRequest, sigla: str) -> dict:
+    """Dati della sezione dedicata lato Asset; 404 se nessun processo la mostra in Asset."""
+    from django.http import Http404
+
+    from anagrafica.services.mpq_sezioni import normalizza_sigla, processi_della_sigla
+
+    from ..services import sezione_processo
     from ..services.part145_dossier import puo_vedere_personale
 
+    sigla = normalizza_sigla(sigla)
+    if not any(p.sezione_in_asset for p in processi_della_sigla(sigla)):
+        raise Http404("Sezione dedicata non trovata")
+    return sezione_processo.costruisci(sigla, con_personale=puo_vedere_personale(request),
+                                       ordine=sezione_processo.ORDINE_ASSET)
+
+
+@login_required
+def asset_processo_sezione(request: HttpRequest, sigla: str) -> HttpResponse:
+    """Sezione dedicata di un processo qualificato (MOD.128): macchine e utensili prima."""
+    dossier = _sezione_processo(request, sigla)
     context = {
-        "page_title": p11tf12_dossier.TITOLO,
-        "dossier": p11tf12_dossier.costruisci(con_personale=puo_vedere_personale(request),
-                                              ordine=p11tf12_dossier.ORDINE_ASSET),
+        "page_title": dossier["titolo"],
+        "dossier": dossier,
         **_assets_shell_context(request, search_action=reverse("assets:asset_list")),
     }
-    return render(request, "assets/pages/p11tf12.html", context)
+    return render(request, "assets/pages/sezione_processo.html", context)
+
+
+@login_required
+def asset_processo_sezione_export(request: HttpRequest, sigla: str, formato: str) -> HttpResponse:
+    """La sezione dedicata in PDF o Excel (stesse funzioni del Dossier PART 145)."""
+    from django.http import Http404
+
+    from ..services import part145_dossier
+
+    if formato not in ("pdf", "xlsx"):
+        raise Http404("Formato non previsto")
+    dossier = _sezione_processo(request, sigla)
+    if formato == "pdf":
+        data, nome = part145_dossier.esporta_pdf(dossier, request.user)
+        tipo = "application/pdf"
+    else:
+        data, nome = part145_dossier.esporta_xlsx(dossier, request.user)
+        tipo = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    resp = HttpResponse(data, content_type=tipo)
+    resp["Content-Disposition"] = f'attachment; filename="{nome}"'
+    return resp
 
 
 def _studio_redirect(request: HttpRequest) -> HttpResponse:

@@ -72,6 +72,8 @@ from .asset_crud import (  # noqa: F401
     asset_internal_number_next,
     asset_list,
     asset_p11tf12,
+    asset_processo_sezione,
+    asset_processo_sezione_export,
     asset_part_145_list,
     assignment_set,
     chemical_asset_create,

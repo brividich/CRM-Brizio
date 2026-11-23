@@ -67,6 +67,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
             "stato", "motivo_stato", "riferimento_stato",
             "numero_revisione", "responsabile_qualita", "data_revisione",
             "reparti", "clienti_addizionali", "note",
+            "sezione_dedicata", "sezione_sigla", "sezione_titolo", "sezione_dove",
         ]
         widgets = {
             "cliente": forms.Select(attrs=_FM_SELECT),
@@ -96,13 +97,32 @@ class ProcessoQualificatoForm(forms.ModelForm):
                 "class": "fm-input fm-select", "size": "4",
                 "data-picker": "", "data-picker-placeholder": "Cerca cliente/ente…"}),
             "note": forms.Textarea(attrs=_FM_TEXTAREA),
+            "sezione_sigla": forms.TextInput(attrs={**_FM, "placeholder": "Es. P11TF12", "maxlength": "30"}),
+            "sezione_titolo": forms.TextInput(attrs={**_FM, "placeholder": "Es. Foratura su particolari critici"}),
+            "sezione_dove": forms.Select(attrs=_FM_SELECT),
         }
+
+    def clean(self):
+        from .services.mpq_sezioni import SIGLA_RE, normalizza_sigla
+
+        dati = super().clean()
+        sigla = normalizza_sigla(dati.get("sezione_sigla"))
+        dati["sezione_sigla"] = sigla
+        dati["sezione_dove"] = dati.get("sezione_dove") or ProcessoQualificato.DOVE_ENTRAMBE
+        if dati.get("sezione_dedicata"):
+            if not sigla:
+                self.add_error("sezione_sigla", "Serve la sigla: è il nome della voce di menu (es. P11TF12).")
+            elif not SIGLA_RE.match(sigla):
+                self.add_error("sezione_sigla", "Da 2 a 30 caratteri fra lettere, numeri, punto, trattino e "
+                                                "trattino basso, senza spazi (es. P11TF12).")
+        return dati
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for f in ("ente_certificatore", "tipo_qualifica", "reparti",
                   "clienti_addizionali", "durata_mesi", "data_conseguimento",
-                  "data_scadenza", "data_revisione", "frequenza_macchine_mesi", "inattivita_mesi"):
+                  "data_scadenza", "data_revisione", "frequenza_macchine_mesi", "inattivita_mesi",
+                  "sezione_dove"):
             self.fields[f].required = False
         cli_qs = ClienteQualificante.objects.all().order_by("nome")
         self.fields["cliente"].queryset = cli_qs

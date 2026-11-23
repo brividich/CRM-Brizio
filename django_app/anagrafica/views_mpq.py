@@ -35,6 +35,7 @@ from .models_mpq import (
     ProcessoQualificato,
     RequisitoQualifica,
 )
+from .services.mpq_sezioni import sincronizza_menu_sicuro
 
 TIPI_REQUISITO_PER_PERSONA = RequisitoQualifica.TIPI_PER_PERSONA
 
@@ -117,20 +118,64 @@ def _classifica_scadenza(data_scadenza, oggi, s30, s60):
 
 @login_required
 def mpq_p11tf12(request):
-    """P11TF12 (MT CN 69) in Qualifiche: persone e formazione prima, poi macchine e utensili.
+    """Vecchio indirizzo della pagina P11TF12: ora è la sezione dedicata del processo."""
+    return redirect("anagrafica:mpq_sezione", sigla="P11TF12")
 
-    Stessi dati della pagina Asset (``assets.services.p11tf12_dossier``), sola lettura.
+
+def _sezione_qualifiche(request, sigla):
+    """Dati della sezione dedicata lato Qualifiche; 404 se nessun processo la mostra qui."""
+    from django.http import Http404
+
+    from assets.services import sezione_processo
+
+    from .services.mpq_sezioni import normalizza_sigla, processi_della_sigla
+
+    sigla = normalizza_sigla(sigla)
+    if not any(p.sezione_in_qualifiche for p in processi_della_sigla(sigla)):
+        raise Http404("Sezione dedicata non trovata")
+    return sezione_processo.costruisci(sigla, con_personale=True, ordine=sezione_processo.ORDINE_QUALIFICHE)
+
+
+@login_required
+def mpq_sezione(request, sigla: str):
+    """Sezione dedicata di un processo qualificato in Qualifiche: persone e formazione prima.
+
+    Stessi dati della pagina Asset (``assets.services.sezione_processo``), sola lettura.
     """
     if not _check_mpq_permission(request):
         return _mpq_denied(request)
-    from assets.services import p11tf12_dossier
-
     from .acl_bootstrap import PERM_MPQ_MANAGE
 
-    return render(request, "anagrafica/pages/mpq_p11tf12.html", {
-        "dossier": p11tf12_dossier.costruisci(con_personale=True, ordine=p11tf12_dossier.ORDINE_QUALIFICHE),
+    dossier = _sezione_qualifiche(request, sigla)
+    in_asset = any(p.sezione_in_asset for p in dossier["processi"])
+    return render(request, "anagrafica/pages/mpq_sezione.html", {
+        "dossier": dossier,
+        "in_asset": in_asset,
         "can_manage": _check_mpq_permission(request, PERM_MPQ_MANAGE),
     })
+
+
+@login_required
+def mpq_sezione_export(request, sigla: str, formato: str):
+    """La sezione dedicata in PDF o Excel (stesse funzioni del Dossier PART 145)."""
+    if not _check_mpq_permission(request):
+        return _mpq_denied(request)
+    from django.http import Http404
+
+    from assets.services import part145_dossier
+
+    if formato not in ("pdf", "xlsx"):
+        raise Http404("Formato non previsto")
+    dossier = _sezione_qualifiche(request, sigla)
+    if formato == "pdf":
+        data, nome = part145_dossier.esporta_pdf(dossier, request.user)
+        tipo = "application/pdf"
+    else:
+        data, nome = part145_dossier.esporta_xlsx(dossier, request.user)
+        tipo = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    resp = HttpResponse(data, content_type=tipo)
+    resp["Content-Disposition"] = f'attachment; filename="{nome}"'
+    return resp
 
 
 @login_required
@@ -255,7 +300,10 @@ def mpq_cruscotto(request):
     elif filtro_scad == "60":
         filtro_label = "Processi in scadenza entro 60 giorni"
 
+    from .services.mpq_sezioni import sezioni_attive
+
     return render(request, "anagrafica/pages/mpq_cruscotto.html", {
+        "sezioni_dedicate": [v for v in sezioni_attive() if v["qualifiche"]],
         "oggi": oggi,
         "can_manage": _check_manage(request),
         "processi": processi_elenco,
@@ -376,10 +424,11 @@ def mpq_processo_detail(request, processo_id: int):
     for r in requisiti_persona:
         r.da_iscrivere = sorted(set(da_iscrivere.get(r.pk, [])))
 
-    from assets.services.p11tf12_dossier import e_p11tf12
+    from .services.mpq_sezioni import url_asset, url_qualifiche
 
     return render(request, "anagrafica/pages/mpq_processo_detail.html", {
-        "is_p11tf12": e_p11tf12(processo),
+        "sezione_url_qualifiche": url_qualifiche(processo.sezione_sigla) if processo.sezione_in_qualifiche else "",
+        "sezione_url_asset": url_asset(processo.sezione_sigla) if processo.sezione_in_asset else "",
         "oggi": oggi,
         "can_manage": _check_manage(request),
         "processo": processo,
@@ -601,6 +650,7 @@ def mpq_processo_create(request):
         if form.is_valid():
             proc = form.save()
             _mpq_log(request, processo=proc, evento="Creazione processo")
+            sincronizza_menu_sicuro()
             messages.success(request, f"Processo «{proc.nome}» creato.")
             return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
     else:
@@ -624,6 +674,7 @@ def mpq_processo_edit(request, processo_id: int):
         if form.is_valid():
             form.save()
             _mpq_log(request, processo=proc, evento="Modifica processo")
+            sincronizza_menu_sicuro()
             messages.success(request, "Processo aggiornato.")
             return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
     else:
@@ -644,6 +695,7 @@ def mpq_processo_delete(request, processo_id: int):
     proc = get_object_or_404(ProcessoQualificato, pk=processo_id)
     nome = proc.nome
     proc.delete()
+    sincronizza_menu_sicuro()
     messages.success(request, f"Processo «{nome}» eliminato.")
     return redirect("anagrafica:mpq_cruscotto")
 

@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 {% load static assets_extras %}
-{# Pagina P11TF12 in Qualifiche: stessi dati della pagina Asset (assets/services/p11tf12_dossier.py), persone prima. #}
+{# Sezione dedicata di un processo qualificato in Qualifiche: stessi dati della pagina Asset (assets/services/sezione_processo.py), persone prima. #}
 
 {% block title %}{{ dossier.titolo }} | Anagrafica HR{% endblock %}
 
@@ -34,16 +34,16 @@ body.theme-dark .p11-nota { color:var(--text-light,#94a3b8); }
         <div>
           <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche · Processi qualificati (MOD.128)</div>
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>{{ dossier.titolo }}</h1>
-          <p class="fmd-sub">MT CN 69 · persone abilitate e formazione, macchine qualificate (MOD.161), utensili critici, Technical Plan e registro MOD.176 · aggiornato al {{ dossier.oggi|date:"d-m-Y" }}</p>
+          <p class="fmd-sub">{% for p in dossier.processi %}{% if not forloop.first %}, {% endif %}{{ p.nome }}{% endfor %} · aggiornato al {{ dossier.oggi|date:"d-m-Y" }}</p>
           <div class="fmd-hero-actions" style="gap:8px;flex-wrap:wrap;">
             {% if dossier.processi|length == 1 %}
             <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_detail' dossier.processi.0.pk %}"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Apri il processo</a>
-            {% elif not dossier.processi and can_manage %}
-            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_create' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Crea il processo P11TF12</a>
             {% endif %}
-            <a class="fmd-btn fmd-btn-ghost" href="{% url 'assets:p11tf12' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Vista macchine e utensili (Asset)</a>
+            {% if in_asset %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'assets:processo_sezione' dossier.sigla %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Vista macchine e utensili (Asset)</a>{% endif %}
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_cruscotto' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Tutti i processi qualificati</a>
-            <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#p11tf12">? Guida</a>
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_sezione_export' dossier.sigla 'pdf' %}" title="Tutte le parti mostrate, pronto per l'audit"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica PDF</a>
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_sezione_export' dossier.sigla 'xlsx' %}" title="Riepilogo + un foglio per parte"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica Excel</a>
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#sezione-dedicata">? Guida</a>
           </div>
         </div>
       </div>

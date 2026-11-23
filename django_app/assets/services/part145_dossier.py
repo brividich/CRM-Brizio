@@ -717,7 +717,7 @@ def esporta_xlsx(dati: dict, utente=None) -> tuple[bytes, str]:
     wb = Workbook()
     ws = wb.active
     ws.title = "Riepilogo"
-    riga = _brand_header(ws, title="Dossier PART 145", subtitle=_intestazione(utente, dati["con_personale"]),
+    riga = _brand_header(ws, title=dati.get("titolo_export") or "Dossier PART 145", subtitle=_intestazione(utente, dati["con_personale"]),
                          filters_label="", logo=True)
     for etichetta, valore in dati["riepilogo"]:
         write_cell(ws, riga, 1, etichetta).font = Font(bold=True)
@@ -746,7 +746,7 @@ def esporta_xlsx(dati: dict, utente=None) -> tuple[bytes, str]:
             foglio.auto_filter.ref = f"A4:{get_column_letter(len(s.intestazioni))}{4 + len(s.righe)}"
     buf = io.BytesIO()
     wb.save(buf)
-    return buf.getvalue(), _titolo_file(dati["oggi"]) + ".xlsx"
+    return buf.getvalue(), (dati.get("nome_file") or _titolo_file(dati["oggi"])) + ".xlsx"
 
 
 def esporta_pdf(dati: dict, utente=None) -> tuple[bytes, str]:
@@ -757,7 +757,7 @@ def esporta_pdf(dati: dict, utente=None) -> tuple[bytes, str]:
     theme = PdfTheme.from_branding()
     styles = build_styles(theme)
     buf = io.BytesIO()
-    doc = make_document(buf, title="Dossier PART 145", landscape=True)
+    doc = make_document(buf, title=dati.get("titolo_export") or "Dossier PART 145", landscape=True)
     larghezza = doc.pagesize[0] - doc.leftMargin - doc.rightMargin
     elementi: list = []
     riepilogo = [[Paragraph(escape(str(e)), styles["table_header"]) for e, _ in dati["riepilogo"]],
@@ -776,9 +776,9 @@ def esporta_pdf(dati: dict, utente=None) -> tuple[bytes, str]:
         elementi.append(data_table(righe, theme, col_widths=[larghezza / len(s.intestazioni)] * len(s.intestazioni),
                                    repeat_rows=1, extra_style=[("FONTSIZE", (0, 0), (-1, -1), 7),
                                                                ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    draw = header_footer_callback(theme, title="DOSSIER PART 145", subtitle=_intestazione(utente, dati["con_personale"]))
+    draw = header_footer_callback(theme, title=(dati.get("titolo_export") or "Dossier PART 145").upper(), subtitle=_intestazione(utente, dati["con_personale"]))
     doc.build(elementi, onFirstPage=draw, onLaterPages=draw)
-    return buf.getvalue(), _titolo_file(dati["oggi"]) + ".pdf"
+    return buf.getvalue(), (dati.get("nome_file") or _titolo_file(dati["oggi"])) + ".pdf"
 
 
 # ── Elenchi operativi ─────────────────────────────────────────────────────────
