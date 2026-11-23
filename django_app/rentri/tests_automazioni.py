@@ -3,6 +3,7 @@
 Solo dati sintetici: codici e descrizioni inventati dove non serve l'elenco reale.
 """
 import datetime
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -139,8 +140,24 @@ class DatiPropostiTests(_Base):
         o = self.mov("O", rif_op=c.id_registrazione, data=datetime.date(2026, 10, 2))
         r = self.client.get(f"/rentri/{c.pk}/")
         self.assertNotContains(r, "Scarica (O)")
+        # Sul registro: O → R (rettifica con il peso a destino) → M (scarico effettivo).
         r = self.client.get(f"/rentri/{o.pk}/")
-        self.assertContains(r, f"/rentri/scarico-effettivo/?da={o.pk}")
+        self.assertContains(r, f"/rentri/rettifica-scarico/?da={o.pk}")
+        self.assertNotContains(r, f"/rentri/scarico-effettivo/?da={o.pk}")
+        rett = self.mov("R", quantita=None, rettifica_scarico=Decimal("120"), rif_op=o.id_registrazione,
+                        data=datetime.date(2026, 10, 3))
+        r = self.client.get(f"/rentri/{o.pk}/")
+        self.assertNotContains(r, "Rettifica scarico (R)")
+        r = self.client.get(f"/rentri/{rett.pk}/")
+        self.assertContains(r, f"/rentri/scarico-effettivo/?da={rett.pk}")
+        # La M nata dalla R: stessa O, stesso numero, peso con il segno opposto.
+        r = self.client.get(f"/rentri/scarico-effettivo/?da={rett.pk}")
+        self.assertContains(r, 'value="-120.000"')
+        self.assertContains(r, o.id_registrazione)
+        self.mov("M", quantita=None, rettifica_scarico=Decimal("-120"), rif_op=o.id_registrazione,
+                 data=datetime.date(2026, 10, 3), id_registrazione=rett.id_registrazione)
+        r = self.client.get(f"/rentri/{rett.pk}/")
+        self.assertNotContains(r, f"/rentri/scarico-effettivo/?da={rett.pk}")
 
     def test_giacenze_link_scarica(self):
         self.mov("C")

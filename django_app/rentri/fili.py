@@ -8,8 +8,8 @@ Come si registra davvero (registro di produzione, 2025-2026)::
 
     C  carico            +3200   il rifiuto entra nel deposito temporaneo
     O  scarico originale −3200   parte con il FIR: esce dal deposito
-    M  scarico effettivo −5420   peso verificato a destino (quarta copia)
-    R  rettifica         +5420   la coppia M/R corregge il peso, non il deposito
+    R  rettifica         +5420   rientro quarta copia: storna con il peso a destino
+    M  scarico effettivo −5420   peso verificato a destino, stesso numero della R
 
 Regole del conto:
 
@@ -209,9 +209,10 @@ def fili_del_codice(codice: str, tipo: str, *, tutti: bool = False, escludi_pk=N
     Una voce per filo, sempre con il **carico** in vista:
 
     - O → i carichi con un residuo da scaricare; si collega il carico;
-    - M → i fili usciti senza scarico effettivo: si collega lo scarico originale O
-      (il carico senza O compare solo con ``tutti``);
-    - R → i fili con uno scarico effettivo senza rettifica: si collega l'M.
+    - R → i fili usciti senza rettifica né scarico effettivo: si collega lo
+      scarico originale O (il carico senza O compare solo con ``tutti``);
+    - M → i fili usciti senza scarico effettivo: si collega lo scarico originale O,
+      lo stesso della sua rettifica R.
 
     Con ``tutti`` compaiono anche i fili già completi per quel passo (marcati
     ``gia_collegato``): il collegamento resta una scelta della persona, la
@@ -246,31 +247,23 @@ def fili_del_codice(codice: str, tipo: str, *, tutti: bool = False, escludi_pk=N
                             "data": _fmt_data(c.data), "quantita": _num(residuo if libero else c.quantita),
                             "gia_collegato": not libero})
             continue
-        if tipo == "M":
-            # Senza O il carico compare solo con «tutti»: di norma lo scarico effettivo
-            # segue uno scarico originale (lo storico però ha M agganciate al carico).
-            genitori = o_list or ([c] if tutti else [])
-            for g in genitori:
-                m_di_g = [m for m in m_list if g.id_registrazione in split_rif_op(m.rif_op)] if g.tipo == "O" else m_list
-                gia = bool(m_di_g) or (g.tipo == "O" and bool(m_list) and len(o_list) == 1)
-                if gia and not tutti:
-                    continue
-                v = valore(g)
-                out.append({**base, "id_registrazione": g.id_registrazione, "tipo": g.tipo,
-                            "data": _fmt_data(g.data), "quantita": _num(abs(v) if v is not None else None),
-                            "fir": g.arrivo_fir, "gia_collegato": gia})
-            continue
-        # R: si rettifica uno scarico effettivo.
-        for m in m_list:
-            gia = any(m.id_registrazione in split_rif_op(r.rif_op) for r in r_list) or (
-                len(m_list) == 1 and bool(r_list)
-            )
+        # R e M si collegano allo scarico originale O (sul registro: O → R → M).
+        # Senza O il carico compare solo con «tutti»: lo storico ha R/M agganciate al carico.
+        genitori = o_list or ([c] if tutti else [])
+        chiudono = r_list + m_list if tipo == "R" else m_list
+        for g in genitori:
+            if g.tipo == "O":
+                gia = any(g.id_registrazione in split_rif_op(f.rif_op) for f in chiudono) or (
+                    bool(chiudono) and len(o_list) == 1
+                )
+            else:
+                gia = bool(chiudono)
             if gia and not tutti:
                 continue
-            v = valore(m)
-            out.append({**base, "id_registrazione": m.id_registrazione, "tipo": "M",
-                        "data": _fmt_data(m.data), "quantita": _num(abs(v) if v is not None else None),
-                        "fir": m.arrivo_fir, "gia_collegato": gia})
+            v = valore(g)
+            out.append({**base, "id_registrazione": g.id_registrazione, "tipo": g.tipo,
+                        "data": _fmt_data(g.data), "quantita": _num(abs(v) if v is not None else None),
+                        "fir": g.arrivo_fir, "gia_collegato": gia})
     # Uno stesso O/M può stare in più fili (scarico su più carichi): una voce sola.
     unici: dict[str, dict] = {}
     for voce in out:

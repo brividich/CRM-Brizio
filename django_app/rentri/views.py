@@ -485,17 +485,17 @@ _FORM_TIPO = {
         "rif_tipo": "C",
         "rif_help": "I carichi di questo codice CER con un residuo in deposito. Il collegamento è facoltativo.",
     },
-    "M": {
-        "lettera": "M", "titolo": "Scarico effettivo", "titolo_breve": "Scarico effettivo",
-        "sottotitolo": "La quantità vera pesata dal destinatario, con il FIR di ritorno.",
-        "rif_tipo": "O",
-        "rif_help": "I carichi usciti di questo codice CER senza scarico effettivo: si collega lo scarico originale (O). Facoltativo.",
-    },
     "R": {
         "lettera": "R", "titolo": "Rettifica scarico", "titolo_breve": "Rettifica",
-        "sottotitolo": "Correzione di uno scarico effettivo già registrato, positiva o negativa.",
-        "rif_tipo": "M",
-        "rif_help": "I carichi di questo codice CER con uno scarico effettivo (M) da rettificare. Facoltativo.",
+        "sottotitolo": "Al rientro della quarta copia: storna lo scarico originale con il peso verificato a destino. Poi si registra lo scarico effettivo (M).",
+        "rif_tipo": "O",
+        "rif_help": "I carichi usciti di questo codice CER senza rettifica: si collega lo scarico originale (O). Facoltativo.",
+    },
+    "M": {
+        "lettera": "M", "titolo": "Scarico effettivo", "titolo_breve": "Scarico effettivo",
+        "sottotitolo": "Dopo la rettifica (R): la quantità vera pesata dal destinatario, con il FIR di ritorno.",
+        "rif_tipo": "O",
+        "rif_help": "I carichi usciti di questo codice CER senza scarico effettivo: si collega lo scarico originale (O). Facoltativo.",
     },
 }
 
@@ -534,14 +534,27 @@ def _valori_iniziali(request, tipo: str, registro=None) -> tuple[dict, str]:
     attivi = RegistroRifiuti.objects.attivi()
     da, dup = request.GET.get("da", ""), request.GET.get("duplica", "")
     if da.isdigit():
-        g = attivi.filter(pk=int(da), tipo__in=GENITORI_AMMESSI.get(tipo, ())).first()
+        # Lo scarico effettivo M nasce anche dalla sua rettifica R (O → R → M).
+        ammessi = {*GENITORI_AMMESSI.get(tipo, ()), *(("R",) if tipo == "M" else ())}
+        g = attivi.filter(pk=int(da), tipo__in=ammessi).first()
         if g is not None:
-            v.update(codice=g.codice, unita=g.unita, rif_op=[g.id_registrazione])
-            if tipo in ("O", "M") and g.quantita is not None:
+            # Dalla R la M eredita il collegamento della R (lo scarico originale O),
+            # come nelle coppie R+M del registro.
+            rif = split_rif_op(g.rif_op) if g.tipo == "R" else [g.id_registrazione]
+            v.update(codice=g.codice, unita=g.unita, rif_op=rif or [g.id_registrazione])
+            if tipo == "O" and g.quantita is not None:
+                v["quantita"] = _num(g.quantita)
+            elif tipo == "R" and g.tipo == "O" and (g.quantita is not None or g.rettifica_scarico is not None):
+                # Proposta: il peso stimato in positivo; va corretto con il peso a destino.
+                v["rettifica"] = _num(abs(g.quantita if g.quantita is not None else g.rettifica_scarico))
+            elif tipo == "M" and g.tipo == "R" and g.rettifica_scarico is not None:
+                # Stesso peso della rettifica, con il segno opposto.
+                v["rettifica"] = _num(-abs(g.rettifica_scarico))
+            elif tipo == "M" and g.quantita is not None:
                 v["quantita"] = _num(g.quantita)
             origine = f"Compilato da {g.get_tipo_display()} {g.id_registrazione}: controlla quantità e data."
-            # Come sul registro di carta: la M prende il numero della sua O, la R
-            # quello della sua M (proposto, si può svuotare).
+            # Come sul registro di carta: la M prende il numero della sua R (o della
+            # sua O se la R manca). Proposto, si può svuotare.
             stessi = list(RegistroRifiuti.objects.filter(id_registrazione=g.id_registrazione))
             if g.id_registrazione and numero_condivisibile(RegistroRifiuti(tipo=tipo, codice=g.codice), stessi):
                 v.update(numero=g.id_registrazione, numero_da=f"{g.tipo} {g.id_registrazione}")
@@ -1266,8 +1279,8 @@ def modifica(request, pk: int):
 # Il passo successivo della catena dalla scheda: (tipo del figlio, tipi che lo «chiudono», etichetta).
 _PROSSIMO = {
     "C": ("O", ("O", "M", "R"), "Scarica (O)", "rentri_scarico_originale"),
-    "O": ("M", ("M", "R"), "Registra scarico effettivo (M)", "rentri_scarico_effettivo"),
-    "M": ("R", ("R",), "Rettifica (R)", "rentri_rettifica_scarico"),
+    "O": ("R", ("R", "M"), "Rettifica scarico (R)", "rentri_rettifica_scarico"),
+    "R": ("M", ("M",), "Registra scarico effettivo (M)", "rentri_scarico_effettivo"),
 }
 
 
@@ -1285,7 +1298,29 @@ def _prossimo_movimento(registro: RegistroRifiuti, figli: list, filo: list | Non
             return None
     elif any(f.tipo in chiudono for f in figli):
         return None
+    elif registro.tipo == "R" and _m_della_rettifica(registro):
+        return None
     return {"etichetta": etichetta, "url": reverse(url_name) + f"?da={registro.pk}"}
+
+
+def _m_della_rettifica(registro: RegistroRifiuti) -> bool:
+    """La rettifica R ha già il suo scarico effettivo M?
+
+    Nel registro la M non cita la R: porta lo stesso numero o cita lo stesso
+    scarico originale O (le coppie R+M).
+    """
+    from .validazione import normalizza_cer
+
+    refs = set(split_rif_op(registro.rif_op))
+    cer = normalizza_cer(registro.codice)
+    for m in RegistroRifiuti.objects.attivi().filter(tipo="M").exclude(pk=registro.pk):
+        if registro.id_registrazione and m.id_registrazione == registro.id_registrazione:
+            return True
+        if registro.id_registrazione in split_rif_op(m.rif_op):
+            return True
+        if refs and set(split_rif_op(m.rif_op)) == refs and normalizza_cer(m.codice) == cer:
+            return True
+    return False
 
 
 def _filo_scheda(registro: RegistroRifiuti) -> list[dict]:
@@ -1891,8 +1926,8 @@ def export_pdf(request):
         legend_items = [
             ("C", "Carico"),
             ("O", "Scarico originario"),
-            ("M", "Scarico effettivo"),
             ("R", "Rettifica"),
+            ("M", "Scarico effettivo"),
         ]
         lx = MARGIN
         ly = page_h - HEADER_HEIGHT - 0.2 * cm
