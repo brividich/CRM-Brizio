@@ -89,11 +89,10 @@ from ._shared import (
     _vrf_status_detail,
 )
 from ._tooling import (
-    _build_task_attrezzatura_context,
     _ensure_attrezzatura_task_link_for_kickoff_task,
-    _handle_task_tooling_form_action,
     _task_attrezzatura_part_number,
 )
+from .collegamenti import applica_dal_form, collegamenti_context, collegamenti_context_nuova
 
 logger = logging.getLogger(__name__)
 
@@ -311,15 +310,6 @@ def da_gestire(request):
     )
 
 
-def _causale_fai(tech_ref) -> str:
-    if tech_ref is None or tech_ref.kind != "FAI" or tech_ref.project_id is None:
-        return ""
-    from ..services.fai import esito_progetto
-
-    esito = esito_progetto(tech_ref.project)
-    return esito.causale if esito else ""
-
-
 @task_permissions_required("tasks_view")
 def task_detail(request, task_id: int):
     task = get_object_or_404(_detail_queryset(request), pk=task_id)
@@ -329,10 +319,8 @@ def task_detail(request, task_id: int):
         user=request.user,
         notify_user_queryset=_task_notify_users_queryset(task),
     )
-    from ..models import ProjectTechRef
     from ..services.stato import puo_annullare_o_ripristinare
 
-    tech_ref = ProjectTechRef.objects.filter(task=task).first()
     puo_annullare = puo_annullare_o_ripristinare(request, task)
     is_assignee = bool(task.assigned_to_id) and task.assigned_to_id == request.user.pk
 
@@ -362,12 +350,9 @@ def task_detail(request, task_id: int):
             "puo_ripristinare": puo_annullare,
             "subtask_status_choices": TaskStatus.choices,
             "task_extra_rows": _render_task_extra_data(task),
-            # Chi deve scrivere un programma vede il programma, non la gestione attrezzatura.
-            "attrezzatura_embedded_context": None if tech_ref else _build_task_attrezzatura_context(task),
-            "task_tech_ref": tech_ref,
-            # La scheda FAI parte da ciò che la procedura prevede per questo P/N.
-            "task_fai_causale": _causale_fai(tech_ref),
-            "task_tech_ref_modificabile": can_manage or task.assigned_to_id == request.user.pk,
+            # Macchina, attrezzatura, utensili, programmi, FAI e incontro: un riquadro solo.
+            # ?kc=<tipo> (da «Assegna» del Percorso) lo apre già sul collegamento atteso.
+            **collegamenti_context(request, task, apri=request.GET.get("kc", "")),
             # Il responsabile arriva qui dalla notifica: deve poter prendere in carico e chiudere.
             "is_assignee": is_assignee,
             # Lo stato si cambia da un controllo solo: chi gestisce e l'incaricato
@@ -379,7 +364,6 @@ def task_detail(request, task_id: int):
                 ("start", "In corso", TaskStatus.IN_PROGRESS),
                 ("done", "Completata", TaskStatus.DONE),
             ],
-            **_contesto_programma(tech_ref),
             **_contesto_spostamenti(request, task),
             **_contesto_scheda(request, task, can_manage),
         },
@@ -838,6 +822,7 @@ def task_create(request):
                         "page_title": "Nuova attivita kickoff",
                         "form": form,
                         "mode": "create",
+                        **collegamenti_context_nuova(request, locked_project),
                         "suggested_start_date": suggested_start_date,
                         "suggested_start_from_previous": has_previous_task,
                         "suggested_project_id": locked_project.id if locked_project is not None else None,
@@ -855,7 +840,9 @@ def task_create(request):
             for mw_warn in _check_machine_work_overlaps(task, exclude_task_id=None):
                 messages.warning(request, mw_warn)
             _ensure_attrezzatura_task_link_for_kickoff_task(task, user=request.user)
-            _handle_task_tooling_form_action(request, task, form)
+            # Collegamenti scelti nel riquadro prima che l'attività esistesse.
+            for avviso in applica_dal_form(request, task):
+                messages.warning(request, avviso)
             if form.reused_existing_project is not None and task.project_id:
                 if form.reused_existing_project_fields:
                     messages.info(
@@ -927,6 +914,7 @@ def task_create(request):
                 "page_title": "Nuova attivita kickoff",
                 "form": form,
                 "mode": "create",
+                **collegamenti_context_nuova(request, locked_project),
                 "suggested_start_date": suggested_start_date,
                 "suggested_start_from_previous": has_previous_task,
                 "suggested_project_id": locked_project.id if locked_project is not None else None,
@@ -945,6 +933,7 @@ def task_create(request):
             "page_title": "Nuova attivita kickoff",
             "form": form,
             "mode": "create",
+            **collegamenti_context_nuova(request, locked_project),
             "suggested_start_date": suggested_start_date,
             "suggested_start_from_previous": has_previous_task,
             "suggested_project_id": locked_project.id if locked_project is not None else None,
@@ -964,17 +953,6 @@ def _blocca_priorita(request, task, form) -> None:
     if campo is not None and not can_set_task_priority(request, task):
         campo.disabled = True
         campo.help_text = "La cambiano il responsabile del kickoff e chi ha creato l'attività."
-
-
-def _contesto_programma(ref) -> dict:
-    if ref is None or not ref.is_programma:
-        return {}
-    from ..services.programmi_fasi import azioni_possibili
-
-    return {
-        "task_programma_azioni": azioni_possibili(ref),
-        "task_programma_storico": list(ref.storico.select_related("utente")[:8]),
-    }
 
 
 def _contesto_spostamenti(request, task) -> dict:
@@ -1078,6 +1056,7 @@ def task_edit(request, task_id: int):
                         "form": form,
                         "task": task,
                         "mode": "edit",
+                        **collegamenti_context(request, task),
                         "task_extra_data_json": json.dumps(request.POST.dict()),
                     },
                 )
@@ -1098,7 +1077,6 @@ def task_edit(request, task_id: int):
             for mw_warn in _check_machine_work_overlaps(updated_task, exclude_task_id=updated_task.pk):
                 messages.warning(request, mw_warn)
             _ensure_attrezzatura_task_link_for_kickoff_task(updated_task, user=request.user)
-            _handle_task_tooling_form_action(request, updated_task, form)
             _log_task_update_events(updated_task, request.user, before)
             if form.reused_existing_project is not None and updated_task.project_id:
                 messages.info(
@@ -1140,6 +1118,7 @@ def task_edit(request, task_id: int):
             "form": form,
             "task": task,
             "mode": "edit",
+            **collegamenti_context(request, task),
             "task_extra_data_json": json.dumps(task.extra_data or {}),
         },
     )
@@ -1506,7 +1485,11 @@ def category_fields_json(request, category_id: int):
     except TaskCategory.DoesNotExist:
         return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
 
-    raw_fields = list(category.fields.all().order_by("order_index", "id"))
+    # La macchina si collega dal riquadro «Collegamenti», non da un campo del tipo.
+    raw_fields = [
+        f for f in category.fields.all().order_by("order_index", "id")
+        if not (f.code == "macchina" and f.field_type == TaskCategoryFieldType.ASSET)
+    ]
     fields = [_serialize_category_field(f) for f in raw_fields]
 
     users_payload: list[dict] = []

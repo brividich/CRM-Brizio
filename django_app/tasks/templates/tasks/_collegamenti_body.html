@@ -1,0 +1,33 @@
+{% comment %}Corpo del riquadro «Collegamenti»: si rifà a ogni comando (tasks:collegamenti_azione).{% endcomment %}
+{% if col.manca_testo %}<p class="kc-manca"><span class="ts-chip warn">{{ col.manca_testo }}</span></p>{% endif %}
+<ul class="kc-lista" data-kc-lista>
+  {% for v in col.voci %}
+  <li class="kc-voce" data-kc-voce="{{ v.chiave }}">
+    <span class="kc-tipo">{{ v.nome }}</span>
+    <span class="kc-desc">{% if v.vuoto %}{% if v.puo_compilare %}<a class="kc-codice" href="{{ v.url }}">Compila la scheda FAI</a>{% else %}<b class="kc-codice">da compilare</b>{% endif %}{% elif v.url %}<a class="kc-codice" href="{{ v.url }}">{{ v.codice }}</a>{% else %}<b class="kc-codice">{{ v.codice }}</b>{% endif %}{% if v.descrizione %}<small>{{ v.descrizione }}</small>{% endif %}{% if v.ref.path %}<small>{% include "tasks/_tech_ref_link.html" with ref=v.ref %}</small>{% endif %}</span>
+    {% if v.fasi and v.puo %}
+    <select class="input kc-fase" data-kc-fase data-no-search aria-label="Fase di {{ v.codice }}">
+      <option value="" selected>{{ v.stato }}</option>
+      {% for azione, etichetta in v.fasi %}<option value="{{ azione }}">{{ etichetta }}</option>{% endfor %}
+    </select>
+    {% elif v.stato and not v.vuoto %}<span class="ts-chip {{ v.tono }}">{{ v.stato }}</span>{% endif %}
+    {% if v.modificabile %}<button type="button" class="kc-mod" data-kc-modifica aria-expanded="false">Modifica</button>{% endif %}
+    {% if v.puo %}<button type="button" class="kc-x" data-kc-togli aria-label="Togli {{ v.nome }} {{ v.codice }}">&times;</button>{% endif %}
+    {% if v.modificabile %}
+    <div class="kc-form" data-kc-form hidden>
+      <input class="input" type="text" data-kc-code maxlength="120" value="{{ v.ref.code }}" placeholder="Codice" aria-label="Codice">
+      <input class="input" type="text" data-kc-path maxlength="500" value="{{ v.ref.path }}" placeholder="\\server\cartella o file" aria-label="Cartella o file">
+      <button type="button" class="btn btn-sm" data-kc-salva>Salva</button>
+    </div>
+    {% endif %}
+  </li>
+  {% empty %}
+  <li class="kc-vuoto" data-kc-vuoto>Nessun collegamento.</li>
+  {% endfor %}
+</ul>
+{% if col.macchina %}{% with m=col.macchina %}{% include "tasks/_tappe_macchina.html" %}{% endwith %}{% endif %}
+{% if col.puo and col.tipi %}
+<div class="kc-chips" role="group" aria-label="Aggiungi un collegamento">
+  {% for t in col.tipi %}<button type="button" class="kc-chip{% if t.serve %} is-serve{% endif %}" data-kc-tipo="{{ t.codice }}" data-kc-nome="{{ t.nome }}" aria-pressed="false">+ {{ t.nome }}</button>{% endfor %}
+</div>
+{% endif %}

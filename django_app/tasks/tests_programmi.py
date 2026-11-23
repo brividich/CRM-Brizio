@@ -116,14 +116,18 @@ class VisteTests(ProgrammiBase):
     def test_scheda_chiede_il_programma_e_non_mostra_attrezzatura(self):
         task = self.attivita()
         pagina = self.client.get(reverse("tasks:detail", args=[task.pk]))
-        self.assertContains(pagina, "Programma CAM da inserire")
-        self.assertIsNone(pagina.context["attrezzatura_embedded_context"])
+        # Il programma è una voce del riquadro «Collegamenti»: manca finché non lo si collega.
+        self.assertContains(pagina, "Manca: programma CAM")
+        self.assertContains(pagina, 'class="kc-chip is-serve" data-kc-tipo="cam"')
+        self.assertNotContains(pagina, "programma-attivita")
+        self.assertNotIn("attrezzatura_embedded_context", pagina.context)
 
     def test_scheda_senza_regola_resta_com_era(self):
         task = self.attivita(category=TaskCategory.objects.create(name="Altro", slug="altro"))
         pagina = self.client.get(reverse("tasks:detail", args=[task.pk]))
         self.assertNotContains(pagina, "programma-attivita")
-        self.assertIsNotNone(pagina.context["attrezzatura_embedded_context"])
+        self.assertNotContains(pagina, "Manca:")
+        self.assertContains(pagina, 'data-kc-tipo="attrezzatura"')
 
     def test_salva_dall_attivita(self):
         task = self.attivita()

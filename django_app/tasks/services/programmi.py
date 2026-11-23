@@ -46,8 +46,12 @@ def allinea_da_attivita(task: Task) -> ProjectTechRef | None:
         else:
             ref.source_meeting = None
     if ref is not None and ref.kind != kind:
-        sgancia(ref)
-        ref = None
+        if not kind and ref.ha_contenuto and task.project_id == ref.project_id and task.status != TaskStatus.CANCELED:
+            # Collegato a mano dal riquadro «Collegamenti»: resta, anche se il tipo non lo richiede.
+            kind = ref.kind
+        else:
+            sgancia(ref)
+            ref = None
     if not kind:
         return None
     if ref is None:

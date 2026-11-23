@@ -95,25 +95,21 @@
           {% endif %}
         </section>
 
-        <details class="tf2-more"{% if form.tags.errors or form.next_step_text.errors or form.assignment_conflict_action.errors or form.tooling_mode.errors or form.tooling_existing_attrezzatura.errors or form.tooling_part_number.errors or form.tooling_code.errors or form.tooling_description.errors or form.outlook_target_email.errors %} open{% endif %}>
-          <summary>Altre opzioni <span>etichette, prossimo passo, impegni sovrapposti, attrezzatura, Outlook, promemoria</span></summary>
+        {% if col %}
+        <section class="tf2-card" id="collegamenti">
+          <h3 class="tf2-h3">Collegamenti</h3>
+          {% include "tasks/_collegamenti.html" %}
+        </section>
+        {% endif %}
+
+        <details class="tf2-more"{% if form.tags.errors or form.next_step_text.errors or form.assignment_conflict_action.errors or form.outlook_target_email.errors %} open{% endif %}>
+          <summary>Altre opzioni <span>etichette, prossimo passo, impegni sovrapposti, Outlook, promemoria</span></summary>
           <div class="tf2-more-body">
             <div class="tf2-row">
               <div class="ts-field tf2-grow"><label for="{{ form.next_step_text.id_for_label }}">{{ form.next_step_text.label }}</label>{{ form.next_step_text }}{% if form.next_step_text.errors %}<div class="ts-field-error">{{ form.next_step_text.errors }}</div>{% endif %}</div>
               <div class="ts-field tf2-grow"><label for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>{{ form.tags }}{% if form.tags.errors %}<div class="ts-field-error">{{ form.tags.errors }}</div>{% endif %}</div>
             </div>
             <div class="ts-field"><label for="{{ form.assignment_conflict_action.id_for_label }}">{{ form.assignment_conflict_action.label }}</label>{{ form.assignment_conflict_action }}{% if form.assignment_conflict_action.errors %}<div class="ts-field-error">{{ form.assignment_conflict_action.errors }}</div>{% endif %}</div>
-
-            <h3 class="tf2-h3">Attrezzatura</h3>
-            <div class="tf2-row">
-              <div class="ts-field tf2-grow"><label for="{{ form.tooling_mode.id_for_label }}">{{ form.tooling_mode.label }}</label>{{ form.tooling_mode }}{% if form.tooling_mode.errors %}<div class="ts-field-error">{{ form.tooling_mode.errors }}</div>{% endif %}</div>
-              <div class="ts-field tf2-grow"><label for="{{ form.tooling_existing_attrezzatura.id_for_label }}">{{ form.tooling_existing_attrezzatura.label }}</label>{{ form.tooling_existing_attrezzatura }}{% if form.tooling_existing_attrezzatura.errors %}<div class="ts-field-error">{{ form.tooling_existing_attrezzatura.errors }}</div>{% endif %}</div>
-            </div>
-            <div class="tf2-row">
-              <div class="ts-field tf2-grow"><label for="{{ form.tooling_part_number.id_for_label }}">{{ form.tooling_part_number.label }}</label>{{ form.tooling_part_number }}{% if form.tooling_part_number.errors %}<div class="ts-field-error">{{ form.tooling_part_number.errors }}</div>{% endif %}</div>
-              <div class="ts-field tf2-grow"><label for="{{ form.tooling_code.id_for_label }}">{{ form.tooling_code.label }}</label>{{ form.tooling_code }}{% if form.tooling_code.errors %}<div class="ts-field-error">{{ form.tooling_code.errors }}</div>{% endif %}</div>
-            </div>
-            <div class="ts-field"><label for="{{ form.tooling_description.id_for_label }}">{{ form.tooling_description.label }}</label>{{ form.tooling_description }}{% if form.tooling_description.errors %}<div class="ts-field-error">{{ form.tooling_description.errors }}</div>{% endif %}</div>
 
             <h3 class="tf2-h3">Calendario e promemoria</h3>
             <label class="tf2-check">{{ form.add_to_outlook }} <span><strong>{{ form.add_to_outlook.label }}</strong>{% if form.add_to_outlook.help_text %}<small>{{ form.add_to_outlook.help_text }}</small>{% endif %}</span></label>
@@ -148,6 +144,7 @@
 </div>
 {% endblock %}
 {% block tasks_shell_scripts %}
+{% load static %}<script src="{% static 'tasks/js/collegamenti.js' %}?v=20261123a" defer></script>
 <script>
 // Persone in copia: filtro per nome, le spuntate restano sempre visibili.
 (function(){

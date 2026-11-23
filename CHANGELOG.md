@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: riquadro unico «Collegamenti» dell'attività (passo 1 di 3)
+
+- **Scheda e form dell'attività:** macchina, attrezzatura, utensili, programma CAM, programma CMM, FAI e incontro stanno in un solo riquadro «Collegamenti». Stesso gesto per tutti: «+ tipo», ricerca per codice o nome, «Collega»; se il codice non esiste «Aggiungi e collega» lo mette in catalogo (per il FAI «Apri nuovo FAI»). I collegamenti attesi dal tipo dell'attività sono evidenziati e lo stato dice «Manca: …». Tolti il riquadro del programma, il pannello attrezzatura della scheda e i modi «Collega esistente / Richiedi nuovo attrezzo / Richiedi verifica» del form.
+- **Utensili e attrezzature sono solo codici:** niente stati, quantità o richieste; nei risultati si legge in quante commesse il codice è già servito. I dati già registrati (quantità, stato, entro) restano nel database.
+- **Incontro:** «+ Incontro» elenca gli incontri pianificati della commessa e «Porta all'ordine del giorno» crea il punto collegato all'attività, senza doppioni; dalla scheda dell'attività si arriva al punto con un clic.
+- **Nuovo servizio** `tasks/services/collegamenti.py` sopra i modelli esistenti; migrazione `tasks 0071` (colonna facoltativa `ProjectUtensile.task`). URL nuovi `tasks:collegamenti_cerca` e `tasks:collegamenti_azione` (ACL `tasks.kickoff.projects`, JSON 401/403).
+- File: `tasks/services/collegamenti.py`, `tasks/views/collegamenti.py`, `tasks/views/task.py`, `tasks/views/_extra_fields.py`, `tasks/services/programmi.py`, `tasks/models.py`, `tasks/migrations/0071_utensile_attivita.py`, `tasks/urls.py`, `tasks/acl_bootstrap.py`, `tasks/templates/tasks/_collegamenti.html`, `_collegamenti_body.html`, `detail.html`, `form.html`, `base_shell.html`, `base_shell_pannello.html`, `tasks/static/tasks/js/collegamenti.js`, `tasks/static/tasks/css/tasks.css`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`; test `tasks/tests_collegamenti.py`, `tests_programmi.py`, `tests_task.py`.
+
 ### Audit 22/11, ondata 1: sicurezza rapida
 
 - **Reindirizzamenti (S2):** dopo la decisione su uno spostamento di date (KICK-OFF) e alla fine di un'impersonazione il parametro `next` passa da `core.redirects.safe_next`: un indirizzo esterno riporta alla pagina interna. File: `tasks/views/spostamenti.py`, `core/views.py`.
