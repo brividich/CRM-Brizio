@@ -6,9 +6,14 @@
  * singolo file, trascinamento sull'area, controllo di numero/dimensione prima
  * dell'invio e pulsante in stato "invio in corso".
  *
- * Markup atteso: form[data-upload-form] con uno o piu' input[type=file],
- * un contenitore [data-upload-chips], un [data-upload-status] e il submit.
- * Attributi opzionali sul form: data-max-files, data-max-mb.
+ * Markup atteso: [data-upload-form] (un form, oppure un blocco dentro un altro
+ * pannello come «Risolvi» della gestione ticket) con uno o piu' input[type=file],
+ * un contenitore [data-upload-chips], un [data-upload-status] e, se form, il submit.
+ * Attributi opzionali: data-max-files, data-max-mb.
+ *
+ * Ctrl+V con un'immagine negli appunti (screenshot) la aggiunge ai file: nel
+ * blocco dove si sta scrivendo o, fuori dai campi di testo, nel primo visibile.
+ * Lo script si puo' includere piu' volte nella stessa pagina: ogni blocco parte una volta sola.
  */
 (function () {
   'use strict';
@@ -30,7 +35,17 @@
     return n;
   }
 
+  function nomeScreenshot(f, n) {
+    var d = new Date();
+    var due = function (x) { return (x < 10 ? '0' : '') + x; };
+    var ext = ((f.type || '').split('/')[1] || 'png').replace('jpeg', 'jpg');
+    return 'screenshot-' + d.getFullYear() + due(d.getMonth() + 1) + due(d.getDate()) + '-' +
+      due(d.getHours()) + due(d.getMinutes()) + due(d.getSeconds()) + (n ? '-' + (n + 1) : '') + '.' + ext;
+  }
+
   function initForm(form) {
+    if (form.__uplPronto) return;
+    form.__uplPronto = true;
     var inputs = Array.prototype.slice.call(form.querySelectorAll('input[type=file]'));
     var chips = form.querySelector('[data-upload-chips]');
     var status = form.querySelector('[data-upload-status]');
@@ -116,6 +131,18 @@
 
     inputs.forEach(function (inp) { inp.addEventListener('change', render); });
 
+    // File aggiunti a quelli gia' scelti (screenshot incollati).
+    form.__uplAggiungi = function (nuovi) {
+      var inp = inputs[0];
+      if (!inp || !canRebuild || !nuovi.length) return false;
+      var dt = new DataTransfer();
+      Array.prototype.forEach.call(inp.files || [], function (f) { dt.items.add(f); });
+      nuovi.forEach(function (f) { dt.items.add(f); });
+      inp.files = dt.files;
+      render();
+      return true;
+    };
+
     Array.prototype.forEach.call(form.querySelectorAll('[data-upload-drop]'), function (zone) {
       ['dragenter', 'dragover'].forEach(function (ev) {
         zone.addEventListener(ev, function () { zone.classList.add('is-over'); });
@@ -125,7 +152,7 @@
       });
     });
 
-    form.addEventListener('submit', function (ev) {
+    if (form.tagName === 'FORM') form.addEventListener('submit', function (ev) {
       if (!allFiles().length) {
         ev.preventDefault();
         setStatus('Scegli almeno un file da allegare.', true);
@@ -147,8 +174,40 @@
     render();
   }
 
+  function visibile(n) { return !!(n.offsetWidth || n.offsetHeight || n.getClientRects().length); }
+
+  function onPaste(ev) {
+    var dati = ev.clipboardData;
+    if (!dati || !dati.items) return;
+    var immagini = [];
+    Array.prototype.forEach.call(dati.items, function (it) {
+      if (it.kind === 'file' && /^image\//.test(it.type)) {
+        var f = it.getAsFile();
+        if (f) immagini.push(new File([f], nomeScreenshot(f, immagini.length), { type: f.type, lastModified: Date.now() }));
+      }
+    });
+    if (!immagini.length) return;
+    var dentro = ev.target && ev.target.closest ? ev.target.closest('[data-upload-form]') : null;
+    var bersaglio = dentro;
+    if (!bersaglio) {
+      var t = ev.target;
+      var scrivibile = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      // In un campo di testo fuori dal blocco va solo se il campo e' nello stesso pannello.
+      var pannello = scrivibile && t.closest ? t.closest('[data-upload-scope]') : null;
+      if (pannello) bersaglio = pannello.querySelector('[data-upload-form]');
+      else if (!scrivibile) {
+        bersaglio = Array.prototype.filter.call(document.querySelectorAll('[data-upload-form]'), visibile)[0] || null;
+      }
+    }
+    if (bersaglio && bersaglio.__uplAggiungi && bersaglio.__uplAggiungi(immagini)) ev.preventDefault();
+  }
+
   function boot() {
-    Array.prototype.forEach.call(document.querySelectorAll('form[data-upload-form]'), initForm);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-upload-form]'), initForm);
+    if (!window.__uplPaste) {
+      window.__uplPaste = true;
+      document.addEventListener('paste', onPaste);
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

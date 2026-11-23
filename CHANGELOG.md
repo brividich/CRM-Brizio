@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ticket: allegati e screenshot nella risoluzione
+
+- **«Risolvi» con allegati:** nel pannello, sotto «Cosa è stato fatto», l'area «Allegati e screenshot» della card allegati (trascina, sfoglia, miniature, ×), max 10 file, facoltativi. Ctrl+V incolla uno screenshot (nome `screenshot-AAAAMMGG-hhmmss.png`). «Segna risolto» manda file e risoluzione in un'unica richiesta: file controllati prima e salvati nella stessa transazione dell'intervento; se uno è rifiutato il ticket resta aperto. Allegati già validati, tipo dal MIME (immagine = Foto, PDF = Rapportino), nota «Allegato alla risoluzione». La mail «Risolto: confermi?» aggiunge «Nel ticket trovi N allegati della risoluzione». Nessuna migrazione, serve collectstatic.
+- **Ctrl+V anche nella card «Aggiungi allegati»** (e nella pagina QR): lo script condiviso incolla lo screenshot nel blocco dove si scrive o, fuori dai campi di testo, nel primo visibile; si può includere più volte nella stessa pagina.
+- File: `tickets/views.py` (`api_stato` multipart, `_valida_allegati_risoluzione`, `_api_azione_tecnico`), `tickets/allegati.py` (`DESCRIZIONE_RISOLUZIONE`, `tipo_documento_per_mime`), `tickets/services/avvisi.py`, `tickets/static/tickets/js/allegati_upload.js`, `tickets/static/tickets/css/pagine/gestione_detail-2.css`, `templates/tickets/pages/gestione_detail.html`; guida `core/guide_moduli/contenuti/tickets.py`, `docs/moduli/tickets.md`; test `tickets/tests_risolvi_allegati.py`.
+
 ### Audit 22/11, ondata 3: segnalazioni di sicurezza, schede di sicurezza, diario
 
 - **Indice infortuni TRIR (G1-G2):** le ore lavorate sono stimate sulla parte d'anno trascorsa (organico × 2.000 × giorni trascorsi/365), non sull'anno intero: a giugno l'indice non vale più la metà del reale. Sotto il numero è scritto il calcolo; se l'anagrafica non risponde compare «Organico non disponibile» (prima un trattino muto). File: `rilevazione_incidenti/services.py`, `pages/statistiche.html`, `dashboard_hub_preview.html`, `ai_assistant/tools.py`.
