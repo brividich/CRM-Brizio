@@ -3,7 +3,7 @@
  * Un solo overlay (#gs-overlay in core/base.html) con tre sezioni:
  *  - «Recenti»: ultime pagine aperte dall'utente (localStorage, solo per questo browser);
  *  - «Vai a…»: pagine di navigazione, gia' ACL-filtrate lato server in `command-palette-data`;
- *  - risultati dati (dipendenti, asset, ticket, OP, FAI, …) dall'API di ricerca globale (`data-api-url`);
+ *  - risultati dati (dipendenti, asset, ticket, OP, FAI, processi qualificati, …) dall'API di ricerca globale (`data-api-url`);
  *  - «Dalle guide e procedure»: capitoli trovati dall'indice dell'assistente (`data-docs-url`,
  *    solo recupero, niente AI generativa: risponde in pochi millisecondi);
  *  - «Chiedi all'Assistente»: apre la chat con la frase già inviata (`data-ai-url?q=`), in cima
@@ -49,12 +49,14 @@
     fai: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5M8.5 11l1.8 1.8 3.2-3.3"/></svg>',
     procedura: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/></svg>',
     dpi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>',
+    processo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
     doc: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 17h6M8 9h3"/></svg>',
     ai: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>'
   };
   var LABELS = {
     dipendente: "Dipendenti", asset: "Asset", ticket: "Ticket",
-    kickoff: "Kickoff", task: "Attività", op: "Ordini di produzione", fai: "Registro FAI", procedura: "Procedure", dpi: "DPI"
+    kickoff: "Kickoff", task: "Attività", op: "Ordini di produzione", fai: "Registro FAI", procedura: "Procedure", dpi: "DPI",
+    processo: "Processi qualificati"
   };
 
   var timer = null, seq = 0, sel = -1, nodes = [];
