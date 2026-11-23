@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: «Organizzazione» si apre su una pagina d'ingresso con i collegamenti diretti
+
+- **Pagina «Panoramica»**, prima voce del pilastro Organizzazione (`/anagrafica/organizzazione/`): in alto i numeri della struttura, ognuno porta al suo elenco; a sinistra «Collegamenti diretti», una tessera per pagina della sezione con una riga che spiega a che cosa serve («Esplora la struttura», «Mansioni», «Richieste», «Reparti e capi», «Centri di costo», «Organigramma», «Prova un cambiamento», «Struttura e revisioni»); a destra «Da fare», solo ciò che aspetta in questa sezione, con numero e pulsante. Sotto, lo stato della revisione della struttura.
+- **Stessi numeri delle pagine di arrivo:** struttura da `struttura_vista` (la pagina «Struttura organizzativa»), richieste da `richieste.da_fare`. I numeri della struttura li vede chi vede la Struttura organizzativa; le tessere compaiono solo per le pagine che l'utente può aprire; le righe a zero non compaiono.
+- Migrazione `anagrafica 0237`: voce di menu «Panoramica» e permesso della rotta copiato da «Il mio team».
+- File: `anagrafica/services/organizzazione_panoramica.py`, `anagrafica/views_organizzazione.py`, `anagrafica/urls.py`, `anagrafica/templates/anagrafica/pages/organizzazione_panoramica.html`, `anagrafica/tests_organizzazione_panoramica.py`, Centro guide (`core/guide_moduli/contenuti/anagrafica.py`), `docs/moduli/anagrafica.md`.
+
 ### Ricerca: processi qualificati in Ctrl+K e barra unica nella sezione dedicata (Qualifiche)
 
 - **Ricerca globale:** nuovo gruppo «Processi qualificati» (nome, sigla o titolo della sezione, riferimento, cliente), solo con accesso a `/anagrafica/mod128/` e permesso visualizza MOD.128. Un processo con sezione dedicata porta alla sezione (una riga per sigla; sezione solo Asset → pagina Asset se si vede l'inventario), gli altri alla scheda del processo. Icona e titolo del gruppo nella palette.
