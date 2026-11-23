@@ -257,7 +257,13 @@
         </div>
 
         {% include "tasks/_quick_task_bar.html" %}
-    {% include "tasks/_tech_refs.html" %}
+        {# Registro della commessa, come in «Programmi e FAI»: niente <form> né campi con name, può stare qui dentro. #}
+        <details class="tp-altri">
+          <summary>Codici, cartelle e schede FAI</summary>
+          <section class="tr-block rc" data-rc data-url="{{ reg_url }}" data-csrf="{{ csrf_token }}" aria-label="Programmi, FAI e risorse della commessa">
+            {% include "tasks/_registro_collegamenti_body.html" %}
+          </section>
+        </details>
 
         {% if meeting.next_steps %}
         <div class="mf-field" style="margin-bottom:0">
@@ -355,6 +361,8 @@
 </script>
 <script src="{% static 'tasks/js/meeting_task_modal.js' %}?v=20261105" defer></script>
 <script src="{% static 'tasks/js/tech_refs.js' %}?v=20261111" defer></script>
+<script src="{% static 'tasks/js/collegamenti.js' %}?v=20261123b" defer></script>
+<script src="{% static 'tasks/js/registro_collegamenti.js' %}?v=20261123b" defer></script>
 <script src="{% static 'tasks/js/quick_task_bar.js' %}?v=20261105b" defer></script>
 <script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
 <script src="{% static 'tasks/js/avviso_uscita.js' %}?v=20261120" defer></script>

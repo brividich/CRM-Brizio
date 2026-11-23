@@ -268,8 +268,9 @@ def _titolo(key: str, tipo: TaskCategory, *, asset=None, testo: str = "", attrez
 @transaction.atomic
 def assegna(
     project, key: str, user, *, assigned_to=None, due_date=None, start_date=None, asset=None, testo: str = "",
-    meeting=None, outlook: bool = False, request=None, attrezzatura=None,
+    meeting=None, outlook: bool = False, request=None, attrezzatura=None, titolo: str = "",
 ) -> Task:
+    """Crea l'attività della tappa. ``titolo``: quello scritto in riunione; senza, il nome del tipo."""
     from .meeting_tasks import (
         KickoffBloccatoVRF,
         kickoff_bloccato_vrf,
@@ -300,7 +301,7 @@ def assegna(
     if key in CAMPO_TESTO and testo:
         extra[CAMPO_TESTO[key]] = testo[:200]
     task = Task.objects.create(
-        title=titolo_attivita(_titolo(key, tipo, asset=asset, testo=testo, attrezzatura=attrezzatura)),
+        title=titolo_attivita(titolo) or titolo_attivita(_titolo(key, tipo, asset=asset, testo=testo, attrezzatura=attrezzatura)),
         project=project,
         assigned_to=assigned_to,
         category=tipo,

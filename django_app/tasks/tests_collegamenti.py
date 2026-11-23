@@ -776,6 +776,19 @@ class RegistroTests(CollegamentiBase):
             self.assertEqual(risposta.status_code, 401)
             self.assertEqual(risposta["Content-Type"], "application/json")
 
+    def test_registro_nella_scheda_dell_incontro_e_nell_esito(self):
+        incontro = self.incontro()
+        scheda = self.client.get(reverse("tasks:project_meeting_detail", args=[self.project.pk, incontro.pk]))
+        esito = self.client.get(reverse("tasks:project_meeting_minutes", args=[self.project.pk, incontro.pk]))
+        for pagina in (scheda, esito):
+            self.assertEqual(pagina.status_code, 200)
+            self.assertContains(pagina, f'data-url="{reverse("tasks:collegamenti_registro", args=[self.project.pk])}"')
+            self.assertContains(pagina, "data-rc-riga=", msg_prefix="le righe del registro")
+            self.assertContains(pagina, "registro_collegamenti.js")
+            # La vecchia tabella con la riga rapida non c'è più.
+            self.assertNotContains(pagina, "data-tr-block")
+            self.assertNotContains(pagina, "data-tr-form")
+
     def test_registri_di_modulo_non_toccati(self):
         for nome in ("tasks:programmi_registro", "tasks:fai_registro"):
             self.assertEqual(self.client.get(reverse(nome)).status_code, 200, nome)

@@ -84,7 +84,7 @@ from ..services.meeting_tasks import (
     titolo_attivita,
 )
 from .tappe import tappe_context
-from .tech_refs import tech_refs_context
+from .collegamenti import registro_context
 from ..services.notify import (
     notify_user,
 )
@@ -774,7 +774,8 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             "agenda_toggle_url_base": f"/tasks/projects/{project_id}/incontri/{meeting_id}/agenda-toggle/",
             **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
             **_quick_task_context(project, meeting),
-            **tech_refs_context(request, project, meeting),
+            # Stesso registro (e stessi permessi) della pagina «Programmi e FAI» della commessa.
+            **(registro_context(request, project) if can_manage else {}),
             **tappe_context(request, project, meeting),
             "can_edit_after_end": can_edit_after_end(request, project),
         },
@@ -1018,7 +1019,7 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             "active_users": task_active_users_queryset(),
             **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
             **_quick_task_context(project, meeting),
-            **tech_refs_context(request, project, meeting),
+            **registro_context(request, project),
             "impronta": request.POST.get("impronta", "") if conflitto else _impronta_esito(meeting),
             "conflitto_versione": conflitto,
             "correzione": correzione,
@@ -1611,7 +1612,6 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
             "planned_minutes": planned_minutes,
             "done_count": sum(1 for item in items if item.get("done")),
             **_quick_task_context(project, meeting),
-            **tech_refs_context(request, project, meeting),
             "decision_impacts": MeetingDecisionImpact.choices,
             "item_update_url": reverse(
                 "tasks:project_meeting_agenda_item_update",
@@ -1630,22 +1630,8 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
                 kwargs={"project_id": project_id, "meeting_id": meeting_id},
             ),
             "project_tasks_json": _project_tasks_for_picker(project),
-            **_run_tappe_context(items),
         },
     )
-
-
-def _run_tappe_context(items) -> dict:
-    """Elenchi per assegnare i punti «tappa» in conduzione, solo se servono."""
-    from ..services.tappe import macchine_disponibili
-    from .tappe import _fornitori, _processi
-
-    fonti = {str(i.get("source") or "") for i in items if isinstance(i, dict)}
-    return {
-        "run_macchine": list(macchine_disponibili()) if "tappa:MACCHINA" in fonti else [],
-        "run_fornitori": _fornitori() if "tappa:TERZISTA" in fonti else [],
-        "run_processi": _processi() if "tappa:PROCESSI" in fonti else [],
-    }
 
 
 @require_POST
@@ -1923,16 +1909,16 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
     priority = (request.POST.get("priority") or TaskPriority.MEDIUM).strip().upper()
 
     if tappa:
-        # Punto «tappa» del Percorso: nasce l'attività del tipo giusto (macchina, terzista, ...).
+        # Punto «tappa» del Percorso: nasce l'attività del tipo giusto, solo con titolo, responsabile e date.
+        # Macchina, attrezzatura, utensili, programmi e FAI si collegano dal riquadro «Collegamenti»,
+        # che la conduzione apre nel pannello laterale (``apri``).
+        from ..services import collegamenti as collegamenti_svc
         from ..services import tappe as tappe_svc
 
-        asset = None
-        if (request.POST.get("asset") or "").isdigit():
-            asset = tappe_svc.macchine_disponibili().filter(pk=int(request.POST["asset"])).first()
         try:
             task = tappe_svc.assegna(
                 project, tappa, request.user, assigned_to=assigned_to, due_date=due_date, start_date=start_date,
-                asset=asset, testo=(request.POST.get("testo") or "").strip(), meeting=meeting, request=request,
+                meeting=meeting, request=request, titolo=title,
             )
         except KickoffBloccatoVRF:
             return _vrf_blocked_response(project)
@@ -1942,9 +1928,11 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
         log_action(request, "kickoff_tappa_da_punto", "tasks", {
             "task_id": task.pk, "item_id": item_id, "tappa": tappa, "meeting_id": meeting.pk, "project_id": project.pk,
         })
+        atteso = next(iter(collegamenti_svc.attesi(task)), "")
+        url = reverse("tasks:detail", kwargs={"task_id": task.pk})
         return JsonResponse({
             "ok": True, "item_id": item_id, "task_id": task.pk, "task_label": task.title,
-            "task_url": reverse("tasks:detail", kwargs={"task_id": task.pk}),
+            "task_url": url, "apri": url + (f"?kc={atteso}" if atteso else ""),
         })
 
     try:

@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: «Assegna la tappa» in riunione apre i collegamenti; registro nella scheda dell'incontro
+
+- **Conduci incontro:** «Assegna la tappa» chiede solo titolo, responsabile e date (via i campi macchina, fornitore e processo). «Crea e apri i collegamenti» crea l'attività della tappa, la collega al punto e la apre nel pannello laterale sul riquadro «Collegamenti», già sul collegamento atteso: si resta in riunione. La nota del punto si salva anche uscendo dal campo e lasciando la pagina.
+- **Scheda dell'incontro e «Registra esito»:** il riquadro «Codici, cartelle e schede FAI» mostra il registro «Programmi e FAI» costruito dalle attività (stesso partial e stessi permessi della pagina della commessa) al posto della vecchia tabella con la riga rapida; nell'esito è richiudibile.
+- A 390px la scheda dell'attività e gli strumenti della scheda dell'incontro non sbordano più (griglie a una colonna). Nessuna migrazione, serve collectstatic.
+- File: `tasks/views/meetings.py`, `tasks/services/tappe.py`, `tasks/templates/tasks/project_meeting_run.html`, `project_meeting_detail.html`, `project_meeting_minutes.html`, `base_shell.html`, `base_shell_pannello.html`, `tasks/static/tasks/js/meeting_run.js`, `tasks/static/tasks/css/tasks.css`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`; test `tasks/tests_filo.py`, `tests_collegamenti.py`.
+
 ### KICK-OFF: più programmi e più macchine per attività, conflitti macchina solo come avviso
 
 - **Più programmi e più macchine sulla stessa attività:** dal riquadro «Collegamenti» si collegano più programmi CAM o CMM e più macchine; il FAI resta uno. L'attività si chiude quando **tutti** i suoi programmi sono «Validato»; una nuova revisione di uno la riapre e lascia validati gli altri; chiuderla a mano li valida tutti. «Manca: …» si spegne con almeno un collegamento del tipo atteso. Lo stesso codice non si collega due volte; un tipo che «richiede» CAM (o CMM) accetta solo quel tipo.
