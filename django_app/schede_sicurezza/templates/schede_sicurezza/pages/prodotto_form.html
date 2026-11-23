@@ -13,15 +13,7 @@
 
     {% include "schede_sicurezza/partials/_prodotto_fields.html" with pcform=form %}
 
-    {% if not prodotto %}
-      <section class="pc-sez">
-        <div class="pc-sez-tit">Inventario</div>
-        <label class="pc-flag">
-          <input type="checkbox" name="crea_asset" {% if crea_asset_checked %}checked{% endif %}>
-          Crea anche l'asset in inventario (tipo "Prodotto chimico")
-        </label>
-      </section>
-    {% endif %}
+    <p class="pc-nota" style="margin:0;color:var(--text-light,#64748b);font-size:13px;">Il prodotto ha sempre il suo asset «Prodotto chimico» in inventario: si crea, si rinomina e si dismette insieme al prodotto.</p>
 
     <div style="display:flex;gap:10px;">
       <button type="submit" style="padding:9px 18px;background:#1d4ed8;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;">Salva</button>

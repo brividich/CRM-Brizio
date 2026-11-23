@@ -272,9 +272,40 @@ def prodotto_list(request):
             .values_list("famiglia", flat=True).distinct().order_by("famiglia")
         ),
         "can_gestire": _can_gestire(request),
+        "differenze_inventario": _differenze_inventario() if _can_gestire(request) else None,
         "profilo_sds_utente": profilo_utente,
         "n_sds_da_leggere": len(profilo_utente.da_leggere),
     })
+
+
+def _differenze_inventario() -> int | None:
+    """Quante modifiche farebbe «Allinea con l'inventario asset» (None se non calcolabile)."""
+    try:
+        from assets.services.allinea_chimici import differenze
+
+        return differenze().totale
+    except Exception:
+        logger.exception("schede_sicurezza: confronto con l'inventario asset non riuscito")
+        return None
+
+
+@login_required
+@require_POST
+def allinea_inventario(request):
+    """Pulsante «Allinea con l'inventario asset»: crea, rinomina, dismette o riattiva
+    gli asset «Prodotto chimico» perché corrispondano ai prodotti."""
+    if not _can_gestire(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("schede_sicurezza:prodotto_list")
+    from assets.services.allinea_chimici import allinea, riepilogo
+
+    diff = allinea(utente=request.user)
+    log_action(request, "sds_allinea_inventario", "schede_sicurezza", {
+        "creati": len(diff.da_creare), "rinominati": len(diff.da_rinominare),
+        "dismessi": len(diff.da_dismettere), "riattivati": len(diff.da_riattivare),
+    })
+    messages.success(request, f"Inventario asset allineato: {riepilogo(diff)}")
+    return redirect("schede_sicurezza:prodotto_list")
 
 
 @login_required
@@ -290,22 +321,12 @@ def prodotto_form(request, pk: int | None = None):
         if form.is_valid():
             prodotto = form.save()
 
-            # Doppio ingresso: in creazione si può generare anche l'asset di
-            # inventario collegato (tipo "Prodotto chimico"). Import in-funzione
-            # per non creare una dipendenza dura schede_sicurezza -> assets.
-            if pk is None and request.POST.get("crea_asset") and not getattr(prodotto, "asset_container", None):
-                from assets.models import Asset, AssetFieldHistory
-                from assets.services.storico_asset import traccia
+            # Ogni prodotto ha il suo asset «Prodotto chimico» in inventario:
+            # creato, rinominato, dismesso o riattivato insieme al prodotto.
+            # Import in-funzione: niente dipendenza dura schede_sicurezza -> assets.
+            from assets.services.allinea_chimici import allinea
 
-                with traccia(fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
-                             dettaglio="Nuovo asset da Schede di sicurezza") as storico:
-                    nuovo = Asset.objects.create(
-                        name=prodotto.nome,
-                        asset_type=Asset.TYPE_CHEMICAL,
-                        prodotto_chimico=prodotto,
-                        asset_category=Asset.default_chemical_category(),
-                    )
-                    storico.aggiungi(nuovo.pk)
+            allinea([prodotto], utente=request.user, dettaglio="Salvataggio in Schede di sicurezza")
 
             messages.success(request, "Prodotto salvato.")
             return redirect("schede_sicurezza:prodotto_detail", pk=prodotto.pk)
@@ -316,7 +337,6 @@ def prodotto_form(request, pk: int | None = None):
     return render(request, "schede_sicurezza/pages/prodotto_form.html", {
         "prodotto": prodotto,
         "form": form,
-        "crea_asset_checked": bool(request.POST.get("crea_asset")) if request.method == "POST" else False,
     })
 
 

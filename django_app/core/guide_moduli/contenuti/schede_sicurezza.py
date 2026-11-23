@@ -49,6 +49,17 @@ GUIDA = {
     ],
     "admin": [
         {
+            "id": "inventario",
+            "titolo": "Prodotti e inventario asset",
+            "blocchi": [
+                ("p", "Ogni prodotto attivo ha il suo asset «Prodotto chimico» nell'inventario asset (categoria Prodotti Chimici). "
+                      "Salvando un prodotto l'asset si crea se manca, prende il nome del prodotto e viene dismesso se disattivi il prodotto "
+                      "(o torna «In uso» se lo riattivi)."),
+                ("p", "Per sistemare tutti i prodotti insieme clicca «Allinea inventario asset» nell'elenco: tra parentesi c'è il numero "
+                      "di modifiche da fare. Gli asset senza prodotto collegato non si toccano."),
+            ],
+        },
+        {
             "id": "prodotto",
             "titolo": "Aggiungere un prodotto e la sua scheda",
             "blocchi": [

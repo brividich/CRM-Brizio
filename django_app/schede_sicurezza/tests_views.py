@@ -52,7 +52,7 @@ class DoppioIngressoAssetTest(TestCase):
         from assets.models import Asset
 
         resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
-            "nome": "Acido", "mansioni": [self.mansione.id], "crea_asset": "on",
+            "nome": "Acido", "mansioni": [self.mansione.id], "attivo": "on",
         })
         self.assertEqual(resp.status_code, 302)
         p = ProdottoChimico.objects.get(nome="Acido")
@@ -60,7 +60,8 @@ class DoppioIngressoAssetTest(TestCase):
         self.assertIsNotNone(asset)
         self.assertEqual(asset.asset_type, Asset.TYPE_CHEMICAL)
 
-    def test_prodotto_form_senza_toggle_non_crea_asset(self):
+    def test_prodotto_form_disattivato_non_crea_asset(self):
+        """L'asset segue il prodotto: un prodotto salvato già disattivato non lo crea."""
         resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
             "nome": "Base", "mansioni": [self.mansione.id],
         })
@@ -78,7 +79,7 @@ class DoppioIngressoAssetTest(TestCase):
             code="prodotti-chimici", label="Prodotti chimici", base_asset_type=Asset.TYPE_CHEMICAL,
         )
         resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
-            "nome": "Solvente", "mansioni": [self.mansione.id], "crea_asset": "on",
+            "nome": "Solvente", "mansioni": [self.mansione.id], "attivo": "on",
         })
         self.assertEqual(resp.status_code, 302)
         p = ProdottoChimico.objects.get(nome="Solvente")
@@ -96,7 +97,7 @@ class DoppioIngressoAssetTest(TestCase):
             code="prodotti-chimici-2", label="Prodotti Chimici", base_asset_type=Asset.TYPE_OTHER,
         )
         resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
-            "nome": "Ardrox", "mansioni": [self.mansione.id], "crea_asset": "on",
+            "nome": "Ardrox", "mansioni": [self.mansione.id], "attivo": "on",
         })
         self.assertEqual(resp.status_code, 302)
         p = ProdottoChimico.objects.get(nome="Ardrox")

@@ -26,6 +26,7 @@ from core.module_branding import (
 from core.module_registry import resolve_module_label
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 from .. import sidebar_icone
+from ..sidebar_icone import icona
 from ..forms import (
     IT_DEVICE_TYPES,
 )
@@ -50,6 +51,7 @@ from ..maintenance import (
     build_day_based_maintenance_schedule_rows,
 )
 from ..services.sidebar_categories import (
+    CATEGORY_BUTTON_PREFIX,
     category_sidebar_active_match as _service_category_sidebar_active_match,
     category_sidebar_target as _service_category_sidebar_target,
 )
@@ -148,6 +150,8 @@ def _build_sidebar_groups(request: HttpRequest, rows: int = 25) -> list[dict]:
                     root_payload["has_children"] = True
                     if child_payload.get("active"):
                         root_payload["expanded"] = True
+                if root_payload["has_children"]:
+                    _append_root_assets(request, button, root_payload)
     else:
         for payload in _default_sidebar_buttons(request, rows=rows):
             grouped[payload["section"]].append(payload)
@@ -158,6 +162,52 @@ def _build_sidebar_groups(request: HttpRequest, rows: int = 25) -> list[dict]:
     for section, items in sorted(grouped.items(), key=lambda row: section_order.get(row[0], 99)):
         output.append({"section": section, "label": section_label.get(section, section), "items": items})
     return output
+
+
+# Massimo di asset singoli mostrati sotto una categoria radice nella sidebar.
+SIDEBAR_ROOT_ASSETS_MAX = 30
+
+
+def _append_root_assets(request: HttpRequest, button: AssetSidebarButton, root_payload: dict) -> None:
+    """Sotto un gruppo categoria radice con sotto-categorie, aggiunge come voci gli
+    asset assegnati direttamente alla radice (es. «Azoto» sotto «Novicrom»): si
+    aprono sulla scheda dell'asset, non su un elenco. Gli asset dismessi no."""
+    prefix = f"{CATEGORY_BUTTON_PREFIX}root-"
+    code = button.code or ""
+    if not code.startswith(prefix):
+        return
+    try:
+        category_id = int(code[len(prefix):])
+    except ValueError:
+        return
+    from ..services.visibilita import filtra as filtra_visibili
+
+    rows = list(
+        filtra_visibili(request, Asset.objects.filter(asset_category_id=category_id))
+        .exclude(status=Asset.STATUS_RETIRED)
+        .order_by("name", "id")
+        .values_list("id", "name")[:SIDEBAR_ROOT_ASSETS_MAX]
+    )
+    for asset_id, name in rows:
+        url = reverse("assets:asset_view", args=[asset_id])
+        active = request.path == url
+        root_payload["children"].append(
+            {
+                "id": f"asset-{asset_id}",
+                "label": name,
+                "url": url,
+                "is_subitem": True,
+                "active": active,
+                "is_container": False,
+                "badge": None,
+                "icon": icona(""),
+                "children": [],
+                "has_children": False,
+                "expanded": False,
+            }
+        )
+        if active:
+            root_payload["expanded"] = True
 
 
 def _category_sidebar_target(category_id: int) -> str:
