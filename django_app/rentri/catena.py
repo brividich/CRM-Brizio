@@ -2,8 +2,11 @@
 
 ``rif_op`` contiene uno o più ``id_registrazione`` separati da virgola. Può
 citare direttamente i carichi (C) oppure il genitore immediato: lo scarico
-originale O per un M, lo scarico effettivo M per un R. La catena completa è
-``C ← O ← M ← R`` e per arrivare ai carichi va **risalita**.
+originale O per R e M. Sul registro l'ordine è ``C → O → R → M``: al rientro
+della quarta copia la rettifica R storna lo scarico originale con il peso a
+destino, poi lo scarico effettivo M lo registra (stesso numero della R). Lo
+storico del portale ha anche R che cita l'M. Per arrivare ai carichi la catena
+va **risalita**.
 
 Unico punto in cui si legge ``rif_op``: elenco a famiglie, validazione,
 candidati del wizard e verifica di coerenza passano tutti da qui.
@@ -36,7 +39,7 @@ GENITORI_AMMESSI = {
 }
 
 
-ORDINE_CATENA = {"C": 0, "O": 1, "M": 2, "R": 3}
+ORDINE_CATENA = {"C": 0, "O": 1, "R": 2, "M": 3}
 
 # Sul registro lo scarico effettivo M può portare lo stesso numero del suo
 # scarico originale O (registro di produzione, 11/2026) o della sua rettifica R

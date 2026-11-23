@@ -119,7 +119,7 @@
             <label for="f-rettifica">Rettifica scarico</label>
             <input type="number" id="f-rettifica" step="0.001" placeholder="0,000" inputmode="decimal"
               value="{{ v.rettifica }}">
-            <div class="hub-help">Positiva se lo scarico era sottostimato, negativa se sovrastimato.</div>
+            <div class="hub-help">Il peso verificato a destino, in positivo: storna lo scarico originale. Lo scarico effettivo (M) lo riporta in negativo.</div>
           </div>
           {% else %}
           <div class="hub-field">

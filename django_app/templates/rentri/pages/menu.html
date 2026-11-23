@@ -205,18 +205,18 @@ body.theme-dark .rn-badge-tipo-R{background:rgba(214,158,46,.16)}
       <span class="rn-btn-sub">Scarico originale</span>
     </a>
 
-    <!-- M - Scarico effettivo -->
-    <a class="rn-btn rn-btn-m" href="{% url 'rentri_scarico_effettivo' %}">
-      <span class="rn-btn-icon">&#8681;</span>
-      <span class="rn-btn-label">M - Scarico effettivo</span>
-      <span class="rn-btn-sub">Con FIR / rettifica</span>
-    </a>
-
     <!-- R - Rettifica scarico -->
     <a class="rn-btn rn-btn-r" href="{% url 'rentri_rettifica_scarico' %}">
       <span class="rn-btn-icon">&#8634;</span>
       <span class="rn-btn-label">R - Rettifica scarico</span>
-      <span class="rn-btn-sub">Rettifica una registrazione</span>
+      <span class="rn-btn-sub">Storno con il peso a destino</span>
+    </a>
+
+    <!-- M - Scarico effettivo -->
+    <a class="rn-btn rn-btn-m" href="{% url 'rentri_scarico_effettivo' %}">
+      <span class="rn-btn-icon">&#8681;</span>
+      <span class="rn-btn-label">M - Scarico effettivo</span>
+      <span class="rn-btn-sub">Peso a destino con FIR</span>
     </a>
 
   </div>
