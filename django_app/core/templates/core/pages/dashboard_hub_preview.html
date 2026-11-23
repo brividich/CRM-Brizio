@@ -146,7 +146,7 @@
            Con safety_anno_link (elenco sul registro locale) near miss e incidenti aprono l'elenco dell'anno: stesso numero.{% endcomment %}
         {% url 'rilevazione_incidenti:lista' as inc_lista_url %}
         <div class="hd-safety-grid">
-          <a class="hd-safety-metric kpi-link" href="{{ inc_lista_url }}?tipo_evento=incidente" title="Fonte del dato: elenco degli incidenti (TRIR = incidenti dell'anno x 200.000 / ore lavorate)">
+          <a class="hd-safety-metric kpi-link" href="{{ inc_lista_url }}?tipo_evento=incidente" title="Fonte del dato: elenco degli incidenti. {{ safety_kpis.trir_base }}">
             <div class="hd-safety-val">{% if safety_kpis.trir != None %}{{ safety_kpis.trir }}{% else %}-{% endif %}</div>
             <div class="hd-safety-lbl">TRIR</div>
           </a>

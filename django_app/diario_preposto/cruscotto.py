@@ -81,7 +81,9 @@ def _in_finestra(d: date, vista: str, oggi: date) -> bool:
 
 
 def _in_ritardo(d: date, creata) -> bool:
-    return (creata.date() - d).days > GIORNI_RITARDO_REGISTRAZIONE
+    # Giorno dell'inserimento in ora italiana (audit D1): in UTC un'annotazione fra
+    # mezzanotte e l'una/le due risultava del giorno prima.
+    return (_locale(creata).date() - d).days > GIORNI_RITARDO_REGISTRAZIONE
 
 
 def filtra_vista(qs, vista: str, *, oggi: date | None = None):

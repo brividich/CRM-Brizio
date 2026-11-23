@@ -233,3 +233,40 @@ class SdsPerMansioneWorkflowTest(TestCase):
         )
         riga = mansione_row.righe[0]
         self.assertEqual(riga.totale_dipendenti, 1)
+
+
+class SchedaDaRivedereEVersioneTests(TestCase):
+    """Audit H1-H2."""
+
+    def setUp(self):
+        from django.core.files.base import ContentFile
+
+        self.prodotto = ProdottoChimico.objects.create(nome="Solvente prova")
+        self._file = lambda: ContentFile(b"%PDF-1.4 prova", name="sds.pdf")
+
+    def _scheda(self, **kw):
+        return SchedaSicurezza.objects.create(prodotto=self.prodotto, pdf=self._file(), **kw)
+
+    def test_revisione_vecchia_caricata_oggi_e_da_rivedere(self):
+        from datetime import date
+
+        vecchia = self._scheda(is_corrente=True, data_revisione_fornitore=date(2021, 1, 10))
+        self.assertTrue(vecchia.scaduta)
+        self.assertTrue(SchedaSicurezza.objects.filter(SchedaSicurezza.q_da_rivedere(), pk=vecchia.pk).exists())
+
+    def test_senza_revisione_conta_il_caricamento(self):
+        nuova = self._scheda(is_corrente=True)
+        self.assertFalse(nuova.scaduta)
+        self.assertFalse(SchedaSicurezza.objects.filter(SchedaSicurezza.q_da_rivedere(), pk=nuova.pk).exists())
+
+    def test_una_sola_versione_corrente(self):
+        from django.db import IntegrityError, transaction
+
+        prima = self._scheda(is_corrente=True)
+        seconda = self._scheda(is_corrente=True)
+        prima.refresh_from_db()
+        self.assertFalse(prima.is_corrente)
+        self.assertTrue(seconda.is_corrente)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SchedaSicurezza.objects.filter(pk=prima.pk).update(is_corrente=True)
+

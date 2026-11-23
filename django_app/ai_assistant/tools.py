@@ -2982,10 +2982,9 @@ def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
 
     from django.db.models import Count
 
-    from schede_sicurezza.models import SCADENZA_SDS_GIORNI, SchedaSicurezza
+    from schede_sicurezza.models import SchedaSicurezza
 
     text = _norm_text(prompt)
-    soglia = timezone.now() - timedelta(days=SCADENZA_SDS_GIORNI)
 
     base_qs = (
         SchedaSicurezza.objects.filter(is_corrente=True)
@@ -3005,7 +3004,7 @@ def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
                    "filtro": "nessun_dato", "row_count": 0},
         )
 
-    n_scadute = base_qs.filter(data_caricamento__lt=soglia).count()
+    n_scadute = base_qs.filter(SchedaSicurezza.q_da_rivedere()).count()
     n_senza_visioni = base_qs.filter(n_visioni=0).count()
 
     schede = list(base_qs.order_by("prodotto__nome"))
@@ -3022,7 +3021,7 @@ def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
 
     # Filtro "solo scadute / da rivedere".
     if re.search(r"\b(scadut\w*|da rivedere|da aggiornare|vecchi\w*)\b", text):
-        schede = [s for s in schede if s.data_caricamento and s.data_caricamento < soglia]
+        schede = [s for s in schede if s.scaduta]
         filtro_parts.append("solo scadute")
 
     schede = schede[:20]
@@ -3031,7 +3030,7 @@ def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
     def _riga(s) -> str:
         mansioni = s.prodotto.mansioni_label()
         ver = (s.versione or "?").strip()
-        is_scaduta = bool(s.data_caricamento and s.data_caricamento < soglia)
+        is_scaduta = s.scaduta
         scad = "SCADUTA (>36 mesi)" if is_scaduta else "valida"
         clp = (s.classificazione_clp or "").strip()[:120]
         dpi = (s.dpi_testo or "").strip()[:160]
@@ -4111,7 +4110,7 @@ def _sicurezza_context(request, prompt: str) -> RuntimeContext:
             f"- Totale eventi anno {kpis.get('year')}: {kpis.get('totale', 0)}.\n"
             f"- Unsafe condition/act: {kpis.get('unsafe_condition', 0)}; near miss: {kpis.get('near_miss', 0)}; incidenti: {kpis.get('incidenti', 0)}.\n"
             f"- Giorni senza infortuni: {kpis.get('giorni_senza_infortuni') if kpis.get('giorni_senza_infortuni') is not None else 'N/D'}.\n"
-            f"- TRIR: {kpis.get('trir') if kpis.get('trir') is not None else 'N/D'}.\n"
+            f"- TRIR: {kpis.get('trir') if kpis.get('trir') is not None else 'N/D'} ({kpis.get('trir_base', '')}).\n"
             f"- Trend ultimi 6 mesi: {trend or 'N/D'}.\n"
             f"- Reparti aggregati principali: {reparti}."
         )

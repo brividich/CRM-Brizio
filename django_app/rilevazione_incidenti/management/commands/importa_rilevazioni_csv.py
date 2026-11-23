@@ -119,14 +119,14 @@ class Command(BaseCommand):
             raise CommandError(f"File non trovato: {csv_path}")
 
         if options["clear"]:
-            count = RilevazioneIncidente.objects.count()
-            RilevazioneIncidente.objects.all().delete()
+            count = RilevazioneIncidente.tutte.count()
+            RilevazioneIncidente.tutte.all().delete()
             self.stdout.write(self.style.WARNING(f"Eliminati {count} record esistenti."))
 
         existing_ids: set[int] = set()
         if options["skip_existing"]:
             existing_ids = set(
-                RilevazioneIncidente.objects.filter(id_originale__isnull=False)
+                RilevazioneIncidente.tutte.filter(id_originale__isnull=False)
                 .values_list("id_originale", flat=True)
             )
 

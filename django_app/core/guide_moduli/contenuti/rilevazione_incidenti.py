@@ -55,6 +55,12 @@ GUIDA = {
                     "A destra «Storia della rilevazione»: inserimento, modifiche campo per campo, valutazione RLS, chiusura, "
                     "azioni correttive e mail. Con i dati su SharePoint modifiche e mail non ci sono.",
                     "«Export CSV» scarica l'elenco.",
+                    "TRIR (in «Statistiche»): incidenti dell'anno × 200.000 diviso le ore lavorate stimate finora, cioè organico × "
+                    "2.000 ore × giorni trascorsi dell'anno; sotto il numero c'è il calcolo con i valori usati. Se l'anagrafica non "
+                    "risponde compare «Organico non disponibile» e l'indice non si calcola.",
+                    "«Elimina» (RSPP/ASPP) chiede il motivo e non cancella: la rilevazione sparisce da elenco, indici ed export e "
+                    "finisce in «Eliminate (N)» accanto a «Reset». Dal dettaglio di una eliminata «Ripristina» la riporta com'era. "
+                    "Con i dati su SharePoint l'elemento si cancella davvero dalla lista e il motivo resta nel registro azioni.",
                     "Il dipendente vede le proprie segnalazioni, preposto e responsabile quelle del team, la Sicurezza tutte.",
                 ]),
             ],

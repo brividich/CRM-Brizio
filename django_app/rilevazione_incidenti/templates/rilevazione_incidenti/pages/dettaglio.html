@@ -35,6 +35,22 @@ body.theme-dark .dps-ev-chiusura .dps-dot { background:#0fa596; border-color:#0f
   <div class="dp-eliminata"><div><strong>Rilevazione non disponibile</strong>{{ error }}</div></div>
   {% elif f %}
 
+  {% if archiviata %}
+  <div class="dp-eliminata">
+    <div>
+      <strong>Rilevazione eliminata</strong>
+      il {{ archiviata.archiviata_il|date:"d-m-Y H:i" }}{% if archiviata.archiviata_da %} da {{ archiviata.archiviata_da.get_full_name|default:archiviata.archiviata_da.get_username }}{% endif %}
+      · motivo: {{ archiviata.motivo_archiviazione|default:"-" }}. Non conta negli elenchi e negli indici.
+    </div>
+    {% if can_edit_rspp %}
+    <form method="post" action="{% url 'rilevazione_incidenti:ripristina' sp_id=sp_id %}">
+      {% csrf_token %}
+      <button type="submit" class="dp-btn dp-btn-primary">Ripristina</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {% include "rilevazione_incidenti/partials/_infografica.html" %}
 
   <div class="dp-det-grid">
@@ -187,11 +203,13 @@ body.theme-dark .dps-ev-chiusura .dps-dot { background:#0fa596; border-color:#0f
         {% if can_edit_preposto %}
         <a href="{% url 'rilevazione_incidenti:modifica' sp_id=sp_id %}" class="dp-btn dp-btn-primary">Modifica</a>
         {% endif %}
-        {% if can_edit_rspp %}
+        {% if can_edit_rspp and not archiviata %}
         <a href="{% url 'rilevazione_incidenti:modifica' sp_id=sp_id %}" class="dp-btn {% if can_edit_preposto %}dp-btn-outline{% else %}dp-btn-primary{% endif %}">Gestisci RSPP</a>
-        <form method="post" action="{% url 'rilevazione_incidenti:elimina' sp_id=sp_id %}"
-              data-hub-confirm="Eliminare definitivamente questa rilevazione?">
+        <form method="post" action="{% url 'rilevazione_incidenti:elimina' sp_id=sp_id %}" class="dp-elimina-box"
+              data-hub-confirm="Eliminare la rilevazione? Sparirà da elenchi e indici; chi gestisce il modulo potrà ripristinarla.">
           {% csrf_token %}
+          <input type="text" name="motivo" minlength="5" maxlength="500" required
+                 placeholder="Motivo dell'eliminazione (obbligatorio)" aria-label="Motivo dell'eliminazione">
           <button type="submit" class="dp-btn dp-btn-danger">Elimina</button>
         </form>
         {% endif %}

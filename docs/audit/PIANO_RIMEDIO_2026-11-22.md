@@ -53,6 +53,8 @@ Nota SQL Server: `select_for_update` va provato su SQL Server (`mssql-django` us
 
 ### Ondata 3 — Sicurezza sul lavoro · `feature/hse-rimedi-audit` · migrazioni `rilevazione_incidenti`, `schede_sicurezza`
 
+**Stato 23/11: fatta** (G1-G3, H1-H2, D1). Migrazioni `rilevazione_incidenti 0009` e `schede_sicurezza 0007`; la 0007 sistema da sola eventuali doppie versioni correnti (tiene la più recente), quindi il controllo preventivo in produzione non è più bloccante. Con sorgente SharePoint l'eliminazione resta una cancellazione (motivo nel registro).
+
 | Voce | Intervento | File | Test |
 |---|---|---|---|
 | G1 [4] | Ore = organico × 2.000 × giorni trascorsi/365 (anno intero per gli anni chiusi). Accanto al TRIR: «calcolato su N giorni, M ore stimate, organico X» | `rilevazione_incidenti/services.py:51-72`, template KPI | giugno: indice ≈ doppio di oggi a parità di dati |

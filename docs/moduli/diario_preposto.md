@@ -61,3 +61,5 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) l
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Viste `VISTE`/`filtra_vista` (`?vista=7g|30g`) per tessere ed elenco.
+
+**Audit 22/11/2026 (D1):** «In ritardo» confronta il giorno del fatto con il giorno dell'inserimento in ora italiana (`_locale`), non in UTC.

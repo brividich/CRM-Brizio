@@ -223,3 +223,18 @@ class VisteTests(TestCase):
         self.assertIsNone(info["contesto"]["numero"])
         resp = self.client.get(reverse("diario_preposto:dettaglio", args=[self.segnalazione.pk]))
         self.assertEqual(resp.status_code, 200)
+
+
+class RitardoOraItalianaTests(TestCase):
+    """Audit D1: il giorno dell'inserimento si conta in ora italiana, non in UTC."""
+
+    def test_inserimento_dopo_mezzanotte_italiana(self):
+        from datetime import date, datetime, timezone as dt_tz
+
+        from diario_preposto.cruscotto import _in_ritardo
+
+        # 00:30 del 4/11 in Italia = 23:30 UTC del 3/11. Fatto del 2/11: 2 giorni, non in ritardo.
+        creata = datetime(2026, 11, 3, 23, 30, tzinfo=dt_tz.utc)
+        self.assertFalse(_in_ritardo(date(2026, 11, 2), creata))
+        # Fatto del 1/11: 3 giorni in ora italiana -> in ritardo (in UTC sarebbero stati 2).
+        self.assertTrue(_in_ritardo(date(2026, 11, 1), creata))
