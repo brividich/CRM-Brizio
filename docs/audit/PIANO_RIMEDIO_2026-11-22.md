@@ -41,6 +41,8 @@ Guide: Schede di sicurezza (nuova pagina di conferma).
 
 ### Ondata 2 — Invii ripetuti o persi · `feature/invii-affidabili-audit` · migrazione solo se serve un campo versione
 
+**Stato 22/11: fatta** (A1-A3, R1, R2), nessuna migrazione: la presa in carico svuota lo snapshot sotto blocco, quindi il contatore di versione non serve. Da provare sul campo con SQL Server (in test gira su SQLite, dove `select_for_update` non blocca).
+
 | Voce | Intervento | File | Test |
 |---|---|---|---|
 | A1-A3 [3] | Invio in due tempi: in transazione `select_for_update` si «prende» la notifica e si copia lo snapshot svuotandolo; invio fuori transazione; a fine invio si segna «notificato» solo se non sono arrivate decisioni nuove (confronto su un contatore o su `updated_at`). In caso di errore lo snapshot torna in coda | `anomalie/mail_action_service.py:833-949` | due invii in contemporanea = una mail; decisione durante l'invio = parte al giro dopo; seconda decisione = il riepilogo contiene solo quella |

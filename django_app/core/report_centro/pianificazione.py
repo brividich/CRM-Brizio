@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from django.conf import settings
+from django.db import transaction
 from django.urls import resolve, reverse
 from django.utils import timezone
 
@@ -295,17 +296,47 @@ def esegui(p, *, manuale: bool = False, adesso: datetime | None = None) -> Esito
     return esito
 
 
+def _prenota(pk: int, adesso: datetime):
+    """Sposta in avanti la prossima esecuzione sotto blocco, prima di generare e inviare.
+
+    Se l'invio poi solleva un errore il report non viene ritentato ogni ora, e due processi
+    che girano insieme non lo spediscono due volte: il secondo non trova piu' la riga scaduta
+    (audit R1). Ritorna la pianificazione prenotata oppure None.
+    """
+    from core.models import ReportPianificazione
+
+    with transaction.atomic():
+        p = (ReportPianificazione.objects.select_for_update()
+             .filter(pk=pk, attiva=True, prossima_esecuzione__lte=adesso).first())
+        if p is None:
+            return None
+        p.prossima_esecuzione = calcola_prossima(p, adesso)
+        p.save(update_fields=["prossima_esecuzione", "updated_at"])
+    return p
+
+
 def esegui_scadute(adesso: datetime | None = None) -> dict:
     """Esegue le pianificazioni attive arrivate a scadenza (task orario)."""
     from core.models import ReportPianificazione
 
     adesso = adesso or timezone.now()
     conteggi = {"eseguite": 0, "ok": 0, "parziale": 0, "errore": 0}
-    for p in ReportPianificazione.objects.filter(attiva=True, prossima_esecuzione__lte=adesso).order_by("prossima_esecuzione"):
+    scadute = list(ReportPianificazione.objects.filter(attiva=True, prossima_esecuzione__lte=adesso)
+                   .order_by("prossima_esecuzione").values_list("pk", flat=True))
+    for pk in scadute:
+        p = _prenota(pk, adesso)
+        if p is None:
+            continue  # gia' presa da un altro processo
         try:
             esito = esegui(p, adesso=adesso)
-        except Exception:
+        except Exception as exc:
             logger.exception("Report pianificato %s: esecuzione fallita", p.pk)
+            ReportPianificazione.objects.filter(pk=p.pk).update(
+                ultima_esecuzione=adesso, ultimo_esito=ReportPianificazione.ESITO_ERRORE,
+                ultimo_messaggio=f"Errore imprevisto: {exc.__class__.__name__}"[:500],
+            )
+            conteggi["eseguite"] += 1
+            conteggi["errore"] += 1
             continue
         conteggi["eseguite"] += 1
         conteggi[esito.esito] = conteggi.get(esito.esito, 0) + 1

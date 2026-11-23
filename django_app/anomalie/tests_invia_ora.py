@@ -104,3 +104,70 @@ class CodaDecisioniApiTests(TestCase):
         self.puo = False
         r = self.client.post(reverse("api_anomalie_decisioni_coda"), json.dumps({"op_id": OP}), content_type="application/json")
         self.assertEqual(r.status_code, 403)
+
+
+class RiepilogoUnaVoltaSolaTests(TestCase):
+    """Audit A1-A3: niente doppio riepilogo, niente decisioni ripetute, niente decisioni perse."""
+
+    def setUp(self):
+        self.invio = patch("anomalie.mail_action_service.send_anomalie_update_confirmation", return_value=True)
+        self.send = self.invio.start()
+        self.addCleanup(self.invio.stop)
+        for nome in ("prepara_decisioni_operatore", "invia_decisioni_operatore"):
+            pt = patch(f"anomalie.automazioni_service.{nome}", return_value=[] if nome.startswith("prepara") else 0)
+            pt.start()
+            self.addCleanup(pt.stop)
+
+    def _registra(self, anomalia_id, testo="Accetto lo stato"):
+        mas.register_pending_update(
+            op_id=OP, op_nominativo=OP, update_row={"id": anomalia_id, "avanzamento": testo}, modified_by="Mario Rossi",
+        )
+
+    def test_secondo_invio_non_rispedisce(self):
+        _coda()
+        self.assertEqual(mas.flush_pending_update_notifications(op_id=OP)["sent"], 1)
+        self.assertEqual(mas.flush_pending_update_notifications(op_id=OP)["sent"], 0)
+        self.assertEqual(mas.flush_pending_update_notifications(threshold_minutes=0)["sent"], 0)
+        self.assertEqual(self.send.call_count, 1)
+
+    def test_decisione_successiva_non_ripropone_le_vecchie(self):
+        _coda(righe=2)
+        mas.flush_pending_update_notifications(op_id=OP)
+        self._registra(9)
+        mas.flush_pending_update_notifications(op_id=OP)
+        ultima = self.send.call_args_list[-1].kwargs["updates_summary"]
+        self.assertEqual([u["id"] for u in ultima], [9])
+
+    def test_decisione_durante_l_invio_resta_in_coda(self):
+        _coda(righe=1)
+
+        def _arriva_una_decisione(**kwargs):
+            self._registra(7)
+            return True
+
+        self.send.side_effect = _arriva_una_decisione
+        mas.flush_pending_update_notifications(op_id=OP)
+        coda = mas.decisioni_in_coda(OP)
+        self.assertEqual(coda["n"], 1)
+        self.send.side_effect = None
+        mas.flush_pending_update_notifications(op_id=OP)
+        self.assertEqual([u["id"] for u in self.send.call_args_list[-1].kwargs["updates_summary"]], [7])
+
+    def test_errore_smtp_rimette_in_coda_con_le_nuove(self):
+        _coda(righe=1)
+
+        def _fallisce(**kwargs):
+            self._registra(5)
+            raise OSError("smtp giu'")
+
+        self.send.side_effect = _fallisce
+        esito = mas.flush_pending_update_notifications(op_id=OP)
+        self.assertEqual(esito["failed"], 1)
+        p = AnomaliaPendingNotification.objects.get(op_id=OP)
+        self.assertFalse(p.notified)
+        self.assertEqual(sorted(u["id"] for u in p.updates_snapshot), [1, 5])
+        self.assertEqual(p.attempts, 1)
+        self.send.side_effect = None
+        mas.flush_pending_update_notifications(op_id=OP)
+        p.refresh_from_db()
+        self.assertEqual((p.notified, p.attempts, p.updates_snapshot), (True, 0, []))

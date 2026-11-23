@@ -31,6 +31,7 @@ from typing import Any
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
+from django.db import transaction
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
@@ -830,7 +831,7 @@ def register_pending_update(
     if not op_str:
         return
     try:
-        obj, _created = AnomaliaPendingNotification.objects.get_or_create(
+        AnomaliaPendingNotification.objects.get_or_create(
             op_id=op_str,
             defaults={
                 "op_nominativo": op_nominativo or "",
@@ -839,22 +840,74 @@ def register_pending_update(
                 "updates_snapshot": [],
             },
         )
-        snapshot = obj.updates_snapshot if isinstance(obj.updates_snapshot, list) else []
-        # L'update precedente della stessa anomalia si aggiorna con i campi nuovi
-        # (capocommessa e qualità salvano parti diverse della decisione).
-        prima = next((u for u in snapshot if str(u.get("id")) == str(update_row.get("id"))), None)
-        snapshot = [u for u in snapshot if str(u.get("id")) != str(update_row.get("id"))]
-        snapshot.append({**prima, **update_row} if isinstance(prima, dict) else update_row)
-        obj.updates_snapshot = snapshot
-        obj.op_nominativo = op_nominativo or obj.op_nominativo
-        obj.last_modified_at = _tz.now()
-        obj.last_modified_by = modified_by or obj.last_modified_by
-        obj.notified = False
-        obj.save(update_fields=[
-            "updates_snapshot", "op_nominativo", "last_modified_at", "last_modified_by", "notified",
-        ])
+        # Riga bloccata fino al salvataggio: un invio in corso non puo' sovrascrivere
+        # la decisione appena arrivata, ne' questa riproporre le decisioni gia' inviate.
+        with transaction.atomic():
+            obj = AnomaliaPendingNotification.objects.select_for_update().get(op_id=op_str)
+            obj.updates_snapshot = _unisci_snapshot(obj.updates_snapshot, [update_row])
+            obj.op_nominativo = op_nominativo or obj.op_nominativo
+            obj.last_modified_at = _tz.now()
+            obj.last_modified_by = modified_by or obj.last_modified_by
+            obj.notified = False
+            obj.save(update_fields=[
+                "updates_snapshot", "op_nominativo", "last_modified_at", "last_modified_by", "notified",
+            ])
     except Exception:
         logger.warning("register_pending_update: errore op=%s", op_str, exc_info=True)
+
+
+def _unisci_snapshot(base, nuovi) -> list[dict]:
+    """Aggiunge ``nuovi`` a ``base``: la stessa anomalia resta una riga sola, aggiornata con i campi
+    nuovi (capocommessa e qualita' salvano parti diverse della decisione)."""
+    snapshot = [u for u in (base if isinstance(base, list) else []) if isinstance(u, dict)]
+    for riga in nuovi or []:
+        if not isinstance(riga, dict):
+            continue
+        prima = next((u for u in snapshot if str(u.get("id")) == str(riga.get("id"))), None)
+        snapshot = [u for u in snapshot if str(u.get("id")) != str(riga.get("id"))]
+        snapshot.append({**prima, **riga} if prima else riga)
+    return snapshot
+
+
+def _prendi_in_carico(pk: int):
+    """Prende in carico sotto blocco una notifica ancora da inviare: copia e svuota lo snapshot e
+    segna «notificato». Ritorna ``(notifica, snapshot)`` oppure None se un altro invio l'ha gia' presa.
+
+    Cosi' «Invia ora» e il controllo automatico non mandano due volte lo stesso riepilogo (audit A1),
+    le decisioni inviate non tornano nel riepilogo successivo (A2) e una decisione registrata
+    durante l'invio resta in coda per il giro dopo (A3).
+    """
+    from .mail_action_models import AnomaliaPendingNotification
+
+    with transaction.atomic():
+        p = AnomaliaPendingNotification.objects.select_for_update().filter(pk=pk, notified=False).first()
+        if p is None:
+            return None
+        grezzo = p.updates_snapshot if isinstance(p.updates_snapshot, list) else []
+        snapshot = [u for u in grezzo if isinstance(u, dict)]
+        p.updates_snapshot = []
+        p.notified = True
+        p.save(update_fields=["updates_snapshot", "notified"])
+    return p, snapshot
+
+
+def _rimetti_in_coda(pk: int, snapshot: list[dict], errore: str) -> tuple[int, bool]:
+    """Invio fallito: le decisioni tornano in coda davanti a quelle arrivate nel frattempo.
+
+    Ritorna ``(tentativi, abbandonata)``: oltre ``MAX_FLUSH_ATTEMPTS`` la notifica resta
+    «notificata» (dead-letter) ma con le decisioni conservate, che ripartono alla modifica successiva.
+    """
+    from .mail_action_models import AnomaliaPendingNotification
+
+    with transaction.atomic():
+        p = AnomaliaPendingNotification.objects.select_for_update().get(pk=pk)
+        p.updates_snapshot = _unisci_snapshot(snapshot, p.updates_snapshot)
+        p.attempts = int(p.attempts or 0) + 1
+        p.last_error = str(errore)[:2000]
+        abbandonata = p.attempts >= MAX_FLUSH_ATTEMPTS
+        p.notified = abbandonata
+        p.save(update_fields=["updates_snapshot", "attempts", "last_error", "notified"])
+    return p.attempts, abbandonata
 
 
 def decisioni_in_coda(op_id: str) -> dict | None:
@@ -889,12 +942,12 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5, op_id: str
 
     if op_id:
         # «Invia ora» da Gestione anomalie: solo quell'OP, senza aspettare la pausa.
-        pending = list(AnomaliaPendingNotification.objects.filter(notified=False, op_id__iexact=str(op_id).strip()))
+        pending = list(AnomaliaPendingNotification.objects.filter(
+            notified=False, op_id__iexact=str(op_id).strip()).values_list("pk", flat=True))
     else:
         cutoff = _tz.now() - timedelta(minutes=threshold_minutes)
-        pending = list(
-            AnomaliaPendingNotification.objects.filter(notified=False, last_modified_at__lte=cutoff)
-        )
+        pending = list(AnomaliaPendingNotification.objects.filter(
+            notified=False, last_modified_at__lte=cutoff).values_list("pk", flat=True))
     from . import automazioni_service as automazioni_decisioni
 
     sent = 0
@@ -902,11 +955,12 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5, op_id: str
     given_up = 0
     decisioni_inviate = 0
     flushed_ops: list[str] = []
-    for p in pending:
-        snapshot = p.updates_snapshot if isinstance(p.updates_snapshot, list) else []
+    for pk in pending:
+        presa = _prendi_in_carico(pk)
+        if presa is None:
+            continue  # gia' presa da un altro invio
+        p, snapshot = presa
         if not snapshot:
-            p.notified = True
-            p.save(update_fields=["notified"])
             continue
         # Decisioni del capocommessa: gli operatori segnalanti le ricevono in una
         # mail dedicata (inviata solo a riepilogo chiuso, così un ritentativo SMTP
@@ -929,26 +983,19 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5, op_id: str
                 exclude_emails=[g["email"] for g in piano_operatori if g.get("email")],
             )
         except Exception as exc:
-            # Errore SMTP: NON marcare notified, ritenta al prossimo giro fino alla soglia.
+            # Errore SMTP: le decisioni tornano in coda e si ritenta al prossimo giro fino alla soglia.
             failed += 1
-            p.attempts = int(p.attempts or 0) + 1
-            p.last_error = str(exc)[:2000]
-            if p.attempts >= MAX_FLUSH_ATTEMPTS:
-                p.notified = True  # dead-letter: smette di ritentare
+            tentativi, abbandonata = _rimetti_in_coda(p.pk, snapshot, str(exc))
+            if abbandonata:
                 given_up += 1
-                p.save(update_fields=["notified", "attempts", "last_error"])
                 _alert_admins_send_failure(
                     context="conferma aggiornamenti (debounce)",
                     op_id=p.op_id,
-                    detail=f"Invio non riuscito dopo {p.attempts} tentativi. Ultimo errore: {p.last_error}",
+                    detail=f"Invio non riuscito dopo {tentativi} tentativi. Ultimo errore: {str(exc)[:2000]}",
                 )
-            else:
-                p.save(update_fields=["attempts", "last_error"])
             continue
-        # Invio andato (True) o nessun destinatario (False, caso benigno): si chiude.
-        p.notified = True
-        p.last_error = ""
-        p.save(update_fields=["notified", "last_error"])
+        # Invio andato (True) o nessun destinatario (False, caso benigno): gia' segnata in presa in carico.
+        AnomaliaPendingNotification.objects.filter(pk=p.pk).update(last_error="", attempts=0)
         if ok:
             sent += 1
         flushed_ops.append(p.op_id)
