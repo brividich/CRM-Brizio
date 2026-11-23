@@ -457,6 +457,39 @@ class PianificazioneTests(TestCase):
         self.assertIsNone(futura.ultima_esecuzione)
         self.assertIsNone(sospesa.ultima_esecuzione)
 
+    def test_errore_imprevisto_fa_avanzare_la_data(self):
+        # Audit R1: un errore durante l'invio non fa ritentare il report ogni ora.
+        from core.models import ReportPianificazione
+        from core.report_centro.pianificazione import esegui_scadute
+
+        ReportPianificazione.objects.filter(pk=self.p.pk).update(prossima_esecuzione=timezone.now() - timedelta(minutes=5))
+        with self._patch(), patch("core.report_centro.pianificazione.genera", side_effect=RuntimeError("rotto")):
+            conteggi = esegui_scadute()
+        self.assertEqual((conteggi["eseguite"], conteggi["errore"]), (1, 1))
+        self.p.refresh_from_db()
+        self.assertGreater(self.p.prossima_esecuzione, timezone.now())
+        self.assertEqual(self.p.ultimo_esito, "errore")
+        with self._patch(), patch("core.report_centro.pianificazione.genera", side_effect=RuntimeError("rotto")):
+            self.assertEqual(esegui_scadute()["eseguite"], 0)
+
+    def test_pianificazione_gia_presa_non_riparte(self):
+        # Audit R1: se un altro processo l'ha gia' prenotata, qui non si invia.
+        from django.core import mail
+
+        from core.models import ReportPianificazione
+        from core.report_centro import pianificazione
+
+        ReportPianificazione.objects.filter(pk=self.p.pk).update(prossima_esecuzione=timezone.now() - timedelta(minutes=5))
+        vera = pianificazione._prenota
+
+        def _prenota_dopo_altro(pk, adesso):
+            vera(pk, adesso)  # l'altro processo arriva prima
+            return vera(pk, adesso)
+
+        with self._patch(), patch.object(pianificazione, "_prenota", side_effect=_prenota_dopo_altro):
+            self.assertEqual(pianificazione.esegui_scadute()["eseguite"], 0)
+        self.assertEqual(len(mail.outbox), 0)
+
     def test_schedule_orario(self):
         from automazioni.schedules import SCHEDULES
 
