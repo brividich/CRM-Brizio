@@ -66,8 +66,6 @@
       </span>
     </div>
 
-    {% include "tasks/_task_programma.html" %}
-
     <article class="td-card" id="nota">
       <div class="td-testa">
         <h2 class="td-titolo">Nota</h2>
@@ -93,6 +91,7 @@
     {% if task.project %}
     <article class="td-card" id="collegamenti">
       <h2 class="td-titolo">Collegamenti</h2>
+      {% include "tasks/_collegamenti.html" %}
       <div class="ka-colleg">
         <div class="ka-colleg-gruppo">
           <span class="ka-etichetta">Viene dopo</span>
@@ -195,16 +194,6 @@
         </details>
       {% endif %}
     </article>
-
-    {% if attrezzatura_embedded_context %}
-      <details class="td-card td-piega td-attrezzatura">
-        <summary>
-          <span class="td-titolo">Attrezzatura</span>
-          <span class="td-conta">P/N {{ attrezzatura_embedded_context.part_number|default:"-" }} · {{ attrezzatura_embedded_context.summary.count|default:0 }} collegate · {{ attrezzatura_embedded_context.open_tasks|length }} attività aperte</span>
-        </summary>
-        {% include "attrezzature/components/embedded_panel.html" with embedded_context=attrezzatura_embedded_context %}
-      </details>
-    {% endif %}
 
     <article class="td-card" id="cronologia">
       <div class="td-testa">
@@ -370,4 +359,5 @@
 
 {% block tasks_shell_scripts %}
 <script src="{% static 'tasks/js/attivita_scheda.js' %}?v=20261121a" defer></script>
+<script src="{% static 'tasks/js/collegamenti.js' %}?v=20261123a" defer></script>
 {% endblock %}

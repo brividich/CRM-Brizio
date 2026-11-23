@@ -1,0 +1,77 @@
+{% comment %}
+Registro della commessa costruito dalle attività: una riga per collegamento (programmi, FAI, macchine,
+attrezzature, utensili), più le voci rimaste senza attività. Si rifà a ogni comando (tasks:collegamenti_registro).
+Contesto: registro_context (tasks/views/collegamenti.py).
+{% endcomment %}
+<div class="tr-head">Programmi, FAI e risorse
+  {% if reg_gestisce and reg_attivita %}
+  <button type="button" class="btn btn-sm tr-apri" data-rc-nuovo aria-expanded="false">+ Collegamento</button>
+  {% endif %}
+</div>
+{% if reg_gestisce and reg_attivita %}
+<div class="rc-nuovo" data-rc-nuovo-box hidden>
+  <label for="rc-attivita-{{ project.id }}">Su quale attività</label>
+  <select class="input" id="rc-attivita-{{ project.id }}" data-rc-attivita data-no-search>
+    <option value="">Scegli l'attività…</option>
+    {% for t in reg_attivita %}<option value="{% url 'tasks:detail' t.pk %}">{{ t.title }}</option>{% endfor %}
+  </select>
+</div>
+{% endif %}
+{% if fai_non_richiesto %}
+<div class="fai-regola">
+  <div><strong>FAI non richiesto per questo kickoff</strong> <span>Deciso{% if project.fai_non_richiesto_da %} da {{ project.fai_non_richiesto_da.get_full_name|default:project.fai_non_richiesto_da.username }}{% endif %} il {{ project.fai_non_richiesto_il|date:"d/m/Y" }}.</span></div>
+  {% if reg_gestisce %}<button type="button" class="btn btn-secondary btn-sm" data-rc-fai="0">Annulla</button>{% endif %}
+</div>
+{% elif fai_esito %}
+<div class="fai-regola fai-regola--{{ fai_esito.classe }}">
+  <div><strong>{{ fai_esito.titolo }}</strong> <span>{{ fai_esito.nota }}</span></div>
+  <div class="tr-actions">
+  {% if reg_gestisce and fai_esito.causale and not reg_ha_fai %}<button type="button" class="btn btn-secondary btn-sm" data-rc-fai="1">Non richiesto per questo kickoff</button>{% endif %}
+  {% if fai_puo_creare and not fai_esito.in_corso and not fai_ref_libera %}<a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_nuovo' %}?project={{ project.id }}{% if fai_esito.causale %}&amp;causale={{ fai_esito.causale }}{% endif %}">Apri un FAI</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+<div class="rc-filtri" role="group" aria-label="Filtra per tipo">
+  {% for f in reg.filtri %}<button type="button" class="kc-chip" data-rc-filtro="{{ f.codice }}" data-rc-tipi="{{ f.tipi }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">{{ f.nome }} {{ f.conta }}</button>{% endfor %}
+</div>
+<div class="tl-table-wrap">
+  <table class="tl-table rc-tabella" data-fm-table-skip="1" data-table-enhanced="0">
+    <thead><tr><th>Cosa</th><th>Codice</th><th>Descrizione</th><th>Stato</th><th>Attività</th><th>Responsabile</th><th><span class="sr-only">Comandi</span></th></tr></thead>
+    <tbody>
+      {% for r in reg.righe %}
+      <tr data-rc-riga="{{ r.chiave }}" data-rc-tipo="{{ r.tipo }}" data-rc-task="{{ r.task.pk|default:'' }}">
+        <td>{{ r.nome }}</td>
+        <td class="kc-codice">{% if r.vuoto %}<span class="tr-empty">da inserire</span>{% else %}{{ r.codice }}{% endif %}</td>
+        <td>{{ r.descrizione }}{% if r.ref.path %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" with ref=r.ref %}</div>{% endif %}{% if r.ref.source_meeting %}<div class="tl-task-desc">Incontro {{ r.ref.source_meeting.numero }}</div>{% endif %}</td>
+        <td>
+          {% if r.puo_fase %}
+          <select class="input kc-fase" data-rc-fase data-no-search aria-label="Fase di {{ r.codice }}">
+            <option value="" selected>{{ r.stato }}</option>
+            {% for azione, etichetta in r.fasi %}<option value="{{ azione }}">{{ etichetta }}</option>{% endfor %}
+          </select>
+          {% elif r.stato %}<span class="ts-chip {{ r.tono }}">{{ r.stato }}</span>{% else %}<span class="tr-empty">-</span>{% endif %}
+        </td>
+        <td>
+          {% if r.task %}<a class="tl-task-link" href="{% url 'tasks:detail' r.task.pk %}" data-preview="{% url 'tasks:detail' r.task.pk %}">{{ r.task.title }}</a>
+          {% elif reg_gestisce and reg_attivita %}
+          <select class="input kc-fase" data-rc-orfano data-no-search aria-label="Collega {{ r.codice }} a un'attività">
+            <option value="">Collega a un'attività…</option>
+            {% for t in reg_attivita %}<option value="{{ t.pk }}">{{ t.title }}</option>{% endfor %}
+          </select>
+          {% else %}<span class="ts-chip warn">senza attività</span>{% endif %}
+        </td>
+        <td>{{ r.responsabile|default:"-" }}</td>
+        <td class="rc-comandi">
+          {% if r.scheda_url %}<a class="btn btn-secondary btn-sm" href="{{ r.scheda_url }}">{{ r.scheda_label }}</a>{% endif %}
+          {% if r.puo_togliere and r.task and not r.vuoto %}<button type="button" class="kc-x" data-rc-togli aria-label="Togli {{ r.nome }} {{ r.codice }} da «{{ r.task.title }}»" title="Togli il collegamento">&times;</button>
+          {% elif r.puo_eliminare %}<button type="button" class="btn btn-secondary btn-sm" data-rc-elimina>Elimina</button>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="tr-hint">Ancora nessun collegamento: nasce dalle attività.</td></tr>
+      {% endfor %}
+      <tr data-rc-nessuna hidden><td colspan="7" class="tr-hint">Niente con questo filtro.</td></tr>
+    </tbody>
+  </table>
+</div>
+<p class="tr-err" data-rc-err role="alert" hidden></p>

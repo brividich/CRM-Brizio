@@ -1,12 +1,11 @@
-/* Percorso del kickoff (_tappe.html): assegna una tappa o segnala che non serve, senza ricaricare.
- * Mentre si compila: «Entro il» non può precedere l'inizio, e sotto la riga compaiono subito
- * le assenze del responsabile e, per la macchina, abilitati e impegni nel periodo. */
+/* Percorso del kickoff (_tappe.html): è l'indice delle tappe, senza campi propri.
+ * «Assegna» crea l'attività del tipo giusto e la apre nel pannello laterale, già sul
+ * collegamento che la tappa si aspetta; «Non serve» / «Serve» segnano la tappa.
+ * Quando nel pannello cambia un collegamento (evento kc:cambiato) l'indice si rilegge. */
 (function () {
   'use strict';
   if (window.__tappeKickoff) { return; }
   window.__tappeKickoff = true;
-
-  var CAMPI = { owner: 'assigned_to', start: 'start_date', due: 'due_date', asset: 'asset', testo: 'testo', attrezzatura: 'attrezzatura' };
 
   function csrf() {
     var input = document.querySelector('[name=csrfmiddlewaretoken]');
@@ -22,15 +21,17 @@
     err.hidden = !testo;
   }
 
-  function campi(row) {
-    var valori = { tappa: row.getAttribute('data-tp-row') };
-    Object.keys(CAMPI).forEach(function (nome) {
-      var campo = row.querySelector('[data-tp="' + nome + '"]');
-      if (campo) { valori[CAMPI[nome]] = campo.value; }
-    });
-    var outlook = row.querySelector('[data-tp="outlook"]');
-    if (outlook && outlook.checked) { valori.outlook = '1'; }
-    return valori;
+  /* L'attività appena nata si apre nel pannello laterale; senza pannello, nella sua pagina. */
+  function apriAttivita(block, taskId, url) {
+    var link = block.querySelector('[data-tp-task="' + taskId + '"]');
+    if (link && window.HubBulkPannello && window.HubBulkPannello.open) {
+      var normale = link.getAttribute('data-preview');
+      link.setAttribute('data-preview', url);
+      window.HubBulkPannello.open(link);
+      link.setAttribute('data-preview', normale);
+    } else {
+      window.location.href = url;
+    }
   }
 
   function invia(block, dati) {
@@ -43,52 +44,25 @@
     }).then(function (r) {
       return r.json().catch(function () { return { ok: false, reason: 'Risposta non valida (' + r.status + ').' }; });
     }).then(function (j) {
-      if (j.ok) { block.innerHTML = j.html; } else { errore(block, j.reason || 'Operazione non riuscita.'); }
+      if (!j.ok) { errore(block, j.reason || 'Operazione non riuscita.'); return; }
+      block.innerHTML = j.html;
+      if (j.messaggio && window.hubFlash) { window.hubFlash.show([{ level: 'success', text: j.messaggio }]); }
+      if (j.task_id && j.apri) { apriAttivita(block, j.task_id, j.apri); }
     }).catch(function () {
       errore(block, 'Connessione non riuscita: riprova.');
     }).then(function () { block._inCorso = false; });
   }
 
-  /* Anteprima: un controllo per volta, l'ultimo vince. */
-  function anteprima(block, row) {
-    var box = row.querySelector('[data-tp-anteprima]');
-    if (!box || !block.dataset.anteprima) { return; }
-    var valori = campi(row);
-    if (!valori.assigned_to && !valori.asset) { box.innerHTML = ''; return; }
-    var params = new URLSearchParams(valori);
-    var giro = (row._giro || 0) + 1;
-    row._giro = giro;
-    box.classList.add('is-loading');
-    fetch(block.dataset.anteprima + '?' + params.toString(), {
-      credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-    }).then(function (r) { return r.json(); }).then(function (j) {
-      if (row._giro === giro) { box.innerHTML = j.ok ? j.html : ''; }
-    }).catch(function () {
-      if (row._giro === giro) { box.innerHTML = ''; }
-    }).then(function () { box.classList.remove('is-loading'); });
-  }
-
   document.addEventListener('click', function (e) {
-    var block = e.target.closest && e.target.closest('[data-tp-block]');
-    if (!block) { return; }
-    var row = e.target.closest('[data-tp-row]');
-    if (!row) { return; }
-    if (e.target.closest('[data-tp-apri]')) {
-      var form = row.querySelector('[data-tp-form]');
-      if (form) {
-        form.hidden = !form.hidden;
-        var primo = form.querySelector('select, input');
-        if (!form.hidden && primo) { primo.focus(); }
-      }
-      return;
-    }
-    var btn = e.target.closest('[data-tp-action]');
+    var btn = e.target.closest && e.target.closest('[data-tp-action]');
     if (!btn) { return; }
+    var block = btn.closest('[data-tp-block]');
+    var row = btn.closest('[data-tp-row]');
+    if (!block || !row) { return; }
     e.preventDefault();
     errore(block, '');
     var dati = new FormData();
-    var valori = campi(row);
-    Object.keys(valori).forEach(function (k) { dati.append(k, valori[k]); });
+    dati.append('tappa', row.getAttribute('data-tp-row'));
     dati.append('action', btn.getAttribute('data-tp-action'));
     invia(block, dati);
   });
@@ -107,72 +81,17 @@
     });
   });
 
-  /* Utensili della commessa: aggiungi, cambia stato, togli. */
-  function utensili(block, dati) {
-    if (!block.dataset.utensili) { return; }
-    if (block.dataset.meeting) { dati.append('meeting_id', block.dataset.meeting); }
-    fetch(block.dataset.utensili, {
-      method: 'POST', body: dati, credentials: 'same-origin',
-      headers: { 'X-CSRFToken': csrf(), 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-    }).then(function (r) { return r.json(); }).then(function (j) {
-      if (j.ok) { block.innerHTML = j.html; } else { errore(block, j.reason || 'Non salvato.'); }
-    }).catch(function () { errore(block, 'Connessione non riuscita: riprova.'); });
-  }
-
-  document.addEventListener('click', function (e) {
-    var block = e.target.closest && e.target.closest('[data-tp-block]');
+  /* Un collegamento cambiato nel pannello: l'indice (stato «Manca: …» e voci sotto la tappa) si rilegge. */
+  var inAttesa = null;
+  document.addEventListener('kc:cambiato', function () {
+    var block = document.querySelector('[data-tp-block]');
     if (!block) { return; }
-    var add = e.target.closest('[data-tp-ut-azione="aggiungi"]');
-    var togli = e.target.closest('[data-tp-ut-togli]');
-    if (add) {
-      var box = add.closest('[data-tp-ut-add]');
-      var d = new FormData();
-      d.append('action', 'aggiungi');
-      d.append('utensile', box.querySelector('[data-tp="ut-utensile"]').value);
-      d.append('quantita', box.querySelector('[data-tp="ut-quantita"]').value);
-      d.append('entro', box.querySelector('[data-tp="ut-entro"]').value);
-      utensili(block, d);
-    } else if (togli) {
-      var d2 = new FormData();
-      d2.append('action', 'togli');
-      d2.append('riga', togli.closest('[data-tp-ut]').getAttribute('data-tp-ut'));
-      utensili(block, d2);
-    }
-  });
-
-  document.addEventListener('change', function (e) {
-    var sel = e.target.closest && e.target.closest('[data-tp-ut-stato]');
-    if (sel) {
-      var d = new FormData();
-      d.append('action', 'stato');
-      d.append('riga', sel.closest('[data-tp-ut]').getAttribute('data-tp-ut'));
-      d.append('stato', sel.value);
-      utensili(sel.closest('[data-tp-block]'), d);
-    }
-  });
-
-  document.addEventListener('change', function (e) {
-    var row = e.target.closest && e.target.closest('[data-tp-form]') && e.target.closest('[data-tp-row]');
-    if (!row) { return; }
-    var block = row.closest('[data-tp-block]');
-    var nome = e.target.getAttribute('data-tp');
-    if (nome === 'start') {
-      var due = row.querySelector('[data-tp="due"]');
-      if (due) {
-        due.min = e.target.value || '';
-        if (due.value && e.target.value && due.value < e.target.value) { due.value = e.target.value; }
-      }
-    }
-    if (nome !== 'outlook' && nome !== 'testo') { anteprima(block, row); }
-  });
-
-  /* Invio nei campi della tappa salva, senza inviare il form che la contiene. */
-  document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter' || !e.target.closest) { return; }
-    var form = e.target.closest('[data-tp-form]');
-    if (!form) { return; }
-    e.preventDefault();
-    var salva = form.querySelector('[data-tp-action="assegna"]');
-    if (salva) { salva.click(); }
+    clearTimeout(inAttesa);
+    inAttesa = setTimeout(function () {
+      fetch(block.dataset.url + (block.dataset.meeting ? '?meeting_id=' + encodeURIComponent(block.dataset.meeting) : ''), { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j.ok && j.html) { block.innerHTML = j.html; } })
+        .catch(function () {});
+    }, 250);
   });
 })();

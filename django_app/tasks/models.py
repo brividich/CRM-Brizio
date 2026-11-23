@@ -2726,10 +2726,18 @@ class UtensileStato(models.TextChoices):
 
 
 class ProjectUtensile(models.Model):
-    """Utensile che serve alla commessa: quanti, se c'è o va ordinato, entro quando."""
+    """Utensile che serve alla commessa, collegato a un'attività.
+
+    Quantità, stato ed «entro» restano nei dati delle righe già registrate, ma
+    il portale non li chiede e non li mostra più: un utensile è solo un codice.
+    """
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="utensili")
     utensile = models.ForeignKey(Utensile, on_delete=models.PROTECT, related_name="commesse")
+    # L'attività a cui è collegato (riquadro «Collegamenti»). Vuoto sulle righe nate dal vecchio Percorso.
+    task = models.ForeignKey(
+        Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="utensili_collegati", verbose_name="Attività"
+    )
     quantita = models.PositiveSmallIntegerField(default=1)
     stato = models.CharField(max_length=12, choices=UtensileStato.choices, default=UtensileStato.DA_ORDINARE, db_index=True)
     entro = models.DateField(null=True, blank=True)

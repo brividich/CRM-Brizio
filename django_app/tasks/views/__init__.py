@@ -278,6 +278,7 @@ from .tech_refs import (  # noqa: F401,E402
     programma_fase,
 )
 from .tappe import tappa_anteprima, tappa_azione, utensili_azione  # noqa: F401,E402
+from .collegamenti import collegamenti_azione, collegamenti_cerca, collegamenti_registro  # noqa: F401,E402
 from .projects import project_chiudi  # noqa: F401,E402
 from .cruscotto import cruscotto_commesse  # noqa: F401,E402
 from .sale import sala_verifica, sale_disponibilita  # noqa: F401,E402
