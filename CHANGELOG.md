@@ -9,6 +9,10 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: controlli dei permessi senza rifare il giro delle rotte
+
+- **Rotte risolte una volta per processo:** a ogni controllo dei permessi `_route_names_to_paths` rifaceva decine di `reverse()` e `resolve_route_name` passava tutte le rotte del portale con `resolve()`. Le barre dei sottomenu, che controllano 50-60 link, arrivavano così a circa 3.700 reverse e 184.000 confronti per pagina. Ora i due risultati sono memorizzati per processo, con chiave per URLconf. Anagrafica scende da circa 1.000 a 580 ms sul DB di sviluppo. File: `core/middleware.py`, `core/acl_v2.py`.
+
 ### RENTRI: rettifica (R) prima dello scarico effettivo (M) (23/11)
 
 - **Ordine come sul registro**: in produzione le 71 coppie R+M hanno sempre la R registrata prima della M (R = peso a destino in positivo, M = stesso peso in negativo, stesso numero, entrambe collegate allo scarico originale O). Il portale proponeva M → R. Ora la catena è **O → R → M**: menu, barra di navigazione e filtro dell'elenco mostrano «R - Rettifica scarico» prima di «M - Scarico effettivo».

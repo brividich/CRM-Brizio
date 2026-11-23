@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 import re
+from functools import lru_cache
 from urllib.parse import urlsplit
 
+from django.conf import settings
 from django.db import DatabaseError, transaction
-from django.urls import NoReverseMatch, Resolver404, resolve, reverse
+from django.urls import NoReverseMatch, Resolver404, get_urlconf, resolve, reverse
 
 from core.acl import (
     check_permesso,
@@ -187,15 +189,27 @@ def resolve_route_name(path: str, request=None) -> str:
             slash_candidate = f"{candidate}/"
             if slash_candidate not in candidates:
                 candidates.append(slash_candidate)
+    urlconf = str(get_urlconf() or settings.ROOT_URLCONF)
     for candidate in candidates:
-        try:
-            resolver_match = resolve(candidate)
-        except Resolver404:
-            continue
-        route_name = ((resolver_match.view_name or "").strip() or (resolver_match.url_name or "").strip())
+        route_name = _route_name_of(candidate, urlconf)
         if route_name:
             return route_name
     return ""
+
+
+@lru_cache(maxsize=4096)
+def _route_name_of(candidate: str, _urlconf: str) -> str:
+    """Nome della rotta di un percorso, memorizzato per processo.
+
+    ``resolve()`` scorre tutte le rotte del portale (centinaia di espressioni regolari):
+    le barre dei sottomenu lo chiamavano per ogni link a ogni pagina. Le rotte non
+    cambiano a processo acceso; la chiave include l'URLconf per i test che la cambiano.
+    """
+    try:
+        resolver_match = resolve(candidate)
+    except Resolver404:
+        return ""
+    return (resolver_match.view_name or "").strip() or (resolver_match.url_name or "").strip()
 
 
 def _serialize_permission(permission: PermissionDefinition | None) -> dict | None:
