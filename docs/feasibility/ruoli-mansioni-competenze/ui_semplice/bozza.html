@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Bozza: interfaccia semplice ma completa</title>
+<link rel="stylesheet" href="file:///C:/Dev/pn-ambiente-test/django_app/core/static/core/vendor/outfit/outfit.css">
+<style>
+/* Bozza statica con dati inventati: colori, carattere e misure sono quelli del portale (core/static/core/css/theme.css). */
+:root{--bg:#f2f5f8;--surface:#fff;--border:#d7e0ea;--primary:#002b5c;--accent:#ff6b00;--text:#1a202c;--mid:#4a5568;--light:#94a3b8;
+  --sel:#e8f3fb;--ink:#0c2545}
+*{box-sizing:border-box}
+body{margin:0;background:#cfd8e3;font-family:"Outfit",sans-serif;font-size:14px;line-height:1.45;color:var(--text)}
+.schermo{width:1440px;margin:0 auto 40px;background:var(--bg);overflow:hidden}
+.top{height:60px;background:var(--primary);display:flex;align-items:center;gap:18px;padding:0 24px;color:#fff}
+.top b{font-size:17px;letter-spacing:.04em}
+.top .cerca{margin-left:28px;flex:0 0 420px;height:34px;border-radius:9px;background:rgba(255,255,255,.12);display:flex;align-items:center;padding:0 12px;color:rgba(255,255,255,.7);font-size:13px}
+.top .ut{margin-left:auto;font-size:13px;opacity:.9}
+.nav{background:#fff;border-bottom:1px solid var(--border);padding:6px 24px 0}
+.tabs{display:flex;gap:3px;padding-bottom:6px;align-items:center}
+.tabs a{padding:8px 12px;border-radius:9px;font-size:13px;font-weight:600;color:#5a6580}
+.tabs a.on{background:var(--sel);color:var(--ink)}
+.tabs .dx{margin-left:auto;display:flex;gap:3px}
+.tabs .dx a{font-size:12.5px;color:#7b8699}
+.sub{display:flex;gap:3px;align-items:center;min-height:42px;border-top:1px solid #eef2f7;margin:0 -24px;padding:0 24px}
+.sub a{padding:6px 10px;border-radius:8px;font-size:12.5px;font-weight:600;color:#475569}
+.sub a.on{background:var(--sel);color:var(--ink)}
+.n{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;border-radius:999px;background:#ea580c;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.percorso{padding:7px 24px;font-size:12px;color:#64748b}
+.pagina{padding:4px 24px 28px}
+.testa{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
+.testa h1{font-size:22px;margin:0;font-weight:700}
+.testa .azioni{margin-left:auto;display:flex;gap:8px}
+.btn{display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--border);background:#fff;font:600 13px "Outfit",sans-serif;color:var(--ink)}
+.btn.p{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.s{height:30px;padding:0 11px;font-size:12.5px}
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.card h2{margin:0;padding:12px 16px;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #eef2f7;display:flex;gap:8px;align-items:center}
+.card h2 small{margin-left:auto;font-size:12px;letter-spacing:0;text-transform:none;font-weight:500;color:var(--light)}
+.corpo{padding:14px 16px}
+/* etichetta: valore */
+.campi{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 32px}
+.campi.una{grid-template-columns:1fr}
+.campo{display:flex;gap:10px;align-items:baseline;min-width:0}
+.campo dt{flex:0 0 150px;color:#64748b;font-size:13px}
+.campo dd{margin:0;font-weight:600;min-width:0}
+.campo dd span{font-weight:400;color:var(--mid)}
+dl{margin:0}
+/* dove sei */
+.dove{display:flex;flex-wrap:wrap;gap:6px 4px;align-items:center;padding:10px 16px;font-size:13px}
+.dove span{color:#64748b}
+.dove b{color:var(--ink)}
+.dove i{font-style:normal;color:#b6c2d1;margin:0 6px}
+/* colonne a cascata */
+.colonne{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0 14px}
+.col{height:232px;overflow:hidden}
+.col ul{list-style:none;margin:0;padding:6px}
+.col li{padding:7px 10px;border-radius:8px;font-weight:600;font-size:13.5px;display:flex;align-items:center}
+.col li small{display:block;font-weight:400;font-size:11.5px;color:#64748b}
+.col li.on{background:var(--sel);color:var(--ink)}
+.col li.on::after{content:"›";margin-left:auto;font-size:18px;color:#6b8db3}
+.col li div{min-width:0}
+/* tabelle */
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:600;color:#64748b;text-align:left;padding:8px 16px;background:#f7f9fc;border-bottom:1px solid #e6ebf3}
+td{padding:9px 16px;border-bottom:1px solid #eef2f7;font-size:13.5px;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.forte{font-weight:600}
+.liv{white-space:nowrap;display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--mid)}
+.liv b{display:inline-flex;width:22px;height:22px;border-radius:6px;align-items:center;justify-content:center;font-size:12.5px;color:#fff}
+.liv .I{background:#94a3b8}.liv .L{background:#d69e2e}.liv .U{background:#38a169}.liv .O{background:#2f5f89}
+.stato{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+.verde{background:#e7f6ec;color:#22693f}.giallo{background:#fdf5d8;color:#7a5a06}.blu{background:#e8f3fb;color:#1d4f7c}.grigio{background:#eef2f7;color:#475569}
+.due{display:grid;grid-template-columns:1.25fr 1fr;gap:14px}
+.legenda{display:flex;gap:18px;padding:10px 16px;border-top:1px solid #eef2f7;font-size:12.5px;color:#64748b}
+.passi{display:flex;gap:0;margin:0 0 14px}
+.passo{flex:1;padding:10px 14px;background:#fff;border:1px solid var(--border);font-size:13px;color:#64748b}
+.passo:first-child{border-radius:12px 0 0 12px}.passo:last-child{border-radius:0 12px 12px 0}
+.passo+.passo{border-left:0}
+.passo b{display:block;color:var(--text);font-size:13.5px}
+.passo.fatto b::before{content:"✓ ";color:#38a169}
+.passo.ora{background:var(--sel);border-color:#9cc6e6}
+.passo.ora b{color:var(--ink)}
+.tocca{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;border:1px solid #f3c9a6;background:#fff7f0;margin-top:14px}
+.tocca b{font-size:14.5px}
+.tocca .azioni{margin-left:auto;display:flex;gap:8px}
+.gruppo{padding:10px 16px;font-size:12.5px;font-weight:700;color:#475569;background:#f7f9fc;border-bottom:1px solid #e6ebf3}
+.persone{display:grid;grid-template-columns:300px 1fr;gap:14px}
+.elenco li{padding:9px 12px;border-radius:8px;font-weight:600}
+.elenco li small{display:block;font-weight:400;font-size:12px;color:#64748b}
+.elenco li.on{background:var(--sel);color:var(--ink)}
+.elenco{list-style:none;margin:0;padding:6px}
+.filtro{margin:10px 10px 4px;height:34px;border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;padding:0 11px;color:var(--light);font-size:13px}
+.spazio{height:14px}
+</style>
+</head>
+<body>
+
+<!-- ═════════ 1. Struttura ═════════ -->
+<section class="schermo" id="s1">
+  <div class="top"><b>NOVICROM HUB</b><div class="cerca">Cerca una persona, una mansione, una competenza…</div><div class="ut">Elio Vantaro · Capo reparto</div></div>
+  <div class="nav">
+    <div class="tabs"><a>Oggi<span class="n">5</span></a><a>Persone</a><a class="on">Organizzazione</a><a>Competenze</a><a>Formazione</a><a>Sicurezza</a>
+      <div class="dx"><a>Amministrazione</a><a>Report</a><a>Impostazioni</a></div></div>
+    <div class="sub"><a class="on">Struttura</a><a>Reparti</a><a>Ruoli</a><a>Mansioni</a><a>Competenze</a></div>
+  </div>
+  <div class="percorso">Anagrafica › Organizzazione › Struttura</div>
+  <div class="pagina">
+    <div class="testa"><h1>Struttura</h1></div>
+    <div class="card dove"><span>Centro di costo:</span> <b>CN5G</b><i>›</i><span>Reparto:</span> <b>CN5GL</b><i>›</i><span>Ruolo:</span> <b>Operatore macchina utensile</b><i>›</i><span>Mansione:</span> <b>DM7 - DMC 160U Duoblock</b></div>
+    <div class="colonne">
+      <div class="card col"><h2>Centri di costo</h2><ul><li><div>AGGIUSTAGGIO</div></li><li><div>CN4</div></li><li><div>CN5</div></li><li class="on"><div>CN5G</div></li><li><div>CONTROLLO</div></li></ul></div>
+      <div class="card col"><h2>Reparti</h2><ul><li class="on"><div>CN5GL</div></li><li><div>CN5GS</div></li><li><div>ALC</div></li></ul></div>
+      <div class="card col"><h2>Ruoli</h2><ul><li class="on"><div>Operatore macchina utensile</div></li><li><div>Capo reparto</div></li></ul></div>
+      <div class="card col"><h2>Mansioni</h2><ul><li><div>DM6 - DMC 125U Duoblock</div></li><li class="on"><div>DM7 - DMC 160U Duoblock</div></li><li><div>DM12 - DMC 160U Duoblock</div></li><li><div>Responsabilità del reparto</div></li></ul></div>
+    </div>
+    <div class="card">
+      <h2>Mansione scelta</h2>
+      <div class="corpo" style="display:flex;gap:24px;align-items:flex-start">
+        <dl class="campi" style="flex:1">
+          <div class="campo"><dt>Mansione:</dt><dd>DM7 - DMC 160U Duoblock</dd></div>
+          <div class="campo"><dt>Ruolo:</dt><dd>Operatore macchina utensile</dd></div>
+          <div class="campo"><dt>Reparto:</dt><dd>CN5GL</dd></div>
+          <div class="campo"><dt>Capo reparto:</dt><dd>Elio Vantaro</dd></div>
+          <div class="campo"><dt>Centro di costo:</dt><dd>CN5G</dd></div>
+          <div class="campo"><dt>Chi approva le richieste:</dt><dd>RDD</dd></div>
+        </dl>
+        <div style="display:flex;flex-direction:column;gap:8px"><span class="btn p">Nuova richiesta per questa mansione</span><span class="btn">Modifica la mansione</span></div>
+      </div>
+    </div>
+    <div class="spazio"></div>
+    <div class="due">
+      <div class="card">
+        <h2>Competenze richieste dalla mansione <small>5</small></h2>
+        <table>
+          <tr><th>Competenza</th><th>Livello richiesto</th><th>Chi valuta</th></tr>
+          <tr><td class="forte">Lettura del disegno tecnico</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td>Capo reparto</td></tr>
+          <tr><td class="forte">Set-up macchina</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td>Capo reparto</td></tr>
+          <tr><td class="forte">Uso degli strumenti di misura</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td>Capo reparto</td></tr>
+          <tr><td class="forte">FOD</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td>Qualità</td></tr>
+          <tr><td class="forte">Procedure interne</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td>Qualità</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Persone con questa mansione <small>4</small></h2>
+        <table>
+          <tr><th>Persona</th><th>Livello</th><th>Stato</th></tr>
+          <tr><td class="forte">Tullio Brevani</td><td><span class="liv"><b class="O">O</b>esperto</span></td><td><span class="stato verde">Abilitato</span></td></tr>
+          <tr><td class="forte">Nora Castelvi</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td><span class="stato verde">Abilitato</span></td></tr>
+          <tr><td class="forte">Mira Dossen</td><td><span class="liv"><b class="I">I</b>in formazione</span></td><td><span class="stato giallo">In formazione</span></td></tr>
+          <tr><td class="forte">Ivo Marendi</td><td><span class="liv"><b class="L">L</b>intermedio</span></td><td><span class="stato blu">In addestramento</span></td></tr>
+        </table>
+        <div class="legenda"><span><b>I</b> in formazione</span><span><b>L</b> intermedio</span><span><b>U</b> autonomo</span><span><b>O</b> esperto</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 2. Persona ═════════ -->
+<section class="schermo" id="s2">
+  <div class="top"><b>NOVICROM HUB</b><div class="cerca">Cerca una persona, una mansione, una competenza…</div><div class="ut">Elio Vantaro · Capo reparto</div></div>
+  <div class="nav">
+    <div class="tabs"><a>Oggi<span class="n">5</span></a><a class="on">Persone</a><a>Organizzazione</a><a>Competenze</a><a>Formazione</a><a>Sicurezza</a>
+      <div class="dx"><a>Amministrazione</a><a>Report</a><a>Impostazioni</a></div></div>
+    <div class="sub"><a class="on">Il mio reparto</a><a>Tutte le persone</a><a>Ingressi</a></div>
+  </div>
+  <div class="percorso">Anagrafica › Persone › Il mio reparto › Mira Dossen</div>
+  <div class="pagina">
+    <div class="testa"><h1>Il mio reparto</h1><div class="azioni"><span class="btn p">Nuova richiesta</span></div></div>
+    <div class="persone">
+      <div class="card">
+        <h2>Persone <small>CN5GL · 6</small></h2>
+        <div class="filtro">Filtra per nome…</div>
+        <ul class="elenco">
+          <li>Tullio Brevani<small>Operatore macchina utensile</small></li>
+          <li>Nora Castelvi<small>Operatore macchina utensile</small></li>
+          <li class="on">Mira Dossen<small>Operatore macchina utensile · in formazione</small></li>
+          <li>Ivo Marendi<small>Operatore macchina utensile</small></li>
+          <li>Dario Selvani<small>Operatore macchina utensile</small></li>
+          <li>Lea Zuffardi<small>Operatore macchina utensile</small></li>
+        </ul>
+      </div>
+      <div>
+        <div class="card">
+          <h2>Persona scelta</h2>
+          <div class="corpo">
+            <dl class="campi">
+              <div class="campo"><dt>Persona:</dt><dd>Mira Dossen</dd></div>
+              <div class="campo"><dt>Matricola:</dt><dd>CNO-0412</dd></div>
+              <div class="campo"><dt>Reparto:</dt><dd>CN5GL</dd></div>
+              <div class="campo"><dt>Ruolo:</dt><dd>Operatore macchina utensile</dd></div>
+              <div class="campo"><dt>Capo reparto:</dt><dd>Elio Vantaro</dd></div>
+              <div class="campo"><dt>In azienda dal:</dt><dd>03/02/2025</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="spazio"></div>
+        <div class="card">
+          <h2>In corso <small>1</small></h2>
+          <table>
+            <tr><th>Richiesta</th><th>Che cosa</th><th>Mansione</th><th>Stato</th><th>Tocca a</th><th></th></tr>
+            <tr><td class="forte">RAM-2027-0018</td><td>Assegnazione di mansione</td><td>DM7 - DMC 160U Duoblock</td><td><span class="stato giallo">In formazione</span></td><td class="forte">Capo reparto: valutare 2 competenze</td><td><span class="btn s p">Valuta</span></td></tr>
+          </table>
+        </div>
+        <div class="spazio"></div>
+        <div class="due" style="grid-template-columns:.8fr 1.2fr">
+          <div class="card">
+            <h2>Mansioni <small>3</small></h2>
+            <table>
+              <tr><th>Mansione</th><th>Livello</th><th>Stato</th></tr>
+              <tr><td class="forte">DM6 - DMC 125U Duoblock</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td><span class="stato verde">Abilitato</span></td></tr>
+              <tr><td class="forte">DM12 - DMC 160U Duoblock</td><td><span class="liv"><b class="L">L</b>intermedio</span></td><td><span class="stato blu">In addestramento</span></td></tr>
+              <tr><td class="forte">DM7 - DMC 160U Duoblock</td><td><span class="liv"><b class="I">I</b>in formazione</span></td><td><span class="stato giallo">In formazione</span></td></tr>
+            </table>
+          </div>
+          <div class="card">
+            <h2>Competenze <small>5</small></h2>
+            <table>
+              <tr><th>Competenza</th><th>Livello</th><th>Valutata da</th></tr>
+              <tr><td class="forte">Lettura del disegno tecnico</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td style="white-space:nowrap">Capo reparto, 14/10/2026</td></tr>
+              <tr><td class="forte">Uso degli strumenti di misura</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td style="white-space:nowrap">Capo reparto, 14/10/2026</td></tr>
+              <tr><td class="forte">FOD</td><td><span class="liv"><b class="U">U</b>autonomo</span></td><td>Qualità, 02/09/2026</td></tr>
+              <tr><td class="forte">Set-up macchina</td><td><span class="liv"><b class="L">L</b>intermedio</span></td><td style="white-space:nowrap">Capo reparto, 14/10/2026</td></tr>
+              <tr><td class="forte">Procedure interne</td><td><span class="liv"><b class="I">I</b>in formazione</span></td><td>Da valutare</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 3. Richiesta ═════════ -->
+<section class="schermo" id="s3">
+  <div class="top"><b>NOVICROM HUB</b><div class="cerca">Cerca una persona, una mansione, una competenza…</div><div class="ut">Sara Bellandi · RDD</div></div>
+  <div class="nav">
+    <div class="tabs"><a>Oggi<span class="n">2</span></a><a>Persone</a><a>Organizzazione</a><a class="on">Competenze</a><a>Formazione</a><a>Sicurezza</a>
+      <div class="dx"><a>Amministrazione</a><a>Report</a><a>Impostazioni</a></div></div>
+    <div class="sub"><a>Skill matrix</a><a class="on">Richieste<span class="n">2</span></a><a>Sessioni formative</a></div>
+  </div>
+  <div class="percorso">Anagrafica › Competenze › Richieste › RAM-2027-0021</div>
+  <div class="pagina">
+    <div class="testa"><h1>Richiesta RAM-2027-0021</h1></div>
+    <div class="passi">
+      <div class="passo fatto"><b>Richiesta</b>Capo reparto, 18/01/2027</div>
+      <div class="passo ora"><b>Approvazione</b>Tocca a RDD</div>
+      <div class="passo"><b>Formazione</b>Apre la Qualità o HR</div>
+      <div class="passo"><b>Firme di chiusura</b>RDD, poi la persona</div>
+      <div class="passo"><b>Chiusa</b>Livello nella skill matrix</div>
+    </div>
+    <div class="due">
+      <div class="card">
+        <h2>Che cosa si chiede</h2>
+        <div class="corpo">
+          <dl class="campi una">
+            <div class="campo"><dt>Tipo di richiesta:</dt><dd>Assegnazione di mansione</dd></div>
+            <div class="campo"><dt>Persona:</dt><dd>Ivo Marendi <span>· CNO-0388</span></dd></div>
+            <div class="campo"><dt>Reparto:</dt><dd>CN5GL</dd></div>
+            <div class="campo"><dt>Ruolo:</dt><dd>Operatore macchina utensile</dd></div>
+            <div class="campo"><dt>Mansione richiesta:</dt><dd>DM12 - DMC 160U Duoblock</dd></div>
+            <div class="campo"><dt>Livello da raggiungere:</dt><dd><span class="liv"><b class="U">U</b>autonomo</span></dd></div>
+            <div class="campo"><dt>Richiesta da:</dt><dd>Elio Vantaro <span>· Capo reparto · 18/01/2027</span></dd></div>
+            <div class="campo"><dt>Motivo:</dt><dd><span>Copertura del secondo turno sulla DM12.</span></dd></div>
+            <div class="campo"><dt>Chi approva:</dt><dd>RDD</dd></div>
+          </dl>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Che cosa serve per la mansione <small>5 competenze</small></h2>
+        <table>
+          <tr><th>Competenza</th><th>Richiesto</th><th>Oggi</th><th>Da fare</th></tr>
+          <tr><td class="forte">Lettura del disegno tecnico</td><td><span class="liv"><b class="U">U</b></span></td><td><span class="liv"><b class="U">U</b></span></td><td><span class="stato verde">Già presente</span></td></tr>
+          <tr><td class="forte">Uso degli strumenti di misura</td><td><span class="liv"><b class="U">U</b></span></td><td><span class="liv"><b class="U">U</b></span></td><td><span class="stato verde">Già presente</span></td></tr>
+          <tr><td class="forte">FOD</td><td><span class="liv"><b class="U">U</b></span></td><td><span class="liv"><b class="U">U</b></span></td><td><span class="stato verde">Già presente</span></td></tr>
+          <tr><td class="forte">Set-up macchina</td><td><span class="liv"><b class="U">U</b></span></td><td><span class="liv"><b class="L">L</b></span></td><td><span class="stato giallo">Da formare</span></td></tr>
+          <tr><td class="forte">Procedure interne</td><td><span class="liv"><b class="U">U</b></span></td><td>nessun livello</td><td><span class="stato giallo">Da formare</span></td></tr>
+        </table>
+        <div class="legenda"><span><b>I</b> in formazione</span><span><b>L</b> intermedio</span><span><b>U</b> autonomo</span><span><b>O</b> esperto</span></div>
+      </div>
+    </div>
+    <div class="tocca"><div><b>Tocca a te: approvare o respingere la richiesta.</b><br><span style="color:#64748b;font-size:13px">Se approvi, la Qualità o HR aprono la sessione formativa sulle 2 competenze da formare.</span></div>
+      <div class="azioni"><span class="btn">Respingi</span><span class="btn p">Approva</span></div></div>
+  </div>
+</section>
+
+<!-- ═════════ 4. Da fare ═════════ -->
+<section class="schermo" id="s4">
+  <div class="top"><b>NOVICROM HUB</b><div class="cerca">Cerca una persona, una mansione, una competenza…</div><div class="ut">Elio Vantaro · Capo reparto</div></div>
+  <div class="nav">
+    <div class="tabs"><a class="on">Oggi<span class="n">5</span></a><a>Persone</a><a>Organizzazione</a><a>Competenze</a><a>Formazione</a><a>Sicurezza</a>
+      <div class="dx"><a>Amministrazione</a><a>Report</a><a>Impostazioni</a></div></div>
+    <div class="sub"><a class="on">Da fare<span class="n">5</span></a><a>Scadenze</a></div>
+  </div>
+  <div class="percorso">Anagrafica › Oggi › Da fare</div>
+  <div class="pagina">
+    <div class="testa"><h1>Da fare</h1><div class="azioni"><span class="btn p">Nuova richiesta</span></div></div>
+    <div class="card">
+      <div class="gruppo">Da valutare · 3</div>
+      <table>
+        <tr><th>Persona</th><th>Mansione</th><th>Competenza da valutare</th><th>Richiesta</th><th>In attesa da</th><th></th></tr>
+        <tr><td class="forte">Mira Dossen</td><td>DM7 - DMC 160U Duoblock</td><td>Set-up macchina</td><td>RAM-2027-0018</td><td>3 giorni</td><td><span class="btn s p">Valuta</span></td></tr>
+        <tr><td class="forte">Mira Dossen</td><td>DM7 - DMC 160U Duoblock</td><td>Procedure interne</td><td>RAM-2027-0018</td><td>3 giorni</td><td><span class="btn s p">Valuta</span></td></tr>
+        <tr><td class="forte">Dario Selvani</td><td>DM6 - DMC 125U Duoblock</td><td>Uso degli strumenti di misura</td><td>RAM-2027-0015</td><td>8 giorni</td><td><span class="btn s p">Valuta</span></td></tr>
+      </table>
+      <div class="gruppo" style="border-top:1px solid #e6ebf3">Da firmare · 1</div>
+      <table>
+        <tr><th>Persona</th><th>Mansione</th><th>Che cosa firmare</th><th>Richiesta</th><th>In attesa da</th><th></th></tr>
+        <tr><td class="forte">Lea Zuffardi</td><td>DM12 - DMC 160U Duoblock</td><td>Chiusura della sessione formativa</td><td>RAM-2027-0009</td><td>1 giorno</td><td><span class="btn s p">Firma</span></td></tr>
+      </table>
+      <div class="gruppo" style="border-top:1px solid #e6ebf3">Le mie richieste in attesa di altri · 1</div>
+      <table>
+        <tr><th>Persona</th><th>Mansione</th><th>Tipo di richiesta</th><th>Richiesta</th><th>Tocca a</th><th></th></tr>
+        <tr><td class="forte">Ivo Marendi</td><td>DM12 - DMC 160U Duoblock</td><td>Assegnazione di mansione</td><td>RAM-2027-0021</td><td>RDD: approvare</td><td><span class="btn s">Apri</span></td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+</body>
+</html>
