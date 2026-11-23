@@ -898,7 +898,10 @@ def asset_processo_sezione_export(request: HttpRequest, sigla: str, formato: str
 
     if formato not in ("pdf", "xlsx"):
         raise Http404("Formato non previsto")
-    dossier = _sezione_processo(request, sigla)
+    from ..services import sezione_processo
+
+    # ?q= = solo le righe trovate dalla barra «Cerca» della pagina.
+    dossier = sezione_processo.filtra(_sezione_processo(request, sigla), request.GET.get("q", ""))
     if formato == "pdf":
         data, nome = part145_dossier.esporta_pdf(dossier, request.user)
         tipo = "application/pdf"

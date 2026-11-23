@@ -597,7 +597,10 @@ GUIDA = {
                       "P11TF12: è il nome della voce di menu), il titolo della pagina (es. «Foratura su particolari "
                       "critici») e dove compare: Qualifiche e Asset, solo Qualifiche o solo Asset. Al salvataggio "
                       "nascono le voci in Competenze › Qualifiche (accanto a «Processi qualificati») e/o nel menu "
-                      "Asset (accanto a «PART 145»). Togliendo la spunta le voci spariscono, i dati restano."),
+                      "Asset (accanto a «PART 145»). Togliendo la spunta le voci spariscono, i dati restano. "
+                      "Cambiando il titolo cambia anche la voce in Qualifiche, salvo che sia stata rinominata a mano "
+                      "dal menu. Nel registro dei processi del cruscotto MOD.128 la sigla accanto al nome apre la "
+                      "sezione; se il processo non ha riferimenti, la sua pagina lo segnala."),
                 ("def", [
                     ("Stessa sigla", "più processi con la stessa sigla (es. uno per cliente) finiscono nella stessa "
                                      "pagina; il titolo è quello del primo processo che lo ha."),
@@ -605,6 +608,9 @@ GUIDA = {
                                  "Macchine, Utensili critici e Technical Plan. Rosso o arancio = qualcosa ferma il "
                                  "processo, giallo o ambra = da guardare, verde = in regola. Un clic porta alla sezione."),
                     ("Cerca", "la barra sotto i riquadri filtra tutte le parti insieme (persona, macchina, utensile, P/N, documento); la ricerca in alto (Ctrl+K) trova la sezione scrivendo la sigla o il titolo."),
+                    ("Scadenze", "in rosso le righe già scadute, in giallo quelle entro 30 giorni; il riquadro "
+                                 "«Scadenze 90 giorni» le conta. La mail settimanale MOD.128 alla Qualità porta "
+                                 "anche alla sezione del processo."),
                     ("Solo le parti usate", "Utensili critici, Technical Plan e Utensili in uso (MOD.176) compaiono "
                                             "solo se ce ne sono; le macchine se ce ne sono o se il processo ha "
                                             "«Ripeti la qualifica macchine ogni (mesi)»."),
@@ -615,7 +621,9 @@ GUIDA = {
                                                  "corrente del registro SGI quando il codice c'è: per P11TF12 aggiungi "
                                                  "fra i riferimenti MT CN 69, MOD.161, MOD.176."),
                     ("Scarica PDF / Scarica Excel", "la pagina in PDF (pronta per l'audit) o in Excel (riepilogo e un "
-                                                    "foglio per parte); in Asset sono nel menu «↓ Scarica»."),
+                                                    "foglio per parte); in Asset sono nel menu «↓ Scarica». Con una ricerca in corso compaiono "
+                                                    "anche «PDF righe trovate» ed «Excel righe trovate», con le sole "
+                                                    "righe che la ricerca mostra."),
                 ]),
                 ("p", "Le pagine sono in sola lettura: macchine, utensili, Technical Plan e persone si gestiscono dalla "
                       "pagina del processo («Apri il processo»). Persone e formazione si vedono con il permesso "

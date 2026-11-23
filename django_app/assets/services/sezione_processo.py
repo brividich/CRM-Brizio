@@ -8,7 +8,9 @@ solo l'ordine delle sezioni. Si mostrano solo le parti che il processo usa davve
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
+import unicodedata
 from datetime import timedelta
 
 from django.urls import reverse
@@ -394,6 +396,7 @@ def costruisci(sigla: str, *, oggi=None, con_personale: bool = True, ordine=None
     # ── Riquadri ─────────────────────────────────────────────────────────────
     alte = sum(1 for r in s_aperte.righe if r[0] == PRIORITA_ALTA)
     scadute = sum(1 for r in s_scad.righe if r[-1] == "Scaduta")
+    entro_30 = sum(1 for r in s_scad.righe if r[-1] == "Entro 30 giorni")
     operative = sum(1 for _, r in righe_macchine if r["operativa"])
     al_tcp = sum(1 for reg in registri if reg.stato == RegistroUtensile.STATO_TCP)
     kpi = [
@@ -401,7 +404,8 @@ def costruisci(sigla: str, *, oggi=None, con_personale: bool = True, ordine=None
          "nota": f"{alte} a priorità alta" if alte else "nessuna urgente",
          "stato": "ko" if alte else ("warn" if s_aperte.righe else "ok")},
         {"etichetta": f"Scadenze {giorni} giorni", "valore": len(s_scad.righe), "sezione": "scadenze",
-         "nota": f"{scadute} già scadute" if scadute else "nessuna scaduta",
+         "nota": " · ".join(x for x in (f"{scadute} già scadute" if scadute else "",
+                                        f"{entro_30} entro 30 giorni" if entro_30 else "") if x) or "nessuna urgente",
          "stato": "ko" if scadute else ("warn" if s_scad.righe else "ok")},
         {"etichetta": "Macchine", "valore": len(righe_macchine), "sezione": "macchine",
          "nota": f"{operative} operative", "stato": "ko" if operative < len(righe_macchine) else ("" if righe_macchine else "warn")},
@@ -426,3 +430,35 @@ def costruisci(sigla: str, *, oggi=None, con_personale: bool = True, ordine=None
             # Per gli export (stesse funzioni del Dossier PART 145).
             "titolo_export": titolo, "nome_file": f"sezione-{slugify(sigla)}-{oggi:%Y%m%d}",
             "riepilogo": [(k["etichetta"], k["valore"]) for k in kpi]}
+
+
+def _norm(testo) -> str:
+    """Come la ricerca in pagina: minuscole e senza accenti."""
+    t = unicodedata.normalize("NFD", str(testo or "").lower())
+    return "".join(c for c in t if not unicodedata.combining(c))
+
+
+def filtra(dati: dict, cerca: str) -> dict:
+    """Solo le righe che contengono il testo cercato (stessa regola della barra «Cerca»).
+
+    Per «Scarica» con una ricerca attiva: le parti senza righe trovate non si esportano,
+    titolo e nome del file dicono che è un estratto. I riquadri del riepilogo restano quelli
+    della pagina intera.
+    """
+    q = _norm((cerca or "").strip())
+    if not q:
+        return dati
+    sezioni = []
+    for s in dati["sezioni"]:
+        tenere = [i for i, (riga, _aid, azione) in enumerate(s.righe_link)
+                  if q in _norm(" ".join(str(v) for v in riga) + " " + (azione[0] if azione else ""))]
+        if not tenere:
+            continue
+        sezioni.append(dataclasses.replace(
+            s, righe=[s.righe[i] for i in tenere],
+            azioni=[s.azioni[i] for i in tenere if i < len(s.azioni)],
+            asset_ids=[s.asset_ids[i] for i in tenere if i < len(s.asset_ids)]))
+    testo = (cerca or "").strip()[:60]
+    return {**dati, "sezioni": sezioni, "cerca": testo,
+            "titolo_export": f"{dati['titolo_export']} — righe con «{testo}»",
+            "nome_file": f"{dati['nome_file']}-estratto"}
