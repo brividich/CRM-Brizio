@@ -169,24 +169,27 @@ def build_certificazione_copertura(tipo_qualifica_id: int, oggi=None, ambito_id:
     return albero
 
 
-def _ids_con_foto(legacy_ids) -> set[int]:
-    """Sottoinsieme di ``legacy_ids`` che ha una foto profilo caricata.
+def _ids_con_foto(legacy_ids) -> dict[int, str]:
+    """``legacy_id`` → versione della foto, per chi ha una foto profilo caricata.
 
     Serve a non emettere ``<img>`` verso ``anagrafica:foto_dipendente`` per chi
     la foto non ce l'ha (la view risponde 404): il diagramma disegna le iniziali.
+    La versione va nell'URL della miniatura, così il browser la tiene finché la
+    foto non cambia invece di richiederla ogni ora.
     """
     ids = sorted({int(i) for i in legacy_ids if i})
     if not ids:
-        return set()
+        return {}
     from anagrafica.models import DipendenteAnagraficaCivile
+    from anagrafica.views.dipendenti import _foto_versione
 
     return {
-        int(lid)
-        for lid in DipendenteAnagraficaCivile.objects.filter(
+        int(lid): _foto_versione(nome)
+        for lid, nome in DipendenteAnagraficaCivile.objects.filter(
             legacy_anagrafica_id__in=ids
         )
         .exclude(foto="")
-        .values_list("legacy_anagrafica_id", flat=True)
+        .values_list("legacy_anagrafica_id", "foto")
     }
 
 
@@ -239,6 +242,7 @@ def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
         titolari = sorted(nodo["titolari"], key=lambda t: (t["nome"] or "", t["legacy_id"]))
         for t in titolari:
             t["ha_foto"] = t["legacy_id"] in con_foto
+            t["foto_v"] = con_foto.get(t["legacy_id"], "")
 
         if not titolari:
             return [_nodo("vacante", [], figli)]

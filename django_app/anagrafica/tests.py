@@ -862,6 +862,40 @@ class AnagraficaDipendentiViewTests(TestCase):
             # Senza ?m resta la foto intera (scheda dipendente).
             self.assertNotEqual(self.client.get(url)["Content-Type"], "image/jpeg")
 
+    def test_foto_304_con_etag_e_miniatura_in_memoria(self):
+        from PIL import Image
+
+        from .views import dipendenti as vd
+
+        out = BytesIO()
+        Image.new("RGB", (800, 600), (20, 120, 20)).save(out, format="PNG")
+        with tempfile.TemporaryDirectory() as private_root, override_settings(ANAGRAFICA_PRIVATE_ROOT=private_root):
+            vd._MINIATURE.clear()
+            civile = DipendenteAnagraficaCivile.objects.create(legacy_anagrafica_id=4343)
+            civile.foto.save("profilo.png", ContentFile(out.getvalue()), save=True)
+            url = reverse("anagrafica:foto_dipendente", args=[4343])
+            versione = vd._foto_versione(civile.foto.name)
+            self.client.force_login(self.user)
+
+            primo = self.client.get(f"{url}?m={versione}")
+            self.assertEqual(primo.status_code, 200)
+            etag = primo["ETag"]
+            self.assertIn(versione, etag)
+
+            # Il browser ha già la foto: 304 senza aprire né decifrare il file.
+            with patch.object(vd, "_miniatura_foto", side_effect=AssertionError("aperta")):
+                rivalida = self.client.get(f"{url}?m={versione}", HTTP_IF_NONE_MATCH=etag)
+                self.assertEqual(rivalida.status_code, 304)
+                self.assertEqual(rivalida.content, b"")
+                # Senza ETag: la miniatura arriva dalla memoria, non dal disco.
+                self.assertEqual(self.client.get(f"{url}?m={versione}").content, primo.content)
+
+            # La foto intera ha un ETag diverso: quello della miniatura non le vale.
+            intera = self.client.get(url, HTTP_IF_NONE_MATCH=etag)
+            self.assertEqual(intera.status_code, 200)
+            self.assertNotEqual(intera["ETag"], etag)
+            vd._MINIATURE.clear()
+
     def test_civil_form_can_upload_employee_photo(self):
         with connection.cursor() as cursor:
             cursor.execute(
