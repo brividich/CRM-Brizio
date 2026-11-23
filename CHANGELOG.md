@@ -14,6 +14,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - `anagrafica/services/struttura_excel.py`: il catalogo dei processi MOD.128 leggeva un campo `codice` che `ProcessoQualificato` non ha; con almeno un processo in archivio (produzione) ogni anteprima/import del file Struttura dava 500. Il processo si abbina per nome esatto, come dicono le istruzioni del file.
 - `anagrafica/tests_struttura.py`: test di regressione con un processo MOD.128 in archivio.
 
+### Sezioni dedicate MOD.128: menu che segue il titolo, scarica righe trovate, scadenze in evidenza
+- **Menu:** cambiando il titolo della sezione cambia la voce in Qualifiche, se non è stata rinominata a mano (comincia ancora con la sigla).
+- **Scarica:** con una ricerca in corso compaiono PDF ed Excel delle sole righe trovate (`?q=`; file `…-estratto`, titolo «righe con «…»»), in Qualifiche e in Asset.
+- **Scadenze:** righe già scadute in rosso, entro 30 giorni in giallo; il riquadro «Scadenze 90 giorni» conta anche quelle entro 30 giorni. La mail settimanale MOD.128 porta alla sezione del processo.
+- **Cruscotto MOD.128:** sigla della sezione cliccabile accanto al nome nel registro dei processi. **Scheda processo:** avviso se la sezione dedicata non ha riferimenti (tra i documenti c'è solo il MOD.128).
+- **Test:** `assets.tests_part145` allineato all'attributo `data-fm-hide-search` (era rimasto il vecchio `data-fm-table-skip`).
+- File: `anagrafica/services/mpq_sezioni.py`, `anagrafica/services/mpq_scadenze.py`, `assets/services/sezione_processo.py`, `anagrafica/views_mpq.py`, `assets/views/asset_crud.py`, `anagrafica/templates/anagrafica/pages/mpq_sezione.html`, `mpq_cruscotto.html`, `mpq_processo_detail.html`, `assets/templates/assets/pages/part_145_list.html`, `sezione_processo.html`, `guida.html`, `assets/tests_sezione_processo.py`, `assets/tests_part145.py`, `core/guide_moduli/contenuti/anagrafica.py`, `core/guide_moduli/contenuti/assets.py`, `docs/moduli/anagrafica.md`, `docs/moduli/assets.md`.
+
 ### Anagrafica: «Organizzazione» si apre su una pagina d'ingresso con i collegamenti diretti
 
 - **Pagina «Panoramica»**, prima voce del pilastro Organizzazione (`/anagrafica/organizzazione/`): in alto i numeri della struttura, ognuno porta al suo elenco; a sinistra «Collegamenti diretti», una tessera per pagina della sezione con una riga che spiega a che cosa serve («Esplora la struttura», «Mansioni», «Richieste», «Reparti e capi», «Centri di costo», «Organigramma», «Prova un cambiamento», «Struttura e revisioni»); a destra «Da fare», solo ciò che aspetta in questa sezione, con numero e pulsante. Sotto, lo stato della revisione della struttura.

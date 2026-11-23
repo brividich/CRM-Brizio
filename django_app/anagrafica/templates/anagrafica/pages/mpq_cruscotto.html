@@ -214,7 +214,7 @@
             {% for r in processi %}
             <tr>
               <td class="fmd-muted">{{ r.obj.cliente.nome }}</td>
-              <td><a class="fmd-data-link" href="{% url 'anagrafica:mpq_processo_detail' r.obj.id %}">{{ r.obj.nome }}</a></td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:mpq_processo_detail' r.obj.id %}">{{ r.obj.nome }}</a>{% if r.obj.sezione_dedicata and r.obj.sezione_sigla %} <a class="fmd-badge fmd-b-violet" href="{% if r.obj.sezione_in_qualifiche %}{% url 'anagrafica:mpq_sezione' r.obj.sezione_sigla %}{% else %}{% url 'assets:processo_sezione' r.obj.sezione_sigla %}{% endif %}" title="Apri la sezione dedicata">{{ r.obj.sezione_sigla }}</a>{% endif %}</td>
               <td class="fmd-muted">{{ r.regime_label }}</td>
               <td class="fmd-muted">{{ r.obj.livello|default:"—" }}</td>
               <td class="fmd-r fmd-num">{{ r.n_abil }}</td>

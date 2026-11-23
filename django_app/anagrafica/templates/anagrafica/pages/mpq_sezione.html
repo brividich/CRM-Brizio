@@ -22,6 +22,11 @@ body.theme-dark .p11-nota { color:var(--text-light,#94a3b8); }
 .p11-cerca small { color:#64748b; white-space:nowrap; font-size:12px; }
 body.theme-dark .p11-cerca { background:var(--surface,#0f172a); border-color:rgba(148,163,184,.25); }
 body.theme-dark .p11-cerca small { color:var(--text-light,#94a3b8); }
+.fmd-btn[hidden] { display:none; }
+.p11-r-ko td { background:#fef2f2; }
+.p11-r-warn td { background:#fffbeb; }
+body.theme-dark .p11-r-ko td { background:rgba(239,68,68,.10); }
+body.theme-dark .p11-r-warn td { background:rgba(245,158,11,.10); }
 </style>
 {% endblock %}
 
@@ -48,6 +53,8 @@ body.theme-dark .p11-cerca small { color:var(--text-light,#94a3b8); }
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_cruscotto' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Tutti i processi qualificati</a>
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_sezione_export' dossier.sigla 'pdf' %}" title="Tutte le parti mostrate, pronto per l'audit"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica PDF</a>
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_sezione_export' dossier.sigla 'xlsx' %}" title="Riepilogo + un foglio per parte"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica Excel</a>
+            <a class="fmd-btn fmd-btn-ghost" hidden data-solo-trovate href="{% url 'anagrafica:mpq_sezione_export' dossier.sigla 'pdf' %}" title="Solo le righe trovate dalla ricerca"><svg class="fmd-ico"><use href="#i-download"/></svg>PDF righe trovate</a>
+            <a class="fmd-btn fmd-btn-ghost" hidden data-solo-trovate href="{% url 'anagrafica:mpq_sezione_export' dossier.sigla 'xlsx' %}" title="Solo le righe trovate dalla ricerca"><svg class="fmd-ico"><use href="#i-download"/></svg>Excel righe trovate</a>
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#sezione-dedicata">? Guida</a>
           </div>
         </div>
@@ -87,7 +94,7 @@ body.theme-dark .p11-cerca small { color:var(--text-light,#94a3b8); }
           <thead><tr>{% for h in s.intestazioni %}<th>{{ h }}</th>{% endfor %}{% if s.ha_azioni %}<th>Cosa fare</th>{% endif %}</tr></thead>
           <tbody>
             {% for riga, asset_id, azione in s.righe_link %}
-            <tr>
+            <tr{% if s.codice == 'scadenze' %}{% with st=riga|last %}{% if st == 'Scaduta' %} class="p11-r-ko"{% elif st == 'Entro 30 giorni' %} class="p11-r-warn"{% endif %}{% endwith %}{% endif %}>
               {% for v in riga %}<td>{% with cls=dossier.badge|get_item:v %}{% if forloop.first and asset_id %}<a class="fmd-data-link" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif cls == 'ko' %}<span class="fmd-badge fmd-b-red">{{ v }}</span>{% elif cls == 'warn' %}<span class="fmd-badge fmd-b-amber">{{ v }}</span>{% elif cls == 'ok' %}<span class="fmd-badge fmd-b-green">{{ v }}</span>{% elif v|stringformat:"s" == "" %}<span class="fmd-muted">—</span>{% else %}{{ v }}{% endif %}{% endwith %}</td>{% endfor %}
               {% if s.ha_azioni %}<td class="fmd-nowrap">{% if azione %}<a class="fmd-data-link" href="{{ azione.1 }}">{{ azione.0 }} →</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>{% endif %}
             </tr>
@@ -134,6 +141,12 @@ body.theme-dark .p11-cerca small { color:var(--text-light,#94a3b8); }
       if (q && visibili) sez.open = true;
     });
     esito.textContent = q ? trovate + ' righe' : '';
+    // «Scarica» con la ricerca attiva: compaiono PDF ed Excel delle sole righe trovate.
+    var testo = input.value.trim();
+    document.querySelectorAll('[data-solo-trovate]').forEach(function (a) {
+      a.hidden = !testo;
+      a.href = a.href.split('?')[0] + (testo ? '?q=' + encodeURIComponent(testo) : '');
+    });
   }
   if (input) input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(filtra, 120); });
 })();

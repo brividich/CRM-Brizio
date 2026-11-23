@@ -26,6 +26,17 @@ def raccogli(*, giorni=GIORNI, oggi=None) -> dict:
     }
 
 
+def _processo_html(processo) -> str:
+    """Nome del processo; con la sezione dedicata, anche il link alla sezione."""
+    from .mpq_sezioni import url_asset, url_qualifiche
+
+    nome = escape(processo.nome)
+    if not (processo.sezione_dedicata and processo.sezione_sigla):
+        return nome
+    url = url_qualifiche(processo.sezione_sigla) if processo.sezione_in_qualifiche else url_asset(processo.sezione_sigla)
+    return f"{nome}<br><a href='{escape(url)}'>Sezione {escape(processo.sezione_sigla)}</a>"
+
+
 def _nome(ab, nomi):
     return ab.nominativo_esterno or nomi.get(ab.legacy_anagrafica_id) or f"#{ab.legacy_anagrafica_id}"
 
@@ -56,7 +67,7 @@ def notifica_scadenze(*, override=None, fail_silently: bool = True, giorni=GIORN
         url = reverse("anagrafica:mpq_processo_detail", args=[r["processo"].pk]) + "#persone"
         righe.append(
             f"<tr><td style='{cella}'>Persona</td><td style='{cella}'>{escape(_nome(r['abilitazione'], nomi))}</td>"
-            f"<td style='{cella}'>{escape(r['processo'].nome)}</td>"
+            f"<td style='{cella}'>{_processo_html(r['processo'])}</td>"
             f"<td style='{cella}'><strong>{escape(st['label'])}</strong>"
             + (f" · scade {st['scadenza']:%d-%m-%Y}" if st["scadenza"] else "")
             + (f"<br>{escape(cosa)}" if cosa else "")
@@ -68,7 +79,7 @@ def notifica_scadenze(*, override=None, fail_silently: bool = True, giorni=GIORN
         righe.append(
             f"<tr><td style='{cella}'>Macchina</td>"
             f"<td style='{cella}'>{escape(qm.asset.asset_tag)} — {escape(qm.asset.name)}</td>"
-            f"<td style='{cella}'>{escape(qm.processo.nome)}</td>"
+            f"<td style='{cella}'>{_processo_html(qm.processo)}</td>"
             f"<td style='{cella}'><strong>{escape(r['stato']['label'])}</strong></td>"
             f"<td style='{cella}'><a href='{escape(url)}'>Apri</a></td></tr>"
         )

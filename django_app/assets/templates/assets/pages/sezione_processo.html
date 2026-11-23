@@ -20,6 +20,8 @@
   <div class="p145-menu-list" role="menu">
     <a href="{% url 'assets:processo_sezione_export' dossier.sigla 'pdf' %}" role="menuitem">Sezione in PDF<small>Tutte le parti mostrate, pronto per l'audit</small></a>
     <a href="{% url 'assets:processo_sezione_export' dossier.sigla 'xlsx' %}" role="menuitem">Sezione in Excel<small>Riepilogo + un foglio per parte</small></a>
+    <a href="{% url 'assets:processo_sezione_export' dossier.sigla 'pdf' %}" role="menuitem" hidden data-solo-trovate>Righe trovate in PDF<small>Solo quello che mostra la ricerca</small></a>
+    <a href="{% url 'assets:processo_sezione_export' dossier.sigla 'xlsx' %}" role="menuitem" hidden data-solo-trovate>Righe trovate in Excel<small>Solo quello che mostra la ricerca</small></a>
   </div>
 </details>
 {% endblock %}

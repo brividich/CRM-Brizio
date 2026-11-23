@@ -348,7 +348,7 @@ class Part145IntegrazioniTests(TestCase):
     def test_pagina_ricerca_unica_e_kpi(self):
         pagina = self.client.get(reverse("assets:part_145_list"))
         self.assertContains(pagina, 'id="p145-cerca"')
-        self.assertContains(pagina, 'data-fm-table-skip="1"')
+        self.assertContains(pagina, 'data-fm-hide-search="1"')
         self.assertContains(pagina, "Da sistemare")
         self.assertEqual(pagina.context["dossier"]["kpi"][0]["sezione"], "aperte")
 

@@ -72,12 +72,19 @@ def sezioni_attive(Processo=None) -> list[dict]:
     return list(per_sigla.values())
 
 
+def etichetta_automatica(etichetta: str, sigla: str) -> bool:
+    """L'etichetta è quella scritta da qui (``SIGLA`` o ``SIGLA – titolo``), non una rinominata a mano."""
+    testo = (etichetta or "").strip()
+    return testo.upper() == sigla.upper() or testo.upper().startswith(f"{sigla.upper()} – ")
+
+
 def sincronizza_menu(*, Processo=None, Link=None, Bottone=None) -> None:
     """Allinea le voci di menu alle sezioni attive.
 
     Crea le voci mancanti (accanto a «Processi qualificati» e a «PART 145»), toglie quelle
-    di sigle non più attive. Una voce già presente non si sposta né si rinomina: chi l'ha
-    sistemata a mano dal menu la ritrova com'era.
+    di sigle non più attive. Una voce già presente non si sposta; in Qualifiche l'etichetta
+    segue il titolo della sezione finché comincia con la sigla (``etichetta_automatica``):
+    se qualcuno l'ha rinominata a mano dal menu, resta com'è.
     """
     if Processo is None:
         from anagrafica.models_mpq import ProcessoQualificato as Processo
@@ -95,6 +102,11 @@ def sincronizza_menu(*, Processo=None, Link=None, Bottone=None) -> None:
     for url, lk in esistenti.items():
         if url not in vogliono:
             lk.delete()
+            continue
+        nuova = vogliono[url]["etichetta"][:80]
+        if lk.etichetta != nuova and etichetta_automatica(lk.etichetta, vogliono[url]["sigla"]):
+            lk.etichetta = nuova
+            lk.save(update_fields=["etichetta"])
     vicino = Link.objects.filter(url_value="anagrafica:mpq_cruscotto").order_by("-is_active", "id").first()
     for n, (url, voce) in enumerate(sorted(vogliono.items()), start=1):
         if url in esistenti or vicino is None:
