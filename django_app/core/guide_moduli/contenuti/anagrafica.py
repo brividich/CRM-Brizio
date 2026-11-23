@@ -130,7 +130,7 @@ GUIDA = {
             "id": "richieste-competenze",
             "titolo": "Richieste su mansioni e competenze",
             "blocchi": [
-                ("p", "Anagrafica → Competenze → «Da fare» e «Richieste». Ogni cambio su una mansione o su una "
+                ("p", "Anagrafica → Organizzazione → «Da fare» e «Richieste». Ogni cambio su una mansione o su una "
                       "competenza parte da una richiesta approvata: resta scritto chi ha chiesto, perché e chi ha "
                       "approvato."),
                 ("ul", [

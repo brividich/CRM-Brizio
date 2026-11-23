@@ -230,3 +230,7 @@ class PagineTests(_Scenario):
     def test_voci_di_menu(self):
         voci = dict(SubnavLinkAnagrafica.objects.filter(gruppo="Richieste").values_list("url_value", "etichetta"))
         self.assertEqual(voci, {"anagrafica:richieste_da_fare": "Da fare", "anagrafica:richieste": "Richieste"})
+        # Stanno in Organizzazione, accanto alla struttura: non nel pilastro della formazione.
+        struttura = SubnavLinkAnagrafica.objects.get(url_value="anagrafica:esplora_struttura")
+        pilastri = set(SubnavLinkAnagrafica.objects.filter(gruppo="Richieste").values_list("categoria_id", flat=True))
+        self.assertEqual(pilastri, {struttura.categoria_id})
