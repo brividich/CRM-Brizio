@@ -1,0 +1,1717 @@
+[
+ {
+  "ruolo": "CEO - Chief Executive Officer - Datore di Lavoro",
+  "generiche": [
+   "Leadership e visione strategica",
+   "Conoscenza normativa applicabile al settore (EN 9100, D.Lgs.",
+   "Problem solving e decision making",
+   "Pacchetto Office",
+   "Conoscenza D.Lgs. 81/2008 s.m.i.",
+   "ISO 45001",
+   "EN 9100 / ISO 9001",
+   "ISO 27001"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Direzione strategica aziendale",
+    "specifiche": [
+     "Definizione degli obiettivi strategici e di business",
+     "Approvazione del budget annuale",
+     "Supervisione della performance complessiva",
+     "Rappresentanza legale e istituzionale"
+    ]
+   },
+   {
+    "mansione": "Responsabilità come Datore di Lavoro (D.Lgs. 81/08)",
+    "specifiche": [
+     "Nomina RSPP, MC, RLS",
+     "Approvazione DVR e misure di prevenzione",
+     "Garanzia delle risorse per la sicurezza",
+     "Presidenza riunione periodica art. 35"
+    ]
+   },
+   {
+    "mansione": "Responsabilità nel SGI",
+    "specifiche": [
+     "Approvazione della Politica della Qualità",
+     "Approvazione del Manuale di Sistema (IDOR CN 01)",
+     "Approvazione SKM e organigramma",
+     "Conduzione del Riesame della Direzione"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "RDD - Management Representative",
+  "generiche": [
+   "EN 9100 / ISO 9001",
+   "ISO 27001 / ISO 45001 / UNI/PdR 125",
+   "Leadership",
+   "Conoscenza lingua inglese",
+   "Pacchetto Office",
+   "Conoscenza procedure Novicrom",
+   "Conoscenza BMS"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Rappresentanza della Direzione per il SGI",
+    "specifiche": [
+     "Supervisione dell'implementazione e mantenimento del SGI",
+     "Interfaccia con gli enti di certificazione",
+     "Gestione audit di terza parte",
+     "Reporting alla Direzione sulle prestazioni del SGI"
+    ]
+   },
+   {
+    "mansione": "Riesame della Direzione",
+    "specifiche": [
+     "Pianificazione e conduzione del Riesame della Direzione (MOD.062)",
+     "Raccolta e analisi dati di input al riesame",
+     "Verifica attuazione decisioni del riesame precedente"
+    ]
+   },
+   {
+    "mansione": "Gestione documentale di sistema",
+    "specifiche": [
+     "Approvazione procedure di sistema (MT)",
+     "Gestione del sistema documentale (MT CN 08)",
+     "Supervisione audit interni"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "HRM - Human Resource Manager",
+  "generiche": [
+   "Conoscenza normativa del lavoro",
+   "Conoscenza HRTools",
+   "Pacchetto Office",
+   "Leadership",
+   "UNI/PdR 125"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione risorse umane",
+    "specifiche": [
+     "Pianificazione fabbisogni di personale",
+     "Gestione processo di selezione e assunzione",
+     "Supervisione onboarding e offboarding",
+     "Gestione contratti e rapporti con studio paghe",
+     "Supervisione formazione e aggiornamento SKM",
+     "Colloqui di valutazione",
+     "Monitoraggio presenze e gestione DPI"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "HRO - Human Resource Officer",
+  "generiche": [
+   "Conoscenza normativa del lavoro",
+   "Conoscenza HRTools",
+   "Pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Supporto gestione risorse umane",
+    "specifiche": [
+     "Monitoraggio presenze e cartellini",
+     "Supporto al processo di selezione",
+     "Colloqui di primo livello",
+     "Gestione documentazione assunzione/cessazione",
+     "Coordinamento visite mediche periodiche",
+     "Gestione reintegri DPI"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MSM - Management System Manager",
+  "generiche": [
+   "EN 9100 / ISO 9001",
+   "ISO 27001 / ISO 45001",
+   "Conoscenza lingua inglese",
+   "Leadership",
+   "Pacchetto Office",
+   "Conoscenza BMS"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione del Sistema di Gestione Integrato",
+    "specifiche": [
+     "Supervisione e mantenimento del SGI",
+     "Approvazione procedure (MT) e modelli (MOD)",
+     "Pianificazione e supervisione audit interni",
+     "Gestione scadenzario documentale",
+     "Interfaccia con enti di certificazione",
+     "Gestione non conformità di sistema",
+     "Supervisione assegnazione timbri (MOD.130)",
+     "Approvazione SKM (MOD.187)"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MSO - Management System Officer",
+  "generiche": [
+   "EN 9100 / ISO 9001",
+   "ISO 27001 / ISO 45001",
+   "Qualifica Auditor interno",
+   "Conoscenza lingua inglese",
+   "Pacchetto Office",
+   "Conoscenza BMS",
+   "Conoscenza Arxivar"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Operatività del Sistema di Gestione",
+    "specifiche": [
+     "Redazione e aggiornamento procedure (MT) e modelli (MOD)",
+     "Conduzione audit interni",
+     "Gestione scadenzario SGI",
+     "Gestione documentale (archiviazione, distribuzione, revisioni)",
+     "Gestione timbri (MOD.130) e SKM (MOD.187)",
+     "Supporto alla preparazione audit di terza parte",
+     "Apertura e gestione CAR/OFI",
+     "Gestione vendor rating e KPI fornitori (MT CN 13)"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MSA - Management System Assistant",
+  "generiche": [
+   "Conoscenza Arxivar",
+   "Conoscenza HRTools",
+   "Pacchetto Office",
+   "Conoscenza base lingua inglese"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Supporto amministrativo al SGI",
+    "specifiche": [
+     "Supporto redazione procedure e modelli",
+     "Gestione registrazione corsi su applicativo interno",
+     "Archiviazione documentazione SGI",
+     "Segreteria SGI (convocazioni, verbali, scadenze)",
+     "Supporto gestione documentale (Arxivar)"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "ESM - Environmental & Safety Manager",
+  "generiche": [
+   "ISO 45001",
+   "D.Lgs. 81/08 s.m.i.",
+   "Normativa ambientale applicabile",
+   "Pacchetto Office",
+   "Leadership"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione salute, sicurezza e ambiente",
+    "specifiche": [
+     "Supporto alla redazione e aggiornamento DVR",
+     "Pianificazione e supervisione formazione obbligatoria 81/08",
+     "Gestione scadenze DPI e sorveglianza sanitaria",
+     "Supervisione del sistema di gestione 45001",
+     "Interfaccia con RSPP, MC, RLS",
+     "Gestione adempimenti ambientali (MUD, formulari rifiuti)",
+     "Supervisione squadra antincendio e primo soccorso"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "ESO - Environmental & Safety Officer",
+  "generiche": [
+   "ISO 45001",
+   "D.Lgs. 81/08 s.m.i.",
+   "Pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Operatività HSE",
+    "specifiche": [
+     "Aggiornamento DVR e documenti di sicurezza",
+     "Gestione scadenzario formazione obbligatoria",
+     "Monitoraggio consegna e reintegro DPI",
+     "Supporto gestione adempimenti ambientali",
+     "Compilazione formulari rifiuti e registro MUD",
+     "Supporto sopralluoghi MC e RSPP"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "ITM - Information Technology Manager",
+  "generiche": [
+   "ISO 27001",
+   "ISO 9001 / EN 9100",
+   "Ottime conoscenze informatiche",
+   "Conoscenze di programmazione",
+   "Conoscenza lingua inglese",
+   "Conoscenza programmi aziendali"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Governance IT e strategia",
+    "specifiche": [
+     "Definizione strategia IT e allineamento al business",
+     "Pianificazione roadmap tecnologica e investimenti",
+     "Gestione budget IT e controllo costi",
+     "Coordinamento fornitori tecnologici"
+    ]
+   },
+   {
+    "mansione": "Infrastrutture e Operations",
+    "specifiche": [
+     "Supervisione infrastruttura server, rete e sistemi",
+     "Garanzia continuità operativa e disponibilità servizi",
+     "Supervisione backup e disaster recovery"
+    ]
+   },
+   {
+    "mansione": "Sicurezza informatica e compliance",
+    "specifiche": [
+     "Definizione e applicazione policy di sicurezza",
+     "Gestione rischio IT e protezione dati (GDPR)",
+     "Supporto audit e conformità normativa ISO 27001"
+    ]
+   },
+   {
+    "mansione": "Project Management IT",
+    "specifiche": [
+     "Pianificazione e coordinamento progetti IT",
+     "Monitoraggio tempi, costi e qualità",
+     "Coordinamento team IT e stakeholder"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "ITA - Information Technology Assistant",
+  "generiche": [
+   "ISO 27001",
+   "Ottime conoscenze informatiche",
+   "Conoscenze di programmazione",
+   "Conoscenza lingua inglese",
+   "Conoscenza programmi aziendali"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Supporto tecnico operativo",
+    "specifiche": [
+     "Gestione ticket di primo livello",
+     "Installazione e configurazione postazioni di lavoro",
+     "Supporto utenti su problematiche hardware/software",
+     "Monitoraggio sistemi e segnalazione anomalie",
+     "Gestione account utenti e permessi",
+     "Applicazione policy di sicurezza e aggiornamenti",
+     "Supporto backup e ripristino",
+     "Assistenza operativa su ERP e applicativi aziendali"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "BDM - Business Development Manager",
+  "generiche": [
+   "Conoscenza settore aerospace/defence",
+   "Lingua inglese (livello B2 minimo)",
+   "Pacchetto Office",
+   "Leadership",
+   "EN 9100 — conoscenza base"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Sviluppo commerciale e strategie di mercato",
+    "specifiche": [
+     "Identificazione nuovi mercati e opportunità di business",
+     "Sviluppo relazioni con potenziali clienti",
+     "Coordinamento attività commerciali e di offerta",
+     "Analisi competitiva e di mercato",
+     "Interfaccia con clienti strategici"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "SAM - Sales Account Manager",
+  "generiche": [
+   "Conoscenza BMS",
+   "EN 9100 — conoscenza applicata",
+   "Normativa fiscale base",
+   "Leadership",
+   "Pacchetto Office",
+   "Lingua inglese"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione commerciale clienti",
+    "specifiche": [
+     "Coordinamento e supervisione attività SAO/BOF/COS",
+     "Definizione strategia offerte complesse",
+     "Gestione relazioni con clienti chiave",
+     "Supervisione portafogli ordini",
+     "Interfaccia con OPM e UT per fattibilità tecnica"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "SAO - Sales Account Officer",
+  "generiche": [
+   "Conoscenza BMS",
+   "EN 9100 — conoscenza base",
+   "Normativa fiscale base",
+   "Pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione offerte e ordini",
+    "specifiche": [
+     "Elaborazione e invio offerte clienti",
+     "Caricamento ordini su BMS",
+     "Monitoraggio avanzamento ordini",
+     "Gestione portali clienti",
+     "Archivio documentazione commerciale"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "COS - Cost Out Specialist",
+  "generiche": [
+   "Conoscenza BMS",
+   "EN 9100 — conoscenza base",
+   "Normativa fiscale base",
+   "Pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Analisi costi e ottimizzazione offerte",
+    "specifiche": [
+     "Analisi costi di produzione e preventivazione",
+     "Identificazione opportunità di riduzione costi",
+     "Supporto tecnico-economico alle offerte",
+     "Interfaccia con UT e produzione per fattibilità"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "BOF - Back Officer",
+  "generiche": [
+   "Conoscenza BMS",
+   "EN 9100 — conoscenza base",
+   "Pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Supporto operativo commerciale",
+    "specifiche": [
+     "Gestione documentazione ordini e offerte",
+     "Supporto inserimento dati su BMS",
+     "Archiviazione documentazione commerciale",
+     "Gestione corrispondenza clienti"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "EM - Engineering Manager",
+  "generiche": [
+   "Lavorazione meccanica di precisione",
+   "Disegno tecnico / GD&T",
+   "Conoscenza BMS",
+   "EN 9100 / ISO 9001",
+   "ISO 45001",
+   "Leadership",
+   "Pacchetto Office",
+   "Lingua inglese"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione ingegneria di processo",
+    "specifiche": [
+     "Coordinamento e supervisione team UT (MIN1, IN1, MIN2, IN2, AIN)",
+     "Supervisione redazione documentazione di produzione (cicli, OP, OG)",
+     "Approvazione industrializzazioni nuovi particolari",
+     "Interfaccia tecnica con clienti",
+     "Gestione modifiche di processo (IN1/IN2)",
+     "Supervisione attività FAI"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MIN1 - Project Engineering Manager",
+  "generiche": [
+   "Lavorazione meccanica",
+   "Disegno tecnico",
+   "Conoscenza BMS",
+   "EN 9100 / ISO 9001",
+   "ISO 45001",
+   "Leadership",
+   "Pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Coordinamento ingegneria di produzione",
+    "specifiche": [
+     "Coordinamento attività IN1",
+     "Creazione e supervisione ordini di produzione",
+     "Interfaccia tecnica con clienti",
+     "Formazione nuovo personale UT",
+     "Supporto alla risoluzione problematiche tecniche"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "IN1 - Project Engineer",
+  "generiche": [
+   "Lavorazione meccanica",
+   "Disegno tecnico / lettura disegno",
+   "Conoscenza BMS",
+   "EN 9100 / ISO 9001",
+   "ISO 45001",
+   "Pacchetto Office",
+   "Problem solving",
+   "Lingua inglese"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Ingegneria di produzione",
+    "specifiche": [
+     "Creazione e gestione ordini di produzione (OP/OG)",
+     "Redazione cicli di lavoro e istruzioni operative",
+     "Autorizzazione modifiche al processo di produzione",
+     "Monitoraggio avanzamento produzione",
+     "Interfaccia con clienti per aspetti tecnici",
+     "Supporto alle attività FAI"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MIN2 - CAM Programming Manager",
+  "generiche": [
+   "HyperCAD e HyperMILL",
+   "Linguaggi: ISO, Heidenhain, Siemens, Fanuc",
+   "Conoscenza disegno tecnico",
+   "Conoscenza utensileria e attrezzaggio",
+   "Conoscenza strumenti di misura",
+   "Conoscenza BMS",
+   "Leadership"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Programmazione CNC e gestione team IN2",
+    "specifiche": [
+     "Programmazione CNC con HyperCAD/HyperMILL",
+     "Supervisione e pianificazione lavori IN2",
+     "Risoluzione problematiche tecniche di programmazione",
+     "Prova programma bordo macchina",
+     "Coordinamento acquisto nuova utensileria/attrezzatura",
+     "Progettazione utensili speciali",
+     "Progettazione attrezzature di presa pezzo",
+     "Supporto tecnico all'officina"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "IN2 - CAM Specialist",
+  "generiche": [
+   "HyperCAD e HyperMILL",
+   "Linguaggi: ISO, Heidenhain, Siemens, Fanuc",
+   "Conoscenza disegno tecnico",
+   "Conoscenza utensileria e attrezzaggio",
+   "Conoscenza BMS"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Programmazione CNC",
+    "specifiche": [
+     "Programmazione CNC con HyperCAD/HyperMILL",
+     "Prova programma bordo macchina",
+     "Supporto tecnico all'officina",
+     "Progettazione utensili speciali",
+     "Progettazione attrezzature di presa pezzo",
+     "Richiesta acquisto utensileria dedicata"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "AIN - Tooling Specialist",
+  "generiche": [
+   "Catia V5 e HyperCAD",
+   "Conoscenza disegno tecnico",
+   "Conoscenza BMS"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Industrializzazione e attrezzature",
+    "specifiche": [
+     "Redazione disegni e cicli di lavoro",
+     "Progettazione utensili speciali e attrezzature di presa pezzo",
+     "Progettazione strumenti di controllo e attrezzature di prova pressione",
+     "Industrializzazione utensili speciali",
+     "Gestione approvvigionamenti da fornitori esterni",
+     "Richiesta acquisto componentistica dedicata"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "ACM/ACO/ACA - Accounting Manager / Officer / Assistant —",
+  "generiche": [
+   "Conoscenza BMS",
+   "Conoscenza partita doppia",
+   "Conoscenza normativa IVA",
+   "Pacchetto Office",
+   "Conoscenza fatturazione elettronica",
+   "Conoscenza software buste paga WEB",
+   "Conoscenza software Time&Work",
+   "Conoscenza software Xmine",
+   "Conoscenza HRTools",
+   "Conoscenza pratiche finanziamento e contributi",
+   "Conoscenza procedure DUVRI/visitatori"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione fornitori e acquisti",
+    "specifiche": [
+     "Registrazioni fatture di acquisto",
+     "Inserimento anagrafica fornitori",
+     "Compilazione e gestione NDA fornitori",
+     "Gestione scadenze e rinnovi DURC fornitori",
+     "Archiviazione documenti",
+     "Registrazioni prima nota",
+     "Redazione ed invio elenchi Intrastat",
+     "Gestione corrispondenza su indirizzi aziendali",
+     "Gestione corsi di formazione finanziati e relativa rendicontazione",
+     "Utilizzo BMS"
+    ]
+   },
+   {
+    "mansione": "Gestione clienti e fatturazione attiva",
+    "specifiche": [
+     "Emissione e registrazione contabile fatture di vendita",
+     "Inserimento anagrafica clienti",
+     "Registrazione dichiarazioni di intento",
+     "Compilazione e gestione NDA clienti",
+     "Registrazioni prima nota",
+     "Archiviazione documenti",
+     "Utilizzo BMS"
+    ]
+   },
+   {
+    "mansione": "Gestione tesoreria e pagamenti",
+    "specifiche": [
+     "Utilizzo remote banking",
+     "Registrazioni incassi e pagamenti",
+     "Registrazioni di prima nota di tesoreria",
+     "Compilazione riconciliazioni bancarie",
+     "Redazione cash flow",
+     "Gestione crediti vs clienti e redazione report crediti mensile",
+     "Predisposizione distinte pagamenti mensili a fornitori",
+     "Factoring — compilazione cessione crediti LH e inoltro portale",
+     "Utilizzo BMS"
+    ]
+   },
+   {
+    "mansione": "Amministrazione del personale",
+    "specifiche": [
+     "Utilizzo software buste paga WEB",
+     "Utilizzo software Time&Work",
+     "Utilizzo software Xmine",
+     "Rilevazione giornaliera presenze ed elaborazione mensile per studio paghe",
+     "Registrazione contabile mensile stipendi ed invio distinta pagamenti",
+     "Verifica, pagamento e registrazione contabile deleghe F24",
+     "Compilazione distinte fondi complementari su portali",
+     "Predisposizione documentazione per assunzioni e archiviazione digitale",
+     "Pratiche di dimissioni/licenziamento",
+     "Gestione visite e analisi mediche periodiche (verifica scadenze e prenotazioni)",
+     "Gestione reintegri DPI ai dipendenti",
+     "Utilizzo BMS"
+    ]
+   },
+   {
+    "mansione": "Contabilità generale e adempimenti fiscali",
+    "specifiche": [
+     "Predisposizione documentazione per collegio sindacale",
+     "Predisposizione documenti per Organismo di Vigilanza (MOD.231)",
+     "Elaborazione dichiarazioni IVA",
+     "Elaborazione esterometro",
+     "Elaborazione bilanci di esercizio e scritture di rettifica",
+     "Elaborazione situazioni economico-patrimoniali infrannuali",
+     "Corrispondenza controllante/controllate",
+     "Registrazioni contabili cespiti",
+     "Elaborazione e stampa libri contabili e sociali",
+     "Gestione incarichi consulenza e contratti fornitori su BMS"
+    ]
+   },
+   {
+    "mansione": "Acquisti e controllo documentale",
+    "specifiche": [
+     "Emissione ordini di acquisto da RDA per materie codificate",
+     "Controllo sottoscorta",
+     "Emissione ordini di acquisto cancelleria e DPI",
+     "Controllo e stampa fatture di acquisto",
+     "Emissione di DDT (casi particolari)",
+     "Archiviazione e controllo DDT di vendita e acquisto",
+     "Gestione formulari e compilazione registro MUD",
+     "Controllo e registrazione cartellini orari dipendenti",
+     "Utilizzo BMS"
+    ]
+   },
+   {
+    "mansione": "Accoglienza e centralino",
+    "specifiche": [
+     "Accoglienza personale esterno (registrazione, spiegazioni sicurezza, verifica",
+     "Gestione centralino telefonico e smistamento telefonate",
+     "Registrazione cartellini ore dipendenti"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "PRM - Procurement Material Officer",
+  "generiche": [
+   "Conoscenza BMS",
+   "EN 9100 §8.4 — approvvigionamento",
+   "Pacchetto Office",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Approvvigionamento materiali",
+    "specifiche": [
+     "Gestione ordini di acquisto materiali",
+     "Monitoraggio scadenze e consegne fornitori",
+     "Gestione albo fornitori e vendor rating",
+     "Valutazione fornitori (MT CN 13)",
+     "Gestione non conformità su materiale in ingresso",
+     "Archiviazione documentazione fornitori"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "PRS - Procurement Supplier Officer",
+  "generiche": [
+   "Capacità di organizzazione e pianificazione",
+   "Buone capacità comunicative",
+   "Pacchetto Office",
+   "Conoscenza BMS",
+   "Conoscenza portali corrieri e terzisti"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione terzisti e supporto produttivo",
+    "specifiche": [
+     "Supporto produttivo per lavorazioni esterne",
+     "Monitoraggio particolari affidati a fornitori esterni",
+     "Fornitura informazioni necessarie per corretta gestione produzione",
+     "Coordinamento tra esigenze aziendali e terzisti",
+     "Registrazione/archiviazione documenti in entrata e uscita"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "OPM - Operations Manager",
+  "generiche": [
+   "Conoscenze meccaniche",
+   "Conoscenza gestionali interni (BMS)",
+   "Conoscenza procedure Novicrom",
+   "Leadership",
+   "Problem solving",
+   "Pacchetto Office",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Coordinamento produzione",
+    "specifiche": [
+     "Coordinamento e pianificazione produzione",
+     "Monitoraggio avanzamento e performance produttiva",
+     "Supporto produttivo e risoluzione criticità",
+     "Interfaccia con UT, CAR e logistica",
+     "Supervisione rispetto delle procedure operative"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "LOG - Logistics Manager",
+  "generiche": [
+   "Conoscenza BMS",
+   "Conoscenza portali corrieri e terzisti",
+   "Conoscenza procedure Novicrom",
+   "Pacchetto Office",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Coordinamento logistica",
+    "specifiche": [
+     "Coordinamento tra esigenze aziendali e terzisti",
+     "Supervisione flussi in ingresso e uscita",
+     "Gestione team logistico (LOGO, MAG, IMB, PUL)",
+     "Supporto produttivo"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "LOGO - Logistics Officer",
+  "generiche": [
+   "Conoscenza procedure movimentazione merci",
+   "Abilitazione muletto",
+   "Conoscenza procedure Novicrom",
+   "Pacchetto Office",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Operatività logistica",
+    "specifiche": [
+     "Movimentazione merci interna",
+     "Supporto gestione magazzino",
+     "Utilizzo muletto",
+     "Supporto spedizioni e ricezione"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "DM - Documentation Management",
+  "generiche": [
+   "Conoscenza BMS",
+   "Conoscenza procedure Novicrom",
+   "Pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione documentazione di produzione e tecnica",
+    "specifiche": [
+     "Utilizzo BMS",
+     "Digitalizzazione a BMS di OP/OG/ORE/ORI/IRE",
+     "Spaginazione cicli chiusi e relativo controllo",
+     "Scansione cicli chiusi e archiviazione",
+     "Scansione Schede Utensili e archiviazione digitale",
+     "Messa in lavoro cicli di produzione",
+     "Stampa staccati, cicli (OP/OG)",
+     "Scansione OL e consegna nei reparti",
+     "Scansione e stampa disegni e ballonati (plotter)",
+     "Compilazione MOD.038 e MOD.097",
+     "Controllo specifiche generiche e di cliente su gestionali",
+     "Registrazione documentazione tecnica a BMS (specifiche, disegni)",
+     "Archiviazione documentazione tecnica (Disegni, DBT, SMO)",
+     "Criptatura documenti e controllo timbri su ODA",
+     "Gestione cicli FAI con relativo Piano FAI",
+     "Controllo cicli in produzione in fase di Pre-Audit",
+     "Controllo e registrazione cartellini orari dipendenti",
+     "Archiviazione e controllo DDT di vendita e acquisto"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "FAI - FAI Manager",
+  "generiche": [
+   "Disegno tecnico / GD&T",
+   "Lettura e comprensione report Zeiss",
+   "Conoscenza strumenti di misurazione",
+   "Riconoscimento requisiti qualità clienti aerospace",
+   "Conoscenza procedure Novicrom",
+   "Comprensione certificati terzisti e fornitori",
+   "Comprensione requisiti processi speciali",
+   "EN 9100 — conoscenza applicata",
+   "Lingua inglese B2",
+   "Ottimo uso PC e pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione ufficio FAI",
+    "specifiche": [
+     "Gestione priorità ufficio FAI",
+     "Interfaccia decisionale per attività FAI con enti interni ed esterni",
+     "Controllo avanzamento FAI",
+     "Compilazione documentazione controlli da condividere con clienti",
+     "Gestione portali clienti",
+     "Controllo requisiti richiesti a OdA"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "FAIO - FAI Officer",
+  "generiche": [
+   "Ballonatura del disegno",
+   "Buona gestione file archivio FAI",
+   "Lettura Piano FAI",
+   "Disegno tecnico (base)",
+   "Conoscenza base strumenti di misurazione",
+   "Riconoscimento requisiti qualità clienti aerospace",
+   "Lettura e comprensione report Zeiss",
+   "Conoscenza procedure Novicrom",
+   "Comprensione certificati terzisti",
+   "Comprensione requisiti processi speciali",
+   "Valutazione Form 3 e apertura NC",
+   "Lingua inglese B2",
+   "Ottimo uso PC e pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Redazione e gestione FAI",
+    "specifiche": [
+     "Redazione FAI componenti sciolti e assiemi piccole dimensioni",
+     "Redazione FAI componenti/assiemi complessi",
+     "Redazione e caricamento inviti al collaudo",
+     "Gestione rapporti con terzisti e fornitori per attività FAI",
+     "Controllo completezza versioni di produzione",
+     "Precompilazione FORM 1/2/3",
+     "Ricerca documenti incoming su BMS",
+     "Revisione FAI esterni",
+     "Revisione documenti di processo processi speciali (SPR)",
+     "Interfaccia con enti interni per avanzamento FAI",
+     "Raccolta documentale per compilazione Form 1 e Form 2",
+     "Redazione evidenze necessarie a garantire conformità dalla parte",
+     "Compilazione documentazione controlli da condividere con clienti",
+     "Gestione portali clienti",
+     "Controllo requisiti richiesti a OdA"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "PCO - Process Control Officer",
+  "generiche": [
+   "Disegno tecnico (base)",
+   "Conoscenza base strumenti di misurazione",
+   "Riconoscimento requisiti qualità clienti aerospace",
+   "Lettura e comprensione report Zeiss",
+   "Conoscenza procedure Novicrom",
+   "Comprensione certificati terzisti",
+   "Comprensione requisiti processi speciali",
+   "EN 9100 §8.4 — gestione fornitori",
+   "Lingua inglese B2",
+   "Ottimo uso PC e pacchetto Office"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Controllo processi e qualifiche terzisti",
+    "specifiche": [
+     "Tenuta sotto controllo delle qualifiche dei terzisti",
+     "Gestione qualifiche su BMS",
+     "Redazione documentazione per qualifica dei processi",
+     "Richiesta RFVA",
+     "Rilevazione e gestione Non Conformità",
+     "Gestione ESCAPE (field escape)",
+     "Compilazione Modello 8D",
+     "Compilazione documentazione controlli da condividere con clienti",
+     "Gestione portali clienti",
+     "Controllo requisiti richiesti a OdA"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "CQSG/CQFO/CMM/TAR/LP/CQIO - Addetti Controllo Qualità",
+  "generiche": [
+   "Disegno tecnico",
+   "Comprensione fogli operativi e piani di controllo",
+   "Conoscenza procedure Novicrom",
+   "Conoscenza strumenti di controllo",
+   "Riconoscimento requisiti qualità clienti",
+   "Conoscenza BMS",
+   "Metrologia",
+   "Conoscenza materiali",
+   "Pacchetto Office",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Controllo qualità prodotto",
+    "specifiche": [
+     "Controllo configurazione finale",
+     "Programmazione offline CMM",
+     "Operazione ZEISS (PRISMO NAVIGATOR, PRISMO 10HTG VAST, CONTURA G2,",
+     "Controlli di banco",
+     "Controllo visivo",
+     "Controllo montaggi",
+     "Cleanliness Check",
+     "Ispezione Liquidi Penetranti",
+     "Taratura strumenti",
+     "Controllo durezza",
+     "Controllo conducibilità",
+     "Controllo marcatura",
+     "Gestione documenti ingresso e uscita",
+     "Metrologia"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "CAR - Dept Chief (Capo Reparto)",
+  "generiche": [
+   "Conoscenza attività di reparto",
+   "Conoscenze meccaniche",
+   "Conoscenza degli strumenti di misura di Reparto",
+   "Utilizzo degli strumenti di misura di Reparto",
+   "Sistemi di lavorazione CNC",
+   "Disegno tecnico",
+   "Lavorazioni meccaniche",
+   "Metodi",
+   "EN 9100 / ISO 9001",
+   "ISO 45001",
+   "Conoscenza procedure Novicrom",
+   "Leadership",
+   "Problem solving",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione e coordinamento reparto",
+    "specifiche": [
+     "Gestione e coordinamento delle attività di reparto",
+     "Pianificazione e assegnazione lavori agli operatori",
+     "Formazione e valutazione competenze del personale di reparto",
+     "Aggiornamento e supervisione SKM di reparto (MOD.187)",
+     "Supervisione rispetto procedure operative e qualità",
+     "Gestione non conformità di reparto",
+     "Interfaccia con UT, OPM, MSO per problematiche tecniche e di qualità",
+     "Valutazione efficacia formazione operatori"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "OPERATORE CN5G",
+  "generiche": [
+   "Disegno tecnico",
+   "Presetting",
+   "Utilizzo degli strumenti di misura di Reparto",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "DM3 - DMG 85 Monoblock",
+    "specifiche": [
+     "Piazzamento bascula",
+     "Programmazione bordo macchina Heidenhain",
+     "Prova programma Heidenhain"
+    ]
+   },
+   {
+    "mansione": "DM6 - DMC125U Duoblock",
+    "specifiche": [
+     "Piazzamento testa tiltante S"
+    ]
+   },
+   {
+    "mansione": "DM7 - DMC160U Duoblock",
+    "specifiche": [
+     "Piazzamento testa tiltante"
+    ]
+   },
+   {
+    "mansione": "DM10 - DMC 85 Duoblock",
+    "specifiche": [
+     "Piazzamento bascula"
+    ]
+   },
+   {
+    "mansione": "DM11 - DMG 85 Monoblock",
+    "specifiche": [
+     "Piazzamento bascula"
+    ]
+   },
+   {
+    "mansione": "DM12 - DMC160U Duoblock",
+    "specifiche": [
+     "Piazzamento testa tiltante"
+    ]
+   },
+   {
+    "mansione": "DM13 - DMG 75 Monoblock",
+    "specifiche": [
+     "Piazzamento bascula"
+    ]
+   },
+   {
+    "mansione": "DM14 - DMG 65 FD Monoblock",
+    "specifiche": [
+     "Piazzamento bascula",
+     "Piazzamento Tavola a tornire"
+    ]
+   },
+   {
+    "mansione": "DM16",
+    "specifiche": [
+     "Piazzamento bascula"
+    ]
+   },
+   {
+    "mansione": "DM17",
+    "specifiche": [
+     "Piazzamento bascula"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "OPERATORE CN5",
+  "generiche": [
+   "Disegno tecnico",
+   "Presetting",
+   "Utilizzo degli strumenti di misura di Reparto",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "MK1 - MIKRON HSM 600U",
+    "specifiche": [
+     "Prova programma Heidenhain (Mikron, Hermle)",
+     "Programmazione bordo macchina Heidenhain"
+    ]
+   },
+   {
+    "mansione": "MK2 - MIKRON UCP 800",
+    "specifiche": []
+   },
+   {
+    "mansione": "MK3 - MIKRON HPM 1000U",
+    "specifiche": []
+   },
+   {
+    "mansione": "HH - HERMLE C1200U",
+    "specifiche": []
+   },
+   {
+    "mansione": "Fresatrice generica",
+    "specifiche": []
+   },
+   {
+    "mansione": "Trapano a colonna generico",
+    "specifiche": []
+   }
+  ]
+ },
+ {
+  "ruolo": "OPERATORE ALC - Alesatura",
+  "generiche": [
+   "Disegno tecnico",
+   "Presetting",
+   "Utilizzo degli strumenti di misura di Reparto",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "AGV1 - SIP 8000",
+    "specifiche": [
+     "Piazzamento SIP big size",
+     "Prova programma Heidenhain (AGV)",
+     "Programmazione bordo macchina Heidenhain (AGV)"
+    ]
+   },
+   {
+    "mansione": "AGV2 - SIP 4000",
+    "specifiche": [
+     "Piazzamento SIP big size"
+    ]
+   },
+   {
+    "mansione": "AGV3 - SIP 640",
+    "specifiche": [
+     "Piazzamento SIP 640"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "OPERATORE CNC",
+  "generiche": [
+   "Disegno tecnico",
+   "Presetting",
+   "Utilizzo degli strumenti di misura di Reparto",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "ELT1 - Agie Charmille CUT 30",
+    "specifiche": [
+     "Prova programma e programmazione bordo macchina GF AgieCharmilles",
+     "Presetting MZK"
+    ]
+   },
+   {
+    "mansione": "MZ2 - MAZAK H800",
+    "specifiche": [
+     "Prova programma e programmazione bordo macchina Mazatrol"
+    ]
+   },
+   {
+    "mansione": "MZ3 - MAZAK H630N",
+    "specifiche": [
+     "Prova programma e programmazione bordo macchina Mazatrol"
+    ]
+   },
+   {
+    "mansione": "MZ5 - MAZAK FH6800",
+    "specifiche": [
+     "Prova programma e programmazione bordo macchina Mazatrol"
+    ]
+   },
+   {
+    "mansione": "MZ6 - MAZAK FH8800",
+    "specifiche": [
+     "Prova programma e programmazione bordo macchina Mazatrol"
+    ]
+   },
+   {
+    "mansione": "D1 - DIXI DHP 80",
+    "specifiche": [
+     "Prova programma e programmazione bordo macchina Fanuc"
+    ]
+   },
+   {
+    "mansione": "CNV - CNS CNC KMV16",
+    "specifiche": [
+     "Prova programma e programmazione bordo macchina Fanuc"
+    ]
+   },
+   {
+    "mansione": "Lappatrice generica",
+    "specifiche": [
+     "Piazzamento"
+    ]
+   },
+   {
+    "mansione": "Lapidello generico",
+    "specifiche": []
+   },
+   {
+    "mansione": "Rettifica generica",
+    "specifiche": []
+   },
+   {
+    "mansione": "Fresatrice generica",
+    "specifiche": []
+   },
+   {
+    "mansione": "Trapano a colonna generico",
+    "specifiche": []
+   }
+  ]
+ },
+ {
+  "ruolo": "MAG3 - OPERATORE PRESETTING",
+  "generiche": [
+   "Disegno tecnico",
+   "Utilizzo degli strumenti di misura di Reparto",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Affiliatura",
+    "specifiche": [
+     "Affiliatura utensili"
+    ]
+   },
+   {
+    "mansione": "Zoller",
+    "specifiche": [
+     "Presetting con Zoller"
+    ]
+   },
+   {
+    "mansione": "Presetting",
+    "specifiche": [
+     "Montaggio utensili"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "OPERATORE TORNIO FRESA (TNF)",
+  "generiche": [
+   "Disegno tecnico",
+   "Presetting",
+   "Utilizzo degli strumenti di misura di Reparto",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "DM1 - DMG CTX Gamma 2000 TC",
+    "specifiche": [
+     "Piazzamento",
+     "Prova programma Siemens 840D",
+     "Programmazione bordo macchina Siemens 840D"
+    ]
+   },
+   {
+    "mansione": "DM5 - DMG CTXbeta1250TC",
+    "specifiche": [
+     "Piazzamento",
+     "Prova programma Siemens 840D"
+    ]
+   },
+   {
+    "mansione": "DM9 - DMG CTX beta 2000TC",
+    "specifiche": [
+     "Piazzamento",
+     "Prova programma Siemens 840D"
+    ]
+   },
+   {
+    "mansione": "DM15 - DMG CTX beta 2000TC",
+    "specifiche": [
+     "Piazzamento",
+     "Prova programma Siemens 840D"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "OPERATORE TORNITURA (TNC)",
+  "generiche": [
+   "Disegno tecnico",
+   "Presetting",
+   "Piazzamento",
+   "Utilizzo degli strumenti di misura di Reparto",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Tornio tradizionale generico",
+    "specifiche": [
+     "Utilizzo tornio parallelo"
+    ]
+   },
+   {
+    "mansione": "DM2 - ECOTURN 650",
+    "specifiche": []
+   },
+   {
+    "mansione": "DM8 - ECOTURN 650",
+    "specifiche": []
+   },
+   {
+    "mansione": "DM4 - DMG Gamma 3000 CTX",
+    "specifiche": [
+     "Prova programma e programmazione bordo macchina Siemens 840D"
+    ]
+   },
+   {
+    "mansione": "CNT1 - CNS VT-36BLMC-2000",
+    "specifiche": [
+     "Prova programma e programmazione bordo macchina Fanuc"
+    ]
+   },
+   {
+    "mansione": "HY1 - Hyundai L600 MA",
+    "specifiche": []
+   },
+   {
+    "mansione": "HI - HITACHI NR 1742",
+    "specifiche": []
+   },
+   {
+    "mansione": "35S - AKEBONO ANCL 35 XL",
+    "specifiche": []
+   },
+   {
+    "mansione": "TNZ - Omba MN8",
+    "specifiche": [
+     "Utilizzo tornio verticale"
+    ]
+   },
+   {
+    "mansione": "STZ - Stozzatrice",
+    "specifiche": [
+     "Utilizzo stozzatrice"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "AGG/MON - Operatore Aggiustaggio / Montaggio",
+  "generiche": [
+   "Disegno tecnico",
+   "Lavorazioni meccaniche",
+   "Utilizzo degli strumenti di misura di Reparto",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Aggiustaggio generico",
+    "specifiche": [
+     "Finitura componenti meccanici",
+     "Rimozione bave",
+     "Controllo estetico/tattico"
+    ]
+   },
+   {
+    "mansione": "Ritocchi galvanici",
+    "specifiche": [
+     "Ritocchi superficiali post trattamento"
+    ]
+   },
+   {
+    "mansione": "Montaggio per aeronautica",
+    "specifiche": [
+     "Montaggio componenti aerospace secondo specifiche"
+    ]
+   },
+   {
+    "mansione": "Montaggio per automotive",
+    "specifiche": [
+     "Montaggio componenti automotive"
+    ]
+   },
+   {
+    "mansione": "Montaggio per accoppiamento termico",
+    "specifiche": [
+     "Montaggio accoppiamenti termici secondo DOP IT12/00074/00"
+    ]
+   },
+   {
+    "mansione": "Smontaggio trasmissioni",
+    "specifiche": [
+     "Smontaggio componenti di trasmissione"
+    ]
+   },
+   {
+    "mansione": "Ritocchi verniciatura/trattamenti",
+    "specifiche": [
+     "Ritocchi imperfezioni verniciatura e trattamenti superficiali"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MAS - Operatore Mascheratura",
+  "generiche": [
+   "Disegno tecnico (base)",
+   "Comprensione cicli produttivi e fogli operativi",
+   "Precisione",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Mascheratura componenti",
+    "specifiche": [
+     "Protezione pre e post verniciatura",
+     "Sprotezione pre e post verniciatura"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "VER - Operatore Verniciatura",
+  "generiche": [
+   "Disegno tecnico (base)",
+   "Conoscenza vernici e prodotti chimici applicati",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Verniciatura componenti meccanici",
+    "specifiche": [
+     "Verniciatura componenti con vernici e prodotti di finitura superficiale",
+     "Preparazione superficie pre-verniciatura"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "Operatore Marcatura",
+  "generiche": [
+   "Disegno tecnico (base)",
+   "Competenza nell'uso di strumenti di marcatura",
+   "Conoscenze meccaniche",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Marcatura pezzi",
+    "specifiche": [
+     "Marcatura componenti con strumenti di marcatura",
+     "Verifica corrispondenza marcatura con specifica"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MAG1 - Operatore Sala Taglio",
+  "generiche": [
+   "Disegno tecnico (base)",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Taglio con sega",
+    "specifiche": [
+     "Taglio materiali con sega a nastro o alternativa",
+     "Verifica dimensionale del taglio"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "PPS - Addetto Prova Pressione",
+  "generiche": [
+   "Disegno tecnico",
+   "Lavorazioni meccaniche",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Prova pressione",
+    "specifiche": [
+     "Verifica conformità pezzi mediante olio o aria in pressione",
+     "Compilazione documentazione di controllo"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "LAV - Addetto Lavaggio",
+  "generiche": [
+   "Disegno tecnico (base)",
+   "Conoscenza strumenti e impianti di lavaggio",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Lavaggio componenti meccanici",
+    "specifiche": [
+     "Lavaggio componenti con impianti manuali e lavatrici industriali",
+     "Gestione prodotti di lavaggio"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "IMB - Addetto Imballaggio",
+  "generiche": [
+   "Disegno tecnico (base)",
+   "Procedure di imballaggio",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Imballaggio componenti",
+    "specifiche": [
+     "Imballaggio componenti meccanici secondo specifiche e procedure",
+     "Verifica documentazione di accompagnamento"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MAG2 - Addetto Magazzino",
+  "generiche": [
+   "Disegno tecnico (base)",
+   "Comprensione cicli produttivi e fogli operativi",
+   "Conoscenza procedure interne",
+   "Pacchetto Office",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione magazzino",
+    "specifiche": [
+     "Gestione merci in ingresso e uscita",
+     "Gestione documentazione: compilazione e verifica DDT",
+     "Smistamento merci",
+     "Gestione normaleria e materiali di consumo"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MAN - Addetto Manutenzione",
+  "generiche": [
+   "Elettronica / Elettrica",
+   "Meccanica",
+   "Idraulica",
+   "D.Lgs. 81/08",
+   "EN 9100 / ISO 9001",
+   "ISO 45001",
+   "Conoscenza procedure interne",
+   "Pacchetto Office",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Manutenzione ordinaria impianti e stabile",
+    "specifiche": [
+     "Manutenzione ordinaria stabile nei limiti delle proprie abilitazioni",
+     "Manutenzione ordinaria impianti e macchine",
+     "Segnalazione guasti e anomalie"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "PUL - Addetto Pulizie",
+  "generiche": [
+   "Saper utilizzare macchine e strumenti di pulizia industriale",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Pulizia reparti produttivi",
+    "specifiche": [
+     "Pulizia reparti produttivi e uffici",
+     "Raccolta trucioli e scarti di lavorazione",
+     "Conferimento rifiuti di officina",
+     "Utilizzo macchinari per pulizia industriale"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "Addetto Trasporti",
+  "generiche": [
+   "Patente B (obbligatoria)",
+   "Patente muletto (obbligatoria)",
+   "Conoscenza procedure interne",
+   "FOD"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Trasporto merci e movimentazione",
+    "specifiche": [
+     "Trasporto merci con automezzi aziendali",
+     "Utilizzo muletto per movimentazione interna",
+     "Gestione documentazione di trasporto"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "CISO - Chief Information Security Officer",
+  "generiche": [
+   "ISO/IEC 27001",
+   "GDPR",
+   "Conoscenze informatiche avanzate",
+   "Lingua inglese"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Gestione sicurezza delle informazioni",
+    "specifiche": [
+     "Definizione e applicazione policy di sicurezza informatica",
+     "Gestione rischio IT e protezione dati (GDPR)",
+     "Supervisione conformità ISO 27001",
+     "Gestione incidenti di sicurezza",
+     "Coordinamento Cybersecurity Emergency Team",
+     "Supervisione titolari di processo per la sicurezza informazioni"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "RSPP - Responsabile Servizio Prevenzione e Protezione",
+  "generiche": [
+   "D.Lgs. 81/08 s.m.i.",
+   "ISO 45001",
+   "Abilitazione RSPP (D.Lgs. 195/2003)"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Prevenzione e protezione",
+    "specifiche": [
+     "Supporto redazione e aggiornamento DVR",
+     "Coordinamento Servizio Prevenzione e Protezione",
+     "Organizzazione formazione obbligatoria 81/08",
+     "Sopralluoghi ambienti di lavoro",
+     "Partecipazione riunione periodica art. 35",
+     "Collaborazione con MC e RLS",
+     "Elaborazione piani di emergenza"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "ASPP - Addetto Servizio Prevenzione e Protezione",
+  "generiche": [
+   "D.Lgs. 81/08 s.m.i.",
+   "ISO 45001",
+   "Abilitazione ASPP"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Supporto prevenzione e protezione",
+    "specifiche": [
+     "Supporto RSPP nelle attività di valutazione rischi",
+     "Sopralluoghi ambienti di lavoro",
+     "Attuazione misure di prevenzione",
+     "Gestione documentazione sicurezza"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "RLS - Rappresentante dei Lavoratori per la Sicurezza",
+  "generiche": [
+   "D.Lgs. 81/08 s.m.i. — art. 47",
+   "Formazione RLS obbligatoria"
+  ],
+  "mansioni": [
+   {
+    "mansione": "Rappresentanza lavoratori per la sicurezza",
+    "specifiche": [
+     "Consultazione in materia di valutazione rischi",
+     "Accesso ai luoghi di lavoro",
+     "Partecipazione riunione periodica art. 35",
+     "Ricezione informazioni e documentazione su rischi e misure di prevenzione"
+    ]
+   }
+  ]
+ },
+ {
+  "ruolo": "MC - Medico Competente",
+  "generiche": [
+   "Abilitazione Medico Competente (D.Lgs. 81/08 art. 38)",
+   "D.Lgs. 81/08 s.m.i."
+  ],
+  "mansioni": [
+   {
+    "mansione": "Sorveglianza sanitaria",
+    "specifiche": [
+     "Sorveglianza sanitaria del personale",
+     "Sopralluoghi annuali negli ambienti di lavoro",
+     "Redazione protocollo sanitario",
+     "Partecipazione riunione periodica art. 35",
+     "Collaborazione con RSPP e RLS"
+    ]
+   }
+  ]
+ }
+]

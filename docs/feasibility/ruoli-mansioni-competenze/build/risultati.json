@@ -1,0 +1,424 @@
+{
+ "quadro": {
+  "persone": 32,
+  "mansioni": 14,
+  "competenze": 30,
+  "assegnazioni": 65,
+  "stati": {
+   "CONFORME": 30,
+   "CON_RISERVA": 13,
+   "SOTTO_SUPERVISIONE": 10,
+   "NON_CONFORME": 12
+  },
+  "gap": 42,
+  "assegnazioni_con_segnalazione": 2,
+  "competenze_sospese": 2,
+  "competenze_da_confermare": 15,
+  "persone_non_conformi": 8,
+  "scadenze": {
+   "30": 1,
+   "60": 1,
+   "90": 1,
+   "scadute": 5
+  },
+  "potenziali_soddisfatte": 1,
+  "potenziali_parziali": 21,
+  "per_reparto": {
+   "CN5": {
+    "assegnazioni": 20,
+    "conformi": 11
+   },
+   "TOR": {
+    "assegnazioni": 13,
+    "conformi": 9
+   },
+   "CMM": {
+    "assegnazioni": 15,
+    "conformi": 11
+   },
+   "TRT": {
+    "assegnazioni": 10,
+    "conformi": 7
+   },
+   "MAN": {
+    "assegnazioni": 7,
+    "conformi": 5
+   }
+  }
+ },
+ "quadro_blocco": {
+  "persone": 32,
+  "mansioni": 14,
+  "competenze": 30,
+  "assegnazioni": 65,
+  "stati": {
+   "CONFORME": 30,
+   "CON_RISERVA": 11,
+   "SOTTO_SUPERVISIONE": 10,
+   "NON_CONFORME": 14
+  },
+  "gap": 44,
+  "assegnazioni_con_segnalazione": 2,
+  "competenze_sospese": 2,
+  "competenze_da_confermare": 15,
+  "persone_non_conformi": 9,
+  "scadenze": {
+   "30": 1,
+   "60": 1,
+   "90": 1,
+   "scadute": 5
+  },
+  "potenziali_soddisfatte": 1,
+  "potenziali_parziali": 21,
+  "per_reparto": {
+   "CN5": {
+    "assegnazioni": 20,
+    "conformi": 11
+   },
+   "TOR": {
+    "assegnazioni": 13,
+    "conformi": 9
+   },
+   "CMM": {
+    "assegnazioni": 15,
+    "conformi": 11
+   },
+   "TRT": {
+    "assegnazioni": 10,
+    "conformi": 5
+   },
+   "MAN": {
+    "assegnazioni": 7,
+    "conformi": 5
+   }
+  }
+ },
+ "casi": {
+  "P01": {
+   "mansioni": {
+    "M01": {
+     "stato": "CONFORME",
+     "livello_m": "U",
+     "opera_da_solo": true,
+     "puo_firmare": true,
+     "puo_formare": false,
+     "gap": 0,
+     "segnalazioni": 0
+    }
+   },
+   "potenziali": [
+    {
+     "mansione": "M02",
+     "nome": "DM6 – Fresatura 5 assi grande formato",
+     "esito": "PARZIALE",
+     "ok": 5,
+     "tot": 6
+    },
+    {
+     "mansione": "M03",
+     "nome": "MK1 – Fresatura ad alta velocità",
+     "esito": "PARZIALE",
+     "ok": 3,
+     "tot": 4
+    },
+    {
+     "mansione": "M12",
+     "nome": "Sbavatura e finitura",
+     "esito": "PARZIALE",
+     "ok": 2,
+     "tot": 3
+    }
+   ]
+  },
+  "P02": {
+   "mansioni": {
+    "M01": {
+     "stato": "SOTTO_SUPERVISIONE",
+     "livello_m": "L",
+     "opera_da_solo": false,
+     "puo_firmare": false,
+     "puo_formare": false,
+     "gap": 4,
+     "segnalazioni": 0
+    }
+   },
+   "potenziali": [
+    {
+     "mansione": "M12",
+     "nome": "Sbavatura e finitura",
+     "esito": "PARZIALE",
+     "ok": 2,
+     "tot": 3
+    }
+   ]
+  },
+  "P03": {
+   "mansioni": {
+    "M02": {
+     "stato": "CONFORME",
+     "livello_m": "O",
+     "opera_da_solo": true,
+     "puo_firmare": true,
+     "puo_formare": true,
+     "gap": 0,
+     "segnalazioni": 0
+    },
+    "M01": {
+     "stato": "CONFORME",
+     "livello_m": "O",
+     "opera_da_solo": true,
+     "puo_firmare": true,
+     "puo_formare": true,
+     "gap": 0,
+     "segnalazioni": 0
+    }
+   },
+   "potenziali": [
+    {
+     "mansione": "M03",
+     "nome": "MK1 – Fresatura ad alta velocità",
+     "esito": "PARZIALE",
+     "ok": 3,
+     "tot": 4
+    },
+    {
+     "mansione": "M12",
+     "nome": "Sbavatura e finitura",
+     "esito": "PARZIALE",
+     "ok": 2,
+     "tot": 3
+    }
+   ]
+  },
+  "P04": {
+   "mansioni": {
+    "M06": {
+     "stato": "CONFORME",
+     "livello_m": "U",
+     "opera_da_solo": true,
+     "puo_firmare": true,
+     "puo_formare": false,
+     "gap": 0,
+     "segnalazioni": 0
+    },
+    "M07": {
+     "stato": "CONFORME",
+     "livello_m": "U",
+     "opera_da_solo": true,
+     "puo_firmare": true,
+     "puo_formare": false,
+     "gap": 0,
+     "segnalazioni": 0
+    }
+   },
+   "potenziali": [
+    {
+     "mansione": "M08",
+     "nome": "Collaudo da banco",
+     "esito": "PARZIALE",
+     "ok": 2,
+     "tot": 3
+    }
+   ]
+  },
+  "P05": {
+   "mansioni": {
+    "M02": {
+     "stato": "CON_RISERVA",
+     "livello_m": "U",
+     "opera_da_solo": true,
+     "puo_firmare": true,
+     "puo_formare": false,
+     "gap": 0,
+     "segnalazioni": 0
+    }
+   },
+   "potenziali": [
+    {
+     "mansione": "M01",
+     "nome": "DM3 – Fresatura 5 assi",
+     "esito": "SODDISFATTA",
+     "ok": 5,
+     "tot": 5
+    },
+    {
+     "mansione": "M03",
+     "nome": "MK1 – Fresatura ad alta velocità",
+     "esito": "PARZIALE",
+     "ok": 3,
+     "tot": 4
+    },
+    {
+     "mansione": "M12",
+     "nome": "Sbavatura e finitura",
+     "esito": "PARZIALE",
+     "ok": 2,
+     "tot": 3
+    }
+   ]
+  },
+  "cambio_P01_M02": {
+   "persona": "P01",
+   "mansione": "M02",
+   "requisiti": 6,
+   "coperti": 5,
+   "mancanti": [
+    [
+     "C03",
+     "—",
+     "L",
+     "I"
+    ]
+   ],
+   "stato_se_avviata": "SOTTO_SUPERVISIONE",
+   "serve_sf": true
+  },
+  "cambio_P02_M02": {
+   "persona": "P02",
+   "mansione": "M02",
+   "requisiti": 6,
+   "coperti": 1,
+   "mancanti": [
+    [
+     "C01",
+     "L",
+     "U",
+     "B"
+    ],
+    [
+     "C02",
+     "L",
+     "U",
+     "B"
+    ],
+    [
+     "C03",
+     "—",
+     "L",
+     "I"
+    ],
+    [
+     "C04",
+     "I",
+     "U",
+     "I"
+    ],
+    [
+     "C05",
+     "I",
+     "L",
+     "U"
+    ]
+   ],
+   "stato_se_avviata": "SOTTO_SUPERVISIONE",
+   "serve_sf": true
+  },
+  "cambio_P04_M08": {
+   "persona": "P04",
+   "mansione": "M08",
+   "requisiti": 3,
+   "coperti": 2,
+   "mancanti": [
+    [
+     "C16",
+     "—",
+     "U",
+     "B"
+    ]
+   ],
+   "stato_se_avviata": "SOTTO_SUPERVISIONE",
+   "serve_sf": true
+  },
+  "impatto_M02_C03_U_None": {
+   "titolari": 5,
+   "cambi": [
+    {
+     "persona": "P05",
+     "nome": "Piero Lombardini",
+     "prima": "CON_RISERVA",
+     "dopo": "SOTTO_SUPERVISIONE"
+    }
+   ]
+  },
+  "impatto_M02_C03_U_B": {
+   "titolari": 5,
+   "cambi": [
+    {
+     "persona": "P05",
+     "nome": "Piero Lombardini",
+     "prima": "CON_RISERVA",
+     "dopo": "NON_CONFORME"
+    }
+   ]
+  },
+  "impatto_M01_C04_O_None": {
+   "titolari": 6,
+   "cambi": [
+    {
+     "persona": "P01",
+     "nome": "Marco Rivalta",
+     "prima": "CONFORME",
+     "dopo": "SOTTO_SUPERVISIONE"
+    }
+   ]
+  },
+  "impatto_M01_C05_U_I": {
+   "titolari": 6,
+   "cambi": [
+    {
+     "persona": "P01",
+     "nome": "Marco Rivalta",
+     "prima": "CONFORME",
+     "dopo": "SOTTO_SUPERVISIONE"
+    }
+   ]
+  },
+  "impatto_M04_C09_U_None": {
+   "titolari": 7,
+   "cambi": [
+    {
+     "persona": "P12",
+     "nome": "Anna Castellani",
+     "prima": "CONFORME",
+     "dopo": "SOTTO_SUPERVISIONE"
+    }
+   ]
+  },
+  "impatto_M04_C09_U_B": {
+   "titolari": 7,
+   "cambi": [
+    {
+     "persona": "P12",
+     "nome": "Anna Castellani",
+     "prima": "CONFORME",
+     "dopo": "NON_CONFORME"
+    }
+   ]
+  },
+  "impatto_M06_C13_U_None": {
+   "titolari": 5,
+   "cambi": []
+  },
+  "impatto_M06_C13_U_B": {
+   "titolari": 5,
+   "cambi": []
+  },
+  "impatto_M01_C03_L_I": {
+   "titolari": 6,
+   "cambi": [
+    {
+     "persona": "P01",
+     "nome": "Marco Rivalta",
+     "prima": "CONFORME",
+     "dopo": "SOTTO_SUPERVISIONE"
+    },
+    {
+     "persona": "P10",
+     "nome": "Stefano Guidotti",
+     "prima": "CONFORME",
+     "dopo": "CON_RISERVA"
+    }
+   ]
+  }
+ }
+}

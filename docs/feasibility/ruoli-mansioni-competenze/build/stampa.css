@@ -1,0 +1,415 @@
+/* Foglio di stampa comune ai due PDF della fattibilità (A4, Playwright page.pdf).
+   Il carattere Outfit del portale viene incorporato da costruisci_pdf.py prima di queste regole. */
+
+:root {
+  --ink: #1a202c;
+  --mid: #4a5568;
+  --soft: #64748b;
+  --line: #d2dbe6;
+  --paper: #f4f7fb;
+  --navy: #10233f;
+  --navy2: #1d3a63;
+  --acc: #d9480f;
+  --acc-soft: #fff1e6;
+  --ok: #17663a;
+  --ok-soft: #e6f4ec;
+  --warn: #8a5a00;
+  --warn-soft: #fff4d6;
+  --ko: #a32020;
+  --ko-soft: #fdeaea;
+}
+
+* { box-sizing: border-box; }
+
+html { font-size: 9.4pt; }
+
+body {
+  margin: 0;
+  font-family: "Outfit", "Segoe UI", Arial, sans-serif;
+  color: var(--ink);
+  line-height: 1.42;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ---------- Copertina (pagina a sé, senza margini) ---------- */
+
+.copertina {
+  width: 210mm;
+  height: 297mm;
+  background: var(--navy);
+  color: #fff;
+  padding: 26mm 22mm 20mm;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.copertina::after {
+  content: "";
+  position: absolute;
+  right: -40mm;
+  top: -40mm;
+  width: 150mm;
+  height: 150mm;
+  border-radius: 50%;
+  background: var(--navy2);
+}
+.copertina > * { position: relative; z-index: 1; }
+.cop-logo { font-size: 15pt; font-weight: 700; letter-spacing: .14em; }
+.cop-logo span { color: #ff9a57; }
+.cop-tipo {
+  margin-top: 62mm;
+  font-size: 11pt;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #ffb27d;
+  font-weight: 600;
+}
+.cop-titolo { font-size: 33pt; line-height: 1.12; font-weight: 700; margin: 5mm 0 6mm; max-width: 150mm; }
+.cop-sotto { font-size: 14pt; line-height: 1.35; color: #d5deea; max-width: 150mm; font-weight: 300; }
+.cop-riga { width: 26mm; height: 1.6mm; background: var(--acc); margin: 9mm 0; }
+.cop-piede {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6mm;
+  border-top: .3mm solid #40587c;
+  padding-top: 6mm;
+  font-size: 9.5pt;
+  color: #d5deea;
+}
+.cop-piede b { display: block; color: #fff; font-weight: 600; font-size: 8pt; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 1mm; }
+.cop-nota { margin-top: 7mm; font-size: 8.6pt; color: #aebbd0; line-height: 1.45; max-width: 160mm; }
+
+/* ---------- Documento tecnico ---------- */
+
+.doc h1.capitolo {
+  break-before: page;
+  font-size: 21pt;
+  line-height: 1.15;
+  color: var(--navy);
+  margin: 0 0 5mm;
+  padding-bottom: 3mm;
+  border-bottom: .6mm solid var(--acc);
+  font-weight: 700;
+}
+.doc h1.capitolo .num {
+  display: block;
+  font-size: 9pt;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--acc);
+  font-weight: 600;
+  margin-bottom: 1.5mm;
+}
+.doc h1.capitolo.primo { break-before: auto; }
+.doc h2 {
+  font-size: 13.4pt;
+  color: var(--navy);
+  margin: 7mm 0 2.4mm;
+  break-after: avoid;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.doc h3 {
+  font-size: 10.8pt;
+  color: var(--navy2);
+  margin: 5mm 0 1.8mm;
+  break-after: avoid;
+  font-weight: 600;
+}
+.doc h4 { font-size: 9.6pt; margin: 4mm 0 1.4mm; break-after: avoid; font-weight: 600; }
+.doc h2 .n, .doc h3 .n { color: var(--acc); margin-right: 2mm; font-weight: 600; }
+.doc p { margin: 0 0 2.2mm; orphans: 3; widows: 3; }
+.doc ul, .doc ol { margin: 0 0 2.4mm; padding-left: 5.2mm; }
+.doc li { margin: 0 0 1mm; }
+.doc li > p { margin: 0 0 1mm; }
+.doc strong { font-weight: 600; }
+.doc a { color: inherit; text-decoration: none; }
+.doc hr { display: none; }
+.doc code {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: .9em;
+  background: #eef2f7;
+  padding: 0 .8mm;
+  border-radius: .6mm;
+}
+.doc pre {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 7.3pt;
+  line-height: 1.34;
+  background: var(--paper);
+  border: .2mm solid var(--line);
+  border-left: .8mm solid var(--navy2);
+  padding: 2.4mm 3mm;
+  margin: 2mm 0 3.4mm;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.doc pre.corto { break-inside: avoid; }
+.doc pre code { background: none; padding: 0; font-size: inherit; }
+.doc blockquote {
+  margin: 2mm 0 3.4mm;
+  padding: 2.4mm 3.4mm;
+  background: var(--acc-soft);
+  border-left: .8mm solid var(--acc);
+  break-inside: avoid;
+}
+.doc blockquote p:last-child { margin-bottom: 0; }
+
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 7.7pt;
+  line-height: 1.3;
+  margin: 2mm 0 3.6mm;
+}
+.doc thead { display: table-header-group; }
+.doc tr { break-inside: avoid; }
+.doc th {
+  background: #e6edf6;
+  color: var(--navy);
+  text-align: left;
+  font-weight: 600;
+  padding: 1.2mm 1.5mm;
+  border: .2mm solid var(--line);
+  vertical-align: bottom;
+}
+.doc td {
+  padding: 1.2mm 1.5mm;
+  border: .2mm solid var(--line);
+  vertical-align: top;
+  overflow-wrap: break-word;
+}
+.doc tbody tr:nth-child(even) td { background: #fafbfd; }
+.doc td code, .doc th code { font-size: .92em; background: none; padding: 0; color: #24406b; }
+.doc table.larga { font-size: 7pt; }
+.doc td.nw { white-space: nowrap; }
+
+.chip {
+  display: inline-block;
+  font-size: .82em;
+  font-weight: 600;
+  padding: 0 1.3mm;
+  border-radius: 1.4mm;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.chip.deciso { background: var(--ok-soft); color: var(--ok); }
+.chip.ipotesi { background: var(--warn-soft); color: var(--warn); }
+.segno-ok { color: var(--ok); font-weight: 700; }
+.segno-ko { color: var(--ko); font-weight: 700; }
+.segno-av { color: var(--warn); font-weight: 700; }
+
+figure { margin: 3mm 0 4.5mm; break-inside: avoid; text-align: center; }
+figure.diagramma img { max-width: 100%; max-height: 205mm; }
+figure.diagramma.sola { break-before: page; }
+.doc .np { break-before: page; }
+figure.diagramma.alto img { max-height: 224mm; }
+figure.diagramma.pagina img { max-height: 246mm; }
+figure.diagramma.ruotato { position: relative; width: 180mm; height: 226mm; margin: 0; }
+figure.diagramma.ruotato img {
+  position: absolute; left: 50%; top: 50%;
+  width: 224mm; height: 172mm; max-width: none; max-height: none;
+  object-fit: contain;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+figure.schermata img {
+  max-width: 90%;
+  max-height: 196mm;
+  border: .25mm solid var(--line);
+  border-radius: 1mm;
+}
+figure.schermata .coppia { display: flex; gap: 4mm; align-items: flex-start; justify-content: center; }
+figure.schermata .coppia img:first-child { max-width: 74%; }
+figure.schermata .coppia img:last-child { max-width: 20%; max-height: 118mm; }
+figcaption { font-size: 7.9pt; color: var(--mid); margin-top: 1.6mm; text-align: left; }
+figcaption b { color: var(--navy); font-weight: 600; }
+
+.fonte { font-size: 7.6pt; color: var(--soft); margin: -1mm 0 2.6mm; }
+
+.indice { break-after: page; }
+.indice h1 { font-size: 20pt; color: var(--navy); margin: 0 0 3mm; padding-bottom: 2.4mm; border-bottom: .6mm solid var(--acc); }
+.indice ol { list-style: none; margin: 0; padding: 0; }
+.indice li { margin: 0; }
+.indice a { display: flex; align-items: baseline; gap: 2mm; color: inherit; text-decoration: none; }
+.indice .t { flex: none; max-width: 150mm; }
+.indice .p { flex: 1; border-bottom: .2mm dotted #9aa8ba; transform: translateY(-1mm); }
+.indice .pg { flex: none; font-variant-numeric: tabular-nums; min-width: 6mm; text-align: right; }
+.indice li.c { margin-top: 1.9mm; font-weight: 600; color: var(--navy); font-size: 9.4pt; line-height: 1.3; }
+.indice li.s { padding-left: 6mm; font-size: 8pt; color: var(--mid); line-height: 1.3; }
+.indice li .n { color: var(--acc); margin-right: 1.6mm; font-weight: 600; }
+
+.riquadro {
+  border: .25mm solid var(--line);
+  border-left: .9mm solid var(--navy2);
+  background: var(--paper);
+  padding: 2.6mm 3.4mm;
+  margin: 2mm 0 3.6mm;
+  break-inside: avoid;
+}
+.riquadro p:last-child { margin-bottom: 0; }
+
+/* ---------- Documento per la Direzione ---------- */
+
+.dir { font-size: 12.4pt; line-height: 1.42; }
+.dir .pag { height: 252mm; display: flex; flex-direction: column; break-after: page; }
+.dir .pag:last-child { break-after: auto; }
+.dir .occhiello { font-size: 9.4pt; letter-spacing: .14em; text-transform: uppercase; color: var(--acc); font-weight: 600; }
+.dir h1 { font-size: 25pt; line-height: 1.14; color: var(--navy); margin: 2.5mm 0 4mm; font-weight: 700; max-width: 172mm; }
+.dir .attacco { font-size: 14pt; line-height: 1.38; color: var(--mid); margin: 0 0 7mm; max-width: 168mm; font-weight: 300; }
+.dir p { margin: 0 0 3mm; }
+.dir strong, .dir b { font-weight: 600; }
+.dir .nota { font-size: 9pt; color: var(--soft); }
+.dir .giu { margin-top: auto; }
+
+.tessere { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; margin-bottom: 8mm; }
+.tessera { background: var(--paper); border-top: 1.4mm solid var(--navy2); padding: 5mm 5mm 4.5mm; }
+.tessera .num { font-size: 38pt; line-height: 1; font-weight: 700; color: var(--navy); }
+.tessera .num small { font-size: 14pt; font-weight: 500; color: var(--mid); }
+.tessera .eti { font-size: 10pt; font-weight: 600; margin: 2mm 0 1.6mm; color: var(--navy2); text-transform: uppercase; letter-spacing: .06em; }
+.tessera p { font-size: 10.6pt; line-height: 1.36; margin: 0; color: var(--ink); }
+
+.punti { display: grid; gap: 4mm; }
+.punto { display: grid; grid-template-columns: 34mm 1fr; gap: 5mm; align-items: baseline; border-top: .25mm solid var(--line); padding-top: 3.4mm; }
+.punto .cosa { font-weight: 700; color: var(--navy); font-size: 13pt; }
+.punto p { margin: 0; }
+
+.primadopo { display: grid; grid-template-columns: 38mm 1fr 1fr; border-top: .5mm solid var(--navy); }
+.primadopo > div { padding: 4.2mm 4mm; border-bottom: .25mm solid var(--line); font-size: 11.4pt; line-height: 1.36; }
+.primadopo .tema { font-weight: 700; color: var(--navy); padding-left: 0; }
+.primadopo .oggi { background: #f6f7f9; color: var(--mid); }
+.primadopo .domani { background: var(--ok-soft); color: #123d25; }
+.primadopo .testa { font-size: 9.4pt; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; padding-top: 3mm; padding-bottom: 3mm; }
+.primadopo .testa.oggi { color: var(--soft); }
+.primadopo .testa.domani { color: var(--ok); }
+
+.ricetta { display: grid; grid-template-columns: 1fr 15mm 1fr; align-items: stretch; margin-bottom: 5mm; }
+.scheda { border: .3mm solid var(--line); border-top: 1.4mm solid var(--navy2); padding: 4.5mm 5mm; background: #fff; }
+.scheda.dispensa { border-top-color: var(--acc); }
+.scheda .tit { font-size: 9.2pt; letter-spacing: .12em; text-transform: uppercase; color: var(--soft); font-weight: 600; }
+.scheda .nome { font-size: 13.4pt; font-weight: 700; color: var(--navy); margin: 1mm 0 3.4mm; line-height: 1.2; min-height: 2.4em; }
+.ingr { display: flex; justify-content: space-between; gap: 3mm; align-items: center; min-height: 12.5mm; padding: 1mm 0; border-top: .2mm solid var(--line); font-size: 10.4pt; line-height: 1.25; }
+.ingr .liv { flex: none; font-weight: 600; color: var(--navy2); font-size: 9.6pt; }
+.ingr .si { flex: none; font-weight: 700; color: var(--ok); font-size: 9.6pt; }
+.ingr .no { flex: none; font-weight: 700; color: var(--acc); font-size: 9.6pt; }
+.ingr.manca { background: var(--acc-soft); margin: 0 -2mm; padding-left: 2mm; padding-right: 2mm; }
+.freccia { display: flex; align-items: center; justify-content: center; font-size: 22pt; color: var(--acc); font-weight: 700; }
+.esito { background: var(--navy); color: #fff; padding: 5mm 6mm; font-size: 13.4pt; line-height: 1.35; margin-bottom: 6mm; }
+.esito b { color: #ffb27d; }
+.tre { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; }
+.tre > div { border-top: .5mm solid var(--navy2); padding-top: 3mm; font-size: 10.8pt; line-height: 1.38; }
+.tre b { display: block; color: var(--navy); margin-bottom: 1mm; }
+
+.scala { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; align-items: end; margin-bottom: 7mm; }
+.gradino { background: var(--paper); border-top: 1.4mm solid var(--navy2); padding: 4mm 4mm 4.5mm; display: flex; flex-direction: column; }
+.gradino:nth-child(1) { min-height: 62mm; }
+.gradino:nth-child(2) { min-height: 72mm; }
+.gradino:nth-child(3) { min-height: 82mm; border-top-color: var(--ok); }
+.gradino:nth-child(4) { min-height: 92mm; border-top-color: var(--acc); }
+.gradino .let { font-size: 30pt; font-weight: 700; color: var(--navy); line-height: 1; }
+.gradino .pat { font-size: 12.4pt; font-weight: 700; color: var(--acc); margin: 2.4mm 0 .6mm; line-height: 1.15; }
+.gradino .nom { font-size: 9pt; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); font-weight: 600; margin-bottom: 2.4mm; }
+.gradino p { font-size: 10.2pt; line-height: 1.34; margin: 0; }
+.due { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+.due > div { border-top: .5mm solid var(--navy2); padding-top: 3mm; font-size: 11pt; line-height: 1.4; }
+.due h2 { font-size: 13pt; margin: 0 0 1.6mm; color: var(--navy); font-weight: 700; }
+.fascia { background: var(--acc-soft); border-left: 1.2mm solid var(--acc); padding: 3.6mm 5mm; font-size: 11pt; line-height: 1.4; margin-top: 5mm; }
+
+.vetrina { margin-bottom: 4mm; }
+.vetrina img { width: 100%; display: block; border: .3mm solid var(--line); }
+.vetrina .grande img { height: 104mm; object-fit: cover; object-position: top left; }
+.vetrina .did { font-size: 10.4pt; line-height: 1.32; margin: 1.8mm 0 0; }
+.vetrina .did b { color: var(--navy); }
+.vetrina .piccole { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-top: 5mm; }
+.vetrina .piccole img { height: 36mm; object-fit: cover; object-position: top left; }
+.vetrina .piccole .did { font-size: 9.6pt; }
+
+.misure { width: 100%; border-collapse: collapse; margin-bottom: 6mm; }
+.misure th { text-align: left; font-size: 9.2pt; letter-spacing: .12em; text-transform: uppercase; color: var(--soft); padding: 0 3mm 2.4mm 0; border-bottom: .5mm solid var(--navy); font-weight: 700; }
+.misure td { padding: 3.6mm 3mm 3.6mm 0; border-bottom: .25mm solid var(--line); vertical-align: top; font-size: 11.2pt; line-height: 1.34; }
+.misure td:first-child { font-weight: 700; color: var(--navy); width: 30%; }
+.misure td.og { color: var(--mid); width: 30%; }
+.misure td.ob { color: #123d25; }
+.misure .gr { font-size: 17pt; font-weight: 700; display: block; line-height: 1.1; }
+
+.tappe { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-bottom: 7mm; }
+.tappa { padding: 0 4mm 0 0; position: relative; }
+.tappa .punto-t { height: 1.4mm; background: var(--navy2); margin-bottom: 3.4mm; position: relative; }
+.tappa .punto-t::before { content: ""; position: absolute; left: 0; top: -1.8mm; width: 5mm; height: 5mm; border-radius: 50%; background: var(--acc); }
+.tappa .quando { font-size: 9.2pt; letter-spacing: .1em; text-transform: uppercase; color: var(--acc); font-weight: 700; }
+.tappa .che { font-size: 12.6pt; font-weight: 700; color: var(--navy); line-height: 1.2; margin: 1mm 0 1.6mm; }
+.tappa p { font-size: 10.2pt; line-height: 1.36; margin: 0; }
+.chi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; margin-bottom: 6mm; }
+.chi > div { background: var(--paper); padding: 3.6mm 4mm; font-size: 10.2pt; line-height: 1.36; }
+.chi b { display: block; color: var(--navy); font-size: 11.4pt; margin-bottom: 1mm; }
+
+.rischi { display: grid; gap: 0; border-top: .5mm solid var(--navy); }
+.rischio { display: grid; grid-template-columns: 1fr 1.25fr; gap: 6mm; padding: 4mm 0; border-bottom: .25mm solid var(--line); font-size: 11pt; line-height: 1.38; }
+.rischio .r b { color: var(--navy); font-size: 12.4pt; display: block; margin-bottom: .6mm; }
+.rischio .r span { color: var(--mid); font-size: 10.2pt; }
+.rischio .m { color: #123d25; background: var(--ok-soft); padding: 3mm 4mm; }
+
+.decisioni { counter-reset: d; display: grid; gap: 0; border-top: .5mm solid var(--navy); margin-bottom: 6mm; }
+.decisione { counter-increment: d; display: grid; grid-template-columns: 16mm 1fr; gap: 3mm; padding: 4.4mm 0; border-bottom: .25mm solid var(--line); }
+.decisione::before { content: counter(d); font-size: 30pt; font-weight: 700; color: var(--acc); line-height: .95; }
+.decisione b { display: block; font-size: 13pt; color: var(--navy); line-height: 1.25; margin-bottom: .8mm; }
+.decisione span { font-size: 10.8pt; color: var(--mid); line-height: 1.36; display: block; }
+
+/* ---------- Foglio delle decisioni (una pagina) ---------- */
+
+.dir .foglio { height: 252mm; display: flex; flex-direction: column; }
+.dir .foglio h1 { font-size: 21pt; margin: 2mm 0 2.5mm; }
+.dir .foglio .attacco { font-size: 11.4pt; margin: 0 0 4mm; }
+.dec { display: grid; grid-template-columns: 11mm 1fr; gap: 2mm; padding: 3.2mm 0; border-top: .25mm solid var(--line); }
+.dec .n { font-size: 24pt; font-weight: 700; color: var(--acc); line-height: 1; }
+.dec .d > b { display: block; font-size: 12pt; color: var(--navy); margin-bottom: 1.6mm; line-height: 1.25; }
+.dec .op { display: grid; grid-template-columns: 6.5mm 1fr; align-items: start; font-size: 9.8pt; line-height: 1.36; margin-bottom: 1.5mm; color: var(--ink); }
+.dec .q { display: inline-block; width: 4mm; height: 4mm; border: .35mm solid var(--navy); border-radius: .5mm; margin-top: .5mm; vertical-align: -0.8mm; }
+.dec .riga { display: inline-block; width: 78mm; border-bottom: .25mm solid var(--soft); height: 3.6mm; }
+.dec .riga.corta { width: 38mm; }
+.firme { margin-top: auto; display: grid; grid-template-columns: 30mm 1fr 1fr 1fr; gap: 6mm; padding-top: 3mm; }
+.firme > div { border-bottom: .3mm solid var(--navy); height: 15mm; }
+.firme span { font-size: 8.4pt; letter-spacing: .12em; text-transform: uppercase; color: var(--soft); font-weight: 600; }
+.dir .foglio .nota { margin: 3mm 0 0; }
+
+/* ---------- Versioni «light»: foglio per la Direzione, schede per Qualità e IT ---------- */
+
+.dir .foglio { break-after: page; }
+.dir .foglio:last-child { break-after: auto; }
+.dir .foglio .ricetta { margin-bottom: 4mm; }
+.dir .foglio .scheda .nome { font-size: 12pt; min-height: 0; margin-bottom: 2mm; }
+.dir .foglio .ingr { min-height: 8.6mm; font-size: 10.4pt; }
+.dir .foglio .esito { font-size: 12pt; padding: 4mm 5mm; margin-bottom: 5mm; }
+.dir .foglio .tre > div { font-size: 10.4pt; }
+.doc.light { font-size: 10.6pt; }
+.doc.light h1 { font-size: 19pt; color: var(--navy); margin: 0 0 3mm; line-height: 1.15; font-weight: 700; }
+.doc.light h2 { font-size: 13.4pt; margin: 5mm 0 2mm; }
+.doc.light table { font-size: 9pt; }
+.doc.light th, .doc.light td { padding: 1.5mm 1.8mm; }
+.doc.light li { margin-bottom: 1.4mm; }
+
+/* ---- Menu di Anagrafica, prima e dopo (light_menu.html) ---- */
+.menu2 { display: grid; grid-template-columns: 1.34fr 1fr; gap: 5mm; align-items: start; }
+.menu2 .col { border: .3mm solid var(--line); border-radius: 2mm; padding: 3mm 3.6mm 2.4mm; }
+.menu2 .col.dopo { border-color: var(--navy2); border-width: .5mm; }
+.menu2 .tit { font-size: 8.4pt; letter-spacing: .14em; text-transform: uppercase; color: var(--acc); font-weight: 600; margin-bottom: 1.2mm; }
+.menu2 .pil { padding: 1.2mm 0 .3mm; border-top: .2mm solid var(--line); }
+.menu2 .tit + .pil { border-top: 0; }
+.menu2 .pil > b { display: flex; justify-content: space-between; align-items: baseline; font-size: 9.4pt; color: var(--navy); margin-bottom: 1mm; }
+.menu2 .pil > b span { font-weight: 400; color: var(--soft); font-size: 8pt; }
+.menu2 .v { display: inline-block; font-size: 7.2pt; line-height: 1.2; padding: .5mm 1.6mm; margin: 0 .8mm .8mm 0; border: .2mm solid var(--line); border-radius: 3mm; background: #fff; white-space: nowrap; color: var(--ink); }
+.menu2 .v.dop { border-color: #D9822B; background: #FFF1E0; }
+.menu2 .v.nuo { border-color: #2E8B57; background: #E6F4EC; }
+.menu2 .leg { font-size: 7.8pt; color: var(--soft); margin-top: 1.6mm; padding-top: 1.6mm; border-top: .2mm solid var(--line); line-height: 1.5; }
+.dir .foglio figure.sch { margin: 0 0 3.2mm; text-align: center; break-inside: avoid; }
+.dir .foglio figure.sch img { display: block; margin: 0 auto; border: .3mm solid var(--line); border-radius: 1.2mm; }
+.dir .foglio figure.sch figcaption { font-size: 8.8pt; line-height: 1.36; color: var(--mid); margin-top: 1.5mm; text-align: left; }
+.doc.light figure.schermata img { max-width: 100%; }
+.doc.light figure.schermata .coppia img:first-child { max-width: 76%; }
+.doc.light figure.schermata .coppia img:last-child { max-width: 19%; }
+.dir .foglio .menu-h2 { font-size: 12.5pt; color: var(--navy); margin: 7mm 0 2.5mm; font-weight: 600; }
+.ruoli6 { display: grid; grid-template-columns: 34mm 48mm 1fr; font-size: 10pt; line-height: 1.34; }
+.ruoli6 > div { padding: 2mm 3mm 2mm 0; border-top: .2mm solid var(--line); }
+.ruoli6 .h { border-top: 0; font-size: 8.2pt; text-transform: uppercase; letter-spacing: .12em; color: var(--soft); font-weight: 600; padding-top: 0; }
