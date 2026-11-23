@@ -770,7 +770,7 @@ def mail_action_allegato_view(request: HttpRequest, token: str) -> HttpResponse:
             },
         )
     except Exception:
-        pass
+        logger.exception("mail_action_allegato_view: registro attività non scritto")
     # Mail salvate (.msg, .eml) e testi si scaricano, mai aperti nel browser.
     from .views import ESITI_SOLO_DOWNLOAD
     response = FileResponse(path.open("rb"), as_attachment=path.suffix.lower() in ESITI_SOLO_DOWNLOAD,
@@ -872,7 +872,7 @@ def _select_cols() -> str:
         if "numero_rdc" in (legacy_table_columns("anomalie") or set()):
             return _BASE_COLS + ", numero_rdc"
     except Exception:
-        pass
+        logger.exception("_select_cols: errore ignorato")
     return _BASE_COLS
 
 

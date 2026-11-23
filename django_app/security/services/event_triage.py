@@ -458,7 +458,7 @@ def triage_context(event):
 
         lines.append(lezioni_testo(AI_MODULE, AI_ACTION_TRIAGE))
     except Exception:  # noqa: BLE001
-        pass
+        logger.exception("triage_context: errore ignorato")
     return "\n".join(line for line in lines if line)
 
 

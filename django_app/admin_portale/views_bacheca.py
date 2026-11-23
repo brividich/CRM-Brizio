@@ -190,10 +190,16 @@ def api_hub_link_create(request):
             return JsonResponse({"ok": False, "error": f"Estensione {ext} non ammessa."}, status=400)
         if upload.size > MAX_UPLOAD_BYTES:
             return JsonResponse({"ok": False, "error": f"File troppo grande (max {DOCUMENT_MAX_MB} MB)."}, status=400)
+        from core.upload_mime import UploadMimeValidationError, valida_per_estensione
+
+        try:  # contenuto reale, non il tipo dichiarato dal browser (audit [56])
+            tipo_reale = valida_per_estensione(upload, ALLOWED_UPLOAD_EXT, max_bytes=MAX_UPLOAD_BYTES, label="File")
+        except UploadMimeValidationError as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=400)
         link.file = upload
         link.original_filename = upload.name
         link.file_size = upload.size
-        link.content_type = upload.content_type or ""
+        link.content_type = tipo_reale
     else:
         return JsonResponse({"ok": False, "error": "Tipo non valido."}, status=400)
 

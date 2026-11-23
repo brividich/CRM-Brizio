@@ -26,7 +26,7 @@ def run_anomalie_pending_notifications(threshold_minutes: int = 5) -> dict:
     try:
         threshold_minutes = riepilogo_decisioni_minuti()
     except Exception:
-        pass
+        logger.exception("run_anomalie_pending_notifications: errore ignorato")
     try:
         result = flush_pending_update_notifications(threshold_minutes=threshold_minutes)
         if result.get("sent"):

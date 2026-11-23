@@ -19,6 +19,12 @@ class NumerazioneTests(AuditBase):
         self.make_audit(numero="STR-2026-01", tipo=Audit.TIPO_STRAORDINARIO)
         self.assertEqual(service.prossimo_numero_audit(2026, Audit.TIPO_STRAORDINARIO), "STR-2026-02")
 
+    def test_dopo_il_99_viene_il_101_non_di_nuovo_il_100(self):
+        # Ordinato come testo «RAIS-2026-99» viene dopo «-100»: il progressivo si ripeteva (audit [50]).
+        self.make_audit(numero="RAIS-2026-99")
+        self.make_audit(numero="RAIS-2026-100")
+        self.assertEqual(service.prossimo_numero_audit(2026, Audit.TIPO_SISTEMA), "RAIS-2026-101")
+
 
 class FollowupTests(AuditBase):
     def _precedente(self, esito="NC", **kwargs):

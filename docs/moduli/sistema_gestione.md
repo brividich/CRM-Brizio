@@ -102,3 +102,5 @@ Scheda processo: sezione «Chi possiede e chi esegue il processo» (`processi_vi
 
 - Ogni tessera numerica è un link (`kpi-link`) all'elenco che conta lo stesso insieme; test in `tests_kpi_link*.py`.
 - Filtri sugli elenchi audit e audit esterni usati dalle tessere. «Giorni medi CAR» ed «Efficacia» restano senza link.
+
+**Numero audit (audit [50], 23/11/2026):** `prossimo_numero_audit` usa `core.numeratori.prossimo_progressivo`: dopo «RAIS-2026-99» viene «-100» e poi «-101» (prima, ordinando come testo, il 100 si ripeteva).

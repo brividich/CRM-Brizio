@@ -497,7 +497,7 @@ def _build_plain_text(
             local_exp = _tz.localtime(expires_at)
             lines.append(f"Link valido fino a: {local_exp.strftime('%d/%m/%Y %H:%M')}")
         except Exception:
-            pass
+            logger.exception("_build_plain_text: errore ignorato")
     if portal_url:
         lines += ["", "Oppure apri l'OP direttamente in Gestione anomalie (accesso automatico dai PC aziendali):",
                   portal_url]

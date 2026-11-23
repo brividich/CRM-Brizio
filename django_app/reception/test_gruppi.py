@@ -197,6 +197,8 @@ class AllegatiTests(Base):
         self.assertEqual(b"".join(scarico.streaming_content), b"%PDF-1.4 sintetico")
         self.client.post(url, {"file": SimpleUploadedFile("script.exe", b"MZ")})
         self.assertEqual(AllegatoVisita.objects.count(), 1)
+        self.client.post(url, {"file": SimpleUploadedFile("finto.pdf", b"<html><script></script></html>")})
+        self.assertEqual(AllegatoVisita.objects.count(), 1)  # contenuto diverso dall'estensione: rifiutato
         self.client.post(url, {"azione": "elimina", "allegato": a.pk})
         self.assertFalse(AllegatoVisita.objects.exists())
         self.assertFalse(a.file.storage.exists(a.file.name))

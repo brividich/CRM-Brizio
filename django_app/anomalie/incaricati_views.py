@@ -106,7 +106,7 @@ def api_incaricato_cambia(request):
             "da": (prima or {}).get("id"), "a": (dopo or {}).get("id"),
         })
     except Exception:
-        pass
+        logger.exception("api_incaricato_cambia: registro attività non scritto")
     avviso = {}
     if dopo:
         try:
@@ -254,7 +254,7 @@ def _audit(request, dati: dict) -> None:
     try:
         log_action(request, "anomalia_capo_op", "anomalie", dati)
     except Exception:
-        pass
+        logger.exception("_audit: registro attività non scritto")
 
 
 def _avvisa(op_id, dopo, chi, nota, righe, *, tutto_op: bool) -> dict:

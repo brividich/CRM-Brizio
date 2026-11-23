@@ -93,6 +93,8 @@ Guide: Impostazioni Assenze («questi giorni valgono per tutto il portale»), RE
 
 ### Ondata 6 — Robustezza · `feature/robustezza-audit`
 
+**Stato 23/11: fatta.** [56]: dei sette siti dell'audit, quattro erano già validati (rapporti/certificati esterni, import attrezzature, planimetria, copertine); il censimento completo ha trovato in più il documento firmato MOD.128 (nessun controllo), Bacheca, Reception e gli allegati anomalie serviti inline. [43]: 38 in anomalie + 5 SOC. [50]: confermato il numero audit SGI (si ripete dopo il 99); DPI e ticket solo teorico (oltre 9999), sistemati con lo stesso numeratore; MPQ con blocco.
+
 | Voce | Intervento |
 |---|---|
 | [56] | Tutti i caricamenti passano da `core/upload_mime.py` (elenco dell'audit: `security/views_backup.py:120`, `admin_portale/views_sapere.py:63`, `procedure_refresh/views_modifiche.py:266`, `sistema_gestione/esterni_views.py:136,257`, `attrezzature/views.py:290`, `assets/views/layout.py:530`, timbro specifiche); test che cerca `request.FILES` fuori dal validatore, sul modello di `core/test_sql_census.py` |

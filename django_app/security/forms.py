@@ -499,8 +499,16 @@ class BackupRestoreTestForm(forms.ModelForm):
             "note": forms.Textarea(attrs={"rows": 2}),
         }
 
+    ALLEGATO_ESTENSIONI = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".log", ".csv", ".docx", ".xlsx"}
+
     def clean_allegato(self):
+        from core.upload_mime import UploadMimeValidationError, valida_per_estensione
+
         allegato = self.cleaned_data.get("allegato")
-        if allegato and allegato.size > 10 * 1024 * 1024:
-            raise ValidationError("L'allegato supera i 10 MB.")
+        if not allegato or not hasattr(allegato, "content_type"):
+            return allegato  # nessun file nuovo
+        try:
+            valida_per_estensione(allegato, self.ALLEGATO_ESTENSIONI, max_bytes=10 * 1024 * 1024, label="Allegato")
+        except UploadMimeValidationError as exc:
+            raise ValidationError(f"{exc} Ammessi: PDF, immagini PNG/JPG, testo (TXT, LOG, CSV), Word, Excel.") from exc
         return allegato
