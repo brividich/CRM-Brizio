@@ -63,3 +63,5 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) l
 - Viste `VISTE`/`filtra_vista` (`?vista=7g|30g`) per tessere ed elenco.
 
 **Audit 22/11/2026 (D1):** «In ritardo» confronta il giorno del fatto con il giorno dell'inserimento in ora italiana (`_locale`), non in UTC.
+
+**Ripristino con motivo (audit P6, 23/11/2026):** «Ripristina» chiede il motivo (5-500 caratteri, stesso form dell'eliminazione); `log_action` `segnalazione_ripristinata` salva motivo, data e motivo dell'eliminazione, e la storia della segnalazione mostra il motivo accanto a «Ripristinata nel registro». Eliminazione e ripristino erano già nella cronologia automatica.

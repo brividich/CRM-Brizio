@@ -39,8 +39,10 @@
           · motivo: {{ segnalazione.motivo_eliminazione|default:"-" }}
         </div>
         {% if can_manage_settings %}
-        <form method="post" action="{% url 'diario_preposto:ripristina' segnalazione.pk %}">
+        <form method="post" action="{% url 'diario_preposto:ripristina' segnalazione.pk %}" class="dp-elimina-box">
           {% csrf_token %}
+          <input type="text" name="motivo" minlength="5" maxlength="500" required
+                 placeholder="Motivo del ripristino (obbligatorio)" aria-label="Motivo del ripristino">
           <button type="submit" class="dp-btn dp-btn-primary">Ripristina</button>
         </form>
         {% endif %}

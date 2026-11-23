@@ -75,7 +75,11 @@ def costruisci_storyline(segnalazione) -> dict:
                                  note=["Il file resta archiviato sul server."]))
 
     n_modifiche = 0
-    for voce in storico_leggibile(storico_oggetto(segnalazione, limit=300)):
+    voci_storico = list(storico_leggibile(storico_oggetto(segnalazione, limit=300)))
+    # Motivo del ripristino (audit P6): scritto da log_action accanto alla modifica automatica.
+    motivi_ripristino = [(v.created_at, (v.dettaglio or {}).get("motivo", "")) for v in voci_storico
+                         if v.azione == "segnalazione_ripristinata" and isinstance(v.dettaglio, dict)]
+    for voce in voci_storico:
         dettaglio = voce.dettaglio if isinstance(voce.dettaglio, dict) else {}
         if voce.azione == "auto_update":
             righe_elim = [r for r in voce.righe if r["campo"] in ETICHETTE_ELIMINAZIONE]
@@ -83,10 +87,13 @@ def costruisci_storyline(segnalazione) -> dict:
             if righe_elim:
                 eliminata = any(r["campo"] == "Eliminata il" and r["dopo"] != "—" for r in righe_elim)
                 motivo = next((r["dopo"] for r in righe_elim if r["campo"] == "Motivo eliminazione"), "")
+                if not eliminata:
+                    motivo = next((m for quando, m in motivi_ripristino
+                                   if abs((quando - voce.created_at).total_seconds()) <= 60), "")
                 eventi.append(Evento(voce.created_at, "eliminata" if eliminata else "ripristinata",
                                      "Eliminata dal registro" if eliminata else "Ripristinata nel registro",
                                      chi=voce.utente_display, stato="critico" if eliminata else "",
-                                     note=[f"Motivo: {motivo}"] if eliminata and motivo and motivo != "—" else []))
+                                     note=[f"Motivo: {motivo}"] if motivo and motivo != "—" else []))
             if righe_altre:
                 n_modifiche += 1
                 eventi.append(Evento(voce.created_at, "modifica",

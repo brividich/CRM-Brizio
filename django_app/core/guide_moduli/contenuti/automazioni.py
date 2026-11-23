@@ -42,6 +42,8 @@ GUIDA = {
                       "e in «Opzioni avanzate» CC, CCN e HTML). Nel corpo HTML i valori dei segnaposto ({note}, {descrizione}…) arrivano sempre "
                       "come testo: se qualcuno scrive dei tag in un campo, nella mail si vedono i tag e non un link o una formattazione. "
                       "«Esegui solo se…» limita un singolo passaggio. "
+                      "La condizione «Cooldown per gruppo» (pausa fra due invii) vuole «nome:minuti», es. «mail_anomalie_op:5»: "
+                      "un valore scritto male non si salva, e le regole salvate prima con un valore sbagliato mostrano «Pausa scritta male». "
                       "La condizione è un elenco di righe «Campo | Operatore | Valore» unite da «E» (tutte devono essere vere), con "
                       "«+ Aggiungi riga»; sotto ci sono i due esiti: «✓ Se sì» esegue i passaggi, «✕ Se no» ferma la regola. Per fare "
                       "qualcosa anche nel caso no si aggiunge il passaggio «Condizione (Se / Altrimenti)»: due colonne «✓ Se sì» e «✕ Se no», "

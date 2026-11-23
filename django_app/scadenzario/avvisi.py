@@ -68,6 +68,29 @@ def _ultimo_avviso_riuscito(scadenza):
             .order_by("-inviato_il").first())
 
 
+_NON_CALCOLATO = object()
+
+
+def _con_ultimo_avviso(qs):
+    """Aggiunge ``ultimo_avviso_il`` (ultimo avviso riuscito) nella stessa query (audit P9)."""
+    from django.db.models import OuterRef, Subquery
+
+    from .models import AvvisoInviato
+
+    ultimi = (AvvisoInviato.objects.filter(scadenza=OuterRef("pk"), tipo=AvvisoInviato.TIPO_ATTIVITA, riuscito=True)
+              .order_by("-inviato_il").values("inviato_il")[:1])
+    return qs.annotate(ultimo_avviso_il=Subquery(ultimi))
+
+
+def _ultimo_avviso_il(scadenza):
+    """Data dell'ultimo avviso riuscito: dall'annotazione se c'è, altrimenti con una query."""
+    valore = getattr(scadenza, "ultimo_avviso_il", _NON_CALCOLATO)
+    if valore is not _NON_CALCOLATO:
+        return valore
+    ultimo = _ultimo_avviso_riuscito(scadenza)
+    return ultimo.inviato_il if ultimo else None
+
+
 MOTIVO_SENZA_DESTINATARI = "nessun destinatario"
 MOTIVO_NON_DOVUTA = "ripetizione non ancora dovuta"
 
@@ -82,8 +105,8 @@ def da_avvisare(scadenza, oggi: date, conf: dict) -> tuple[bool, str]:
         return False, "scaduta, la categoria non avvisa dopo la scadenza"
     if not scadenza.destinatari:
         return False, MOTIVO_SENZA_DESTINATARI
-    ultimo = _ultimo_avviso_riuscito(scadenza)
-    if ultimo and timezone.localdate(ultimo.inviato_il) > oggi - timedelta(days=scadenza.ripeti_effettivo(conf["ripeti"])):
+    ultimo = _ultimo_avviso_il(scadenza)
+    if ultimo and timezone.localdate(ultimo) > oggi - timedelta(days=scadenza.ripeti_effettivo(conf["ripeti"])):
         return False, MOTIVO_NON_DOVUTA
     return True, "da inviare"
 
@@ -118,9 +141,9 @@ def invia_avvisi_attivita(*, oggi: date | None = None, dry_run: bool = False) ->
         allinea_unite()
     conf = impostazioni()
     inviati = errori = 0
-    candidati = ScadenzaGenerica.objects.select_related("categoria", "responsabile").filter(
+    candidati = _con_ultimo_avviso(ScadenzaGenerica.objects.select_related("categoria", "responsabile").filter(
         is_active=True, categoria__is_active=True, data_scadenza__isnull=False,
-    )
+    ))
     for s in candidati:
         if not dry_run:
             _ricorda_al_responsabile(s, oggi, conf)
@@ -248,9 +271,9 @@ def anteprima(*, oggi: date | None = None, categorie=None) -> dict:
     oggi = oggi or prossimo_invio()
     conf = impostazioni()
     esito = {"giorno": oggi, "partono": [], "senza": [], "aspettano": []}
-    qs = ScadenzaGenerica.objects.select_related("categoria").filter(
+    qs = _con_ultimo_avviso(ScadenzaGenerica.objects.select_related("categoria").filter(
         is_active=True, categoria__is_active=True, data_scadenza__isnull=False,
-    ).order_by("data_scadenza", "titolo")
+    ).order_by("data_scadenza", "titolo"))
     if categorie is not None:
         qs = qs.filter(categoria_id__in=categorie)
     for s in qs:
@@ -261,7 +284,7 @@ def anteprima(*, oggi: date | None = None, categorie=None) -> dict:
         elif motivo == MOTIVO_SENZA_DESTINATARI:
             esito["senza"].append(riga)
         elif motivo == MOTIVO_NON_DOVUTA:
-            ultimo = timezone.localdate(_ultimo_avviso_riuscito(s).inviato_il)
+            ultimo = timezone.localdate(_ultimo_avviso_il(s))
             riga["ultimo"] = ultimo
             riga["prossimo"] = ultimo + timedelta(days=s.ripeti_effettivo(conf["ripeti"]))
             esito["aspettano"].append(riga)

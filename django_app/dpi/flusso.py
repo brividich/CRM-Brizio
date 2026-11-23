@@ -70,7 +70,8 @@ def _capo_regola_unica(legacy_id) -> int | None:
         from anagrafica.services import capo_team
 
         return capo_team.capo_effettivo(legacy_id) if capo_team.regola_unica_attiva() else None
-    except Exception:
+    except Exception:  # noqa: BLE001 - si ripiega sulla regola di prima (audit P13)
+        logger.exception("_capo_regola_unica: lettura fallita per %s", legacy_id)
         return None
 
 
@@ -92,7 +93,8 @@ def _co_capi_regola_unica(legacy_id) -> set[int] | None:
         if not capo_team.regola_unica_attiva():
             return None
         return set(capo_team.co_capi_in_cache().get(int(legacy_id), []))
-    except Exception:
+    except Exception:  # noqa: BLE001 - si ripiega sulla regola di prima (audit P13)
+        logger.exception("_co_capi_regola_unica: lettura fallita per %s", legacy_id)
         return None
 
 
@@ -104,34 +106,47 @@ def approvatori_di(legacy_id: int | None) -> set[int]:
     from anagrafica.services.reparto_canonico import resolve_responsabile_effettivo
 
     ids: set[int] = set()
-    try:
-        area, reparto = _area_reparto(legacy_id)
-        principale = _capo_regola_unica(legacy_id)
-        co_capi = _co_capi_regola_unica(legacy_id)
-        if principale is None and co_capi is None:
-            principale = resolve_responsabile_effettivo(area=area, reparto=reparto)
-        if principale:
-            ids.add(int(principale))
-        if co_capi is not None:
-            # Regola unica: i co-capi sono le altre persone con la mansione del capo.
-            ids.update(co_capi)
-        else:
-            if area is not None:
-                ids.update(int(i) for i in area.responsabili.values_list("id", flat=True))
-            if reparto is not None:
-                ids.update(int(i) for i in reparto.responsabili.values_list("id", flat=True))
+    # Una fonte alla volta (audit P13): un errore toglie solo quella fonte, non le
+    # successive, e finisce nel log come errore con il nome della fonte.
+
+    def _fonte(nome, fn):
+        try:
+            return fn()
+        except Exception:  # noqa: BLE001
+            logger.exception("approvatori_di: fonte «%s» non letta per %s", nome, legacy_id)
+            return None
+
+    area_reparto = _fonte("area e reparto", lambda: _area_reparto(legacy_id))
+    area, reparto = area_reparto if area_reparto else (None, None)
+    principale = _capo_regola_unica(legacy_id)
+    co_capi = _co_capi_regola_unica(legacy_id)
+    if principale is None and co_capi is None:
+        principale = _fonte("responsabile effettivo", lambda: resolve_responsabile_effettivo(area=area, reparto=reparto))
+    if principale:
+        ids.add(int(principale))
+    if co_capi is not None:
+        # Regola unica: i co-capi sono le altre persone con la mansione del capo.
+        ids.update(co_capi)
+    else:
         if area is not None:
+            ids.update(_fonte("responsabili dell'area",
+                              lambda: {int(i) for i in area.responsabili.values_list("id", flat=True)}) or ())
+        if reparto is not None:
+            ids.update(_fonte("responsabili del reparto",
+                              lambda: {int(i) for i in reparto.responsabili.values_list("id", flat=True)}) or ())
+    if area is not None:
+        def _preposti_area():
             colleghi = DipendenteAnagraficaAziendale.objects.filter(area_aziendale=area).values_list(
                 "legacy_anagrafica_id", flat=True
             )
-            ids.update(
+            return {
                 int(i)
                 for i in DipendenteRuoloOperativo.objects.filter(
                     legacy_anagrafica_id__in=list(colleghi), ruolo_id__in=ruoli_preposto_ids(), data_fine__isnull=True
                 ).values_list("legacy_anagrafica_id", flat=True)
-            )
-    except Exception:
-        logger.warning("approvatori_di fallita per %s", legacy_id, exc_info=True)
+            }
+
+        ids.update(_fonte("preposti dell'area", _preposti_area) or ())
     ids.discard(int(legacy_id))  # nessuno approva la propria richiesta come capo di se stesso
     return ids
 

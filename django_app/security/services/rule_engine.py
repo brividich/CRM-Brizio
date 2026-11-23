@@ -1,7 +1,7 @@
 import logging
 
 from django.db import IntegrityError, transaction
-from django.db.models import Count
+from django.db.models import Count, F
 from django.utils import timezone
 
 from security.models import SecurityAlert, SecurityAlertActionLog, SecurityAlertRuleConfig, SecurityAlertSuppressionRule, SecurityEventRecord, Severity
@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 EVALUATION_ERROR = "evaluation_error"
+# Eventi valutati al massimo in un giro: il resto passa al giro successivo (audit P5).
+EVALUATION_BATCH = 2000
 
 
 def evaluate_security_rules():
@@ -29,11 +31,14 @@ def evaluate_security_rules():
     elaborazione») e gli altri proseguono.
     """
     evaluated = 0
-    for event in SecurityEventRecord.objects.filter(decision_trace={}).order_by("occurred_at"):
+    # Regole di soppressione lette una volta per giro, non a ogni evento (audit P5).
+    suppressions = list(SecurityAlertSuppressionRule.objects.filter(is_active=True))
+    pending = SecurityEventRecord.objects.filter(decision_trace={}).order_by("occurred_at")[:EVALUATION_BATCH]
+    for event in pending:
         evaluated += 1
         try:
             with transaction.atomic():
-                _evaluate_event(event)
+                _evaluate_event(event, suppressions=suppressions)
         except Exception as exc:  # noqa: BLE001 - un evento difettoso non ferma gli altri
             logger.exception("Valutazione regole fallita sull'evento %s (%s)", event.pk, event.event_type)
             _mark_evaluation_error(event, exc)
@@ -70,8 +75,8 @@ def _mark_evaluation_error(event, exc):
         logger.exception("Impossibile registrare l'errore di valutazione sull'evento %s", event.pk)
 
 
-def _evaluate_event(event):
-    suppression = _matching_suppression(event)
+def _evaluate_event(event, suppressions=None):
+    suppression = _matching_suppression(event, suppressions)
     if suppression:
         _mark_suppressed(event, suppression)
         return
@@ -100,8 +105,10 @@ def _apply_learned_escalation(event):
         logger.exception("Regola appresa non applicata all'evento %s", event.pk)
 
 
-def _matching_suppression(event):
-    for rule in SecurityAlertSuppressionRule.objects.filter(is_active=True):
+def _matching_suppression(event, suppressions=None):
+    if suppressions is None:
+        suppressions = SecurityAlertSuppressionRule.objects.filter(is_active=True)
+    for rule in suppressions:
         if rule.matches(event):
             return rule
     return None
@@ -113,9 +120,12 @@ def _mark_suppressed(event, rule):
     if rule.fingerprint:
         event.decision_trace.update({"learned": True, "fingerprint": rule.fingerprint, "rule_expires_at": rule.expires_at.isoformat() if rule.expires_at else None})
     event.save(update_fields=["suppressed", "decision_trace"])
+    # Contatore incrementato nel database: la regola può essere un'istanza condivisa dal giro.
+    now = timezone.now()
+    SecurityAlertSuppressionRule.objects.filter(pk=rule.pk).update(
+        hit_count=F("hit_count") + 1, last_hit_at=now, updated_at=now)
     rule.hit_count += 1
-    rule.last_hit_at = timezone.now()
-    rule.save(update_fields=["hit_count", "last_hit_at", "updated_at"])
+    rule.last_hit_at = now
 
 
 def _evaluate_vulnerability(event):

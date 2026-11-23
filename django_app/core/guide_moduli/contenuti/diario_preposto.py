@@ -134,7 +134,7 @@ GUIDA = {
             "perche": "è stata eliminata: resta archiviata con il motivo.",
             "fare": [
                 "Chi gestisce il modulo apre l'elenco e clicca «Eliminate».",
-                "Nella scheda legge chi l'ha eliminata e perché e, se serve, clicca «Ripristina».",
+                "Nella scheda legge chi l'ha eliminata e perché e, se serve, scrive il motivo del ripristino (almeno 5 caratteri) e clicca «Ripristina»: il motivo resta nella «Storia della segnalazione».",
             ],
         },
         {

@@ -59,9 +59,12 @@ class Conflitto:
     assenza_id: int | None
     tipo_assenza: str
     tipo_label: str
+    # Nome condiviso da più dipendenti in anagrafica: il conflitto può riguardare
+    # un'altra persona, va verificato (audit P12).
+    omonimo: bool = False
 
 
-def trova_conflitti(presenze, assenze_approvate) -> list[Conflitto]:
+def trova_conflitti(presenze, assenze_approvate, omonimi: set[str] | None = None) -> list[Conflitto]:
     """Logica pura di matching (testabile senza DB legacy).
 
     - ``presenze``: iterable con attributi ``id``, ``nome_dipendente``, ``data``,
@@ -106,6 +109,7 @@ def trova_conflitti(presenze, assenze_approvate) -> list[Conflitto]:
                     assenza_id=assenza_id,
                     tipo_assenza=tipo_key,
                     tipo_label=_TIPO_LABEL.get(tipo_key, tipo_key.capitalize()),
+                    omonimo=nome in (omonimi or ()),
                 )
             )
             break
@@ -151,6 +155,28 @@ def assenze_approvate(da: date, a: date) -> list[dict]:
     return out
 
 
+def nomi_omonimi() -> set[str]:
+    """Nomi normalizzati (in entrambi gli ordini nome/cognome) che in anagrafica
+    appartengono a più di un dipendente. Insieme vuoto se l'anagrafica non risponde."""
+    import logging
+    from collections import Counter
+
+    try:
+        from core.legacy_models import AnagraficaDipendente
+
+        righe = list(AnagraficaDipendente.objects.values_list("nome", "cognome"))
+    except Exception:  # noqa: BLE001 - la riconciliazione resta utile anche senza
+        logging.getLogger(__name__).exception("riconciliazione: anagrafica non letta per gli omonimi")
+        return set()
+    conta: Counter = Counter()
+    for nome, cognome in righe:
+        n, c = _norm_nome(nome), _norm_nome(cognome)
+        if not n and not c:
+            continue
+        conta.update({_norm_nome(f"{n} {c}"), _norm_nome(f"{c} {n}")})
+    return {chiave for chiave, volte in conta.items() if volte > 1}
+
+
 def conflitti(da: date, a: date) -> list[Conflitto]:
     """Conflitti presenza↔assenza nel periodo [da, a] (estremi inclusi)."""
     from .models import CertificazionePresenza
@@ -160,7 +186,7 @@ def conflitti(da: date, a: date) -> list[Conflitto]:
         .filter(data__gte=da, data__lte=a)
         .order_by("data", "nome_dipendente")
     )
-    return trova_conflitti(presenze, assenze_approvate(da, a))
+    return trova_conflitti(presenze, assenze_approvate(da, a), nomi_omonimi())
 
 
 def parse_periodo(da_str, a_str, *, default_da: date, default_a: date) -> tuple[date, date]:
