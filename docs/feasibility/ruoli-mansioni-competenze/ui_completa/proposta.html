@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Proposta: Dashboard e menu di Anagrafica</title>
+<link rel="stylesheet" href="file:///C:/Dev/pn-ambiente-test/django_app/core/static/core/vendor/outfit/outfit.css">
+<style>
+/* Bozza statica con dati inventati: colori, carattere e misure sono quelli del portale. */
+:root{--bg:#f2f5f8;--border:#d7e0ea;--primary:#002b5c;--accent:#ff6b00;--text:#1a202c;--mid:#4a5568;--light:#94a3b8;--sel:#e8f3fb;--ink:#0c2545}
+*{box-sizing:border-box}
+body{margin:0;background:#cfd8e3;font-family:"Outfit",sans-serif;font-size:14px;line-height:1.45;color:var(--text)}
+.schermo{width:1440px;margin:0 auto 40px;background:var(--bg);overflow:hidden}
+.top{height:60px;background:var(--primary);display:flex;align-items:center;gap:18px;padding:0 24px;color:#fff}
+.top b{font-size:17px;letter-spacing:.04em}
+.top .ut{margin-left:auto;font-size:13px;opacity:.9}
+.nav{background:#fff;border-bottom:1px solid var(--border);padding:6px 24px 0}
+.tabs{display:flex;gap:3px;padding-bottom:6px;align-items:center}
+.tabs a{padding:8px 12px;border-radius:9px;font-size:13px;font-weight:600;color:#5a6580}
+.tabs a.on{background:var(--ink);color:#fff}
+.tabs .dx{margin-left:auto;display:flex;gap:3px}
+.tabs .dx a{font-size:12.5px;color:#7b8699}
+.sub{display:flex;gap:3px;align-items:center;min-height:42px;border-top:1px solid #eef2f7;margin:0 -24px;padding:0 24px}
+.sub a{padding:6px 10px;border-radius:8px;font-size:12.5px;font-weight:600;color:#475569}
+.sub a.on{background:var(--sel);color:var(--ink)}
+.n{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;border-radius:999px;background:#ea580c;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.pagina{padding:18px 24px 28px}
+.testa{display:flex;align-items:center;gap:14px;margin:0 0 14px}
+.testa h1{font-size:22px;margin:0;font-weight:700}
+.cerca{flex:1;max-width:640px;height:38px;border:1px solid var(--border);border-radius:10px;background:#fff;display:flex;align-items:center;padding:0 12px;color:var(--light);font-size:13px;margin-left:18px}
+.btn{display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--border);background:#fff;font:600 13px "Outfit",sans-serif;color:var(--ink)}
+.btn.p{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.s{height:30px;padding:0 11px;font-size:12.5px}
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);margin:0 0 14px;overflow:hidden}
+.card h2{margin:0;padding:11px 16px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #eef2f7;display:flex;gap:8px;align-items:center}
+.card h2 small{margin-left:auto;font-size:12px;letter-spacing:0;text-transform:none;font-weight:600;color:#1f6fb0}
+table{width:100%;border-collapse:collapse}
+td{padding:10px 16px;border-bottom:1px solid #eef2f7;font-size:13.5px;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.forte{font-weight:600}
+td.num{width:70px;text-align:right;font-weight:700;font-size:15px}
+td.az{width:110px;text-align:right}
+.urg td:first-child{box-shadow:inset 3px 0 0 #ea580c}
+.grigio{color:#64748b}
+/* collegamenti diretti */
+.vai{display:grid;grid-template-columns:repeat(5,1fr);gap:0}
+.col{padding:14px 16px 16px;border-right:1px solid #eef2f7}
+.col:last-child{border-right:0}
+.col h3{margin:0 0 10px;font-size:13px;font-weight:700;color:var(--ink)}
+.lk{display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;margin:0 0 8px;border:1px solid var(--border);border-radius:10px;background:#fff;font-weight:600;font-size:13.5px;color:var(--ink)}
+.lk:last-child{margin-bottom:0}
+.lk i{flex:0 0 26px;height:26px;border-radius:7px;background:var(--sel);display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:14px}
+.lk.pr{border-color:#f3c9a6;background:#fff7f0}
+.lk.pr i{background:#ffe3cc}
+.lk .n{margin-left:auto}
+/* numeri */
+.numeri{display:grid;grid-template-columns:repeat(4,1fr)}
+.num4{padding:13px 16px;border-right:1px solid #eef2f7}
+.num4:last-child{border-right:0}
+.num4 b{display:block;font-size:22px;line-height:1.1}
+.num4 span{font-size:12.5px;color:#64748b}
+.num4.att b{color:#c2410c}
+/* mappa del menu */
+.mappa{padding:6px 0}
+.riga{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #eef2f7}
+.riga:last-child{border-bottom:0}
+.pil{flex:0 0 170px;padding:8px 12px;border-radius:9px;background:var(--ink);color:#fff;font-weight:600;font-size:13px}
+.pil.dx{background:#eef2f7;color:#475569}
+.voci{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+.v{padding:6px 10px;border-radius:8px;background:#f4f8fc;font-size:12.5px;font-weight:600;color:#334155;white-space:nowrap}
+.v.nuova{background:#fff7f0;border:1px solid #f3c9a6;color:#9a3412}
+.v.doppia{background:#e8f3fb;border:1px solid #9cc6e6;color:#0c2545}
+.dentro{flex:0 0 380px;font-size:12px;color:#64748b}
+.legenda{display:flex;gap:18px;padding:10px 16px;border-top:1px solid #eef2f7;font-size:12.5px;color:#64748b;align-items:center}
+.legenda .v{padding:3px 8px}
+</style>
+</head>
+<body>
+
+<!-- ═════════ 1. Dashboard proposta ═════════ -->
+<section class="schermo" id="s1">
+  <div class="top"><b>NOVICROM HUB</b><div class="ut">Elio Vantaro · Capo reparto</div></div>
+  <div class="nav">
+    <div class="tabs"><a class="on">Dashboard<span class="n">5</span></a><a>Persone</a><a>Organizzazione</a><a>Formazione</a><a>Qualifiche</a><a>Sicurezza</a>
+      <div class="dx"><a>Amministrazione</a><a>Report</a><a>Impostazioni</a></div></div>
+    <div class="sub"><a class="on">Panoramica</a><a>Da fare<span class="n">5</span></a><a>Scadenze</a></div>
+  </div>
+  <div class="pagina">
+    <div class="testa"><h1>Dashboard</h1><div class="cerca">Cerca una persona, una mansione, un corso, una qualifica…</div><span class="btn" style="margin-left:auto">Personalizza</span></div>
+
+    <div class="card">
+      <h2>Da fare <small>Tutte le cose da fare →</small></h2>
+      <table>
+        <tr class="urg"><td class="forte">Richieste da approvare</td><td class="grigio">Assegnazioni di mansione nel tuo reparto</td><td class="num">2</td><td class="az"><span class="btn s p">Decidi</span></td></tr>
+        <tr class="urg"><td class="forte">Formazione scaduta</td><td class="grigio">Corsi obbligatori oltre la scadenza</td><td class="num">3</td><td class="az"><span class="btn s">Apri</span></td></tr>
+        <tr><td class="forte">Visite mediche in scadenza</td><td class="grigio">Entro 60 giorni</td><td class="num">6</td><td class="az"><span class="btn s">Apri</span></td></tr>
+        <tr><td class="forte">Le mie richieste in attesa di altri</td><td class="grigio">Tocca a RDD</td><td class="num">1</td><td class="az"><span class="btn s">Apri</span></td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Vai a</h2>
+      <div class="vai">
+        <div class="col"><h3>Persone</h3>
+          <div class="lk"><i>👥</i>Elenco dipendenti</div>
+          <div class="lk pr"><i>＋</i>Nuovo dipendente</div>
+          <div class="lk"><i>🧑‍🤝‍🧑</i>Il mio team</div>
+          <div class="lk"><i>📁</i>Documenti</div></div>
+        <div class="col"><h3>Organizzazione</h3>
+          <div class="lk"><i>🧭</i>Esplora la struttura</div>
+          <div class="lk pr"><i>＋</i>Nuova richiesta</div>
+          <div class="lk"><i>🛠️</i>Mansioni</div>
+          <div class="lk"><i>▦</i>Skill matrix</div></div>
+        <div class="col"><h3>Formazione</h3>
+          <div class="lk"><i>📘</i>Corsi</div>
+          <div class="lk pr"><i>＋</i>Pianifica un corso</div>
+          <div class="lk"><i>📝</i>Sessioni formative<span class="n">2</span></div>
+          <div class="lk"><i>📊</i>Copertura</div></div>
+        <div class="col"><h3>Qualifiche</h3>
+          <div class="lk"><i>✅</i>Qualifiche</div>
+          <div class="lk"><i>⚙️</i>Processi qualificati</div>
+          <div class="lk"><i>🏭</i>Abilitazioni macchina</div>
+          <div class="lk"><i>📅</i>Scadenze<span class="n">3</span></div></div>
+        <div class="col"><h3>Sicurezza</h3>
+          <div class="lk"><i>🩺</i>Visite mediche</div>
+          <div class="lk"><i>📄</i>Referti da rivedere<span class="n">1</span></div>
+          <div class="lk"><i>🛡️</i>Conformità mansione</div>
+          <div class="lk"><i>⚠️</i>Mansioni di rischio</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>In numeri</h2>
+      <div class="numeri">
+        <div class="num4"><b>128</b><span>Persone in forza</span></div>
+        <div class="num4"><b>91%</b><span>Obblighi in regola</span></div>
+        <div class="num4 att"><b>4</b><span>Mansioni da guardare</span></div>
+        <div class="num4 att"><b>3</b><span>Qualifiche in scadenza</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 2. Menu proposto ═════════ -->
+<section class="schermo" id="s2">
+  <div class="pagina">
+    <div class="card" style="margin:0">
+      <h2>Menu proposto: pilastro e voci, due livelli</h2>
+      <div class="mappa">
+        <div class="riga"><span class="pil">Dashboard</span><div class="voci"><span class="v">Panoramica</span><span class="v nuova">Da fare</span><span class="v">Scadenze</span></div><span class="dentro">«Scadenzario» non è più un pilastro: è la voce «Scadenze».</span></div>
+        <div class="riga"><span class="pil">Persone</span><div class="voci"><span class="v">Dipendenti</span><span class="v">Il mio team</span><span class="v">Selezione</span><span class="v">Inserimenti</span><span class="v">Uscite</span><span class="v">Documenti</span></div><span class="dentro">«Nuovo dipendente» diventa il pulsante della pagina Dipendenti.</span></div>
+        <div class="riga"><span class="pil">Organizzazione</span><div class="voci"><span class="v">Struttura</span><span class="v">Mansioni</span><span class="v">Skill matrix</span><span class="v nuova">Richieste</span><span class="v doppia">Sessioni formative</span><span class="v">Reparti e costi</span></div><span class="dentro">Organigramma, revisioni e prova di un cambiamento si aprono da «Struttura».</span></div>
+        <div class="riga"><span class="pil">Formazione</span><div class="voci"><span class="v">Corsi</span><span class="v">Edizioni</span><span class="v doppia">Sessioni formative</span><span class="v">Piani</span><span class="v">Corsi online</span><span class="v">Copertura</span></div><span class="dentro">Le «Sessioni» dei corsi di oggi diventano «Edizioni». Istruttori dentro «Corsi».</span></div>
+        <div class="riga"><span class="pil">Qualifiche</span><div class="voci"><span class="v">Qualifiche</span><span class="v">Processi qualificati</span><span class="v">P11TF12</span><span class="v">Abilitazioni macchina</span><span class="v">Rinnovi</span><span class="v">Scadenze</span></div><span class="dentro">Matrice, validazione, refresh e copertura si aprono dalla loro pagina madre.</span></div>
+        <div class="riga"><span class="pil">Sicurezza</span><div class="voci"><span class="v">Visite mediche</span><span class="v">Referti</span><span class="v">Libretto sanitario</span><span class="v">Conformità mansione</span><span class="v">Cambi mansione</span><span class="v">Mansioni di rischio</span></div><span class="dentro">Cruscotto e sessioni di visita dentro «Visite mediche».</span></div>
+        <div class="riga"><span class="pil dx">Amministrazione</span><div class="voci"><span class="v">Cedolini</span><span class="v">Costo orario</span><span class="v">Ferie e permessi</span></div><span class="dentro">A destra, come oggi.</span></div>
+        <div class="riga"><span class="pil dx">Report</span><div class="voci"><span class="v">Report</span><span class="v">Chiedi un report</span></div><span class="dentro">«Report dipendenti» dentro «Report».</span></div>
+      </div>
+      <div class="legenda"><span class="v nuova">Voce nuova</span><span class="v doppia">Stessa pagina in due pilastri</span><span>Al massimo sei voci per pilastro, tutte visibili: niente terzo livello.</span></div>
+    </div>
+  </div>
+</section>
+</body>
+</html>
