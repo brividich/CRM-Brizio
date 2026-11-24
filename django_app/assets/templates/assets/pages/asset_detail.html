@@ -592,7 +592,7 @@
                     {% endif %}
                   </td>
                   <td>
-                    {% if comp.completed_by %}{{ comp.completed_by.get_full_name|default:comp.completed_by.username }}{% else %}&mdash;{% endif %}
+                    {% if comp.completed_by %}{% firstof comp.completed_by.get_full_name comp.completed_by.username %}{% else %}&mdash;{% endif %}
                   </td>
                   <td style="white-space:nowrap;">
                     {% if comp.cost_eur %}&euro;&nbsp;{{ comp.cost_eur|floatformat:2 }}{% else %}&mdash;{% endif %}

@@ -62,7 +62,7 @@
               <td><b>{{ r.kind }}</b></td>
               <td>{{ r.code|default:"—" }}</td>
               <td>{% if r.path %}<a class="prod-percorso" href="{{ r.path }}">{{ r.path }}</a>{% else %}—{% endif %}</td>
-              <td>{% if r.assigned_to %}{{ r.assigned_to.get_full_name|default:r.assigned_to.username }}{% else %}—{% endif %}</td>
+              <td>{% if r.assigned_to %}{% firstof r.assigned_to.get_full_name r.assigned_to.username %}{% else %}—{% endif %}</td>
               <td><span class="prod-stato">{{ r.get_status_display }}</span></td>
               {% if progetti|length > 1 %}<td><a href="{% url 'tasks:project_tech_refs' r.project_id %}">{{ r.project.name|truncatechars:40 }}</a></td>{% endif %}
             </tr>

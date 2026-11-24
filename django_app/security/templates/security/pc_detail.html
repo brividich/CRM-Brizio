@@ -261,7 +261,7 @@
         {% for i in pc.cve_all|slice:":60" %}
           <li data-grav="{% if i.cve.kev %}kev{% elif i.cve.cvss >= 9 %}critica{% elif i.cve.cvss >= 7 %}alta{% else %}altra{% endif %}" class="is-{% if i.grave %}critical{% else %}warning{% endif %}">
             <a class="pcs-mono" href="{% url 'security:cve_detail' i.cve.cve_id %}"><strong>{{ i.cve.cve_id }}</strong></a>
-            <small>{% if i.installation %}{{ i.installation.product_raw|default:i.installation.product }} {{ i.installation.version_raw }}{% endif %}{% if i.cve.kev %} · sfruttata (KEV){% endif %}</small>
+            <small>{% if i.installation %}{% firstof i.installation.product_raw i.installation.product %} {{ i.installation.version_raw }}{% endif %}{% if i.cve.kev %} · sfruttata (KEV){% endif %}</small>
             {% if i.cve.cvss %}<span class="pcs-score">{{ i.cve.cvss|floatformat:1 }}</span>{% endif %}
           </li>
         {% endfor %}

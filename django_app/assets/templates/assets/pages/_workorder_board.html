@@ -11,11 +11,11 @@
           <div class="wob-card" draggable="true" data-wo-id="{{ wo.id }}">
             <a class="wob-card-title" href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} — {{ wo.title|truncatechars:48 }}</a>
             <div class="wob-card-meta">
-              <span>{{ wo.asset.asset_tag|default:wo.asset.name }}</span>
+              <span>{% firstof wo.asset.asset_tag wo.asset.name %}</span>
               {% if wo.priority != 'NORMAL' %}<span class="as-badge {% if wo.priority == 'URGENT' %}as-badge--danger{% else %}as-badge--muted{% endif %}">{{ wo.get_priority_display }}</span>{% endif %}
             </div>
             <div class="wob-card-meta">
-              {% if wo.assigned_to %}<span>{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}</span>{% else %}<span class="wob-muted">Non assegnato</span>{% endif %}
+              {% if wo.assigned_to %}<span>{% firstof wo.assigned_to.get_full_name wo.assigned_to.username %}</span>{% else %}<span class="wob-muted">Non assegnato</span>{% endif %}
               {% if wo.due_at %}<span class="{% if wo.is_overdue %}wob-overdue{% endif %}">{{ wo.due_at|date:"d-m" }}</span>{% endif %}
             </div>
           </div>

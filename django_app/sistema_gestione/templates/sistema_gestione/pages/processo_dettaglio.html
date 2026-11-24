@@ -48,7 +48,7 @@
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-clipboard"/></svg>{{ processo.codice }} · {{ processo.nome }}{% if not processo.attivo %} <span class="fmd-badge fmd-b-grey">archiviato</span>{% endif %}</h1>
         <div class="mns-facts">
           <div class="mns-fact"><span class="mns-fact-l">Revisione</span><span class="mns-fact-v"><span class="fmd-badge fmd-b-cyan">Rev. {{ processo.revisione }}</span></span></div>
-          <div class="mns-fact"><span class="mns-fact-l">Responsabile</span><span class="mns-fact-v">{% if processo.responsabile %}{{ processo.responsabile.get_full_name|default:processo.responsabile.username }}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}</span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Responsabile</span><span class="mns-fact-v">{% if processo.responsabile %}{% firstof processo.responsabile.get_full_name processo.responsabile.username %}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}</span></div>
           <div class="mns-fact"><span class="mns-fact-l">Owner (ruolo)</span><span class="mns-fact-v">{% if processo.ruolo_owner %}{{ processo.ruolo_owner.etichetta }}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}{% if processo.tipo %} <span class="fmd-badge fmd-b-violet">{{ processo.get_tipo_display|lower }}</span>{% endif %}</span></div>
           <div class="mns-fact"><span class="mns-fact-l">Criticità</span><span class="mns-fact-v"><span class="fmd-badge {% if processo.criticita == 3 %}fmd-b-red{% elif processo.criticita == 2 %}fmd-b-amber{% else %}fmd-b-green{% endif %}">{{ processo.get_criticita_display|lower }}</span></span></div>
           <div class="mns-fact"><span class="mns-fact-l">Audit ogni</span><span class="mns-fact-v">{{ processo.frequenza_mesi }} mesi</span></div>
@@ -117,7 +117,7 @@
             <tbody>
               {% for r in pp.mansioni %}
               <tr>
-                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' r.mansione.pk %}">{{ r.mansione.display|default:r.mansione.competenza_key }}</a></td>
+                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' r.mansione.pk %}">{% firstof r.mansione.display r.mansione.competenza_key %}</a></td>
                 <td>{% if r.n_operativi %}<span class="fmd-badge fmd-b-green">{{ r.n_operativi }}</span>{% else %}<span class="fmd-badge fmd-b-red">nessuno</span>{% endif %}</td>
                 <td>{{ r.n_lista }}</td>
               </tr>
@@ -209,7 +209,7 @@ Suggerimento: {{ domanda.suggerimento }}{% endif %}</small></td>
                 <td class="fmd-nowrap"><a class="fmd-data-link" href="{% url 'registro_ofi:dettaglio' v.pk %}"><b>{{ v.numero }}</b></a> {% if v.tipo == "NC" %}<span class="fmd-badge fmd-b-red">NC</span>{% else %}<span class="fmd-badge fmd-b-amber">OFI</span>{% endif %}</td>
                 <td>{% if v.is_chiuso %}<span class="fmd-badge fmd-b-green">chiusa</span>{% else %}{{ v.get_fase_display }}{% endif %}</td>
                 <td class="prc-domanda" style="font-weight:400;">{{ v.opportunita|truncatechars:160|default:"—" }}</td>
-                <td>{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}</td>
+                <td>{% if v.responsabile %}{% firstof v.responsabile.get_full_name v.responsabile.username %}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}</td>
                 <td class="fmd-nowrap">{% if v.is_chiuso %}<span class="fmd-muted">{{ v.data_chiusura|date:"d/m/Y"|default:"—" }}</span>{% elif v.is_scaduto %}<span class="fmd-badge fmd-b-red">{{ v.data_richiesta|date:"d/m/Y" }}</span>{% else %}{{ v.data_richiesta|date:"d/m/Y"|default:"—" }}{% endif %}</td>
               </tr>
               {% endfor %}

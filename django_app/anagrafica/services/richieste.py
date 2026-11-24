@@ -34,7 +34,7 @@ from ..models import (
     LivelloSkm,
     ordinale_livello,
 )
-from ..models_richieste import ContatoreRichieste, RichiestaCompetenze, RichiestaEvento
+from ..models_richieste import ContatoreRichieste, RichiestaCompetenze, RichiestaEvento, RichiestaPartecipante
 from . import competenze_catalogo, struttura_vista
 from . import mansionario_competenze as mc
 from . import mansionario_struttura as mstr
@@ -152,7 +152,7 @@ def _evento(richiesta: R, a: Attore, azione: str, *, prima: str = "", dopo: str 
 
 @transaction.atomic
 def crea(a: Attore, *, tipo: str, persona_id: int, mansione_id=None, competenza_id=None, livello: str = "",
-         motivazione: str = "") -> R:
+         motivazione: str = "", altre_persone=(), onboarding: bool = False, inquadramento: str = "") -> R:
     motivazione = (motivazione or "").strip()
     livello = (livello or "").strip().upper()
     if tipo not in dict(R.TIPO_CHOICES):
@@ -189,17 +189,40 @@ def crea(a: Attore, *, tipo: str, persona_id: int, mansione_id=None, competenza_
         if livello not in LIVELLI:
             raise RichiestaNonValida("Scegli il livello da raggiungere.")
 
-    doppia = R.objects.filter(legacy_anagrafica_id=persona_id, tipo=tipo, mansione=mansione, competenza=competenza,
-                              stato__in=R.STATI_APERTI).first()
-    if doppia is not None:
-        raise RichiestaNonValida(f"C'è già una richiesta aperta uguale: {doppia.codice}.")
+    altre = []
+    if onboarding:
+        if tipo != R.TIPO_AGGIUNTA or not a.gestione:
+            raise RichiestaNonValida("La formazione in ingresso la chiede HR, con una richiesta di assegnazione.")
+        if inquadramento not in dict(R.INQUADRAMENTO_CHOICES):
+            raise RichiestaNonValida("Per la formazione in ingresso scegli l'inquadramento: decide il prefisso della matricola.")
+    else:
+        inquadramento = ""
+    for pid in dict.fromkeys(int(x) for x in (altre_persone or ()) if x):
+        if pid == persona_id:
+            continue
+        if tipo != R.TIPO_COMPETENZA:
+            raise RichiestaNonValida("Più persone insieme solo per una richiesta di competenza.")
+        if pid not in in_forza() or tipo not in tipi_ammessi(a, pid):
+            raise RichiestaNonValida("Una delle altre persone non è tra quelle per cui puoi chiedere.")
+        altre.append(pid)
+
+    for pid in [persona_id, *altre]:
+        doppia = (R.objects.filter(tipo=tipo, mansione=mansione, competenza=competenza, stato__in=R.STATI_APERTI)
+                  .filter(Q(legacy_anagrafica_id=pid) | Q(partecipanti__legacy_anagrafica_id=pid)).first())
+        if doppia is not None:
+            nome = struttura_vista._nomi([pid]).get(pid) or f"#{pid}"
+            raise RichiestaNonValida(f"C'è già una richiesta aperta uguale per {nome}: {doppia.codice}.")
 
     richiesta = R.objects.create(
         codice=_nuovo_codice(tipo), tipo=tipo, legacy_anagrafica_id=persona_id, mansione=mansione,
         competenza=competenza, livello=livello, motivazione=motivazione, richiedente=a.user,
+        onboarding=bool(onboarding), inquadramento=inquadramento,
         richiedente_legacy_id=a.legacy_id, richiedente_nome=a.nome[:160],
     )
-    _evento(richiesta, a, "Richiesta creata", dopo=richiesta.get_stato_display(), nota=motivazione)
+    for pid in altre:
+        RichiestaPartecipante.objects.create(richiesta=richiesta, legacy_anagrafica_id=pid)
+    nota = motivazione + (f"\nPersone: {1 + len(altre)}." if altre else "")
+    _evento(richiesta, a, "Richiesta creata", dopo=richiesta.get_stato_display(), nota=nota.strip())
     return richiesta
 
 
@@ -284,9 +307,9 @@ def decidi(a: Attore, richiesta: R, *, approva: bool, nota: str = "") -> R:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def puo_vedere(a: Attore, richiesta: R) -> bool:
+    persone = set(richiesta.persone_ids)
     return bool(a.gestione or a.ha(sigla_approva(richiesta)) or richiesta.richiedente_id == a.user.pk
-                or richiesta.legacy_anagrafica_id in a.team
-                or (a.legacy_id and richiesta.legacy_anagrafica_id == a.legacy_id))
+                or persone & set(a.team) or (a.legacy_id and a.legacy_id in persone))
 
 
 def visibili(a: Attore):
@@ -295,13 +318,13 @@ def visibili(a: Attore):
         return qs
     filtro = Q(richiedente=a.user)
     if a.team:
-        filtro |= Q(legacy_anagrafica_id__in=a.team)
+        filtro |= Q(legacy_anagrafica_id__in=a.team) | Q(partecipanti__legacy_anagrafica_id__in=a.team)
     if a.legacy_id:
-        filtro |= Q(legacy_anagrafica_id=a.legacy_id)
+        filtro |= Q(legacy_anagrafica_id=a.legacy_id) | Q(partecipanti__legacy_anagrafica_id=a.legacy_id)
     tipi = [t for t, s in SIGLA_APPROVA.items() if a.ha(s)]
     if tipi:
         filtro |= Q(tipo__in=tipi)
-    return qs.filter(filtro)
+    return qs.filter(pk__in=R.objects.filter(filtro).values("pk"))
 
 
 def tocca_a(richiesta: R) -> str:
@@ -325,8 +348,15 @@ def righe(richieste) -> list[dict]:
     richieste = list(richieste)
     nomi = struttura_vista._nomi(sorted({r.legacy_anagrafica_id for r in richieste}))
     oggi = timezone.localdate()
-    return [{"richiesta": r, "persona": nomi.get(r.legacy_anagrafica_id) or f"#{r.legacy_anagrafica_id}",
-             "tocca_a": tocca_a(r), "giorni": (oggi - timezone.localtime(r.creata_il).date()).days} for r in richieste]
+    out = []
+    for r in richieste:
+        persona = nomi.get(r.legacy_anagrafica_id) or f"#{r.legacy_anagrafica_id}"
+        altri = len(r.persone_ids) - 1
+        if altri > 0:
+            persona += f" e altre {altri}" if altri > 1 else " e un'altra persona"
+        out.append({"richiesta": r, "persona": persona, "tocca_a": tocca_a(r),
+                    "giorni": (oggi - timezone.localtime(r.creata_il).date()).days})
+    return out
 
 
 def da_fare(a: Attore) -> dict:

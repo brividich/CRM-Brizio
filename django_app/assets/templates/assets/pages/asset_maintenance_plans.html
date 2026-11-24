@@ -94,7 +94,7 @@
               <td class="md-nowrap">{{ occ.due_date|date:"d/m/Y" }}</td>
               <td class="md-nowrap">{{ occ.completed_on|date:"d/m/Y" }}</td>
               <td>{{ occ.plan.label }}</td>
-              <td>{% if occ.completed_by %}{{ occ.completed_by.get_full_name|default:occ.completed_by.username }}{% else %}<span class="md-sub">—</span>{% endif %}</td>
+              <td>{% if occ.completed_by %}{% firstof occ.completed_by.get_full_name occ.completed_by.username %}{% else %}<span class="md-sub">—</span>{% endif %}</td>
               <td>{{ occ.completion_notes|truncatechars:80 }}</td>
               <td>
                 {% for attachment in occ.attachments.all %}

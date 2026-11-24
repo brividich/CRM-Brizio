@@ -80,6 +80,26 @@ body.theme-dark .sf-fare small { color:var(--text-light); }
     </section></div>
     {% endif %}
 
+    {% if contatori %}
+    <div class="fx-blocco fx-largo"><section class="es-s-card" id="matricole">
+      <h2 class="es-s-h">Matricole dei nuovi assunti</h2>
+      <p class="rq-nota" style="padding:10px 16px 0;margin:0">Alla chiusura di una sessione di formazione in ingresso la persona riceve la matricola del suo inquadramento, se non ne ha già una. Un contatore spento non assegna niente: si accende quando la Qualità ha deciso il numero di partenza.</p>
+      <form method="post" action="{% url 'anagrafica:sessioni_matricole' %}">{% csrf_token %}
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+        <thead><tr><th>Prefisso</th><th>Inquadramento</th><th>Ultimo numero usato</th><th>Cifre</th><th>Prossima</th><th>Attivo</th></tr></thead>
+        <tbody>{% for c in contatori %}<tr>
+          <td><b>{{ c.prefisso }}</b></td><td>{{ c.inquadramento|capfirst }}</td>
+          <td><input type="number" name="ultimo_{{ c.pk }}" value="{{ c.ultimo }}" min="0" style="width:110px" aria-label="Ultimo numero usato per {{ c.prefisso }}"></td>
+          <td><input type="number" name="cifre_{{ c.pk }}" value="{{ c.cifre }}" min="1" max="8" style="width:70px" aria-label="Cifre per {{ c.prefisso }}"></td>
+          <td>{{ c.prossima }}</td>
+          <td><label><input type="checkbox" name="attivo_{{ c.pk }}" value="1"{% if c.attivo %} checked{% endif %}> {% if c.attivo %}Acceso{% else %}Spento{% endif %}</label></td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      <div style="padding:10px 16px 14px"><button type="submit" class="rq-btn rq-btn-p rq-btn-s">Salva i contatori</button></div>
+      </form>
+    </section></div>
+    {% endif %}
+
     {% if da_aprire %}
     <div class="fx-blocco fx-largo"><section class="es-s-card">
       <h2 class="es-s-h">Richieste approvate senza sessione <span>{{ da_aprire|length }}</span></h2>

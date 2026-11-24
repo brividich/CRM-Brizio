@@ -156,7 +156,7 @@ body.tk-wide .content sta in tasks.css.
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       </div>
       <div class="g-vrf-text">
-        Baseline attiva — fissata il {{ gantt_baseline.fixed_at|date:"d-m-Y H:i" }}{% if gantt_baseline.fixed_by %} da {{ gantt_baseline.fixed_by.get_full_name|default:gantt_baseline.fixed_by.username }}{% endif %}.
+        Baseline attiva — fissata il {{ gantt_baseline.fixed_at|date:"d-m-Y H:i" }}{% if gantt_baseline.fixed_by %} da {% firstof gantt_baseline.fixed_by.get_full_name gantt_baseline.fixed_by.username %}{% endif %}.
         I badge <strong>BL</strong> nelle righe mostrano lo scostamento in giorni sulla data fine.
       </div>
     </div>
@@ -556,13 +556,13 @@ body.tk-wide .content sta in tasks.css.
           {% for comment in project.comments.all %}
             <li class="comment-item">
               <div class="ts-card-meta" style="margin-bottom:6px;">
-                <strong style="color:var(--text);">{{ comment.author.get_full_name|default:comment.author.username }}</strong>
+                <strong style="color:var(--text);">{% firstof comment.author.get_full_name comment.author.username %}</strong>
                 <span style="color:var(--text-light);">{{ comment.created_at|date:"d-m-Y H:i" }}</span>
               </div>
               <div style="white-space:pre-wrap;font-size:13px;color:var(--text);line-height:1.6;">{{ comment.body }}</div>
               {% if comment.target_user %}
                 <div class="ts-card-text" style="margin-top:8px;">
-                  Notifica a: {{ comment.target_user.get_full_name|default:comment.target_user.username }}
+                  Notifica a: {% firstof comment.target_user.get_full_name comment.target_user.username %}
                 </div>
               {% endif %}
             </li>

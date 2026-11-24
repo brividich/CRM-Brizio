@@ -54,7 +54,7 @@
                   <select name="incaricato">
                     <option value="">Gruppo IN1</option>
                     {% for u in pool %}<option value="{{ u.pk }}"{% if u.pk == s.incaricato_id %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}
-                    {% if s.incaricato_id and s.incaricato not in pool %}<option value="{{ s.incaricato_id }}" selected>{{ s.incaricato.get_full_name|default:s.incaricato.username }}</option>{% endif %}
+                    {% if s.incaricato_id and s.incaricato not in pool %}<option value="{{ s.incaricato_id }}" selected>{% firstof s.incaricato.get_full_name s.incaricato.username %}</option>{% endif %}
                   </select>
                 </label>
                 <button type="submit" class="gs-btn" style="min-height:32px;">Salva</button>

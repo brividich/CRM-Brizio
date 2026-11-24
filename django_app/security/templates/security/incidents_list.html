@@ -99,7 +99,7 @@
             {% elif incident.deadline_list %}<span class="sec-badge sec-badge-success">Notifiche inviate</span>
             {% else %}<span class="sec-muted">Nessuna dovuta</span>{% endif %}
           </td>
-          <td>{% if incident.owner %}{{ incident.owner.get_full_name|default:incident.owner.username }}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
+          <td>{% if incident.owner %}{% firstof incident.owner.get_full_name incident.owner.username %}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
         </tr>
       {% empty %}
         <tr><td colspan="8" class="sec-empty">Nessun incidente corrisponde ai filtri.</td></tr>

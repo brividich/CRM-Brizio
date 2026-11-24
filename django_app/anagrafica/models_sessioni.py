@@ -23,11 +23,16 @@ from django.db import models
 
 from .models_skillmatrix import LivelloSkm
 
-__all__ = ["SessioneFormativa", "SessioneRiga", "SessioneEvento"]
+__all__ = ["SessioneFormativa", "SessionePartecipante", "SessioneRiga", "SessioneEvento", "ContatoreMatricola"]
 
 
 def _cartella_firme(istanza, nome: str) -> str:
+    """Non più usata dai campi (la firma è del partecipante): resta per le migrazioni già scritte."""
     return f"anagrafica/sessioni_formative/{istanza.codice}/firma_{nome}"
+
+
+def _cartella_firme_partecipante(istanza, nome: str) -> str:
+    return f"anagrafica/sessioni_formative/{istanza.sessione.codice}/firma_{istanza.legacy_anagrafica_id}_{nome}"
 
 
 def _cartella_registri(istanza, nome: str) -> str:
@@ -46,10 +51,6 @@ class SessioneFormativa(models.Model):
         (STATO_NEGATIVA, "Chiusa negativa"),
     ]
     STATI_APERTI = (STATO_APERTA, STATO_IN_CORSO)
-
-    FIRMA_PORTALE = "portale"
-    FIRMA_CARTA = "carta"
-    FIRMA_CHOICES = [(FIRMA_PORTALE, "Nel portale"), (FIRMA_CARTA, "Su carta, registrata")]
 
     codice = models.CharField(max_length=20, unique=True)
     richiesta = models.OneToOneField(
@@ -70,12 +71,6 @@ class SessioneFormativa(models.Model):
         default=False, help_text="Chi firma come approvatore ha visto i registri MOD.040 delle righe in affiancamento.",
     )
 
-    firma_persona_modo = models.CharField(max_length=8, choices=FIRMA_CHOICES, blank=True, default="")
-    firma_persona_registrata_da = models.CharField(max_length=160, blank=True, default="")
-    firma_persona_il = models.DateField(null=True, blank=True)
-    firma_persona_registrata_il = models.DateTimeField(null=True, blank=True)
-    firma_persona_file = models.FileField(upload_to=_cartella_firme, blank=True, max_length=300)
-
     chiusa_da_nome = models.CharField(max_length=160, blank=True, default="")
     chiusa_il = models.DateTimeField(null=True, blank=True)
     motivo_negativo = models.TextField(blank=True, default="")
@@ -91,6 +86,36 @@ class SessioneFormativa(models.Model):
     @property
     def aperta(self) -> bool:
         return self.stato in self.STATI_APERTI
+
+
+class SessionePartecipante(models.Model):
+    """Una persona della sessione e la sua firma di chiusura (una sola persona, o un gruppo per un corso collettivo)."""
+
+    FIRMA_PORTALE = "portale"
+    FIRMA_CARTA = "carta"
+    FIRMA_CHOICES = [(FIRMA_PORTALE, "Nel portale"), (FIRMA_CARTA, "Su carta, registrata")]
+
+    sessione = models.ForeignKey(SessioneFormativa, on_delete=models.CASCADE, related_name="partecipanti")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    firma_modo = models.CharField(max_length=8, choices=FIRMA_CHOICES, blank=True, default="")
+    firma_il = models.DateField(null=True, blank=True)
+    firma_registrata_da = models.CharField(max_length=160, blank=True, default="")
+    firma_registrata_il = models.DateTimeField(null=True, blank=True)
+    firma_file = models.FileField(upload_to=_cartella_firme_partecipante, blank=True, max_length=300)
+
+    class Meta:
+        ordering = ["sessione", "pk"]
+        constraints = [models.UniqueConstraint(fields=["sessione", "legacy_anagrafica_id"],
+                                               name="anag_sessione_partecipante_unico")]
+        verbose_name = "Partecipante di una sessione formativa"
+        verbose_name_plural = "Partecipanti delle sessioni formative"
+
+    def __str__(self) -> str:
+        return f"{self.sessione_id}: {self.legacy_anagrafica_id}"
+
+    @property
+    def firmato(self) -> bool:
+        return bool(self.firma_modo)
 
 
 class SessioneRiga(models.Model):
@@ -161,6 +186,10 @@ class SessioneRiga(models.Model):
     corso = models.ForeignKey(
         "anagrafica.TrainingCourse", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
     )
+    edizione = models.ForeignKey(
+        "anagrafica.TrainingSession", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        help_text="Edizione del corso a cui la persona è iscritta: data, docente ed esito vengono da lì.",
+    )
     docente_ente = models.CharField(max_length=200, blank=True, default="")
     data_corso = models.DateField(null=True, blank=True)
     verifica = models.CharField(max_length=10, choices=VERIFICA_CHOICES, blank=True, default="")
@@ -206,3 +235,30 @@ class SessioneEvento(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValueError("Il registro delle sessioni è di sola aggiunta: una riga non si cancella.")
+
+
+class ContatoreMatricola(models.Model):
+    """Numerazione della matricola per prefisso (specifica: CNO operatori, T impiegati tecnici, A amministrativi).
+
+    Spento finché la Qualità non decide il numero di partenza: con il contatore spento la sessione
+    d'ingresso si chiude senza matricola, e la storia lo dice.
+    """
+
+    prefisso = models.CharField(max_length=6, unique=True)
+    inquadramento = models.CharField(max_length=16, blank=True, default="")
+    ultimo = models.PositiveIntegerField(default=0, help_text="Ultimo numero usato: la prossima matricola è il successivo.")
+    cifre = models.PositiveSmallIntegerField(default=4, help_text="Cifre del numero, con gli zeri davanti.")
+    attivo = models.BooleanField(default=False)
+    aggiornato_da = models.CharField(max_length=160, blank=True, default="")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["prefisso"]
+        verbose_name = "Contatore delle matricole"
+        verbose_name_plural = "Contatori delle matricole"
+
+    def __str__(self) -> str:
+        return f"{self.prefisso}: {self.ultimo}"
+
+    def prossima(self) -> str:
+        return f"{self.prefisso}{self.ultimo + 1:0{self.cifre}d}"

@@ -51,7 +51,7 @@
             {% if occ.is_meter_based %}<span class="md-sub md-meter-due" style="display:block">a {{ occ.due_meter_value|floatformat:"-2" }} {{ row.meter.unit_label|default:row.meter.get_meter_type_display|default:"" }}{% if row.meter %} (ora {{ row.meter.current_value|floatformat:"-2" }}, {{ row.meter.freshness_label }}){% endif %}{% if not occ.meter_due_estimated %} · data stimata non disponibile{% endif %}</span>{% endif %}
           </td>
           <td>
-            <a class="md-op-title" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}" title="{{ occ.asset.asset_tag }}">{{ occ.asset.name|default:occ.asset.asset_tag }}</a>
+            <a class="md-op-title" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}" title="{{ occ.asset.asset_tag }}">{% firstof occ.asset.name occ.asset.asset_tag %}</a>
             <span class="md-sub">{% if occ.asset.name %}{{ occ.asset.asset_tag }}{% endif %}{% if occ.asset.reparto %}{% if occ.asset.name %} · {% endif %}{{ occ.asset.reparto }}{% endif %}</span>
           </td>
           <td>
@@ -63,9 +63,9 @@
               {% if occ.work_order_id %}
                 <span class="md-sub">
                   {% if wo.started_at %}
-                    In corso{% if wo.assigned_to %} — {{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}{% endif %} · dalle {{ wo.started_at|time:"H:i" }}
+                    In corso{% if wo.assigned_to %} — {% firstof wo.assigned_to.get_full_name wo.assigned_to.username %}{% endif %} · dalle {{ wo.started_at|time:"H:i" }}
                   {% elif wo.assigned_to %}
-                    Assegnata a {{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}
+                    Assegnata a {% firstof wo.assigned_to.get_full_name wo.assigned_to.username %}
                   {% else %}
                     Nessun assegnatario
                   {% endif %}
@@ -141,7 +141,7 @@
             </td>
           {% endif %}
           <td>
-            <a class="md-asset" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}" title="{{ occ.asset.asset_tag }}">{{ occ.asset.name|default:occ.asset.asset_tag }}</a>
+            <a class="md-asset" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}" title="{{ occ.asset.asset_tag }}">{% firstof occ.asset.name occ.asset.asset_tag %}</a>
             <span class="md-sub">{% if occ.asset.name %}{{ occ.asset.asset_tag }}{% endif %}{% if occ.asset.reparto %}{% if occ.asset.name %} · {% endif %}{{ occ.asset.reparto }}{% endif %}</span>
           </td>
           <td>

@@ -60,7 +60,7 @@ body.theme-dark .qs-btn-danger{background:rgba(229,62,62,.16);color:#fca5a5}
       <div><b>Scadenza</b>{% if sess.scadenza_effettiva %}{{ sess.scadenza_effettiva|date:"d-m-Y" }}{% else %}—{% endif %}</div>
       <div><b>Ente</b>{{ sess.ente|default:"—" }}</div>
       <div><b>Partecipanti</b>{{ rows|length }}</div>
-      <div><b>Registrata da</b>{% if sess.created_by %}{{ sess.created_by.get_full_name|default:sess.created_by.username }}{% else %}—{% endif %}</div>
+      <div><b>Registrata da</b>{% if sess.created_by %}{% firstof sess.created_by.get_full_name sess.created_by.username %}{% else %}—{% endif %}</div>
     </div>
     {% if sess.note %}<div style="margin-top:12px;font-size:13px;color:#475569;">📝 {{ sess.note }}</div>{% endif %}
   </div>

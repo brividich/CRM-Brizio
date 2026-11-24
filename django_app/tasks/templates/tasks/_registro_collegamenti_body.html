@@ -19,7 +19,7 @@ Contesto: registro_context (tasks/views/collegamenti.py).
 {% endif %}
 {% if fai_non_richiesto %}
 <div class="fai-regola">
-  <div><strong>FAI non richiesto per questo kickoff</strong> <span>Deciso{% if project.fai_non_richiesto_da %} da {{ project.fai_non_richiesto_da.get_full_name|default:project.fai_non_richiesto_da.username }}{% endif %} il {{ project.fai_non_richiesto_il|date:"d/m/Y" }}.</span></div>
+  <div><strong>FAI non richiesto per questo kickoff</strong> <span>Deciso{% if project.fai_non_richiesto_da %} da {% firstof project.fai_non_richiesto_da.get_full_name project.fai_non_richiesto_da.username %}{% endif %} il {{ project.fai_non_richiesto_il|date:"d/m/Y" }}.</span></div>
   {% if reg_gestisce %}<button type="button" class="btn btn-secondary btn-sm" data-rc-fai="0">Annulla</button>{% endif %}
 </div>
 {% elif fai_esito %}

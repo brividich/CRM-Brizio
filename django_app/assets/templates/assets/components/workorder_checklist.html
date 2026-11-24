@@ -103,7 +103,7 @@
 
             {% if item.is_skipped %}
               <div class="wod-cl-meta wod-cl-skipped">
-                Saltato{% if item.skipped_by %} da {{ item.skipped_by.get_full_name|default:item.skipped_by.username }}{% endif %} · {{ item.skip_reason }}
+                Saltato{% if item.skipped_by %} da {% firstof item.skipped_by.get_full_name item.skipped_by.username %}{% endif %} · {{ item.skip_reason }}
                 {% if is_open %}
                 <form method="post" action="{% url 'assets:wo_checklist_skip' workorder.id item.id %}"
                       hx-post="{% url 'assets:wo_checklist_skip' workorder.id item.id %}"
@@ -146,7 +146,7 @@
                     <summary>Apri intervento di verifica — su quale macchina?</summary>
                     <div class="wod-cl-followup-list">
                       {% for occurrence in checklist_followup_occurrences %}
-                        <a href="{% url 'assets:occurrence_followup_create' occurrence.pk %}?step={{ item.id }}">{{ occurrence.asset.asset_tag|default:occurrence.asset.name }}</a>
+                        <a href="{% url 'assets:occurrence_followup_create' occurrence.pk %}?step={{ item.id }}">{% firstof occurrence.asset.asset_tag occurrence.asset.name %}</a>
                       {% endfor %}
                     </div>
                   </details>
@@ -155,7 +155,7 @@
             {% endif %}
 
             {% if item.is_done and item.done_by and item.step_type == 'YES_NO' %}
-              <div class="wod-cl-meta">Fatto da {{ item.done_by.get_full_name|default:item.done_by.username }}{% if item.done_at %} il {{ item.done_at|date:"d-m-Y H:i" }}{% endif %}</div>
+              <div class="wod-cl-meta">Fatto da {% firstof item.done_by.get_full_name item.done_by.username %}{% if item.done_at %} il {{ item.done_at|date:"d-m-Y H:i" }}{% endif %}</div>
             {% endif %}
           </div>
         {% endfor %}

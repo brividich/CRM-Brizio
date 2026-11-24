@@ -22,7 +22,7 @@
           <div class="ka-striscia-pista">
             <a class="ka-striscia-barra {{ r.classe }}" href="{% url 'tasks:detail' r.task.pk %}"
                style="left:{{ r.sinistra|stringformat:'.2f' }}%;width:{{ r.larghezza|stringformat:'.2f' }}%"
-               title="{{ r.task.title }}{% if r.task.assigned_to %} · {{ r.task.assigned_to.get_full_name|default:r.task.assigned_to.username }}{% endif %}{% if r.task.due_date %} · entro {{ r.task.due_date|date:'d/m/Y' }}{% endif %}"
+               title="{{ r.task.title }}{% if r.task.assigned_to %} · {% firstof r.task.assigned_to.get_full_name r.task.assigned_to.username %}{% endif %}{% if r.task.due_date %} · entro {{ r.task.due_date|date:'d/m/Y' }}{% endif %}"
                aria-label="Apri {{ r.task.title }}"></a>
           </div>
         </div>

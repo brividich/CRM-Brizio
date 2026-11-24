@@ -16,7 +16,7 @@
       <span class="sec-code">#{{ case.pk }} · {% if case.origin == "manual" %}aperto a mano{% else %}automatico{% endif %}</span>
     </div>
     <div class="sec-fact-grid">
-      <div class="sec-fact"><span>Responsabile</span><strong>{% if case.assignee %}{{ case.assignee.get_full_name|default:case.assignee.username }}{% else %}Non assegnato{% endif %}</strong></div>
+      <div class="sec-fact"><span>Responsabile</span><strong>{% if case.assignee %}{% firstof case.assignee.get_full_name case.assignee.username %}{% else %}Non assegnato{% endif %}</strong></div>
       <div class="sec-fact"><span>Sorgente</span><strong>{{ case.source.name }}</strong></div>
       <div class="sec-fact"><span>Aperto il</span><strong>{{ case.created_at|date:"d M Y, H:i" }}</strong>{% if case.created_by %}<span>da {{ case.created_by.username }}</span>{% endif %}</div>
       <div class="sec-fact"><span>{% if case.closed_at %}Chiuso il{% else %}Aggiornato il{% endif %}</span><strong>{{ case.closed_at|default:case.updated_at|date:"d M Y, H:i" }}</strong></div>

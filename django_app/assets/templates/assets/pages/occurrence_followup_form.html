@@ -4,7 +4,7 @@
 
 {% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
 
-{% block assets_shell_title %}Intervento di verifica su {{ occurrence.asset.asset_tag|default:occurrence.asset.name }}{% endblock %}
+{% block assets_shell_title %}Intervento di verifica su {% firstof occurrence.asset.asset_tag occurrence.asset.name %}{% endblock %}
 {% block assets_shell_subtitle %}
   <p>Emerso durante «{{ occurrence.plan.label }}»{% if occurrence.work_order_id %} — ordine di lavoro #{{ occurrence.work_order_id }}{% endif %}.</p>
 {% endblock %}

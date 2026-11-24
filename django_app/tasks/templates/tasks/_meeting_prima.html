@@ -54,7 +54,7 @@ Contesto: views.meetings._prima_context.
             <div class="mprima-proposta-testo">
               <strong>{{ proposal.titolo }}</strong>
               <small>
-                {% if proposal.proposed_by %}{{ proposal.proposed_by.get_full_name|default:proposal.proposed_by.username }} &middot; {% endif %}{{ proposal.get_stato_display }}{% if proposal.nota_decisione %} &middot; {{ proposal.nota_decisione }}{% endif %}
+                {% if proposal.proposed_by %}{% firstof proposal.proposed_by.get_full_name proposal.proposed_by.username %} &middot; {% endif %}{{ proposal.get_stato_display }}{% if proposal.nota_decisione %} &middot; {{ proposal.nota_decisione }}{% endif %}
               </small>
               {% if proposal.nota %}<small>{{ proposal.nota }}</small>{% endif %}
             </div>

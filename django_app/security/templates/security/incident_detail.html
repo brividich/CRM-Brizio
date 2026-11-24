@@ -30,7 +30,7 @@
       <div class="sec-fact"><span>Rilevato il (conoscenza)</span><strong>{{ incident.detected_at|date:"d M Y, H:i" }}</strong></div>
       <div class="sec-fact"><span>Avvenuto il</span><strong>{{ incident.occurred_at|date:"d M Y, H:i"|default:"—" }}</strong></div>
       <div class="sec-fact"><span>Risolto il</span><strong>{{ incident.resolved_at|date:"d M Y, H:i"|default:"—" }}</strong></div>
-      <div class="sec-fact"><span>Responsabile</span><strong>{% if incident.owner %}{{ incident.owner.get_full_name|default:incident.owner.username }}{% else %}Non assegnato{% endif %}</strong></div>
+      <div class="sec-fact"><span>Responsabile</span><strong>{% if incident.owner %}{% firstof incident.owner.get_full_name incident.owner.username %}{% else %}Non assegnato{% endif %}</strong></div>
     </div>
     {% if incident.description %}<p style="white-space: pre-line; margin-top: 12px;">{{ incident.description }}</p>{% endif %}
 

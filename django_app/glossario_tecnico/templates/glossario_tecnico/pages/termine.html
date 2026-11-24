@@ -17,7 +17,7 @@
     <dl style="margin-top:14px">
       {% if t.esempio_disegno %}<dt>Esempio a disegno</dt><dd><code>{{ t.esempio_disegno }}</code></dd>{% endif %}
       {% if t.norma_rif %}<dt>Norma</dt><dd>{{ t.norma_rif }}</dd>{% endif %}
-      <dt>Stato</dt><dd>{% if t.stato == 'validato' %}<span class="sg-badge ok">Validato</span>{% if t.validato_da %} da {{ t.validato_da.get_full_name|default:t.validato_da.username }}{% endif %}{% if t.validato_il %} il {{ t.validato_il|date:'d/m/Y' }}{% endif %}{% elif t.stato == 'bozza' %}<span class="sg-badge warn">Bozza — da verificare</span>{% else %}<span class="sg-badge">Deprecato</span>{% endif %}</dd>
+      <dt>Stato</dt><dd>{% if t.stato == 'validato' %}<span class="sg-badge ok">Validato</span>{% if t.validato_da %} da {% firstof t.validato_da.get_full_name t.validato_da.username %}{% endif %}{% if t.validato_il %} il {{ t.validato_il|date:'d/m/Y' }}{% endif %}{% elif t.stato == 'bozza' %}<span class="sg-badge warn">Bozza — da verificare</span>{% else %}<span class="sg-badge">Deprecato</span>{% endif %}</dd>
       <dt>Origine</dt><dd>{{ t.get_fonte_display }}</dd>
       <dt>Assistente</dt><dd>{% if t.usa_nel_rag %}Usato quando validato{% else %}Escluso{% endif %}</dd>
       {% if puo_gestire and t.note_interne %}<dt>Note interne</dt><dd>{{ t.note_interne|linebreaksbr }}</dd>{% endif %}

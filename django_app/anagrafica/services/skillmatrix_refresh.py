@@ -80,6 +80,8 @@ def abilitazioni_reparto(reparto: str):
     return (
         AbilitazioneMacchina.objects
         .filter(Q(asset_id__in=asset_ids) | Q(competenza_id__in=comp_ids), in_lista=True)
+        # Le mansioni sospese non si rivalutano (specifica della Qualità, flusso 5): per riattivarle serve una richiesta.
+        .exclude(stato=AbilitazioneMacchina.STATO_SOSPESA)
         .select_related("asset", "competenza__asset").order_by("legacy_anagrafica_id", "competenza__display", "asset__name")
     )
 

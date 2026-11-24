@@ -29,7 +29,7 @@
           <td>{{ v.get_esito_display }}</td>
           <td class="sg-cell-text">{{ v.azione }}{% if v.ofi %}<br><span class="sg-muted">OFI n. {{ v.ofi.numero }}</span>{% endif %}</td>
           <td class="sg-cell-text">{{ v.note }}</td>
-          <td>{{ v.registrato_da.get_full_name|default:v.registrato_da.username|default:"" }}</td>
+          <td>{% firstof v.registrato_da.get_full_name v.registrato_da.username "" %}</td>
         </tr>
       {% empty %}
         <tr><td colspan="7" class="rc-empty">Nessuna attività registrata nel {{ anno }}.</td></tr>

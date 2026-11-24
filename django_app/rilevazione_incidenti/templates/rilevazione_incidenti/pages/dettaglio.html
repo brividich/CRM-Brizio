@@ -39,7 +39,7 @@ body.theme-dark .dps-ev-chiusura .dps-dot { background:#0fa596; border-color:#0f
   <div class="dp-eliminata">
     <div>
       <strong>Rilevazione eliminata</strong>
-      il {{ archiviata.archiviata_il|date:"d-m-Y H:i" }}{% if archiviata.archiviata_da %} da {{ archiviata.archiviata_da.get_full_name|default:archiviata.archiviata_da.get_username }}{% endif %}
+      il {{ archiviata.archiviata_il|date:"d-m-Y H:i" }}{% if archiviata.archiviata_da %} da {% firstof archiviata.archiviata_da.get_full_name archiviata.archiviata_da.get_username %}{% endif %}
       · motivo: {{ archiviata.motivo_archiviazione|default:"-" }}. Non conta negli elenchi e negli indici.
     </div>
     {% if can_edit_rspp %}

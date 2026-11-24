@@ -144,7 +144,7 @@
           <td class="sec-nowrap">{{ row.logout_at|date:"d/m/Y H:i"|default:"—" }}</td>
           <td class="sec-nowrap sec-num">{% if row.duration_seconds %}{{ row.duration_seconds|duration_hms }}{% else %}—{% endif %}</td>
           {% if has_method %}<td>{{ row.method|default:row.kind|default:"—" }}{% if row.reason %}<small class="sec-muted" style="display:block;max-width:34ch;" title="{{ row.reason }}">{{ row.reason|truncatechars:60 }}</small>{% endif %}</td>{% endif %}
-          <td>{{ row.firebox_name|default:row.source.name }}</td>
+          <td>{% firstof row.firebox_name row.source.name %}</td>
         </tr>
       {% empty %}
         <tr><td colspan="8" class="sec-empty">Nessun accesso registrato. Lo storico si popola quando arrivano i report «Authentication Allowed/Denied» del firewall.</td></tr>

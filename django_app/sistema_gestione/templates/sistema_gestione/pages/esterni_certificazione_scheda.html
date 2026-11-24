@@ -33,7 +33,7 @@
       {% for doc in documenti %}<tr>
         <td><a href="{% url 'sistema_gestione:esterni_certificazione_documento' cert.pk doc.pk %}">{{ doc.nome }}</a>{% if forloop.first %} <span class="sg-badge ok">Ultimo</span>{% endif %}</td>
         <td>{{ doc.emesso_il|date:"d/m/Y"|default:"—" }}</td><td>{{ doc.scade_il|date:"d/m/Y"|default:"—" }}</td>
-        <td>{{ doc.caricato_il|date:"d/m/Y" }}{% if doc.caricato_da %} · {{ doc.caricato_da.get_full_name|default:doc.caricato_da.username }}{% endif %}</td>
+        <td>{{ doc.caricato_il|date:"d/m/Y" }}{% if doc.caricato_da %} · {% firstof doc.caricato_da.get_full_name doc.caricato_da.username %}{% endif %}</td>
       </tr>{% endfor %}
     </tbody></table></div>{% else %}<p class="sg-muted">Nessuna copia caricata.</p>{% endif %}
     {% if puo_modificare %}<form method="post" enctype="multipart/form-data" action="{% url 'sistema_gestione:esterni_certificazione_documento_carica' cert.pk %}" class="sg-actions sg-upload">{% csrf_token %}

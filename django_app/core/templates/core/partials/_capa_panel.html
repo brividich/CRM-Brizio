@@ -42,7 +42,7 @@ body.theme-dark .capa-panel .st-ANNULLATA{background:var(--surface-alt,#0f1b2d);
       <span class="capa-panel-badge st-{{ it.stato }}">{{ it.get_stato_display }}</span>
       <a href="{% url 'capa_detail' it.pk %}">{{ it.titolo }}</a>
       <span class="capa-panel-meta">
-        {% if it.responsabile %}{{ it.responsabile.get_full_name|default:it.responsabile.username }}{% endif %}
+        {% if it.responsabile %}{% firstof it.responsabile.get_full_name it.responsabile.username %}{% endif %}
         {% if it.data_scadenza %} · scad. {{ it.data_scadenza|date:"d/m/Y" }}{% endif %}
       </span>
     </div>

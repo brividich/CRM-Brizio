@@ -93,7 +93,7 @@ body.theme-dark .rr-chip.on{background:#2563eb;border-color:#2563eb}
           </span>
           {% if riga.messaggio %}<div class="rr-msg">{{ riga.messaggio }}</div>{% endif %}
           {% if riga.confermato_da %}
-          <div class="rr-msg">confermato da {{ riga.confermato_da.get_full_name|default:riga.confermato_da.username }}
+          <div class="rr-msg">confermato da {% firstof riga.confermato_da.get_full_name riga.confermato_da.username %}
             il {{ riga.confermato_il|date:"d/m/Y H:i" }}</div>
           {% endif %}
         </td>

@@ -88,7 +88,7 @@
       <div class="md-conflict" style="margin:0 16px 12px">
         <h3>{{ move_conflicts|length }} manutenzioni in conflitto con «{{ selected_target.label }}»</h3>
         <p style="margin:0 0 6px">Sono gia' eseguite o annullate e il piano scelto ha una scadenza con lo stesso asset e la stessa data: non si possono unire.</p>
-        <ul>{% for occ in move_conflicts|slice:":20" %}<li>{{ occ.asset.asset_tag|default:occ.asset.name }} — {{ occ.due_date|date:"d/m/Y" }} ({{ occ.get_status_display }})</li>{% endfor %}</ul>
+        <ul>{% for occ in move_conflicts|slice:":20" %}<li>{% firstof occ.asset.asset_tag occ.asset.name %} — {{ occ.due_date|date:"d/m/Y" }} ({{ occ.get_status_display }})</li>{% endfor %}</ul>
       </div>
     {% endif %}
 

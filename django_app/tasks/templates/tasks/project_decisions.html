@@ -24,7 +24,7 @@
                   {% if decision.dettaglio %}<div class="tl-task-desc">{{ decision.dettaglio }}</div>{% endif %}
                 </td>
                 <td><span class="mf-issue-chip">{{ decision.get_impatto_display }}</span></td>
-                <td>{% if decision.decisa_da %}{{ decision.decisa_da.get_full_name|default:decision.decisa_da.username }}{% else %}&mdash;{% endif %}</td>
+                <td>{% if decision.decisa_da %}{% firstof decision.decisa_da.get_full_name decision.decisa_da.username %}{% else %}&mdash;{% endif %}</td>
                 <td>
                   <a class="tl-task-link" href="{% url 'tasks:project_meeting_detail' project.id decision.meeting_id %}">#{{ decision.meeting.numero }} {{ decision.meeting.label }}</a>
                 </td>

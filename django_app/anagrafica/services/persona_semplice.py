@@ -44,4 +44,16 @@ def costruisci(riga: dict, *, matricola: str = "") -> dict:
             competenze.append({"nome": v["voce"].nome, "mansione": r["mansione"].nome, "livello": es.livello(v["livello"]),
                                "richiesto": es.livello(v["minimo"]), "sotto": v["sotto"],
                                "manca": v["requisito"]})
-    return {"campi": campi, "mansioni": mansioni, "competenze": competenze, "legenda": es.LEGENDA}
+    from django.urls import reverse
+
+    from .storico_persona_pdf import sessioni_persona
+
+    sessioni = []
+    for s in sessioni_persona(legacy_id)[:20]:
+        tutte = list(s.righe.all())
+        sessioni.append({"codice": s.codice, "oggetto": s.richiesta.oggetto, "stato": s.get_stato_display(),
+                         "tono": {"positiva": "ok", "negativa": "danger", "in_corso": "warning"}.get(s.stato, "info"),
+                         "fatte": sum(1 for r in tutte if r.fatta), "totale": len(tutte),
+                         "url": reverse("anagrafica:sessione", args=[s.pk])})
+    return {"campi": campi, "mansioni": mansioni, "competenze": competenze, "legenda": es.LEGENDA, "sessioni": sessioni,
+            "url_storico": reverse("anagrafica:storico_competenze_pdf", args=[legacy_id])}

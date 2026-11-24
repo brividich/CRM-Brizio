@@ -6,7 +6,7 @@
 
 {% block assets_shell_title %}Rinvia la manutenzione{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>{{ occurrence.plan.label }} su <strong>{{ occurrence.asset.asset_tag|default:occurrence.asset.name }}</strong> — {% if occurrence.is_postponed %}oggi rinviata al {{ occurrence.due_date|date:"d/m/Y" }}{% else %}scadenza {{ occurrence.due_date|date:"d/m/Y" }}{% endif %}</p>
+  <p>{{ occurrence.plan.label }} su <strong>{% firstof occurrence.asset.asset_tag occurrence.asset.name %}</strong> — {% if occurrence.is_postponed %}oggi rinviata al {{ occurrence.due_date|date:"d/m/Y" }}{% else %}scadenza {{ occurrence.due_date|date:"d/m/Y" }}{% endif %}</p>
 {% endblock %}
 
 {% block assets_shell_toolbar %}
@@ -46,7 +46,7 @@
   {% if postponements %}
     <ul style="margin:0;padding-left:18px;font-size:var(--fs-sm)">
       {% for p in postponements %}
-        <li>{{ p.created_at|date:"d/m/Y H:i" }} — dal {{ p.from_date|date:"d/m/Y" }} al <strong>{{ p.to_date|date:"d/m/Y" }}</strong>{% if p.created_by %} · {{ p.created_by.get_full_name|default:p.created_by.get_username }}{% endif %}{% if p.reason %} — «{{ p.reason }}»{% endif %}</li>
+        <li>{{ p.created_at|date:"d/m/Y H:i" }} — dal {{ p.from_date|date:"d/m/Y" }} al <strong>{{ p.to_date|date:"d/m/Y" }}</strong>{% if p.created_by %} · {% firstof p.created_by.get_full_name p.created_by.get_username %}{% endif %}{% if p.reason %} — «{{ p.reason }}»{% endif %}</li>
       {% endfor %}
     </ul>
   {% else %}

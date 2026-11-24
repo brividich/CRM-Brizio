@@ -94,7 +94,7 @@
         {% for rule in learned_rules %}
           <li class="{% if not rule.is_active %}off{% endif %}">
             <span><strong>{{ rule.name }}</strong>
-              <small>{{ rule.severity|ui_label }} · scattata {{ rule.hit_count }} volt{{ rule.hit_count|pluralize:"a,e" }}{% if rule.created_by %} · da {{ rule.created_by.get_full_name|default:rule.created_by.username }}{% endif %} il {{ rule.created_at|date:"d/m/Y" }}</small></span>
+              <small>{{ rule.severity|ui_label }} · scattata {{ rule.hit_count }} volt{{ rule.hit_count|pluralize:"a,e" }}{% if rule.created_by %} · da {% firstof rule.created_by.get_full_name rule.created_by.username %}{% endif %} il {{ rule.created_at|date:"d/m/Y" }}</small></span>
             <form method="post" action="{% url 'security:escalation_rule_toggle' rule.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
               <button class="sec-button" type="submit">{% if rule.is_active %}Disattiva{% else %}Riattiva{% endif %}</button></form>
           </li>

@@ -180,8 +180,8 @@
       <div><dt>Tecnico</dt><dd>{{ session.technician|default:"—" }}</dd></div>
       <div><dt>Fornitore</dt><dd>{{ session.supplier|default:"—" }}</dd></div>
       <div><dt>Prossima scadenza indicata</dt><dd>{{ session.next_due_date|date:"d/m/Y"|default:"dalla frequenza" }}</dd></div>
-      <div><dt>Registrata da</dt><dd>{% if session.created_by %}{{ session.created_by.get_full_name|default:session.created_by.username }}{% else %}—{% endif %} · {{ session.created_at|date:"d/m/Y H:i" }}</dd></div>
-      {% if session.confirmed_at %}<div><dt>Confermata</dt><dd>{{ session.confirmed_at|date:"d/m/Y H:i" }}{% if session.confirmed_by %} da {{ session.confirmed_by.get_full_name|default:session.confirmed_by.username }}{% endif %}</dd></div>{% endif %}
+      <div><dt>Registrata da</dt><dd>{% if session.created_by %}{% firstof session.created_by.get_full_name session.created_by.username %}{% else %}—{% endif %} · {{ session.created_at|date:"d/m/Y H:i" }}</dd></div>
+      {% if session.confirmed_at %}<div><dt>Confermata</dt><dd>{{ session.confirmed_at|date:"d/m/Y H:i" }}{% if session.confirmed_by %} da {% firstof session.confirmed_by.get_full_name session.confirmed_by.username %}{% endif %}</dd></div>{% endif %}
     </dl>
     {% if session.notes %}<p style="padding:0 16px 14px;margin:0">{{ session.notes|linebreaksbr }}</p>{% endif %}
   </section>

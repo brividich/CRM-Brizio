@@ -108,8 +108,8 @@ body.theme-dark .wod-cl-skip-details summary{color:#fcd34d}
           {% for row in batch_rows %}
             <a class="wo-batch-item{% if row.is_current %} is-current{% endif %}" href="{{ row.url }}"{% if row.is_current %} aria-current="page"{% endif %}>
               <strong>#{{ row.number }}</strong>
-              <span>{{ row.wo.asset.asset_tag|default:row.wo.asset.name }}</span>
-              <small>{% if row.wo.due_at %}{{ row.wo.due_at|date:"d/m" }} · {% endif %}{{ row.wo.get_status_display }}{% if row.wo.assigned_to %} · {{ row.wo.assigned_to.get_full_name|default:row.wo.assigned_to.username }}{% endif %}</small>
+              <span>{% firstof row.wo.asset.asset_tag row.wo.asset.name %}</span>
+              <small>{% if row.wo.due_at %}{{ row.wo.due_at|date:"d/m" }} · {% endif %}{{ row.wo.get_status_display }}{% if row.wo.assigned_to %} · {% firstof row.wo.assigned_to.get_full_name row.wo.assigned_to.username %}{% endif %}</small>
             </a>
           {% endfor %}
         </div>
@@ -147,8 +147,8 @@ body.theme-dark .wod-cl-skip-details summary{color:#fcd34d}
         <div class="ux-card-body">
           <div class="ux-info-grid">
             <div class="ux-info-block"><label>Asset</label><strong><a class="ux-link" href="{{ workorder_asset_url }}">{{ workorder.asset.asset_tag }}</a></strong><span>{{ workorder.asset.name }}</span></div>
-            <div class="ux-info-block"><label>Assegnato a</label><strong>{% if workorder.assigned_to %}{{ workorder.assigned_to.get_full_name|default:workorder.assigned_to.username }}{% else %}—{% endif %}</strong></div>
-            <div class="ux-info-block"><label>Eseguito da</label><strong>{% if workorder.executed_by %}{{ workorder.executed_by.get_full_name|default:workorder.executed_by.username }}{% else %}—{% endif %}</strong></div>
+            <div class="ux-info-block"><label>Assegnato a</label><strong>{% if workorder.assigned_to %}{% firstof workorder.assigned_to.get_full_name workorder.assigned_to.username %}{% else %}—{% endif %}</strong></div>
+            <div class="ux-info-block"><label>Eseguito da</label><strong>{% if workorder.executed_by %}{% firstof workorder.executed_by.get_full_name workorder.executed_by.username %}{% else %}—{% endif %}</strong></div>
             <div class="ux-info-block"><label>Data apertura</label><strong>{{ workorder.opened_at|date:"d/m/Y H:i" }}</strong></div>
             <div class="ux-info-block"><label>Iniziato il</label><strong>{% if workorder.started_at %}{{ workorder.started_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</strong></div>
             <div class="ux-info-block"><label>Priorità</label><strong>{{ workorder.get_priority_display }}</strong></div>
@@ -294,7 +294,7 @@ body.theme-dark .wod-cl-skip-details summary{color:#fcd34d}
     <header class="ux-card-head"><div><h3>Cronologia intervento</h3><p>La traccia operativa resta visibile ma separata dal lavoro corrente.</p></div></header>
     <div class="ux-card-body ux-timeline">
       {% for log in logs %}
-      <div class="ux-event"><span class="ux-dot"></span><span class="ux-event-meta">{{ log.ts|date:"d/m/Y H:i" }}</span><strong>{% if log.author %}{{ log.author.get_full_name|default:log.author.username }}{% else %}Sistema{% endif %}</strong><span class="ux-event-detail">{{ log.note }}</span><span></span></div>
+      <div class="ux-event"><span class="ux-dot"></span><span class="ux-event-meta">{{ log.ts|date:"d/m/Y H:i" }}</span><strong>{% if log.author %}{% firstof log.author.get_full_name log.author.username %}{% else %}Sistema{% endif %}</strong><span class="ux-event-detail">{{ log.note }}</span><span></span></div>
       {% empty %}<div class="ux-empty">Nessun evento registrato.</div>{% endfor %}
     </div>
   </article>

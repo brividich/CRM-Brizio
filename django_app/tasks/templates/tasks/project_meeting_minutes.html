@@ -131,7 +131,7 @@
                         <span class="mf-issue-chip">{% if issue.is_resolved %}Risolto{% else %}Aperto{% endif %}</span>
                         {% if issue.punto_info %}<a class="md-punto-chip" href="#sec-agenda" title="{{ issue.punto_info.titolo }}">punto {{ issue.punto_info.num }}</a>{% endif %}
                         {% if issue.source_meeting and issue.source_meeting_id != meeting.pk %}<span class="mf-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
-                        {% if issue.assigned_to %}<span class="mf-issue-chip">{{ issue.assigned_to.get_full_name|default:issue.assigned_to.username }}</span>{% endif %}
+                        {% if issue.assigned_to %}<span class="mf-issue-chip">{% firstof issue.assigned_to.get_full_name issue.assigned_to.username %}</span>{% endif %}
                         {% if issue.due_date %}<span class="mf-issue-chip">Scad. {{ issue.due_date|date:"d-m-Y" }}</span>{% endif %}
                         {% if issue.linked_task %}<span class="mf-issue-chip">Task: {{ issue.linked_task.title }}</span>{% endif %}
                       </div>
@@ -190,7 +190,7 @@
                 <li>
                   <span class="mf-issue-chip">{{ decision.get_impatto_display }}</span>
                   {{ decision.testo }}
-                  {% if decision.decisa_da %}<span class="mf-decision-who">— {{ decision.decisa_da.get_full_name|default:decision.decisa_da.username }}</span>{% endif %}
+                  {% if decision.decisa_da %}<span class="mf-decision-who">— {% firstof decision.decisa_da.get_full_name decision.decisa_da.username %}</span>{% endif %}
                   {% if decision.punto_info %}<span class="md-punto-chip" title="{{ decision.punto_info.titolo }}">punto {{ decision.punto_info.num }}</span>{% endif %}
                 </li>
               {% endfor %}
@@ -233,7 +233,7 @@
                         <span class="mf-issue-chip">{{ action.get_status_display }}</span>
                         {% if action.punto_info %}<a class="md-punto-chip" href="#sec-agenda" title="{{ action.punto_info.titolo }}">punto {{ action.punto_info.num }}</a>{% endif %}
                         {% if action.source_meeting and action.source_meeting_id != meeting.pk %}<span class="mf-issue-chip">Da incontro {{ action.source_meeting.numero }}</span>{% endif %}
-                        {% if action.assigned_to %}<span class="mf-issue-chip">{{ action.assigned_to.get_full_name|default:action.assigned_to.username }}</span>{% endif %}
+                        {% if action.assigned_to %}<span class="mf-issue-chip">{% firstof action.assigned_to.get_full_name action.assigned_to.username %}</span>{% endif %}
                         {% if action.due_date %}<span class="mf-issue-chip">Scad. {{ action.due_date|date:"d-m-Y" }}</span>{% endif %}
                         {% if action.linked_task %}<span class="mf-issue-chip">Task: {{ action.linked_task.title }}</span>{% endif %}
                       </div>

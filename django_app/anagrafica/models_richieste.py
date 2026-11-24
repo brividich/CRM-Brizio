@@ -20,7 +20,7 @@ from django.db import models
 
 from .models_skillmatrix import LivelloSkm
 
-__all__ = ["RichiestaCompetenze", "RichiestaEvento", "ContatoreRichieste"]
+__all__ = ["RichiestaCompetenze", "RichiestaEvento", "ContatoreRichieste", "RichiestaPartecipante"]
 
 
 class ContatoreRichieste(models.Model):
@@ -81,6 +81,19 @@ class RichiestaCompetenze(models.Model):
     )
     motivazione = models.TextField(blank=True, default="")
 
+    INQ_OPERATORE = "operatore"
+    INQ_TECNICO = "tecnico"
+    INQ_AMMINISTRATIVO = "amministrativo"
+    INQUADRAMENTO_CHOICES = [
+        (INQ_OPERATORE, "Operatore"),
+        (INQ_TECNICO, "Impiegato tecnico"),
+        (INQ_AMMINISTRATIVO, "Impiegato amministrativo"),
+    ]
+    onboarding = models.BooleanField(
+        default=False, help_text="Formazione in ingresso di un nuovo assunto: alla chiusura si assegna la matricola.",
+    )
+    inquadramento = models.CharField(max_length=16, choices=INQUADRAMENTO_CHOICES, blank=True, default="")
+
     richiedente = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="richieste_competenze_fatte",
     )
@@ -118,10 +131,32 @@ class RichiestaCompetenze(models.Model):
         return self.stato in self.STATI_APERTI
 
     @property
+    def persone_ids(self) -> list[int]:
+        """La persona della richiesta e, per una competenza su un gruppo, gli altri partecipanti."""
+        altri = [p.legacy_anagrafica_id for p in self.partecipanti.all() if p.legacy_anagrafica_id != self.legacy_anagrafica_id]
+        return [self.legacy_anagrafica_id, *altri]
+
+    @property
     def oggetto(self) -> str:
         if self.mansione_id:
             return self.mansione.nome
         return self.competenza.nome if self.competenza_id else ""
+
+
+class RichiestaPartecipante(models.Model):
+    """Altre persone di una richiesta di competenza su un gruppo (corso collettivo: FOD, procedure, SGI)."""
+
+    richiesta = models.ForeignKey(RichiestaCompetenze, on_delete=models.CASCADE, related_name="partecipanti")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["richiesta", "legacy_anagrafica_id"],
+                                               name="anag_richiesta_partecipante_unico")]
+        verbose_name = "Partecipante di una richiesta"
+        verbose_name_plural = "Partecipanti delle richieste"
+
+    def __str__(self) -> str:
+        return f"{self.richiesta_id}: {self.legacy_anagrafica_id}"
 
 
 class RichiestaEvento(models.Model):

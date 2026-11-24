@@ -94,7 +94,7 @@
               <td>{{ d.destinatario|default:"—" }}</td>
               <td class="fmd-nowrap">{{ d.data_da|date:"d/m/Y" }} – {{ d.data_a|date:"d/m/Y" }}</td>
               <td>{{ d.get_formato_display }}</td>
-              <td>{{ d.generato_da.get_full_name|default:d.generato_da.username|default:"—" }}</td>
+              <td>{% firstof d.generato_da.get_full_name d.generato_da.username "—" %}</td>
               <td>{{ d.note|default:"" }}</td>
               <td class="fmd-nowrap">
                 <a href="{% url 'anagrafica:reportistica_archivio_download' d.pk %}" class="fmd-btn fmd-btn-ghost fmd-btn-mini" title="Scarica la copia archiviata (identica a quella consegnata)"><svg class="fmd-ico"><use href="#i-download"/></svg></a>

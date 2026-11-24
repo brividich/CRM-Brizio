@@ -43,7 +43,7 @@
       <ul>
         {% for conflict in conflicts %}
           <li>
-            <strong>{{ conflict.asset.asset_tag|default:conflict.asset.name }}</strong> —
+            <strong>{% firstof conflict.asset.asset_tag conflict.asset.name %}</strong> —
             {% for item in conflict.conflict_description %}{{ item.target }}: {{ item.recurrence }}{% if not forloop.last %} · {% endif %}{% endfor %}
             {% if can_manage %}
               — <a href="{% url 'assets:asset_plan_customize' conflict.asset.pk plan.pk %}">Personalizza</a>
@@ -141,7 +141,7 @@
                 <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
                 <td>{{ wo.title }}</td>
                 <td class="md-right">{{ wo.occurrence_count }}</td>
-                <td>{% if wo.assigned_to %}{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}{% else %}<span class="md-sub">da assegnare</span>{% endif %}</td>
+                <td>{% if wo.assigned_to %}{% firstof wo.assigned_to.get_full_name wo.assigned_to.username %}{% else %}<span class="md-sub">da assegnare</span>{% endif %}</td>
                 <td class="md-nowrap">{{ wo.opened_at|date:"d/m/Y" }}</td>
               </tr>
             {% endfor %}
@@ -162,8 +162,8 @@
               <td class="md-nowrap">{{ occ.due_date|date:"d/m/Y" }}</td>
               <td class="md-nowrap">{{ occ.completed_on|date:"d/m/Y" }}</td>
               <td class="md-nowrap">{% if occ.completed_on > occ.due_date %}<span class="md-badge badge-warning">in ritardo</span>{% else %}<span class="md-sub">nei termini</span>{% endif %}</td>
-              <td>{{ occ.asset.asset_tag|default:occ.asset.name }}</td>
-              <td>{% if occ.completed_by %}{{ occ.completed_by.get_full_name|default:occ.completed_by.username }}{% else %}<span class="md-sub">—</span>{% endif %}</td>
+              <td>{% firstof occ.asset.asset_tag occ.asset.name %}</td>
+              <td>{% if occ.completed_by %}{% firstof occ.completed_by.get_full_name occ.completed_by.username %}{% else %}<span class="md-sub">—</span>{% endif %}</td>
               <td>
                 {% for attachment in occ.attachments.all %}
                   <a href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">{{ attachment.original_name|default:"allegato" }}</a>{% if not forloop.last %}, {% endif %}

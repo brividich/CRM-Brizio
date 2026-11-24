@@ -31,7 +31,7 @@
       <input type="hidden" name="next" value="{% url 'tasks:mie_azioni' %}#spostamenti">
       <div class="ma-sp-testo">
         <a class="tl-task-link" href="{% url 'tasks:detail' sp.task_id %}">{{ sp.task.title }}</a>
-        <small>{{ sp.task.project.name }} · {{ sp.richiesto_da.get_full_name|default:sp.richiesto_da.username }} · {{ sp.fine_prima|date:"d/m"|default:"—" }} → <strong>{{ sp.fine_nuovo|date:"d/m"|default:"—" }}</strong>{% if sp.motivo %} · «{{ sp.motivo }}»{% endif %}</small>
+        <small>{{ sp.task.project.name }} · {% firstof sp.richiesto_da.get_full_name sp.richiesto_da.username %} · {{ sp.fine_prima|date:"d/m"|default:"—" }} → <strong>{{ sp.fine_nuovo|date:"d/m"|default:"—" }}</strong>{% if sp.motivo %} · «{{ sp.motivo }}»{% endif %}</small>
         {% include "tasks/_spostamento_cascata.html" with cascata=sp.cascata %}
       </div>
       <input class="input" type="date" name="inizio" value="{{ sp.inizio_nuovo|date:'Y-m-d' }}" aria-label="Inizio">

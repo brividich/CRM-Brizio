@@ -5,7 +5,7 @@
   <p class="pv-sub">Ticket #{{ case.pk }} · {{ case.source.name }} · aggiornato {{ case.updated_at|date:"d/m/Y H:i" }}</p>
 </header>
 <dl class="pv-facts">
-  <div><dt>Responsabile</dt><dd>{% if case.assignee %}{{ case.assignee.get_full_name|default:case.assignee.username }}{% else %}nessuno{% endif %}</dd></div>
+  <div><dt>Responsabile</dt><dd>{% if case.assignee %}{% firstof case.assignee.get_full_name case.assignee.username %}{% else %}nessuno{% endif %}</dd></div>
   <div><dt>Attività</dt><dd>{% if tasks %}{{ tasks_open }} da fare su {{ tasks|length }}{% else %}nessuna{% endif %}</dd></div>
   <div><dt>Alert</dt><dd>{{ alerts|length }}</dd></div>
   <div><dt>Aperto</dt><dd>{{ case.created_at|date:"d/m/Y" }}</dd></div>
