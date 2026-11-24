@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Organigramma a diagramma: un ambito alla volta, ricerca e vista ricordata
+
+- **Tolta la vista «Tutti gli ambiti»** (e «Ruoli senza ambito») dal diagramma: si apre sull'ambito con «alimenta il Ruolo aziendale», che comprende i ruoli non classificati, e la sessione ricorda l'ultimo scelto (`anagrafica/views/struttura.py` `_ambito_diagramma`, `organigramma_diagramma`; `services/organigramma_albero.py` `build_ruolo_albero(includi_senza=)`, `chiave_persona`). L'Albero resta com'era.
+- **Cerca persona o ruolo** nella barra (evidenzia, apre i rami, centra la tela) e **vista ricordata** nel browser: zoom, rami chiusi, posizione, per ambito (`templates/anagrafica/pages/organigramma_diagramma.html`, `partials/_org_posizione.html`). Link «? Guida» sulla pagina.
+- La modifica dalla tela e le sezioni «team» restano sospese, da studiare: le modifiche dovranno restare sul solo schema, con un riepilogo prima di salvare.
+- Guide: Centro guide `core/guide_moduli/contenuti/anagrafica.py` («organigramma-viste»). Scheda `docs/moduli/anagrafica.md`. Test: `anagrafica/tests_organigramma_diagramma.py`. Nessuna migrazione.
+
 ### Visite mediche: form più ordinati, data della visita di nuovo compilata in «Modifica»
 
 - **Segnalazione:** nei form delle visite «Esito» occupava troppo spazio rispetto a prescrizioni e note.
