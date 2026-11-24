@@ -2157,7 +2157,7 @@
                 {% if v.stesso_giorno %}<div style="margin-top:3px;font-size:11px;font-weight:600;color:#b45309;" title="Due visite della stessa famiglia nella stessa data: di solito è un doppione. Apri la visita e segnala come superata quella sbagliata.">⚠ Stesso giorno di {% for altra in v.stesso_giorno %}«{{ altra.tipo.nome }}»{% if not forloop.last %}, {% endif %}{% endfor %}: verificare</div>{% endif %}
               </td>
               <td class="dp-td-mid" style="padding:7px 8px;">{{ v.get_esito_display }}</td>
-              <td class="dp-td-mid" style="padding:7px 8px;">{% if v.data_scadenza %}{% if v.superata_il %}<span style="color:#94a3b8;">{{ v.data_scadenza|date:"d-m-Y" }}</span> <span style="font-size:11px;color:#64748b;">· superata</span>{% elif v.sostituita_da %}<span style="color:#94a3b8;">{{ v.data_scadenza|date:"d-m-Y" }}</span> <span style="font-size:11px;color:#64748b;">· {% if v.sostituita_da.data_svolgimento == v.data_svolgimento %}non corrente (stesso giorno){% else %}rinnovata il {{ v.sostituita_da.data_svolgimento|date:"d-m-Y" }}{% endif %}</span>{% else %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% endif %}{% else %}—{% endif %}</td>
+              <td class="dp-td-mid" style="padding:7px 8px;">{% if v.a_richiesta %}<span style="font-size:11px;color:#64748b;" title="Visita a richiesta: non è un rinnovo e non ha scadenza">A richiesta</span>{% elif v.data_scadenza %}{% if v.superata_il %}<span style="color:#94a3b8;">{{ v.data_scadenza|date:"d-m-Y" }}</span> <span style="font-size:11px;color:#64748b;">· superata</span>{% elif v.sostituita_da %}<span style="color:#94a3b8;">{{ v.data_scadenza|date:"d-m-Y" }}</span> <span style="font-size:11px;color:#64748b;">· {% if v.sostituita_da.data_svolgimento == v.data_svolgimento %}non corrente (stesso giorno){% else %}rinnovata il {{ v.sostituita_da.data_svolgimento|date:"d-m-Y" }}{% endif %}</span>{% else %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% endif %}{% else %}—{% endif %}</td>
               <td style="padding:7px 8px;">
                 {% if v.referti_documenti %}
                   {% for documento in v.referti_documenti %}
@@ -2227,6 +2227,9 @@
             <div class="dp-qual-field">
               <label class="dp-qual-label">Medico competente</label>
               <input type="text" name="medico_competente" class="dp-select" maxlength="200" style="width:100%;">
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label" title="Visita chiesta dal lavoratore o fuori periodicità: non ha scadenza e non sostituisce la visita periodica"><input type="checkbox" name="a_richiesta" value="1"> A richiesta (non è un rinnovo)</label>
             </div>
             <div class="dp-qual-field">
               <label class="dp-qual-label">Richiamo indicato dal medico</label>

@@ -3163,6 +3163,14 @@ class VisitaMedica(models.Model):
     esito = models.CharField(
         max_length=20, choices=Esito.choices, default=Esito.IDONEO
     )
+    # Visita a richiesta (del lavoratore o fuori periodicità): non è un rinnovo.
+    # Non ha scadenza e non prende il posto della visita periodica della famiglia
+    # (services.visite.ultime_visite_correnti_ids la salta).
+    a_richiesta = models.BooleanField(
+        default=False,
+        help_text="Visita chiesta dal lavoratore o fuori periodicità: non ha scadenza "
+                  "e non sostituisce la visita periodica.",
+    )
     # GDPR (E4): dati sanitari cifrati nel database (core/campi_cifrati.py).
     prescrizioni = CampoCifrato(blank=True, default="")
     medico_competente = models.CharField(max_length=200, blank=True, default="")
@@ -3244,7 +3252,10 @@ class VisitaMedica(models.Model):
     })
 
     def scadenza_naturale(self):
-        """Richiamo del medico se indicato, altrimenti data_svolgimento + durata del tipo."""
+        """Richiamo del medico se indicato, altrimenti data_svolgimento + durata del tipo.
+        Una visita a richiesta non scade mai."""
+        if self.a_richiesta:
+            return None
         if self.scadenza_medico:
             return self.scadenza_medico
         durata = self.tipo.durata_mesi or 0
@@ -3255,9 +3266,9 @@ class VisitaMedica(models.Model):
         campi = set(update_fields) if update_fields is not None else None
         # Con update_fields la scadenza si ricalcola solo se cambiano data o tipo:
         # azzerare in memoria scadenza_nota senza salvarla lascerebbe l'oggetto incoerente.
-        if (campi is None or campi & {"data_svolgimento", "tipo", "data_scadenza", "scadenza_medico"})                 and self.data_svolgimento and self.tipo_id:
+        if (campi is None or campi & {"data_svolgimento", "tipo", "data_scadenza", "scadenza_medico", "a_richiesta"})                 and self.data_svolgimento and self.tipo_id:
             self.data_scadenza = self.scadenza_naturale()
-            self.scadenza_nota = NOTA_SCADENZA_MEDICO if self.scadenza_medico else ""
+            self.scadenza_nota = NOTA_SCADENZA_MEDICO if self.scadenza_medico and not self.a_richiesta else ""
             if campi is not None:
                 kwargs["update_fields"] = list(campi | {"data_scadenza", "scadenza_nota"})
         super().save(*args, **kwargs)
