@@ -312,6 +312,10 @@ OLLAMA_DAILY_BRIEF_ENABLED = env_bool("OLLAMA_DAILY_BRIEF_ENABLED", True)
 # Timeout dedicato (piu' corto) per il brief giornaliero: non e' critico e non
 # deve occupare un worker per l'intero OLLAMA_REQUEST_TIMEOUT_SECONDS; degrada a fallback.
 OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS = int(env("OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS", "45") or "45")
+# Brief preparato all'alba dal cluster per chi lo ha aperto negli ultimi N giorni (ai_assistant/daily_brief_notturno.py).
+OLLAMA_DAILY_BRIEF_NOTTURNO = env_bool("OLLAMA_DAILY_BRIEF_NOTTURNO", True)
+OLLAMA_DAILY_BRIEF_NOTTURNO_GIORNI = int(env("OLLAMA_DAILY_BRIEF_NOTTURNO_GIORNI", "14") or "14")
+OLLAMA_DAILY_BRIEF_NOTTURNO_MAX = int(env("OLLAMA_DAILY_BRIEF_NOTTURNO_MAX", "150") or "150")
 # Timeout per la generazione di un report PDF (api/report/): piu' lungo del brief
 # perche' l'output e' un documento strutturato, ma comunque limitato.
 OLLAMA_REPORT_TIMEOUT_SECONDS = int(env("OLLAMA_REPORT_TIMEOUT_SECONDS", "120") or "120")
