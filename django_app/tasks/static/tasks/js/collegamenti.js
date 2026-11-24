@@ -6,6 +6,9 @@
    «+ Attività» l'attività non esiste ancora: le scelte restano in un campo
    nascosto (collegamenti_json) e si applicano al salvataggio.
 
+   Macchine come operazioni: numero e lavorazione si salvano all'uscita dal campo.
+   Programmi: un pulsante per il passo successivo (data-kc-passo).
+
    Lo script può essere caricato più volte (il pannello laterale lo riesegue):
    gli ascoltatori si montano una volta sola, sul documento. */
 (function () {
@@ -199,6 +202,12 @@
       if (!form.hidden) form.querySelector('[data-kc-code]').focus();
       return;
     }
+    if ((b = el.closest('[data-kc-passo]'))) {
+      b.disabled = true;
+      invia(root, { action: 'fase', chiave: b.closest('[data-kc-voce]').getAttribute('data-kc-voce'), valore: b.getAttribute('data-kc-passo') })
+        .then(function (j) { if (!j.ok) b.disabled = false; });
+      return;
+    }
     if ((b = el.closest('[data-kc-salva]'))) {
       var voce = b.closest('[data-kc-voce]');
       b.disabled = true;
@@ -231,6 +240,16 @@
     });
     document.addEventListener('change', function (e) {
       var el = e.target;
+      // Operazione e lavorazione di una macchina: si salvano appena si esce dal campo.
+      if (el.matches && el.matches('[data-kc-op-num], [data-kc-op-lav]')) {
+        var r = radice(el), riga = el.closest('[data-kc-voce]');
+        if (!r || !riga) return;
+        invia(r, {
+          action: 'operazione', chiave: riga.getAttribute('data-kc-voce'),
+          numero: riga.querySelector('[data-kc-op-num]').value, lavorazione: riga.querySelector('[data-kc-op-lav]').value
+        });
+        return;
+      }
       if (!el.matches || !el.matches('[data-kc-fase]') || !el.value) return;
       var root = radice(el);
       if (!root) return;
@@ -247,6 +266,10 @@
         e.preventDefault();
         var primo = root.querySelector('[data-kc-ris] button');
         if (primo) primo.click();
+      } else if (e.target.matches('[data-kc-op-num], [data-kc-op-lav]')) {
+        // Invio salva l'operazione senza mandare il form che contiene il riquadro.
+        e.preventDefault();
+        e.target.blur();
       } else if (e.target.matches('[data-kc-code], [data-kc-path]')) {
         e.preventDefault();
         var salva = e.target.closest('[data-kc-form]').querySelector('[data-kc-salva]');

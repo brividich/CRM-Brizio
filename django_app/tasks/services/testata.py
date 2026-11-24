@@ -45,7 +45,11 @@ def _primaria_incontro(project, incontro, pagina: str, *, gestisce: bool, puo_cr
         return {"label": "Termina l'incontro", "url": esito}
     if incontro.stato == MeetingStatus.PIANIFICATO:
         if incontro.data and incontro.data < oggi:
-            return {"label": "Registra l'esito", "url": esito}
+            # La data è passata ma l'incontro si può ancora condurre: il pulsante resta accanto.
+            return {
+                "label": "Registra l'esito", "url": esito,
+                "secondaria": {"label": "Conduci incontro", "url": reverse("tasks:project_meeting_run", args=ids)},
+            }
         return {"label": "Inizia l'incontro", "url": reverse("tasks:project_meeting_run", args=ids)}
     if not incontro.minuta_chiusa:
         return {

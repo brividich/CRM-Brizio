@@ -282,7 +282,7 @@ def assegna(
         extra_data=extra,
     )
     if asset is not None:
-        TaskExtraRef.objects.create(task=task, field_code=CAMPO_MACCHINA, asset=asset)
+        TaskExtraRef.objects.create(task=task, field_code=CAMPO_MACCHINA, asset=asset, operazione=10)
     if key in _escluse(project):
         project.tappe_escluse = [v for v in project.tappe_escluse if v != key]
         project.save(update_fields=["tappe_escluse"])

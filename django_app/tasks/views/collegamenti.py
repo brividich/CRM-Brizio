@@ -172,7 +172,8 @@ def collegamenti_cerca(request, project_id: int):
 @require_POST
 @task_permissions_required("tasks_view", api=True)
 def collegamenti_azione(request, task_id: int):
-    """Collega, aggiungi e collega, scollega, fase e codice del programma. Risponde con il riquadro aggiornato."""
+    """Collega, aggiungi e collega, scollega, operazione della macchina, fase e codice del programma.
+    Risponde con il riquadro aggiornato."""
     task = get_object_or_404(_detail_queryset(request), pk=task_id)
     if not task.project_id:
         return _errore("I collegamenti valgono per le attività di una commessa.")
@@ -227,6 +228,16 @@ def collegamenti_azione(request, task_id: int):
                 f"Tolta dall'ordine del giorno dell'incontro {tolto['codice']}" if tolto["tipo"] == svc.INCONTRO
                 else f"{svc.INFO[tolto['tipo']]['nome']} {tolto['codice']} scollegato".replace("  ", " ")
             )
+        elif azione == "operazione":
+            if not _puo(perm, svc.MACCHINA):
+                return nega
+            asset_id = chiave[4:] if chiave.startswith("mac:") else ""
+            if not asset_id.isdigit():
+                return _errore("Collegamento non valido.")
+            voce = svc.aggiorna_operazione(
+                task, int(asset_id), numero=post.get("numero", ""), lavorazione=post.get("lavorazione", ""),
+            )
+            messaggio = f"Operazione della macchina {voce['codice']} salvata"
         elif azione in ("fase", "aggiorna"):
             if not perm["programmi"]:
                 return nega

@@ -1202,6 +1202,10 @@ class TaskExtraRef(models.Model):
         blank=True,
         related_name="task_extra_refs",
     )
+    # Solo per le macchine dell'attività: il lavoro si fa in più operazioni (10, 20, …),
+    # ognuna sulla sua macchina con la sua lavorazione.
+    operazione = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Operazione")
+    lavorazione = models.CharField(max_length=120, blank=True, default="", verbose_name="Lavorazione")
 
     class Meta:
         indexes = [

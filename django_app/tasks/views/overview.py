@@ -134,7 +134,8 @@ def identity_check(request):
 def project_actions(request, project_id: int):
     """Mostra in un unico registro issue, attivita' e sotto-attivita'."""
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
-    include_closed = request.GET.get("closed") == "1"
+    # Le chiuse non spariscono: restano in fondo all'elenco, dopo le aperte.
+    include_closed = True
     all_actions = build_project_actions(project, include_closed=include_closed)
     # KPI = stessa funzione dei filtri della tabella: ogni tessera apre il
     # registro con il filtro che riproduce esattamente il suo numero.
@@ -156,6 +157,8 @@ def project_actions(request, project_id: int):
     }
     vista = vista if vista in {"mie", "ritardo", "da_confermare", "senza_responsabile"} else ""
     actions = filter_action_rows(all_actions, **filters, vista=vista, utente_id=request.user.id)
+    actions = sorted(actions, key=lambda row: not row.is_open)
+    prima_chiusa = next((i for i, row in enumerate(actions) if not row.is_open), None)
     owners = sorted(
         {(row.owner_id, row.owner_label) for row in all_actions if row.owner_id},
         key=lambda pair: pair[1].casefold(),
@@ -186,6 +189,9 @@ def project_actions(request, project_id: int):
                 in_ritardo=row.is_overdue, sotto=row.source_label,
             )
         righe.append(r)
+    # Dove cominciano le chiuse (se cade in questa pagina): lì l'elenco mette il separatore.
+    if prima_chiusa is not None and pagina.start_index() - 1 <= prima_chiusa < pagina.start_index() - 1 + len(righe):
+        righe[prima_chiusa - (pagina.start_index() - 1)]["primo_chiuso"] = len(actions) - prima_chiusa
     raggruppa = (request.GET.get("raggruppa") or "").strip()
     return render(
         request,
