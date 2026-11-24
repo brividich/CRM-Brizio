@@ -13,7 +13,7 @@ def contatori_spenti(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0241_sessioni_partecipanti'),
+        ('anagrafica', '0242_sessioni_partecipanti'),
     ]
 
     operations = [
