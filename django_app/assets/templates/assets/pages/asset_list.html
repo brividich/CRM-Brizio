@@ -7,6 +7,9 @@
 
 {% block assets_shell_head %}
 <style>
+.sds-pill{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;text-decoration:none;vertical-align:middle}
+.sds-pill.sds-ok{background:#dcfce7;color:#166534}.sds-pill.sds-da_rivedere{background:#fef3c7;color:#92400e}.sds-pill.sds-mancante{background:#fee2e2;color:#991b1b}
+body.theme-dark .sds-pill.sds-ok{background:rgba(22,101,52,.35);color:#86efac}body.theme-dark .sds-pill.sds-da_rivedere{background:rgba(146,64,14,.35);color:#fcd34d}body.theme-dark .sds-pill.sds-mancante{background:rgba(153,27,27,.35);color:#fca5a5}
 .ib,
 .tool { width: 40px; height: 40px; border: 1px solid #d8e2f2; border-radius: 10px; background: #f8fbff; color: #6a819f; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; }
 .ib:hover,
@@ -480,7 +483,7 @@ body.theme-dark .al-new-menu a:hover{background:rgba(59,130,246,.18);color:#93c5
               {% for asset in assets %}
                 <tr class="r assets-row-link" data-href="{% url 'assets:asset_view' asset.id %}" data-asset-id="{{ asset.id }}">
                   <td><input type="checkbox" class="row-select-cb" value="{{ asset.id }}"></td>
-                  <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div class="cell-main"><div class="cell-title">{% if asset.snmp_dot %}<span class="dot snmp-dot {{ asset.snmp_dot.css }}" title="{{ asset.snmp_dot.title }}" aria-label="{{ asset.snmp_dot.title }}" role="img"></span>{% endif %}{{ asset.name }}</div><div class="cell-sub">#{{ asset.asset_tag }}{% if asset.internal_number %} &middot; N.{{ asset.internal_number }}{% endif %}</div></div></div></td>
+                  <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div class="cell-main"><div class="cell-title">{% if asset.snmp_dot %}<span class="dot snmp-dot {{ asset.snmp_dot.css }}" title="{{ asset.snmp_dot.title }}" aria-label="{{ asset.snmp_dot.title }}" role="img"></span>{% endif %}{{ asset.name }}{% if asset.sds_stato %} <a class="sds-pill sds-{{ asset.sds_stato.codice }}" href="{% url 'schede_sicurezza:prodotto_detail' asset.prodotto_chimico_id %}" title="Apri il prodotto in Schede di sicurezza">{{ asset.sds_stato.etichetta }}</a>{% endif %}</div><div class="cell-sub">#{{ asset.asset_tag }}{% if asset.internal_number %} &middot; N.{{ asset.internal_number }}{% endif %}</div></div></div></td>
                   <td data-col="status">{% asset_status_badge asset %}</td>
                   <td data-col="category"><div class="cell-main"><div class="cell-title">{{ asset.category_label }}</div><div class="cell-sub">{{ asset.get_asset_type_display }}</div></div></td>
                   <td data-col="assigned">{% if asset.responsabile %}<div class="cell-main"><div class="cell-title">{{ asset.responsabile.nome }}</div><div class="cell-sub">{{ asset.responsabile.sotto|default:"-" }}</div></div>{% else %}<span class="cell-muted">Non assegnato</span>{% endif %}</td>

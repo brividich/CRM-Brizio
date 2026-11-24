@@ -39,6 +39,11 @@
 .cm-chip[data-kind="administrative"][aria-pressed="true"] { background:var(--cm-adm-bg); border-color:transparent; color:var(--cm-adm); }
 .cm-chip[data-kind="license"][aria-pressed="true"] { background:var(--cm-lic-bg); border-color:transparent; color:var(--cm-lic); }
 .cm-chip[data-kind="contract"][aria-pressed="true"] { background:var(--cm-con-bg); border-color:transparent; color:var(--cm-con); }
+.cm-chip[data-kind="document"][aria-pressed="true"] { background:#ccfbf1; border-color:transparent; color:#0f766e; }
+.cm-dot-document { background:#0d9488; }
+.cm-kind.k-document { background:#ccfbf1; color:#0f766e; }
+.cm-ev.k-document { --cm-k:#0d9488; --cm-k-bg:#ccfbf1; }
+body.theme-dark .cm-kind.k-document, body.theme-dark .cm-chip[data-kind="document"][aria-pressed="true"] { background:rgba(13,148,136,.25); color:#5eead4; }
 .cm-chip[data-kind="check"][aria-pressed="true"] { background:var(--cm-chk-bg); border-color:transparent; color:var(--cm-chk); }
 .cm-chip[data-kind="machine_work"][aria-pressed="true"] { background:var(--cm-mw-bg); border-color:transparent; color:var(--cm-mw); }
 .cm-dot-ordinary { background:var(--cm-ord); } .cm-dot-administrative { background:var(--cm-adm); }

@@ -7,7 +7,7 @@
 
 {% block assets_shell_head %}
 {% include "assets/components/maintenance_domain_styles.html" %}
-<link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail.css' %}?v=20261124">
+<link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail.css' %}?v=20261124b">
 {% if asset.asset_type == "WORK_MACHINE" or asset.asset_type == "CNC" %}
 {# FullCalendar 6 inietta la propria CSS dal bundle JS: nessun file CSS separato. #}
 <link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail-2.css' %}?v=20261112">
@@ -121,6 +121,7 @@
             {% endif %}{% endfor %}
             {% if asset_report_pdf_url %}<a href="{{ asset_report_pdf_url }}" target="_blank" rel="noopener">&#8595; Report PDF</a>{% endif %}
             <a href="{% url 'assets:asset_detail_export_xlsx' asset.id %}" title="Scarica scheda in Excel">&#8595; Scarica XLSX</a>
+            {% if can_manage_asset_doc_folders and asset.asset_type != "WORK_MACHINE" and asset.asset_type != "PRODOTTO_CHIMICO" %}<a href="{% url 'assets:asset_create' %}?da_asset={{ asset.id }}" title="Nuovo asset con categoria, reparto, marca, modello e cartelle documento di questo">+ Nuovo asset come questo</a>{% endif %}
             {% if layout_manage_url %}<a href="{{ layout_manage_url }}">Configura layout</a>{% endif %}
             {% if can_retire_asset %}
               <form method="post" class="af-pop-form" data-hub-confirm="{% if asset_is_retired %}Riportare «{{ asset.name }}» in uso?{% else %}Dismettere «{{ asset.name }}»? Verrà segnato come «Dismesso» e nascosto dagli elenchi (reversibile con «Riattiva»).{% endif %}">
@@ -730,6 +731,8 @@
                   <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;border:2px solid #fecaca;flex-shrink:0;"></div>
                   {% elif row.tipo == "workorder" %}
                   <div style="width:10px;height:10px;border-radius:50%;background:#3b82f6;border:2px solid #bfdbfe;flex-shrink:0;"></div>
+                  {% elif row.tipo == "ticket" %}
+                  <div style="width:10px;height:10px;border-radius:50%;background:#0d9488;border:2px solid #99f6e4;flex-shrink:0;"></div>
                   {% else %}
                   <div style="width:10px;height:10px;border-radius:50%;background:#8b5cf6;border:2px solid #ddd6fe;flex-shrink:0;"></div>
                   {% endif %}
@@ -737,10 +740,10 @@
                 <div style="flex:1;min-width:0;">
                   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                     <span class="af-chip"
-                      style="{% if row.tipo == 'incidente' %}color:#b91c1c;background:#fee2e2;{% elif row.tipo == 'workorder' %}color:#1e40af;background:#dbeafe;{% else %}color:#5b21b6;background:#ede9fe;{% endif %}">{{ row.tipo_label }}</span>
+                      style="{% if row.tipo == 'incidente' %}color:#b91c1c;background:#fee2e2;{% elif row.tipo == 'workorder' %}color:#1e40af;background:#dbeafe;{% elif row.tipo == 'ticket' %}color:#0f766e;background:#ccfbf1;{% else %}color:#5b21b6;background:#ede9fe;{% endif %}">{{ row.tipo_label }}</span>
                     {% if row.data %}<span style="font-size:var(--fs-xs);color:#94a3b8;">{{ row.data|date:"d-m-Y" }}</span>{% endif %}
                   </div>
-                  <div style="font-size:var(--fs-sm);color:#374151;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.titolo }}">{{ row.titolo }}</div>
+                  <div style="font-size:var(--fs-sm);color:#374151;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.titolo }}">{% if row.url %}<a href="{{ row.url }}">{{ row.titolo }}</a>{% else %}{{ row.titolo }}{% endif %}</div>
                   {% if row.dettaglio %}<div style="font-size:var(--fs-xs);color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.dettaglio }}">{{ row.dettaglio }}</div>{% endif %}
                 </div>
               </div>
@@ -1110,15 +1113,19 @@
             </div>
           </div>
         {% elif card.code == "DOCUMENTS" %}
+          <div class="af-doc-cerca-riga">
+            <input type="search" class="af-doc-cerca" placeholder="Cerca tra i documenti di tutte le cartelle…" aria-label="Cerca tra i documenti dell'asset" data-doc-cerca>
+            <span class="af-doc-cerca-esito" data-doc-cerca-esito aria-live="polite"></span>
+          </div>
           <div class="af-doc-tabs">
             {% for spec in doc_category_specs %}
               <button
                 type="button"
-                class="af-doc-tab {% if forloop.first %}is-active{% endif %}"
+                class="af-doc-tab {% if forloop.first %}is-active{% endif %}{% if not spec.count %} is-vuota{% endif %}"
                 data-doc-tab="{{ spec.code }}"
                 {% if spec.scope == "asset" %}title="Cartella di questo asset"{% elif spec.scope == "category" %}title="Cartella di tutta la categoria"{% elif spec.scope == "orphan" %}title="Cartella della categoria precedente: i file restano qui"{% endif %}
               >
-                {{ spec.label }}{% if spec.scope == "asset" %} <span class="af-doc-tab-scope">solo qui</span>{% elif spec.scope == "orphan" %} <span class="af-doc-tab-scope">categoria precedente</span>{% endif %}
+                {{ spec.label }}{% if spec.scope == "asset" %} <span class="af-doc-tab-scope">solo qui</span>{% elif spec.scope == "orphan" %} <span class="af-doc-tab-scope">categoria precedente</span>{% endif %} <span class="af-doc-tab-n" data-doc-tab-n>{{ spec.count|default:0 }}</span>
               </button>
             {% endfor %}
           </div>
@@ -1185,6 +1192,35 @@
                   </div>
                 </div>
               </form>
+              {% if spec.count or spec.scope == "asset" and can_manage_asset_doc_folders %}
+              <div class="af-doc-strumenti">
+                {% if spec.count %}<a class="af-btn" href="{% url 'assets:asset_document_folder_zip' asset.id key %}" title="Scarica tutti i file di «{{ label }}» in un unico file ZIP">Scarica ZIP ({{ spec.count }})</a>{% endif %}
+                {% if spec.scope == "asset" and can_manage_asset_doc_folders %}
+                  <details class="af-doc-rinomina">
+                    <summary class="af-btn">Rinomina cartella</summary>
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="rinomina_cartella_asset">
+                      <input type="hidden" name="folder_id" value="{{ spec.folder_id }}">
+                      <input type="text" name="folder_name" value="{{ label }}" maxlength="120" required aria-label="Nuovo nome della cartella">
+                      <button class="af-btn af-btn-secondary" type="submit">Salva</button>
+                    </form>
+                  </details>
+                {% endif %}
+                {% if spec.count and can_manage_asset_doc_folders and doc_category_specs|length > 1 %}
+                  <form method="post" class="af-doc-sposta" id="sposta-{{ key }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="sposta_documenti">
+                    <label for="sposta-dest-{{ key }}">Sposta i selezionati in</label>
+                    <select id="sposta-dest-{{ key }}" name="destinazione" required>
+                      <option value="">— cartella —</option>
+                      {% for altra in doc_category_specs %}{% if altra.code != key %}<option value="{{ altra.code }}">{{ altra.label }}</option>{% endif %}{% endfor %}
+                    </select>
+                    <button class="af-btn af-btn-secondary" type="submit">Sposta</button>
+                  </form>
+                {% endif %}
+              </div>
+              {% endif %}
               {% with groups=documents_by_category|dict_get:key %}
                 {% if groups %}
                   {% comment %}
@@ -1202,14 +1238,25 @@
                       <div class="af-table-wrap">
                         <table class="af-table af-doc-table">
                           <thead>
-                            <tr><th>Nome</th><th>Dimensione</th><th>Data</th><th>Origine</th><th>Note</th><th></th></tr>
+                            <tr><th>Nome</th><th>Dimensione</th><th>Data</th><th>Scadenza</th><th>Origine</th><th>Note</th><th></th></tr>
                           </thead>
                           <tbody>
                             {% for doc in group.documents %}
-                              <tr>
-                                <td class="af-doc-name">{{ doc.name }}</td>
+                              <tr data-doc-riga>
+                                <td class="af-doc-name">{% if can_manage_asset_doc_folders and doc.id %}<label class="af-doc-sel"><input type="checkbox" name="document_ids" value="{{ doc.id }}" form="sposta-{{ key }}" aria-label="Seleziona {{ doc.name }} per spostarlo"><span>{{ doc.name }}</span></label>{% else %}{{ doc.name }}{% endif %}</td>
                                 <td style="white-space:nowrap;">{{ doc.size|default:"" }}</td>
                                 <td style="white-space:nowrap;">{{ doc.date|default:"" }}</td>
+                                <td class="af-doc-scad">
+                                  {% if doc.id and can_manage_asset_doc_folders %}
+                                    <form method="post" class="af-doc-scad-form">
+                                      {% csrf_token %}
+                                      <input type="hidden" name="action" value="scadenza_documento">
+                                      <input type="hidden" name="document_id" value="{{ doc.id }}">
+                                      <input type="date" name="data_scadenza" value="{{ doc.scadenza|date:'Y-m-d' }}" aria-label="Scadenza di {{ doc.name }}" data-doc-scad>
+                                    </form>
+                                  {% elif doc.scadenza %}{{ doc.scadenza|date:"d/m/Y" }}{% endif %}
+                                  {% if doc.scad_stato == "scaduto" %}<span class="af-doc-scad-badge is-scaduto">Scaduto</span>{% elif doc.scad_stato == "in_scadenza" %}<span class="af-doc-scad-badge is-presto">In scadenza</span>{% endif %}
+                                </td>
                                 <td>{% if doc.kind == "uploaded" %}File portale{% else %}Collegamento{% endif %}</td>
                                 <td>{{ doc.meta|default:"" }}</td>
                                 <td>
@@ -1510,6 +1557,50 @@
       activate(tab.getAttribute("data-doc-tab"));
     });
   });
+
+  /* Scadenza documento: salva appena si sceglie la data. */
+  document.querySelectorAll("[data-doc-scad]").forEach(function (campo) {
+    campo.addEventListener("change", function () { campo.form.requestSubmit(); });
+  });
+
+  /* Cerca tra i documenti di tutte le cartelle: filtra le righe, mostra quanti
+     risultati ha ogni cartella e apre la prima che ne ha. */
+  const cerca = document.querySelector("[data-doc-cerca]");
+  const esito = document.querySelector("[data-doc-cerca-esito]");
+  if (cerca) {
+    const totali = {};
+    tabs.forEach(function (tab) {
+      const n = tab.querySelector("[data-doc-tab-n]");
+      totali[tab.getAttribute("data-doc-tab")] = n ? n.textContent : "";
+    });
+    cerca.addEventListener("input", function () {
+      const q = cerca.value.trim().toLowerCase();
+      let primo = null, totale = 0;
+      panels.forEach(function (panel) {
+        const code = panel.getAttribute("data-doc-panel");
+        let trovati = 0;
+        panel.querySelectorAll("[data-doc-riga]").forEach(function (riga) {
+          const nome = (riga.querySelector(".af-doc-name") || riga).textContent.toLowerCase();
+          const ok = !q || nome.indexOf(q) !== -1;
+          riga.hidden = !ok;
+          if (ok) { trovati += 1; }
+        });
+        panel.querySelectorAll("details.af-doc-group").forEach(function (gruppo) {
+          const visibili = gruppo.querySelectorAll("[data-doc-riga]:not([hidden])").length;
+          gruppo.hidden = q && !visibili;
+          if (q && visibili) { gruppo.open = true; }
+        });
+        const tab = tabs.find(function (t) { return t.getAttribute("data-doc-tab") === code; });
+        const n = tab && tab.querySelector("[data-doc-tab-n]");
+        if (n) { n.textContent = q ? trovati : totali[code]; }
+        if (tab) { tab.classList.toggle("is-vuota", q ? !trovati : totali[code] === "0"); }
+        if (q && trovati && primo === null) { primo = code; }
+        totale += trovati;
+      });
+      if (esito) { esito.textContent = q ? (totale ? totale + " documenti trovati" : "Nessun documento con questo nome") : ""; }
+      if (primo) { activate(primo); }
+    });
+  }
 
   document.querySelectorAll("[data-doc-upload]").forEach(function (form) {
     const input = form.querySelector("[data-doc-file]");

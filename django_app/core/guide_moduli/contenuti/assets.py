@@ -939,6 +939,15 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Devo spostare, scaricare o far scadere dei documenti dell'asset",
+            "fare": [
+                "Spunta i file e usa «Sposta i selezionati in» → cartella → «Sposta».",
+                "«Scarica ZIP (N)» scarica tutta la cartella in un file solo.",
+                "Nella colonna «Scadenza» scegli la data: da 30 giorni prima compare «In scadenza» e il documento entra nello Scadenzario (scheda «Documenti»).",
+                "Per creare un asset simile: «Altro» → «+ Nuovo asset come questo» (categoria, reparto, marca, modello e cartelle, senza i file).",
+            ],
+        },
+        {
             "sintomo": "Un asset ha cartelle della categoria che non gli servono",
             "fare": [
                 "Nei Documenti dell'asset apri la cartella e clicca «Togli da questo asset» (solo se è vuota): gli altri asset della categoria la tengono.",

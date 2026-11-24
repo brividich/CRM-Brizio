@@ -1186,6 +1186,12 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     _dots = monitoring_dots(request, [a.id for a in assets])
     for _asset in assets:
         _asset.snmp_dot = _dots.get(_asset.id)
+    from ..services.documenti_asset import stato_sds_per_prodotti
+
+    # Prodotti chimici: stato della scheda di sicurezza accanto al nome (2 query per pagina).
+    _sds = stato_sds_per_prodotti([a.prodotto_chimico_id for a in assets if a.prodotto_chimico_id])
+    for _asset in assets:
+        _asset.sds_stato = _sds.get(_asset.prodotto_chimico_id) if _asset.prodotto_chimico_id else None
     from ..services.responsabile_asset import applica as applica_responsabile
 
     # Macchine di produzione senza persona assegnata: responsabile = caporeparto.
@@ -1578,6 +1584,52 @@ def _collega_indirizzo_creato(request, riga, asset) -> None:
                oggetto_tipo=AUDIT_OGGETTO_ASSET, oggetto_id=asset.pk)
 
 
+def _asset_sorgente_visibile(request: HttpRequest, raw) -> Asset | None:
+    """Asset da cui copiare, solo se la persona lo vede (ambito propri/team)."""
+    from ..services.visibilita import filtra
+
+    asset_id = _as_int(raw, default=0)
+    if asset_id <= 0:
+        return None
+    return filtra(request, Asset.objects.select_related("asset_category").filter(pk=asset_id)).first()
+
+
+def _iniziali_da_asset(sorgente: Asset) -> dict:
+    """Campi che asset simili condividono; mai tag, numero interno o matricola."""
+    from ..services.cartelle_asset import scelte
+
+    return {
+        "name": f"{sorgente.name} (copia)"[:255],
+        "asset_category": sorgente.asset_category_id,
+        "reparto": sorgente.reparto,
+        "manufacturer": sorgente.manufacturer,
+        "model": sorgente.model,
+        "status": sorgente.status,
+        "part_145": getattr(sorgente, "part_145", False),
+        "usa_cartelle_categoria": not scelte(sorgente)["senza_categoria"],
+    }
+
+
+def _copia_cartelle_documento(sorgente: Asset, nuovo: Asset) -> int:
+    """Copia le cartelle «Solo questo asset» e le scelte sulle cartelle di categoria."""
+    from ..models import AssetDocumentFolder
+    from ..services import cartelle_asset
+
+    n = 0
+    for folder in sorgente.document_folders.filter(is_active=True).order_by("order", "id"):
+        _obj, created = AssetDocumentFolder.objects.get_or_create(
+            asset=nuovo, slug=folder.slug, defaults={"name": folder.name, "order": folder.order}
+        )
+        n += int(created)
+    if nuovo.asset_category_id == sorgente.asset_category_id:
+        sc_src = cartelle_asset.scelte(sorgente)
+        sc_new = cartelle_asset.scelte(nuovo)
+        sc_new["tolte"] |= sc_src["tolte"]
+        sc_new["aggiunte"] |= sc_src["aggiunte"]
+        cartelle_asset.salva(nuovo, sc_new)
+    return n
+
+
 @login_required
 def asset_create(request: HttpRequest) -> HttpResponse:
     if _clean_string(request.GET.get("asset_type")) == Asset.TYPE_WORK_MACHINE:
@@ -1589,6 +1641,8 @@ def asset_create(request: HttpRequest) -> HttpResponse:
     assignment_kwargs = _assignment_form_kwargs()
     # «Crea asset» dalla pagina Indirizzi IP: modulo già compilato con nome, IP, MAC e porta dello switch.
     da_rete = _indirizzo_da_rete(request.GET.get("da_rete"))
+    # «Nuovo asset come questo»: dati e cartelle documento presi da un asset visibile.
+    da_asset = _asset_sorgente_visibile(request, request.GET.get("da_asset"))
     if request.method == "POST":
         form = AssetForm(request.POST, request.FILES, custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
         if form.is_valid():
@@ -1602,6 +1656,10 @@ def asset_create(request: HttpRequest) -> HttpResponse:
                     messages.warning(request, marker_warning)
             if da_rete is not None:
                 _collega_indirizzo_creato(request, da_rete, asset)
+            if da_asset is not None:
+                n_cartelle = _copia_cartelle_documento(da_asset, asset)
+                if n_cartelle:
+                    messages.info(request, f"Copiate {n_cartelle} cartelle documento da «{da_asset.name}» (senza i file).")
 
             messages.success(request, "Asset creato correttamente.")
             return redirect("assets:asset_view", id=asset.id)
@@ -1610,6 +1668,10 @@ def asset_create(request: HttpRequest) -> HttpResponse:
         if da_rete is not None:
             messages.info(request, f"Dati presi dall'indirizzo {da_rete.ip}: IP, MAC, switch e porta sono già nella sezione "
                                    "Rete (compare scegliendo una categoria IT). Salvato l'asset, l'indirizzo gli resta collegato.")
+        if da_asset is not None:
+            initial = {**(initial or {}), **_iniziali_da_asset(da_asset)}
+            messages.info(request, f"Dati presi da «{da_asset.name}»: controlla nome, numero di serie e tag prima di salvare. "
+                                   "Le cartelle documento di quell'asset verranno copiate, senza i file.")
         form = AssetForm(initial=initial, custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
     return render(
         request,
