@@ -820,6 +820,29 @@ def _ruolo_responsabile_da_post(raw: str | None):
     return RuoloOperativo.objects.filter(pk=rid, is_active=True).first() if rid else None
 
 
+def _assegna_responsabilita_area_da_post(request, area) -> None:
+    """«Responsabile dell'area» del modale: dopo il salvataggio la persona riceve la «Responsabilità dell'area».
+
+    Si aggiunge a chi la ha già (si toglie con la × nel modale), come «Assegna» nella scheda del reparto.
+    """
+    raw = (request.POST.get("assegna_responsabilita") or "").strip()
+    if not raw.isdigit():
+        return
+    from anagrafica.models_skillmatrix import CompetenzaSkm
+    from anagrafica.services import capi_mansione
+
+    mid = capi_mansione.mansioni_responsabilita_aree().get(area.pk)
+    if not mid:
+        messages.warning(request, "Responsabile non assegnato: l'area non ha una sua «Responsabilità dell'area». "
+                                  "Serve un ruolo responsabile; un'area con lo stesso nome del reparto usa quella del reparto.")
+        return
+    mansione = CompetenzaSkm.objects.get(pk=mid)
+    ab = capi_mansione.assegna_responsabilita(mansione, int(raw), user=request.user)
+    log_action(request, "update", "anagrafica", {"oggetto": "capo_mansione_assegna", "mansione": mansione.pk,
+                                                 "legacy_anagrafica_id": int(raw)}, oggetto=ab)
+    messages.success(request, f"Assegnata «{mansione.nome}».")
+
+
 # ── Area Aziendale CRUD (ora il livello FIGLIO) ─────────────────────────────
 # Il RUOLO responsabile genera la «Responsabilità dell'area»; responsabile è
 # chi ha quella mansione (services.capi_mansione). Il responsabile scelto in
@@ -856,6 +879,7 @@ def area_aziendale_create(request):
     if created:
         _capo_da_post(request, obj, "responsabile_legacy_id")
         messages.success(request, f'Area aziendale "{nome}" creata.')
+        _assegna_responsabilita_area_da_post(request, obj)
     else:
         messages.warning(request, f'Esiste già un\'area aziendale con il nome "{nome}".')
     return _helpers._back_to_caller(request, "anagrafica:aree_list")
@@ -891,6 +915,7 @@ def area_aziendale_edit(request, area_id: int):
     area.save()  # segnali_capi: riallinea capi e schede
     _capo_da_post(request, area, "responsabile_legacy_id")
     messages.success(request, f'Area aziendale "{area.nome}" aggiornata.')
+    _assegna_responsabilita_area_da_post(request, area)
     return _helpers._back_to_caller(request, "anagrafica:aree_list")
 
 

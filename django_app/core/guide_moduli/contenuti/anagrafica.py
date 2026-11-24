@@ -188,6 +188,24 @@ GUIDA = {
                     ("Corso da un'edizione", "nella modalità «Corso» si può scegliere un'edizione a cui la persona è "
                                              "iscritta: corso, data e docente arrivano da lì; se l'ha completata da idonea "
                                              "la verifica è «Attestato»."),
+                    ("Corso richiesto", "se la competenza della mansione ha un «Corso richiesto» (Mansionario, scheda "
+                                        "«Competenze richieste»), la riga lo mostra con «valido» o «mancante» e «Valuta» "
+                                        "propone già «C · Corso» con quel corso e l'edizione della persona (si può "
+                                        "cambiare). Se la persona l'ha già completato, all'apertura l'edizione entra "
+                                        "nella riga; se lo completa dopo, entra da sola e la riga dice «Corso completato: "
+                                        "pronta da valutare». Con il corso mancante, «Iscrivi a un'edizione» porta a "
+                                        "scegliere un'edizione del corso e poi torna alla sessione."),
+                    ("Requisito formale", "come nella matrice del Mansionario: senza il corso, la qualifica o il "
+                                          "processo qualificato MOD.128 richiesti dalla competenza il livello non va oltre "
+                                          "«I – in formazione», con qualsiasi modalità. Se il requisito scade dopo la "
+                                          "valutazione, firma e chiusura si fermano finché la riga non è rivalutata a I o "
+                                          "il requisito torna valido."),
+                    ("Mansione senza competenze", "se la mansione non ha competenze richieste la sessione nascerebbe "
+                                                  "senza righe da valutare: la richiesta lo dice prima di aprirla, con il "
+                                                  "link alle competenze della mansione, e «Apri» chiede conferma."),
+                    ("Nella scheda della mansione", "scheda Persone: sotto il nome, la sessione formativa in corso o la "
+                                                    "richiesta di assegnazione aperta, con il link. Scheda Formazione: "
+                                                    "quante persone in sessione formativa aspettano quel corso."),
                     ("Più persone", "una richiesta di competenza può comprendere altre persone (corso collettivo: FOD, "
                                     "procedure, SGI): una sessione sola, con una riga e una firma per ogni persona."),
                     ("Formazione in ingresso", "HR, nella richiesta di assegnazione, spunta «Formazione in ingresso di un "
@@ -874,6 +892,12 @@ GUIDA = {
                       "toglie; «Modifica» su reparto o area sceglie il ruolo responsabile; «Dai il ruolo del reparto "
                       "alle aree spuntate» lo dà a tutte le aree che non ce l'hanno (es. Caporeparto alle aree di "
                       "produzione)."),
+                ("p", "«Modifica» su un'area apre «Modifica area aziendale»: sotto il «Ruolo responsabile» il riquadro "
+                      "«Responsabilità dell'area» mostra la mansione (link al Mansionario) e chi la ha, con la × per "
+                      "toglierla; senza ruolo responsabile dice quale capo vale («segue il reparto»), per un'area con lo "
+                      "stesso nome del reparto rimanda alla «Responsabilità del reparto». «Assegna la Responsabilità "
+                      "dell'area a» sceglie una persona che la riceve con «Salva» e si aggiunge a chi la ha già; si attiva "
+                      "solo con reparto e ruolo responsabile. Lo stesso campo c'è in «Nuova area»."),
                 ("p", "Passaggio (una volta, dopo l'aggiornamento): il riquadro «Passaggio ai capi decisi dalla mansione» "
                       "assegna le «Responsabilità» a chi oggi è capo o responsabile (e agli «altri responsabili» indicati "
                       "prima), elenca i reparti senza ruolo responsabile (vanno sistemati prima), le aree con un "
@@ -1220,7 +1244,7 @@ GUIDA = {
                 ("p", "Formazione per mansione lavorativa: dalla scheda della mansione, scheda «Formazione» → «Collega un corso», "
                       "oppure dalla scheda di un corso, «A chi serve questo corso». Si sceglie «Obbligatorio» o «Consigliato» "
                       "(il consigliato resta come proposta, senza scadenze; si cambia con «Rendi obbligatorio/consigliato»). "
-                      "La scheda Formazione mostra per ogni corso chi in lista è in regola e «↻ Iscrivi chi manca»; in «Cosa manca» (scheda Persone della mansione e scheda persona del Mansionario) "
+                      "La scheda Formazione mostra per ogni corso chi in lista è in regola, quante persone in sessione formativa aspettano quel corso e «↻ Iscrivi chi manca»; nella scheda Persone, sotto il nome, la sessione formativa in corso o la richiesta di assegnazione aperta; in «Cosa manca» (scheda Persone della mansione e scheda persona del Mansionario) "
                       "compaiono i corsi obbligatori non fatti con «↻ Iscrivi», e nella scheda persona anche i consigliati come proposta. Da obbligatorio vale per chi è in lista "
                       "sulla mansione nella skill matrix (anche in addestramento): scadenzario, fabbisogni, candidati del "
                       "corso, onboarding di chi riceve un ruolo con quella mansione e scheda della mansione («Formazione "

@@ -270,6 +270,35 @@ class PaginaRepartiCapiTests(_ScenarioMansioni):
         self.assertEqual(resp.context["kpi"]["responsabilita_senza_titolare"], 1)
         self.assertContains(resp, "Chi ha questo ruolo")
 
+    def _modale_area(self, **extra):
+        dati = {"nome": "IN2", "reparto_id": str(self.in2.reparto_id), "is_active": "1",
+                "ruolo_responsabile": str(self.capo.pk)}
+        dati.update(extra)
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(reverse("anagrafica:area_aziendale_edit", args=[self.in2.pk]), dati)
+
+    def test_modale_area_assegna_la_responsabilita_e_si_aggiunge(self):
+        self._modale_area(assegna_responsabilita=str(self.gialli))
+        resp_in2 = CompetenzaSkm.objects.get(responsabilita_area=self.in2)
+        self._modale_area(assegna_responsabilita=str(self.neri))
+        titolari = set(AbilitazioneMacchina.objects.filter(competenza=resp_in2, in_lista=True)
+                       .values_list("legacy_anagrafica_id", flat=True))
+        self.assertEqual(titolari, {self.gialli, self.neri})
+
+    def test_modale_area_senza_ruolo_non_assegna(self):
+        resp = self._modale_area(ruolo_responsabile="", assegna_responsabilita=str(self.gialli))
+        self.assertFalse(AbilitazioneMacchina.objects.filter(competenza__responsabilita_area=self.in2, in_lista=True).exists())
+        testi = [str(m) for m in resp.wsgi_request._messages]
+        self.assertTrue(any("Responsabile non assegnato" in t for t in testi))
+
+    def test_modale_area_mostra_la_responsabilita_con_la_x(self):
+        self._modale_area(assegna_responsabilita=str(self.gialli))
+        resp = self.client.get(reverse("anagrafica:aree_list"))
+        self.assertContains(resp, f'id="area-resp-{self.in2.pk}"')
+        self.assertContains(resp, 'form="area-togli-')
+        self.assertContains(resp, "Assegna la Responsabilità dell'area a")
+        self.assertNotContains(resp, "{#")
+
     def test_assegna_solo_su_mansioni_del_capo(self):
         altra = self._mansione("Fresatura CNC")
         self.client.post(reverse("anagrafica:capo_assegna", args=[altra.pk]), {"legacy_id": str(self.neri)})

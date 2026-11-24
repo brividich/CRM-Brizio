@@ -37,8 +37,8 @@
     <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
       <thead><tr><th>Persona</th><th>Mansione o competenza</th><th>{% if g.richieste %}Richiesta{% else %}Sessione{% endif %}</th><th>{% if g.richieste %}Approvata{% else %}Competenze{% endif %}</th><th></th></tr></thead>
       <tbody>
-      {% for x in g.richieste %}<tr><td><b>{{ x.persona }}</b></td><td>{{ x.richiesta.oggetto }}</td><td>{{ x.richiesta.codice }}</td><td>{{ x.richiesta.decisa_il|date:"d/m/Y" }}</td>
-        <td><form method="post" action="{% url 'anagrafica:sessione_apri' x.richiesta.pk %}" style="margin:0">{% csrf_token %}<button type="submit" class="rq-btn rq-btn-p rq-btn-s">Apri la sessione</button></form></td></tr>{% endfor %}
+      {% for x in g.richieste %}<tr><td><b>{{ x.persona }}</b></td><td>{{ x.richiesta.oggetto }}{% if x.senza_competenze %}<small style="display:block;color:#b45309">senza competenze richieste</small>{% endif %}</td><td>{{ x.richiesta.codice }}</td><td>{{ x.richiesta.decisa_il|date:"d/m/Y" }}</td>
+        <td><form method="post" action="{% url 'anagrafica:sessione_apri' x.richiesta.pk %}" style="margin:0"{% if x.senza_competenze %} data-hub-confirm="La mansione non ha competenze richieste: la sessione nascerebbe senza righe da valutare. Aprirla lo stesso?"{% endif %}>{% csrf_token %}<button type="submit" class="rq-btn rq-btn-p rq-btn-s">Apri la sessione</button></form></td></tr>{% endfor %}
       {% for x in g.sessioni %}<tr><td><b>{{ x.persona }}</b></td><td>{{ x.sessione.richiesta.oggetto }}</td><td>{{ x.sessione.codice }}</td><td>{{ x.fatte }} di {{ x.totale }}</td>
         <td><a class="rq-btn rq-btn-s" href="{% url 'anagrafica:sessione' x.sessione.pk %}">Apri</a></td></tr>{% endfor %}
       </tbody>
