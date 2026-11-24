@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Audit 22/11, proposte P15 e P3: assistente AI e QR pubblico (blocco 8c)
+
+- **Assistente AI (P15):** il limite di richieste contemporanee (`OLLAMA_MAX_CONCURRENT_REQUESTS`, 3) vale per tutto il portale e non per processo: con 4 processi Ollama non riceve più fino a 12 richieste insieme. File: `ai_assistant/services.py`, `ai_assistant/tests_limite_condiviso.py`.
+- **QR pubblico degli asset (P3):** dal pannello QR si sceglie quali cartelle di documenti si vedono senza login (di base solo «Manuali») e se chi inquadra il QR può caricare file sui ticket (di base no). Anche il download a token rispetta la scelta. «Rigenera link» c'era già. File: `assets/models.py`, `assets/migrations/0173_qr_pubblico_contenuti.py`, `assets/services/asset_qr.py`, `assets/views/qr_labels.py`, `assets/views/documents.py`, `assets/views_asset_qr.py`, `assets/templates/assets/partials/qr_panel.html`, `assets/templates/assets/partials/qr_dialog.html`, `assets/templates/assets/pages/guida.html`; test `assets/tests_security.py`, `tickets/tests_allegati_validazione.py`. **Migrazione `assets 0173`.** Dopo il deploy i link pubblici già attivi mostrano solo i Manuali e non accettano caricamenti finché non si spunta nel pannello.
+- Guide: Centro guide Asset, guida Asset; `docs/moduli/assets.md`, `docs/moduli/ai_assistant.md`.
+
 ### Prestazioni: processi pronti all'avvio e indice AI costruito dalla coda
 
 - **Riscaldamento all'avvio** (`core/avvio.py`, chiamato da `config/wsgi.py`): prima di accettare richieste, ogni processo IIS prepara l'indice delle rotte, i cancelli del sottomenu di anagrafica (solo le pagine linkate, circa 60) e i template di base. Prima ogni processo pagava 2-8 s sui primi utenti dopo ogni riavvio o deploy, ed erano 6 processi. Circa 1 s per processo; `HUB_WARMUP=0` lo spegne.

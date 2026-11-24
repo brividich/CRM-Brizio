@@ -116,3 +116,23 @@ def rigenera_link_pubblico(asset) -> str:
     type(asset).objects.filter(pk=asset.pk).update(public_qr_token=token, public_qr_enabled=True)
     asset.public_qr_token, asset.public_qr_enabled = token, True
     return token
+
+
+def contenuti_pubblici(asset) -> tuple[set[str], bool]:
+    """(cartelle documento visibili dal QR pubblico, caricamento file ammesso).
+
+    Di base solo «Manuali» e nessun caricamento (audit P3)."""
+    from ..models import AssetQrPubblico
+
+    cfg = AssetQrPubblico.objects.filter(asset_id=asset.pk).first()
+    if cfg is None:
+        return set(AssetQrPubblico.CARTELLE_DEFAULT), False
+    return {str(c) for c in (cfg.cartelle or [])}, bool(cfg.caricamento_file)
+
+
+def salva_contenuti_pubblici(asset, cartelle, caricamento_file: bool) -> None:
+    from ..models import AssetQrPubblico
+
+    AssetQrPubblico.objects.update_or_create(
+        asset=asset, defaults={"cartelle": sorted({str(c) for c in cartelle if str(c).strip()}),
+                               "caricamento_file": bool(caricamento_file)})

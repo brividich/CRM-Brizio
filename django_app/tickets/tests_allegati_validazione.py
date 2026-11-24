@@ -79,6 +79,11 @@ class _Base(TestCase):
 
         abilita_link_pubblico(self.asset)
         abilita_link_pubblico(self.other_asset)
+        # Il caricamento dal QR è spento di base (audit P3): qui lo si accende.
+        from assets.services.asset_qr import salva_contenuti_pubblici
+
+        salva_contenuti_pubblici(self.asset, ["MANUALI"], True)
+        salva_contenuti_pubblici(self.other_asset, ["MANUALI"], True)
         self.ticket = self._ticket(self.asset, titolo="Perdita olio mandrino")
         self.other_ticket = self._ticket(self.other_asset, titolo="Rumore fresa")
 
@@ -163,6 +168,14 @@ class QrPubblicoUploadTests(_Base):
     def test_get_non_ammesso_e_token_disabilitato(self):
         self.assertEqual(self.client.get(self._qr_upload_url(self.ticket)).status_code, 404)
         Asset.objects.filter(pk=self.asset.pk).update(public_qr_enabled=False)
+        self.assertEqual(self._qr_post(self.ticket).status_code, 404)
+        self.assertFalse(TicketAllegato.objects.exists())
+
+    def test_caricamento_spento_di_base(self):
+        # Audit P3: senza la spunta nel pannello QR il caricamento anonimo non c'è.
+        from assets.models import AssetQrPubblico
+
+        AssetQrPubblico.objects.filter(asset=self.asset).delete()
         self.assertEqual(self._qr_post(self.ticket).status_code, 404)
         self.assertFalse(TicketAllegato.objects.exists())
 

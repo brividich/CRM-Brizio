@@ -23,6 +23,8 @@ GUIDA = {
                 ("p", "Il menu a sinistra è diviso per area: Inventario, Manutenzione e officina, IT e rete (licenze, software, "
                       "indirizzi IP, rack), Inventario per categoria; in fondo «Guida del modulo»."),
                 ("p", "Dal telefono basta inquadrare il QR sulla macchina: si apre la scheda con manutenzioni e documenti."),
+                ("nota", "Con il link pubblico attivo, chi non ha login vede solo le cartelle scelte nel pannello QR («Cosa si vede senza login», "
+                         "di base solo «Manuali») e carica file sui ticket solo se lì è spuntato."),
                 ("p", "Responsabile: un asset non IT (macchina, impianto, carroponte, compressore...) senza una persona assegnata ha come "
                       "responsabile il caporeparto del reparto in cui è installato (Persone → «Reparti, aree e capi»), mostrato con "
                       "«Caporeparto <reparto>»; i co-capi del reparto (gli «Altri responsabili») le vedono come il capo. Una persona "
