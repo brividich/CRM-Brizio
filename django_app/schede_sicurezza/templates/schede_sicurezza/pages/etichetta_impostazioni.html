@@ -120,7 +120,7 @@ body.theme-dark .et-btn-secondario{background:var(--surface-alt,#0f1b2d);color:v
         <button type="submit" class="et-btn et-btn-primario">Salva</button>
         <a class="et-btn et-btn-secondario" href="{% url 'schede_sicurezza:etichetta_impostazioni' %}">Annulla modifiche</a>
       </div>
-      {% if imp.aggiornato_da %}<div class="et-help">Ultima modifica: {{ imp.aggiornato_il|date:"d/m/Y H:i" }} — {{ imp.aggiornato_da.get_full_name|default:imp.aggiornato_da.username }}</div>{% endif %}
+      {% if imp.aggiornato_da %}<div class="et-help">Ultima modifica: {{ imp.aggiornato_il|date:"d/m/Y H:i" }} — {% firstof imp.aggiornato_da.get_full_name imp.aggiornato_da.username %}</div>{% endif %}
     </form>
 
     <div class="et-anteprima et-sez">

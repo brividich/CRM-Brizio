@@ -60,7 +60,7 @@
           <tr>
             <td><span class="gs-code">{{ t.codice }}</span></td>
             <td><span class="gs-tag {% if t.tipo == 'ricevuto' %}is-blue{% else %}is-green{% endif %}">{{ t.get_tipo_display }}</span></td>
-            <td style="color:#3a4a63;">{% if t.utente %}{{ t.utente.get_full_name|default:t.utente.username }}{% else %}—{% endif %}</td>
+            <td style="color:#3a4a63;">{% if t.utente %}{% firstof t.utente.get_full_name t.utente.username %}{% else %}—{% endif %}</td>
             <td style="color:#7c8aa2;">{{ t.nome|default:"—" }}</td>
             <td>{% if t.attivo %}<span class="gs-tag is-green">attivo</span>{% else %}<span class="gs-tag is-grey">disattivo</span>{% endif %}</td>
             <td>

@@ -6,7 +6,7 @@
 
 {% block assets_shell_title %}Registra l'esecuzione{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>{{ occurrence.plan.label }} su <strong>{{ occurrence.asset.asset_tag|default:occurrence.asset.name }}</strong> — {% if occurrence.is_postponed %}rinviata al {{ occurrence.due_date|date:"d/m/Y" }} (scadenza originale {{ occurrence.original_due_date|date:"d/m/Y" }}){% else %}scadenza {{ occurrence.due_date|date:"d/m/Y" }}{% endif %}</p>
+  <p>{{ occurrence.plan.label }} su <strong>{% firstof occurrence.asset.asset_tag occurrence.asset.name %}</strong> — {% if occurrence.is_postponed %}rinviata al {{ occurrence.due_date|date:"d/m/Y" }} (scadenza originale {{ occurrence.original_due_date|date:"d/m/Y" }}){% else %}scadenza {{ occurrence.due_date|date:"d/m/Y" }}{% endif %}</p>
 {% endblock %}
 
 {% block assets_shell_toolbar %}
@@ -74,7 +74,7 @@
               <li data-insieme-days="{{ other.insieme_days }}">
                 <label class="md-also">
                   <input type="checkbox" name="also_complete_assets" value="{{ other.pk }}" data-md-also>
-                  <span>{{ other.due_date|date:"d/m/Y" }}{% if other.due_date < today %} <em>(scaduta)</em>{% endif %} · <strong>{{ other.asset.asset_tag|default:other.asset.name }}</strong>{% if other.asset.asset_tag and other.asset.name %} {{ other.asset.name }}{% endif %}{% if other.work_order_id %} · OdL #{{ other.work_order_id }}{% endif %}{% if other.attachment_required %} · <em>rapporto obbligatorio</em>{% endif %}</span>
+                  <span>{{ other.due_date|date:"d/m/Y" }}{% if other.due_date < today %} <em>(scaduta)</em>{% endif %} · <strong>{% firstof other.asset.asset_tag other.asset.name %}</strong>{% if other.asset.asset_tag and other.asset.name %} {{ other.asset.name }}{% endif %}{% if other.work_order_id %} · OdL #{{ other.work_order_id }}{% endif %}{% if other.attachment_required %} · <em>rapporto obbligatorio</em>{% endif %}</span>
                 </label>
                 <a class="md-sub" href="{{ other.register_url }}">apri a parte</a>
               </li>

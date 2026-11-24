@@ -34,6 +34,25 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - **MOD.176 in officina:** pagina per tablet con i registri aperti, ricerca per kit/utensile/P/N e «Registra»; voce di menu in Competenze › Qualifiche.
 - Deploy: `migrate` (anagrafica 0240), «Sincronizza permessi» (ACL v21).
 - File: `anagrafica/services/mpq_configurazione.py`, `anagrafica/guida_mpq_configurazione.py`, `anagrafica/exports_mpq.py`, `anagrafica/exports.py`, `anagrafica/views_mpq.py`, `anagrafica/views_mpq_utensili.py`, `anagrafica/views_mpq_qualifiche.py`, `anagrafica/urls.py`, `anagrafica/acl_bootstrap.py`, `anagrafica/migrations/0240_mpq_officina_menu.py`, template `mpq_processo_detail`, `mpq_processo_form`, `mpq_sezione`, `mpq_cruscotto`, `mpq_matrice`, `mpq_elenco`, `mpq_registro`, `mpq_utensili`, `mpq_officina` (nuovo), `partials/_mpq_configurazione.html` (nuovo), `components/_export_menu.html`, `assets/services/sezione_processo.py`, `assets/templates/assets/pages/sezione_processo.html`, `assets/tests_sezione_processo.py`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`.
+### Anagrafica: sessioni formative complete (PDF, avvisi, edizioni, gruppi, ingresso, storico)
+
+- **Verbale PDF della sessione** (`services/sessione_pdf.py`, `/competenze/sessioni/<id>/pdf/`): persona, richiesta, competenze con modalità, evidenze e valutatori, firme, esito.
+- **Avvisi:** il responsabile quando valuta un altro; i titolari di RDD o MSO quando tutte le competenze sono valutate; la persona quando tocca a lei firmare.
+- **Corso da un'edizione:** nella modalità C si sceglie un'edizione a cui la persona è iscritta (`SessioneRiga.edizione`, mig 0242): corso, data e docente da lì, verifica «Attestato» se completata da idonea; un'edizione senza la persona iscritta è rifiutata.
+- **Storico della persona** in «Il mio team»: sessioni formative della persona e «Storico (PDF)» (`services/storico_persona_pdf.py`, `/competenze/storico/<id>/pdf/`, MOD.053 dinamico, formato da approvare); lo vedono la persona, il responsabile, Qualità e HR.
+- **Competenza su più persone:** «Altre persone» nella richiesta di competenza (`RichiestaPartecipante`); la sessione ha una riga per persona e una firma per partecipante (`SessionePartecipante`, mig 0243, che copia le firme già registrate e toglie i campi della firma unica).
+- **Formazione in ingresso:** HR spunta l'ingresso e sceglie l'inquadramento; alla chiusura la matricola (CNO/T/A + numero) si scrive nella riga del dipendente solo se manca e solo con il contatore del prefisso acceso (`ContatoreMatricola`, mig 0244, tre contatori spenti). Pannello «Matricole dei nuovi assunti» nell'elenco delle sessioni per chi amministra l'anagrafica.
+- **Refresh delle abilitazioni:** le mansioni sospese non compaiono più; ogni riga ha «Chiedi un livello più alto» e «Chiedi la sospensione» con la richiesta già compilata. I comandi diretti del refresh restano.
+- **Menu:** in Competenze → Formazione la voce diventa «Formazione su mansioni» (mig 0245, con i permessi delle rotte nuove).
+- **Prova delle migrazioni su SQL Server 2025 locale** (SQL Express 17.0, database di prova nuovo): da zero un'installazione si ferma su `tickets.0011`, che usa la tabella del gestionale creata da `core.0029` dopo di lei (riguarda solo le installazioni nuove; in produzione è già applicata).
+- File: `models_richieste.py`, `models_sessioni.py`, mig 0242-0245, `services/sessioni.py`, `services/richieste.py`, `services/sessione_pdf.py`, `services/storico_persona_pdf.py`, `services/persona_semplice.py`, `services/skillmatrix_refresh.py`, `views_sessioni.py`, `views_richieste.py`, `urls.py`, `pages/sessione_dettaglio.html`, `pages/sessioni_elenco.html`, `pages/richiesta_nuova.html`, `pages/richiesta_dettaglio.html`, `pages/mio_team.html`, `pages/skm_refresh.html`, `tests_sessioni.py`, Centro guide, `hub_tools/schema_db.py`, `docs/moduli/anagrafica.md`.
+
+### Tutti i moduli: niente errore 500 quando una relazione è vuota nei template
+
+- **Il problema:** nei template `{{ a|default:b.c.d }}` va in errore 500 se `b.c` è vuoto (per esempio l'utente che ha creato un elemento ed è stato eliminato): Django risolve gli argomenti dei filtri senza tollerare gli anelli mancanti. È l'errore trovato il 24/11 nell'elenco dei prospetti.
+- **Correzione:** 212 espressioni in 125 template riscritte con `{% firstof … %}`, che tollera gli anelli vuoti e mostra lo stesso testo (asset, tasks, anagrafica, procedure_refresh, sistema_gestione, security e altri). Selezionate incrociando ogni catena con le relazioni che nei modelli possono essere vuote; 6 casi già protetti da un `{% if %}` restano com'erano. Tutti i template modificati si compilano.
+- **Prova permanente:** `core/test_template_default_catena.py` fallisce se torna un `|default:` su una relazione che può mancare.
+
 
 ### Anagrafica: sessioni formative (dalla richiesta approvata al nuovo livello)
 

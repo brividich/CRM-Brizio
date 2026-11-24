@@ -69,7 +69,7 @@ body.theme-dark .cd-scaduta{color:#fca5a5}
     <div class="cd-meta">
       <span>Origine: <b>{{ a.origine_label }}</b>{% if a.source_label %} · {{ a.source_label }}{% endif %}
         {% if a.source_url %}<a href="{{ a.source_url }}" style="margin-left:6px;">apri ↗</a>{% endif %}</span>
-      {% if a.responsabile %}<span>Responsabile: <b>{{ a.responsabile.get_full_name|default:a.responsabile.username }}</b></span>{% endif %}
+      {% if a.responsabile %}<span>Responsabile: <b>{% firstof a.responsabile.get_full_name a.responsabile.username %}</b></span>{% endif %}
       {% if a.reparto %}<span>Reparto: <b>{{ a.reparto }}</b></span>{% endif %}
       {% if a.data_scadenza %}<span>Scadenza: <b>{{ a.data_scadenza|date:"d/m/Y" }}</b>
         {% if not a.is_conclusa and giorni is not None and giorni < 0 %}<span class="cd-scaduta">(scaduta)</span>{% endif %}</span>{% endif %}
@@ -108,7 +108,7 @@ body.theme-dark .cd-scaduta{color:#fca5a5}
       <div class="cd-section-h">Evidenza di chiusura</div>
       <div class="cd-evidence">{{ a.evidenza_chiusura }}</div>
       <p style="color:#64748b;font-size:.85rem;margin:6px 0 0;">
-        Chiusa da {% if a.chiusa_da %}<b>{{ a.chiusa_da.get_full_name|default:a.chiusa_da.username }}</b>{% else %}—{% endif %}
+        Chiusa da {% if a.chiusa_da %}<b>{% firstof a.chiusa_da.get_full_name a.chiusa_da.username %}</b>{% else %}—{% endif %}
         {% if a.data_chiusura %}il {{ a.data_chiusura|date:"d/m/Y H:i" }}{% endif %}
       </p>
     {% endif %}
@@ -126,7 +126,7 @@ body.theme-dark .cd-scaduta{color:#fca5a5}
     {% if a.stato == "VERIFICATA" %}
       <div class="cd-section-h">Verifica</div>
       <p style="color:#166534;">
-        ✔ Verificata da {% if a.verificata_da %}<b>{{ a.verificata_da.get_full_name|default:a.verificata_da.username }}</b>{% endif %}
+        ✔ Verificata da {% if a.verificata_da %}<b>{% firstof a.verificata_da.get_full_name a.verificata_da.username %}</b>{% endif %}
         {% if a.data_verifica %}il {{ a.data_verifica|date:"d/m/Y H:i" }}{% endif %}
       </p>
       {% if a.note_verifica %}<div class="cd-evidence">{{ a.note_verifica }}</div>{% endif %}

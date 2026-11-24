@@ -160,8 +160,7 @@ class FirmareEChiudereTests(_Scenario):
         with self.assertRaisesMessage(svc.SessioneNonValida, "futuro"):
             svc.firma_persona(self.hr, s, su_carta=True, data_firma=timezone.localdate() + timedelta(days=1))
         svc.firma_persona(self.hr, s, su_carta=True, data_firma=timezone.localdate(), file=_pdf("firma.pdf"))
-        s.refresh_from_db()
-        self.assertEqual(s.firma_persona_modo, S.FIRMA_CARTA)
+        self.assertEqual(s.partecipanti.get().firma_modo, "carta")
 
         altra = self._aperta(mansione_id=self.fresa.pk, livello="O")
         with self.assertRaisesMessage(svc.SessioneNonValida, "motivo"):
@@ -274,7 +273,14 @@ class PagineTests(_Scenario):
             if accanto is not None:
                 self.assertIn((accanto.categoria_id, accanto.gruppo), posti)
         self.assertTrue(voci.exists())
-        self.assertTrue(all(v.etichetta == "Sessioni formative" for v in voci))
+        # In Organizzazione «Sessioni formative»; in Formazione «Formazione su mansioni», accanto a «Sessioni» dei corsi.
+        etichette = {(v.categoria_id, v.gruppo): v.etichetta for v in voci}
+        richieste = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:richieste").first()
+        corsi = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:formazione_sessioni_list").first()
+        if richieste is not None:
+            self.assertEqual(etichette[(richieste.categoria_id, richieste.gruppo)], "Sessioni formative")
+        if corsi is not None:
+            self.assertEqual(etichette[(corsi.categoria_id, corsi.gruppo)], "Formazione su mansioni")
 
 
     def test_da_fare_e_dashboard_mostrano_le_sessioni(self):
@@ -288,3 +294,138 @@ class PagineTests(_Scenario):
         with self._come(self.capo):
             self.assertContains(self.client.get(reverse("anagrafica:richieste_da_fare")), "Competenze da valutare · 1")
             self.assertContains(self.client.get(reverse("anagrafica:richiesta", args=[richiesta.pk])), s.codice)
+
+
+
+class GruppoEStampeTests(_Scenario):
+    def _gruppo(self):
+        r = rq.crea(self.hr, tipo=R.TIPO_COMPETENZA, persona_id=self.rossi, competenza_id=self.disegno.pk, livello="U",
+                    altre_persone=[self.bianchi, self.rossi])
+        return rq.decidi(self.mso, r, approva=True)
+
+    def test_richiesta_di_competenza_su_piu_persone(self):
+        r = self._gruppo()
+        self.assertEqual(r.persone_ids, [self.rossi, self.bianchi])
+        self.assertIn("e un'altra persona", rq.righe([r])[0]["persona"])
+        with self.assertRaisesMessage(rq.RichiestaNonValida, "già una richiesta aperta uguale"):
+            rq.crea(self.hr, tipo=R.TIPO_COMPETENZA, persona_id=self.verdi, competenza_id=self.disegno.pk, livello="U",
+                    altre_persone=[self.bianchi])
+        with self.assertRaisesMessage(rq.RichiestaNonValida, "solo per una richiesta di competenza"):
+            rq.crea(self.hr, tipo=R.TIPO_AGGIUNTA, persona_id=self.rossi, mansione_id=self.fresa.pk, livello="O",
+                    altre_persone=[self.bianchi])
+        # Il responsabile di Rossi vede la richiesta anche se nel gruppo c'è chi non è del suo team.
+        self.assertTrue(rq.puo_vedere(self.capo, r))
+        s = svc.apri(self.hr, r)
+        self.assertEqual(sorted(s.righe.values_list("legacy_anagrafica_id", flat=True)), sorted([self.rossi, self.bianchi]))
+        for riga in s.righe.all():
+            svc.valuta(self.hr, riga, modalita="C", livello="U", docente_ente="Ente di prova", verifica="test")
+        s = svc.firma_approvatore(self.mso, s)
+        s = svc.firma_persona(self.persona, s)
+        self.assertEqual(svc.tocca_a(s), "Le persone: firmare (1 di 2)")
+        self.assertIn("Manca la firma", svc.motivo_non_chiude(self.hr, s))
+        svc.firma_persona(self.hr, s, su_carta=True, data_firma=timezone.localdate(), persona_id=self.bianchi)
+        svc.chiudi(self.hr, s)
+        for pid in (self.rossi, self.bianchi):
+            self.assertTrue(ValutazioneCompetenzaStorico.objects.filter(legacy_anagrafica_id=pid, catalogo=self.disegno,
+                                                                        livello="U").exists())
+
+    def test_pdf_della_sessione_e_storico_della_persona(self):
+        s = self._aperta()
+        self._valuta_tutto(s)
+        with mock.patch("anagrafica.services.richieste.attore", return_value=self.capo):
+            self.client.force_login(self.capo.user)
+            r = self.client.get(reverse("anagrafica:sessione_pdf", args=[s.pk]))
+            self.assertEqual((r.status_code, r["Content-Type"]), (200, "application/pdf"))
+            self.assertTrue(r.content.startswith(b"%PDF"))
+            r = self.client.get(reverse("anagrafica:storico_competenze_pdf", args=[self.rossi]))
+            self.assertEqual(r.status_code, 200)
+            self.assertTrue(r.content.startswith(b"%PDF"))
+            # Fuori dal team del capo: niente storico.
+            self.assertEqual(self.client.get(reverse("anagrafica:storico_competenze_pdf", args=[self.gialli])).status_code, 404)
+        with mock.patch("anagrafica.services.richieste.attore", return_value=self.estraneo):
+            self.client.force_login(self.estraneo.user)
+            self.assertEqual(self.client.get(reverse("anagrafica:sessione_pdf", args=[s.pk])).status_code, 404)
+
+    def test_corso_da_una_edizione_a_cui_la_persona_e_iscritta(self):
+        from datetime import date
+
+        from .models import TrainingCourse, TrainingEnrollment, TrainingPlan, TrainingSession
+
+        piano = TrainingPlan.objects.create(codice="PSF1", nome="Piano di prova")
+        corso = TrainingCourse.objects.create(piano=piano, codice="CRS-PROVA", titolo="Lettura disegno di prova",
+                                              durata_ore_teorica=4)
+        edizione = TrainingSession.objects.create(corso=corso, codice_sessione="ED-PROVA-1", data_inizio=date(2026, 10, 1),
+                                                  data_fine=date(2026, 10, 2))
+        TrainingEnrollment.objects.create(sessione=edizione, legacy_anagrafica_id=self.rossi, stato="COMPLETATO", idoneo=True)
+        self.assertEqual([e["id"] for e in svc.edizioni_persona(self.rossi)], [edizione.pk])
+        s = self._aperta()
+        riga = svc.valuta(self.capo, self._riga(s, self.v_disegno), modalita="C", livello="L", edizione_id=edizione.pk)
+        self.assertEqual((riga.corso, riga.edizione, riga.verifica, riga.stato),
+                         (corso, edizione, Riga.VERIFICA_ATTESTATO, Riga.STATO_POSITIVA))
+        altra = TrainingSession.objects.create(corso=corso, codice_sessione="ED-PROVA-2", data_inizio=date(2026, 11, 1),
+                                               data_fine=date(2026, 11, 1))
+        with self.assertRaisesMessage(svc.SessioneNonValida, "non è iscritta"):
+            svc.valuta(self.capo, self._riga(s, self.v_misure), modalita="C", livello="U", edizione_id=altra.pk)
+
+    def test_avviso_a_chi_firma_quando_tutto_e_valutato(self):
+        s = self._aperta()
+        oggi = timezone.localdate()
+        svc.valuta(self.capo, self._riga(s, self.v_disegno), modalita="P", livello="L", descrizione="Prova", data_verifica=oggi)
+        with mock.patch("anagrafica.services.richieste.attore", return_value=self.capo),                 mock.patch("anagrafica.views_sessioni._notifica") as avviso:
+            self.client.force_login(self.capo.user)
+            self.client.post(reverse("anagrafica:sessione_valuta", args=[self._riga(s, self.v_misure).pk]), {
+                "modalita": "C", "livello": "U", "docente_ente": "Ente", "verifica": "conferma"})
+        destinatari = [c.args[0] for c in avviso.call_args_list]
+        self.assertIn({self.neri}, destinatari)  # Neri è RDD: tocca a lui firmare
+
+
+
+class RefreshEIngressoTests(_Scenario):
+    def test_il_refresh_non_mostra_le_mansioni_sospese_e_porta_alle_richieste(self):
+        from .services import skillmatrix_refresh as refresh
+
+        r = self._ram(tipo=R.TIPO_SOSPENSIONE, mansione_id=self.fresa.pk, livello="", motivazione="Fuori reparto")
+        rq.decidi(self.rdd, r, approva=True)
+        persone = {a.legacy_anagrafica_id for a in refresh.abilitazioni_reparto("Fresatura")
+                   if a.competenza_id == self.fresa.pk}
+        self.assertNotIn(self.rossi, persone)
+
+    def test_formazione_in_ingresso_assegna_la_matricola_solo_col_contatore_acceso(self):
+        from django.db import connection
+
+        from .models_sessioni import ContatoreMatricola
+
+        with self.assertRaisesMessage(rq.RichiestaNonValida, "inquadramento"):
+            rq.crea(self.hr, tipo=R.TIPO_AGGIUNTA, persona_id=self.rossi, mansione_id=self.torno.pk, livello="U", onboarding=True)
+        with self.assertRaisesMessage(rq.RichiestaNonValida, "la chiede HR"):
+            rq.crea(self.capo, tipo=R.TIPO_AGGIUNTA, persona_id=self.rossi, mansione_id=self.torno.pk, livello="U",
+                    onboarding=True, inquadramento="operatore")
+
+        def chiudi_ingresso(mansione):
+            r = rq.crea(self.hr, tipo=R.TIPO_AGGIUNTA, persona_id=self.rossi, mansione_id=mansione.pk, livello="U",
+                        onboarding=True, inquadramento="operatore")
+            s = svc.apri(self.hr, rq.decidi(self.rdd, r, approva=True))
+            for riga in s.righe.exclude(stato=Riga.STATO_GIA_PRESENTE):
+                svc.valuta(self.hr, riga, modalita="C", livello="U", docente_ente="Ente", verifica="test")
+            s = svc.firma_approvatore(self.rdd, s)
+            s = svc.firma_persona(self.persona, s)
+            return svc.chiudi(self.hr, s)
+
+        with connection.cursor() as c:
+            c.execute("UPDATE anagrafica_dipendenti SET matricola = '' WHERE id = %s", [self.rossi])
+        cnt, _ = ContatoreMatricola.objects.get_or_create(prefisso="CNO", defaults={"inquadramento": "operatore"})
+        cnt.attivo, cnt.ultimo = False, 0
+        cnt.save()
+        s = chiudi_ingresso(self.torno)
+        self.assertEqual(svc.matricola_di(self.rossi), "")
+        self.assertIn("contatore CNO non è attivo", s.eventi.get(azione="Sessione chiusa positiva").nota)
+
+        cnt.attivo, cnt.ultimo = True, 41
+        cnt.save()
+        s = chiudi_ingresso(self._crea_mansione("Montaggio M7", self.in1, self.op))
+        self.assertEqual(svc.matricola_di(self.rossi), "CNO0042")
+        cnt.refresh_from_db()
+        self.assertEqual(cnt.ultimo, 42)
+        # Una matricola presente non si cambia più.
+        chiudi_ingresso(self._crea_mansione("Montaggio M8", self.in1, self.op))
+        self.assertEqual(svc.matricola_di(self.rossi), "CNO0042")

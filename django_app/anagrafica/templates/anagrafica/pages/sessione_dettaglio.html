@@ -16,6 +16,8 @@
 .sf-passo-firme input[type=date], .sf-passo-firme input[type=file], .sf-passo-firme textarea { padding:7px 9px; border:1px solid #d7e0ea; border-radius:9px; font:inherit; font-size:13px; }
 .sf-passo-firme textarea { width:100%; min-height:60px; }
 .sf-ok { color:#15803d; font-weight:600; }
+.sf-firma-persona { padding:4px 0; }
+.sf-firma-persona + .sf-firma-persona { border-top:1px dashed #e2e8f0; margin-top:4px; padding-top:8px; }
 .sf-attesa { color:#94a3b8; }
 .sf-evid { display:block; color:#64748b; font-size:11.5px; font-weight:500; margin-top:2px; }
 .sf-evid a { font-weight:600; }
@@ -56,6 +58,7 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
     {% include "anagrafica/partials/_sessione_stato.html" %}
     <div class="rq-azioni">
       {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="rq-btn" href="{{ guida_url }}#sessioni-formative">? Guida</a>
+      <a class="rq-btn" href="{% url 'anagrafica:sessione_pdf' s.pk %}" target="_blank" rel="noopener">Verbale PDF</a>
       <a class="rq-btn" href="{% url 'anagrafica:sessioni' %}?sessione={{ s.pk }}">Tutte le sessioni</a>
       <a class="rq-btn" href="{% url 'anagrafica:richiesta' r.pk %}">Richiesta {{ r.codice }}</a>
     </div>
@@ -78,11 +81,11 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
       <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab sf-tab">
         <thead><tr><th>Competenza</th><th>Richiesto</th><th>Oggi</th><th>Modalità</th><th>Raggiunto</th><th>Stato</th><th></th></tr></thead>
         <tbody>{% for x in righe %}{% with g=x.r %}<tr>
-          <td><b>{{ g.competenza_nome }}</b>
+          <td><b>{{ g.competenza_nome }}</b>{% if partecipanti|length > 1 %}<span class="sf-evid">Persona: {{ x.persona }}</span>{% endif %}
             {% if g.stato == "gia_presente" %}<span class="sf-evid">Già nel profilo della persona: non va rivalutata.</span>
             {% elif g.modalita == "P" %}<span class="sf-evid">{{ g.descrizione|default:"Verifica da descrivere" }}{% if g.data_verifica %} · verificata il {{ g.data_verifica|date:"d/m/Y" }}{% endif %}</span>
             {% elif g.modalita == "A" %}<span class="sf-evid">Tutor: {{ g.tutor_nome|default:"da indicare" }}{% if g.ore %} · {{ g.ore }} ore{% endif %}{% if g.dal %} · dal {{ g.dal|date:"d/m/Y" }}{% endif %}{% if g.al %} al {{ g.al|date:"d/m/Y" }}{% endif %}{% if g.registro_mod040 %} · <a href="{% url 'anagrafica:sessione_file_riga' s.pk 'mod040' g.pk %}">registro MOD.040</a>{% else %} · registro MOD.040 da caricare{% endif %}</span>
-            {% elif g.modalita == "C" %}<span class="sf-evid">{% if g.corso %}{{ g.corso.codice }} · {{ g.corso.titolo }}{% else %}{{ g.docente_ente|default:"Corso da indicare" }}{% endif %}{% if g.data_corso %} · {{ g.data_corso|date:"d/m/Y" }}{% endif %}{% if g.verifica %} · verifica: {{ g.get_verifica_display|lower }}{% endif %}</span>{% endif %}
+            {% elif g.modalita == "C" %}<span class="sf-evid">{% if g.edizione %}Edizione {{ g.edizione.codice_sessione }} · {% endif %}{% if g.corso %}{{ g.corso.codice }} · {{ g.corso.titolo }}{% else %}{{ g.docente_ente|default:"Corso da indicare" }}{% endif %}{% if g.data_corso %} · {{ g.data_corso|date:"d/m/Y" }}{% endif %}{% if g.verifica %} · verifica: {{ g.get_verifica_display|lower }}{% endif %}</span>{% endif %}
             {% if g.valutato_da_nome %}<span class="sf-evid">Valutata da {{ g.valutato_da_nome }} il {{ g.valutato_il|date:"d/m/Y" }}{% if g.nota %} · {{ g.nota }}{% endif %}</span>{% endif %}
           </td>
           <td>{% include "anagrafica/partials/_esplora_livello.html" with l=x.richiesto %}</td>
@@ -96,7 +99,7 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
                 data-verifica-il="{{ g.data_verifica|date:'Y-m-d' }}" data-tutor="{{ g.tutor_nome }}" data-dal="{{ g.dal|date:'Y-m-d' }}"
                 data-al="{{ g.al|date:'Y-m-d' }}" data-ore="{{ g.ore|default_if_none:'' }}" data-registro="{% if g.registro_mod040 %}1{% endif %}"
                 data-corso="{{ g.corso_id|default_if_none:'' }}" data-ente="{{ g.docente_ente }}" data-corso-il="{{ g.data_corso|date:'Y-m-d' }}"
-                data-verifica="{{ g.verifica }}">{% if g.modalita %}Modifica{% else %}Valuta{% endif %}</button>{% endif %}</td>
+                data-verifica="{{ g.verifica }}" data-edizione="{{ g.edizione_id|default_if_none:'' }}">{% if g.modalita %}Modifica{% else %}Valuta{% endif %}</button>{% endif %}</td>
         </tr>{% endwith %}{% endfor %}</tbody>
       </table></div>
       <div class="es-s-legenda">{% for l in legenda %}<span><b>{{ l.codice }}</b> {{ l.parola }}</span>{% endfor %}</div>
@@ -130,25 +133,27 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
         {% else %}<span class="sf-attesa">{{ motivo_non_firma_approvatore }}</span>{% endif %}
       </div>
       <div class="sf-passo-firme">
-        <strong>Firma della persona</strong>
-        {% if s.firma_persona_modo %}<span class="sf-ok">{{ s.get_firma_persona_modo_display }}, il {{ s.firma_persona_il|date:"d/m/Y" }}</span>{% if s.firma_persona_modo == "carta" %} · registrata da {{ s.firma_persona_registrata_da }}{% endif %}{% if s.firma_persona_file %} · <a href="{% url 'anagrafica:sessione_file' s.pk 'firma' %}">foglio firmato</a>{% endif %}
-        {% else %}
-          {% if not motivo_non_firma_persona %}
-          <form method="post" action="{% url 'anagrafica:sessione_firma_persona' s.pk %}">{% csrf_token %}
-            <input type="hidden" name="modo" value="portale">
-            <button type="submit" class="rq-btn rq-btn-p rq-btn-s">Firmo: ho ricevuto questa formazione</button>
-          </form>
+        <strong>{% if partecipanti|length > 1 %}Firme delle persone{% else %}Firma della persona{% endif %}</strong>
+        {% for x in partecipanti %}
+        <div class="sf-firma-persona">{% if partecipanti|length > 1 %}<b>{{ x.nome }}</b> · {% endif %}
+          {% if x.p.firmato %}<span class="sf-ok">{{ x.p.get_firma_modo_display }}, il {{ x.p.firma_il|date:"d/m/Y" }}</span>{% if x.p.firma_modo == "carta" %} · registrata da {{ x.p.firma_registrata_da }}{% endif %}{% if x.p.firma_file %} · <a href="{% url 'anagrafica:sessione_file_riga' s.pk 'firma' x.p.pk %}">foglio firmato</a>{% endif %}
+          {% else %}
+            {% if x.sono_io and not motivo_non_firma_persona %}
+            <form method="post" action="{% url 'anagrafica:sessione_firma_persona' s.pk %}">{% csrf_token %}
+              <input type="hidden" name="modo" value="portale">
+              <button type="submit" class="rq-btn rq-btn-p rq-btn-s">Firmo: ho ricevuto questa formazione</button>
+            </form>
+            {% elif not motivo_non_firma_carta %}
+            <form method="post" action="{% url 'anagrafica:sessione_firma_persona' s.pk %}" enctype="multipart/form-data">{% csrf_token %}
+              <input type="hidden" name="modo" value="carta"><input type="hidden" name="persona" value="{{ x.p.legacy_anagrafica_id }}">
+              <label>Firmata su carta il <input type="date" name="data_firma" value="{{ oggi|date:'Y-m-d' }}" max="{{ oggi|date:'Y-m-d' }}" required></label>
+              <input type="file" name="foglio" accept=".pdf,.jpg,.jpeg,.png" aria-label="Foglio firmato di {{ x.nome }} (facoltativo)">
+              <button type="submit" class="rq-btn rq-btn-s">Registra la firma su carta</button>
+            </form>
+            {% else %}<span class="sf-attesa">{% if not s.firma_approvatore_il %}Prima firma {{ sigla }}.{% else %}Da firmare: dal portale, o su carta registrata da Qualità o HR.{% endif %}</span>{% endif %}
           {% endif %}
-          {% if not motivo_non_firma_carta %}
-          <form method="post" action="{% url 'anagrafica:sessione_firma_persona' s.pk %}" enctype="multipart/form-data">{% csrf_token %}
-            <input type="hidden" name="modo" value="carta">
-            <label>Firmata su carta il <input type="date" name="data_firma" value="{{ oggi|date:'Y-m-d' }}" max="{{ oggi|date:'Y-m-d' }}" required></label>
-            <input type="file" name="foglio" accept=".pdf,.jpg,.jpeg,.png" aria-label="Foglio firmato (facoltativo)">
-            <button type="submit" class="rq-btn rq-btn-s">Registra la firma su carta</button>
-          </form>
-          {% endif %}
-          {% if motivo_non_firma_persona and motivo_non_firma_carta %}<span class="sf-attesa">{% if not s.firma_approvatore_il %}Prima firma {{ sigla }}.{% else %}La persona firma dal portale; se ha firmato su carta la registrano la Qualità o HR.{% endif %}</span>{% endif %}
-        {% endif %}
+        </div>
+        {% endfor %}
       </div>
       <div class="sf-passo-firme">
         <strong>Chiusura</strong>
@@ -207,6 +212,8 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
         <div><label class="sf-l" for="sf-registro">Registro MOD.040 firmato (PDF o foto) <span id="sf-registro-ok" class="sf-ok"></span></label><input type="file" id="sf-registro" name="registro_mod040" accept=".pdf,.jpg,.jpeg,.png"></div>
       </div>
       <div class="sf-gruppo" data-gruppo="C">
+        {% if edizioni %}<div><label class="sf-l" for="sf-edizione">Edizione a cui la persona è iscritta</label><select id="sf-edizione" name="edizione"><option value="">Nessuna: indico corso o docente</option>{% for e in edizioni %}<option value="{{ e.id }}">{{ e.testo }}</option>{% endfor %}</select>
+          <small class="sf-evid">Corso, data, docente e, se l'ha completata da idoneo, la verifica «Attestato» vengono dall'edizione.</small></div>{% endif %}
         <div><label class="sf-l" for="sf-corso">Corso a catalogo</label><select id="sf-corso" name="corso"><option value="">Nessuno: indico docente o ente</option>{% for c in corsi %}<option value="{{ c.pk }}">{{ c.codice }} · {{ c.titolo }}</option>{% endfor %}</select></div>
         <div class="sf-due">
           <div><label class="sf-l" for="sf-ente">Docente o ente</label><input type="text" id="sf-ente" name="docente_ente" maxlength="200"></div>
@@ -249,6 +256,7 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
       campo('nota').value = d.nota || ''; campo('descrizione').value = d.descrizione || '';
       campo('data_verifica').value = d.verificaIl || ''; campo('tutor_nome').value = d.tutor || '';
       campo('dal').value = d.dal || ''; campo('al').value = d.al || ''; campo('ore').value = (d.ore || '').replace(',', '.');
+      if (campo('edizione')) campo('edizione').value = d.edizione || '';
       campo('corso').value = d.corso || ''; campo('docente_ente').value = d.ente || ''; campo('data_corso').value = d.corsoIl || '';
       document.getElementById('sf-registro-ok').textContent = d.registro ? '· già caricato, puoi sostituirlo' : '';
       mostraGruppo();

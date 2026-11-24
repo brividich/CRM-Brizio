@@ -22,7 +22,7 @@
       <div class="tp-title">{{ r.label }} <span class="ts-chip {{ r.chip }}">{{ r.stato_label }}</span>{% if r.delta_piano %}<span class="ts-chip {% if r.delta_piano > 0 %}danger{% else %}ok{% endif %}">{% if r.delta_piano > 0 %}+{% endif %}{{ r.delta_piano }} gg sul piano</span>{% endif %}</div>
       {% for v in r.voci %}
       <div class="tp-voce">
-        <span class="tp-meta">{% if v.task.title != r.tipo.name %}{{ v.titolo_breve }} · {% endif %}{% if v.task.assigned_to %}{{ v.task.assigned_to.get_full_name|default:v.task.assigned_to.username }}{% else %}da assegnare{% endif %}{% if v.task.due_date %} · entro il {{ v.task.due_date|date:"d/m/Y" }}{% endif %}{% if v.dettaglio %} · {{ v.dettaglio }}{% endif %}{% if r.voci|length > 1 %} · {{ v.task.get_status_display }}{% endif %} · <a class="tp-link" href="{{ v.url }}" data-preview="{{ v.url }}" data-tp-task="{{ v.task.pk }}">Apri</a>{% include "tasks/_azioni_rapide_btn.html" with ar_task_id=v.task.pk %}</span>
+        <span class="tp-meta">{% if v.task.title != r.tipo.name %}{{ v.titolo_breve }} · {% endif %}{% if v.task.assigned_to %}{% firstof v.task.assigned_to.get_full_name v.task.assigned_to.username %}{% else %}da assegnare{% endif %}{% if v.task.due_date %} · entro il {{ v.task.due_date|date:"d/m/Y" }}{% endif %}{% if v.dettaglio %} · {{ v.dettaglio }}{% endif %}{% if r.voci|length > 1 %} · {{ v.task.get_status_display }}{% endif %} · <a class="tp-link" href="{{ v.url }}" data-preview="{{ v.url }}" data-tp-task="{{ v.task.pk }}">Apri</a>{% include "tasks/_azioni_rapide_btn.html" with ar_task_id=v.task.pk %}</span>
       </div>
       {% endfor %}
       {% if r.collegamenti %}

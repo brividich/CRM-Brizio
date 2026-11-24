@@ -501,7 +501,7 @@ body.theme-dark .flag-toggle[data-state="ov-off"]{background:rgba(229,62,62,.16)
           {% if onboarding_data.reset_at %}
             <div style="font-size:12px;color:var(--text-muted,#888);margin-bottom:10px;">
               Ultimo reset: {{ onboarding_data.reset_at|date:"d-m-Y H:i" }}
-              {% if onboarding_data.reset_by %} da {{ onboarding_data.reset_by.get_full_name|default:onboarding_data.reset_by.username }}{% endif %}
+              {% if onboarding_data.reset_by %} da {% firstof onboarding_data.reset_by.get_full_name onboarding_data.reset_by.username %}{% endif %}
             </div>
           {% endif %}
         {% else %}

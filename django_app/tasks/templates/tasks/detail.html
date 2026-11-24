@@ -121,7 +121,7 @@
             {% for t in altre_attivita %}
               <li data-ka-bersaglio="{{ t.pk }}" tabindex="0">
                 <strong>{{ t.title }}</strong>
-                <small>{% if t.assigned_to %}{{ t.assigned_to.get_full_name|default:t.assigned_to.username }}{% else %}Da assegnare{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m" }}{% endif %}</small>
+                <small>{% if t.assigned_to %}{% firstof t.assigned_to.get_full_name t.assigned_to.username %}{% else %}Da assegnare{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m" }}{% endif %}</small>
               </li>
             {% endfor %}
           </ul>
@@ -156,7 +156,7 @@
                     </td>
                   {% endif %}
                   <td class="st-title">{{ subtask.title }}</td>
-                  <td class="td-sotto-info">{% if subtask.assigned_to %}{{ subtask.assigned_to.get_full_name|default:subtask.assigned_to.username }}{% else %}Da assegnare{% endif %}</td>
+                  <td class="td-sotto-info">{% if subtask.assigned_to %}{% firstof subtask.assigned_to.get_full_name subtask.assigned_to.username %}{% else %}Da assegnare{% endif %}</td>
                   <td class="td-sotto-info">{{ subtask.due_date|date:"d/m/Y" }}</td>
                   <td class="td-sotto-stato">
                     {% if can_edit %}
@@ -217,7 +217,7 @@
               <li class="ka-crono-voce is-commento">
                 <div class="ka-crono-testa"><strong>{{ v.chi }}</strong><span>ha commentato</span><time datetime="{{ v.quando|date:'c' }}">{{ v.quando|date:"d/m/Y H:i" }}</time></div>
                 <div class="td-testo">{{ v.voce.body }}</div>
-                {% if v.voce.target_user %}<div class="ka-crono-nota">Avvisato: {{ v.voce.target_user.get_full_name|default:v.voce.target_user.username }}</div>{% endif %}
+                {% if v.voce.target_user %}<div class="ka-crono-nota">Avvisato: {% firstof v.voce.target_user.get_full_name v.voce.target_user.username %}</div>{% endif %}
               </li>
             {% else %}
               <li class="ka-crono-voce tone-{{ v.voce.tone }}">
@@ -245,14 +245,14 @@
     <article class="td-card" id="dettagli">
       <h2 class="td-titolo">Dettagli</h2>
       <dl class="td-dati">
-        <div><dt>Responsabile</dt><dd>{% if task.assigned_to %}{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}{% else %}Da assegnare{% endif %}</dd></div>
+        <div><dt>Responsabile</dt><dd>{% if task.assigned_to %}{% firstof task.assigned_to.get_full_name task.assigned_to.username %}{% else %}Da assegnare{% endif %}</dd></div>
         <div><dt>Inizio</dt><dd>{{ task.next_step_due|date:"d/m/Y"|default:"-" }}</dd></div>
         <div><dt>Scadenza</dt><dd{% if task.is_overdue %} class="ka-scheda-ritardo"{% endif %}>{{ task.due_date|date:"d/m/Y"|default:"-" }}</dd></div>
         {% if task.category %}<div><dt>Tipo</dt><dd>{{ task.category.name }}</dd></div>{% endif %}
         {% for row in task_extra_rows %}
           <div><dt>{{ row.label }}</dt><dd>{% if row.href %}<a href="{{ row.href }}">{{ row.value }}</a>{% else %}{{ row.value }}{% endif %}</dd></div>
         {% endfor %}
-        <div><dt>Creata da</dt><dd>{{ task.created_by.get_full_name|default:task.created_by.username }}</dd></div>
+        <div><dt>Creata da</dt><dd>{% firstof task.created_by.get_full_name task.created_by.username %}</dd></div>
         {% with subs=task.subscribers.all %}{% if subs %}
           <div><dt>Chi segue</dt><dd>{% for subscriber in subs %}{{ subscriber.get_full_name|default:subscriber.username }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd></div>
         {% endif %}{% endwith %}
@@ -262,7 +262,7 @@
       {% if spostamento_aperto %}{% with sp=spostamento_aperto %}
         <div class="td-spostamento" id="spostamenti">
           <h3 class="td-sottotitolo">Richiesta di spostamento</h3>
-          <p class="td-sp-testo"><strong>{{ sp.richiesto_da.get_full_name|default:sp.richiesto_da.username }}</strong> chiede:
+          <p class="td-sp-testo"><strong>{% firstof sp.richiesto_da.get_full_name sp.richiesto_da.username %}</strong> chiede:
             {{ sp.inizio_prima|date:"d/m/Y"|default:"—" }} – {{ sp.fine_prima|date:"d/m/Y"|default:"—" }}
             → <strong>{{ sp.inizio_nuovo|date:"d/m/Y"|default:"—" }} – {{ sp.fine_nuovo|date:"d/m/Y"|default:"—" }}</strong></p>
           {% if sp.motivo %}<p class="td-sp-motivo">«{{ sp.motivo }}»</p>{% endif %}
@@ -322,7 +322,7 @@
           {% for attachment in task.attachments.all %}
             <li>
               <a href="{% url 'tasks:task_attachment_download' attachment.id %}" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
-              <span>{{ attachment.created_at|date:"d/m/Y" }}{% if attachment.uploaded_by %} · {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}{% endif %}</span>
+              <span>{{ attachment.created_at|date:"d/m/Y" }}{% if attachment.uploaded_by %} · {% firstof attachment.uploaded_by.get_full_name attachment.uploaded_by.username %}{% endif %}</span>
             </li>
           {% endfor %}
         </ul>
@@ -335,7 +335,7 @@
           {% for attachment in task.project.attachments.all %}
             <li>
               <a href="{% url 'tasks:task_attachment_download' attachment.id %}" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
-              <span>{{ attachment.created_at|date:"d/m/Y" }}{% if attachment.uploaded_by %} · {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}{% endif %}</span>
+              <span>{{ attachment.created_at|date:"d/m/Y" }}{% if attachment.uploaded_by %} · {% firstof attachment.uploaded_by.get_full_name attachment.uploaded_by.username %}{% endif %}</span>
             </li>
           {% endfor %}
         </ul>

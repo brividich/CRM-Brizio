@@ -70,7 +70,7 @@ body.theme-dark .am-reset input[type=text]{border-color:var(--border)}
           <div class="am-value">{{ m.current_value|floatformat:0 }}</div>
           <div class="am-unit">{{ m.unit_label|default:m.get_meter_type_display }}</div>
           <div class="am-updated"><span class="as-badge as-badge--{{ m.freshness_tone }}" title="{% if m.last_read_at %}Letto il {{ m.last_read_at|date:'d-m-Y H:i' }} · {{ m.get_source_display }}{% endif %}">{{ m.freshness_label }}</span></div>
-          {% if m.updated_by %}<div class="am-updated">da {{ m.updated_by.get_full_name|default:m.updated_by.username }}</div>{% endif %}
+          {% if m.updated_by %}<div class="am-updated">da {% firstof m.updated_by.get_full_name m.updated_by.username %}</div>{% endif %}
         </div>
       {% endfor %}
     </div>
@@ -109,7 +109,7 @@ body.theme-dark .am-reset input[type=text]{border-color:var(--border)}
                 <td>{{ h.old_value|floatformat:0 }}</td>
                 <td>{{ h.new_value|floatformat:0 }}</td>
                 {# Le letture dei collector non hanno utente: un argomento None nel filtro default darebbe 500. #}
-                <td>{% if h.recorded_by %}{{ h.recorded_by.get_full_name|default:h.recorded_by.username }}{% else %}{{ h.get_source_display }}{% endif %}</td>
+                <td>{% if h.recorded_by %}{% firstof h.recorded_by.get_full_name h.recorded_by.username %}{% else %}{{ h.get_source_display }}{% endif %}</td>
               </tr>
             {% endfor %}
           </tbody>

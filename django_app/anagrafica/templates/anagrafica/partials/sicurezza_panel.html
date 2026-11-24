@@ -117,7 +117,7 @@ body.theme-dark .sp-tl time{color:var(--text-light)}
     <td>{{ o.get_azione_display }}</td>
     <td>dal {{ o.data_inizio|date:"d/m/Y" }}{% if o.data_fine %} al {{ o.data_fine|date:"d/m/Y" }}{% endif %}</td>
     <td>{% if can_view_visite %}{{ o.motivo }}{% else %}<span style="color:#94a3b8;">motivo riservato</span>{% endif %}{% if not o.attivo %}<br><small>Revocato il {{ o.revocato_il|date:"d/m/Y" }}{% if can_view_visite %}: {{ o.revoca_motivo }}{% endif %}</small>{% endif %}</td>
-    <td>{% if o.created_by %}{{ o.created_by.get_full_name|default:o.created_by.username }}{% else %}—{% endif %}</td>
+    <td>{% if o.created_by %}{% firstof o.created_by.get_full_name o.created_by.username %}{% else %}—{% endif %}</td>
     <td>
       {% if o.attivo and puo_sorveglianza %}
       <form method="post" action="{% url 'anagrafica:dipendente_override_revoca' legacy_id o.pk %}" style="display:flex;gap:4px;">

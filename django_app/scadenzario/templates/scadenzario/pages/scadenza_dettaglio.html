@@ -22,7 +22,7 @@
       <tr><th>Validità</th><td>{% if s.validita_mesi %}{{ s.validita_mesi }} mesi{% else %}—{% endif %}</td><th>Ubicazione</th><td>{{ s.ubicazione|default:"—" }}</td></tr>
       <tr><th>Preavviso</th><td>{{ s.preavviso_giorni|default:"come la categoria" }}{% if s.preavviso_giorni %} giorni{% endif %}</td><th>Ripeti ogni</th><td>{{ s.ripeti_ogni_giorni|default:"come la categoria" }}{% if s.ripeti_ogni_giorni %} giorni{% endif %}</td></tr>
       <tr><th>Avvisi a</th><td colspan="3">{{ s.destinatari|join:", "|default:"nessun avviso singolo: solo riepilogo mensile della categoria" }}</td></tr>
-      <tr><th>Responsabile</th><td colspan="3">{% if s.responsabile %}{{ s.responsabile.get_full_name|default:s.responsabile.username }}{% else %}—{% endif %}</td></tr>
+      <tr><th>Responsabile</th><td colspan="3">{% if s.responsabile %}{% firstof s.responsabile.get_full_name s.responsabile.username %}{% else %}—{% endif %}</td></tr>
       {% if s.descrizione %}<tr><th>Descrizione</th><td colspan="3">{{ s.descrizione|linebreaksbr }}</td></tr>{% endif %}
     </table>
     {% if gestisce %}

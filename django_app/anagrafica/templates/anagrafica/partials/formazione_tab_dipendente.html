@@ -183,11 +183,11 @@
                       id="fm-toggle-{{ rec.pk }}"
                       onclick="fmToggleExpand({{ rec.pk }})">▶</button>
             </td>
-            <td style="color:#64748b;">{{ rec.plan_name_snapshot|default:rec.corso.piano.nome|default:"—" }}</td>
+            <td style="color:#64748b;">{% firstof rec.plan_name_snapshot rec.corso.piano.nome "—" %}</td>
             <td style="font-weight:500;font-variant-numeric:tabular-nums;">
-              {{ rec.course_code_snapshot|default:rec.corso.codice }}
+              {% firstof rec.course_code_snapshot rec.corso.codice %}
             </td>
-            <td style="color:#334155;">{{ rec.course_title_snapshot|default:rec.corso.titolo|default:"—" }}</td>
+            <td style="color:#334155;">{% firstof rec.course_title_snapshot rec.corso.titolo "—" %}</td>
             <td style="white-space:nowrap;color:#334155;font-variant-numeric:tabular-nums;">
               {{ rec.data_completamento|date:"d-m-Y" }}
             </td>

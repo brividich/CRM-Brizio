@@ -155,6 +155,7 @@ def _contesto_nuova(a, dati: dict, errore: str = "") -> dict:
         "competenze": list(CompetenzaCatalogo.objects.filter(attiva=True).order_by("nome").values("id", "nome")),
         "livelli": esplora_semplice.LEGENDA, "dati": dati, "errore": errore,
         "tipi_mansione": list(R.TIPI_MANSIONE), "tipi_senza_livello": list(R.TIPI_SENZA_SESSIONE),
+        "puo_onboarding": a.gestione, "inquadramenti": R.INQUADRAMENTO_CHOICES,
     }
 
 
@@ -167,14 +168,18 @@ def nuova(request):
     sorgente = request.POST if request.method == "POST" else request.GET
     dati = {"tipo": sorgente.get("tipo") or "", "persona": _int(sorgente.get("persona")),
             "mansione": _int(sorgente.get("mansione")), "competenza": _int(sorgente.get("competenza")),
-            "livello": (sorgente.get("livello") or "").upper(), "motivazione": sorgente.get("motivazione") or ""}
+            "livello": (sorgente.get("livello") or "").upper(), "motivazione": sorgente.get("motivazione") or "",
+            "altre": [i for i in (_int(x) for x in sorgente.getlist("altre_persone")) if i],
+            "onboarding": sorgente.get("onboarding") == "1", "inquadramento": sorgente.get("inquadramento") or ""}
     if request.method != "POST":
         if not dati["livello"]:
             dati["livello"] = "U"
         return render(request, "anagrafica/pages/richiesta_nuova.html", _contesto_nuova(a, dati))
     try:
         richiesta = svc.crea(a, tipo=dati["tipo"], persona_id=dati["persona"], mansione_id=dati["mansione"],
-                             competenza_id=dati["competenza"], livello=dati["livello"], motivazione=dati["motivazione"])
+                             competenza_id=dati["competenza"], livello=dati["livello"], motivazione=dati["motivazione"],
+                             altre_persone=dati["altre"], onboarding=dati["onboarding"],
+                             inquadramento=dati["inquadramento"])
     except svc.RichiestaNonValida as exc:
         return render(request, "anagrafica/pages/richiesta_nuova.html", _contesto_nuova(a, dati, str(exc)))
     url = reverse("anagrafica:richiesta", args=[richiesta.pk])
@@ -199,9 +204,11 @@ def dettaglio(request, pk: int):
 
     riga = svc.righe([richiesta])[0]
     fabbisogno = svc.fabbisogno(richiesta)
+    nomi_tutti = svc.struttura_vista._nomi(richiesta.persone_ids)
+    persone_gruppo = [nomi_tutti.get(i) or f"#{i}" for i in richiesta.persone_ids] if len(richiesta.persone_ids) > 1 else []
     sessione = SessioneFormativa.objects.filter(richiesta=richiesta).first()
     return render(request, "anagrafica/pages/richiesta_dettaglio.html", {
-        "sessione": sessione, "motivo_non_apre": "" if sessione else sessioni.motivo_non_apre(a, richiesta),
+        "sessione": sessione, "persone_gruppo": persone_gruppo, "motivo_non_apre": "" if sessione else sessioni.motivo_non_apre(a, richiesta),
         "r": richiesta, "persona": riga["persona"], "tocca_a": riga["tocca_a"], "passi": svc.passi(richiesta),
         "fabbisogno": fabbisogno, "da_formare": sum(1 for f in fabbisogno if not f["presente"]),
         "livello": esplora_semplice.livello(richiesta.livello), "legenda": esplora_semplice.LEGENDA,

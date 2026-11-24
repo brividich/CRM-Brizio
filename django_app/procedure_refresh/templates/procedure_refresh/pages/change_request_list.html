@@ -87,7 +87,7 @@ body.theme-dark .pr-empty{color:var(--text-light)}
           <div>
             <div class="pr-cr-doc">{{ cr.document.code }} — {{ cr.document.title }}</div>
             <div class="pr-cr-meta">
-              Da {{ cr.created_by.get_full_name|default:cr.created_by.username|default:"—" }}
+              Da {% firstof cr.created_by.get_full_name cr.created_by.username "—" %}
               il {{ cr.created_at|date:"d-m-Y H:i" }}
               {% if cr.revision %} · revisione letta {{ cr.revision.revision_code }}{% endif %}
             </div>
@@ -102,7 +102,7 @@ body.theme-dark .pr-empty{color:var(--text-light)}
           <div class="pr-cr-meta">
             <strong>Risposta:</strong> {{ cr.risposta_gestore }}
             {% if cr.recepita_in_revisione %} (recepita in {{ cr.recepita_in_revisione.revision_code }}){% endif %}
-            — {{ cr.gestita_da.get_full_name|default:cr.gestita_da.username|default:"" }}
+            — {% firstof cr.gestita_da.get_full_name cr.gestita_da.username "" %}
             {% if cr.gestita_il %}il {{ cr.gestita_il|date:"d-m-Y H:i" }}{% endif %}
           </div>
         {% endif %}

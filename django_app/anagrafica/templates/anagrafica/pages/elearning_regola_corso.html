@@ -32,7 +32,7 @@
 
     <section class="fmd-panel fmd-block" role="status" style="border-left:4px solid {% if regola.confermata_rspp_il %}#22a35a{% else %}#f59e0b{% endif %};">
       {% if regola.confermata_rspp_il %}
-        <strong>Confermate dall'RSPP</strong> il {{ regola.confermata_rspp_il|date:"d/m/Y H:i" }}{% if regola.confermata_rspp_da %} da {{ regola.confermata_rspp_da.get_full_name|default:regola.confermata_rspp_da.username }}{% endif %}. Una modifica annulla la conferma.
+        <strong>Confermate dall'RSPP</strong> il {{ regola.confermata_rspp_il|date:"d/m/Y H:i" }}{% if regola.confermata_rspp_da %} da {% firstof regola.confermata_rspp_da.get_full_name regola.confermata_rspp_da.username %}{% endif %}. Una modifica annulla la conferma.
       {% else %}
         <strong>Da confermare.</strong> Senza conferma dell'RSPP il corso non si può pubblicare.
       {% endif %}

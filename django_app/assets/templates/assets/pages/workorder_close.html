@@ -48,7 +48,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
 {% endblock %}
 
 {% block assets_shell_title %}Chiudi intervento #{{ workorder.display_number }}{% endblock %}
-{% block assets_shell_subtitle %}<p>{{ workorder.title }} su <strong>{{ workorder.asset.asset_tag|default:workorder.asset.name }}</strong>{% if workorder.asset.asset_tag %} — {{ workorder.asset.name }}{% endif %}</p>{% endblock %}
+{% block assets_shell_subtitle %}<p>{{ workorder.title }} su <strong>{% firstof workorder.asset.asset_tag workorder.asset.name %}</strong>{% if workorder.asset.asset_tag %} — {{ workorder.asset.name }}{% endif %}</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn btn-secondary" href="{% url 'assets:wo_view' workorder.id %}">&larr; Torna all'intervento</a>
   <a class="btn btn-secondary" href="{% url 'assets:wo_edit' workorder.id %}">&#9998; Modifica</a>
@@ -95,7 +95,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
       <p>Chiudendo l'intervento continueranno a risultare dovute: la loro scadenza resta aperta e il piano dell'asset non avanza.</p>
       <ul>
         {% for occ in pending_occurrences %}
-          <li><strong>{{ occ.plan.label }}</strong> — {{ occ.asset.asset_tag|default:occ.asset.name }} · scadenza {{ occ.due_date|date:"d/m/Y" }}</li>
+          <li><strong>{{ occ.plan.label }}</strong> — {% firstof occ.asset.asset_tag occ.asset.name %} · scadenza {{ occ.due_date|date:"d/m/Y" }}</li>
         {% endfor %}
       </ul>
       {% if pending_reason_required %}
@@ -190,7 +190,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
             <li data-insieme-days="{{ other.insieme_days }}">
               <label class="md-also">
                 <input type="checkbox" name="also_close" value="{{ other.pk }}"{% if other.insieme_blocked %} disabled{% endif %}>
-                <span>#{{ other.display_number }} · <strong>{{ other.asset.asset_tag|default:other.asset.name }}</strong>{% if other.asset.asset_tag and other.asset.name %} {{ other.asset.name }}{% endif %}{% if other.title|lower != workorder.title|lower %} · {{ other.title }}{% endif %}{% if other.due_at %} · scadenza {{ other.due_at|date:"d/m/Y" }}{% if other.due_at|date:"Y-m-d" < today|date:"Y-m-d" %} <em>(scaduto)</em>{% endif %}{% endif %}{% if other.insieme_blocked %} · <em>{{ other.insieme_blocked }}: chiudilo a parte</em>{% endif %}</span>
+                <span>#{{ other.display_number }} · <strong>{% firstof other.asset.asset_tag other.asset.name %}</strong>{% if other.asset.asset_tag and other.asset.name %} {{ other.asset.name }}{% endif %}{% if other.title|lower != workorder.title|lower %} · {{ other.title }}{% endif %}{% if other.due_at %} · scadenza {{ other.due_at|date:"d/m/Y" }}{% if other.due_at|date:"Y-m-d" < today|date:"Y-m-d" %} <em>(scaduto)</em>{% endif %}{% endif %}{% if other.insieme_blocked %} · <em>{{ other.insieme_blocked }}: chiudilo a parte</em>{% endif %}</span>
               </label>
               <a class="md-sub" href="{% url 'assets:wo_close' other.pk %}">apri a parte</a>
             </li>

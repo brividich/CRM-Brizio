@@ -74,7 +74,7 @@
                       </td>
                     {% endif %}
                     <td>
-                      <a class="md-asset" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}">{{ occ.asset.asset_tag|default:occ.asset.name }}</a>
+                      <a class="md-asset" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}">{% firstof occ.asset.asset_tag occ.asset.name %}</a>
                       <span class="md-sub">{{ occ.asset.name }}</span>
                     </td>
                     <td>{{ occ.plan.label }}</td>

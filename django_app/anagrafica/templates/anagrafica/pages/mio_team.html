@@ -76,7 +76,7 @@ body.theme-dark .mt-sotto, body.theme-dark .es-s-tab td small.mt-sotto { color:#
             {% for c in persona.campi %}<div class="es-s-campo"><dt>{{ c.etichetta }}:</dt><dd>{{ c.valore }}</dd></div>{% endfor %}
             <div class="es-s-campo"><dt>Obblighi della mansione:</dt><dd>{% include "anagrafica/components/hr_pill.html" with tone=scelta.tono dot=1 label=scelta.esito_label %} {% info_hint "conformita" %}</dd></div>
           </dl>
-          <div class="es-s-azioni"><a class="hr-btn hr-btn-primary hr-btn-sm" href="{% url 'anagrafica:richiesta_nuova' %}?persona={{ scelta.id }}">Nuova richiesta</a>{% if scelta.scheda %}<a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' scelta.id %}">Apri la scheda</a>{% endif %}</div>
+          <div class="es-s-azioni"><a class="hr-btn hr-btn-primary hr-btn-sm" href="{% url 'anagrafica:richiesta_nuova' %}?persona={{ scelta.id }}">Nuova richiesta</a><a class="hr-btn hr-btn-outline hr-btn-sm" href="{{ persona.url_storico }}" target="_blank" rel="noopener">Storico (PDF)</a>{% if scelta.scheda %}<a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' scelta.id %}">Apri la scheda</a>{% endif %}</div>
         </div>
       </section>
       <div class="es-s-due">
@@ -108,6 +108,18 @@ body.theme-dark .mt-sotto, body.theme-dark .es-s-tab td small.mt-sotto { color:#
           <div class="es-s-legenda">{% for l in persona.legenda %}<span><b>{{ l.codice }}</b> {{ l.parola }}</span>{% endfor %}</div>
         </section>
       </div>
+      <section class="es-s-card">
+        <h2 class="es-s-h">Sessioni formative <span>{{ persona.sessioni|length }}</span></h2>
+        {% if persona.sessioni %}
+        <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+          <thead><tr><th>Sessione</th><th>Mansione o competenza</th><th>Competenze</th><th>Stato</th></tr></thead>
+          <tbody>{% for s in persona.sessioni %}<tr>
+            <td><a href="{{ s.url }}">{{ s.codice }}</a></td><td>{{ s.oggetto }}</td><td>{{ s.fatte }} di {{ s.totale }}</td>
+            <td><span class="es-s-stato es-s-stato-{{ s.tono }}">{{ s.stato }}</span></td>
+          </tr>{% endfor %}</tbody>
+        </table></div>
+        {% else %}<p class="es-s-vuoto">Nessuna sessione formativa.</p>{% endif %}
+      </section>
       {% endif %}
     </div>
   </div>

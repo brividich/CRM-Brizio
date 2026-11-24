@@ -182,6 +182,32 @@ GUIDA = {
                                         "matrix non cambia: una mansione in formazione resta I finché una richiesta di "
                                         "rimozione non la toglie."),
                 ]),
+                ("def", [
+                    ("Verbale PDF", "«Verbale PDF» nella sessione: persona, richiesta, competenze con modalità, evidenze "
+                                    "e valutatori, firme ed esito. Una sessione aperta esce con le firme mancanti in bianco."),
+                    ("Corso da un'edizione", "nella modalità «Corso» si può scegliere un'edizione a cui la persona è "
+                                             "iscritta: corso, data e docente arrivano da lì; se l'ha completata da idonea "
+                                             "la verifica è «Attestato»."),
+                    ("Più persone", "una richiesta di competenza può comprendere altre persone (corso collettivo: FOD, "
+                                    "procedure, SGI): una sessione sola, con una riga e una firma per ogni persona."),
+                    ("Formazione in ingresso", "HR, nella richiesta di assegnazione, spunta «Formazione in ingresso di un "
+                                               "nuovo assunto» e sceglie l'inquadramento. Alla chiusura della sessione la "
+                                               "persona riceve la matricola (CNO operatori, T impiegati tecnici, A "
+                                               "amministrativi) se non ne ha già una e se il contatore è acceso. I "
+                                               "contatori stanno in fondo all'elenco delle sessioni («Matricole dei nuovi "
+                                               "assunti»), per chi amministra l'anagrafica: spenti finché la Qualità non "
+                                               "decide il numero di partenza. Una matricola presente non si cambia."),
+                    ("Storico della persona", "in «Il mio team», sulla persona scelta: le sue sessioni formative e "
+                                              "«Storico (PDF)», con mansioni, competenze, sessioni e storia delle "
+                                              "valutazioni (MOD.053 dinamico, formato da approvare)."),
+                    ("Avvisi", "si avvisano la persona e il suo responsabile all'apertura e alla chiusura; il "
+                               "responsabile quando un altro valuta; chi ha il ruolo RDD o MSO quando tutto è valutato; "
+                               "la persona quando tocca a lei firmare."),
+                ]),
+                ("p", "Nel refresh delle abilitazioni ogni riga ha «Chiedi un livello più alto» e «Chiedi la "
+                      "sospensione», che aprono la richiesta già compilata; le mansioni sospese non compaiono più nel "
+                      "refresh. In Competenze → Formazione la voce si chiama «Formazione su mansioni», per non "
+                      "confonderla con «Sessioni» (le edizioni dei corsi)."),
                 ("p", "«Da fare» e la Dashboard mostrano a ognuno il suo passo: sessioni da aprire (Qualità, HR), "
                       "competenze da valutare (responsabile), sessioni da firmare (RDD, MSO), la propria formazione da "
                       "firmare (la persona), sessioni da chiudere (Qualità, HR)."),

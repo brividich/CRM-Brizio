@@ -1308,7 +1308,7 @@
                     <b>{% if ad.tipo == "VISITA" and ad.riferimento_id and not can_view_visite %}Visita medica richiesta dalla nuova mansione{% else %}{{ ad.descrizione }}{% endif %}</b>
                     {% if ad.aperto %} · entro il {{ ad.entro_il|date:"d-m-Y" }}{% endif %}
                     {% if ad.motivo %}<span class="sp-piano-motivo">{{ ad.motivo }}</span>{% endif %}
-                    {% if ad.chiusura_nota %}<span class="sp-piano-motivo">{{ ad.chiusura_nota }}{% if not ad.chiusura_automatica and ad.chiuso_da %} — {{ ad.chiuso_da.get_full_name|default:ad.chiuso_da.username }}{% endif %}</span>{% endif %}
+                    {% if ad.chiusura_nota %}<span class="sp-piano-motivo">{{ ad.chiusura_nota }}{% if not ad.chiusura_automatica and ad.chiuso_da %} — {% firstof ad.chiuso_da.get_full_name ad.chiuso_da.username %}{% endif %}</span>{% endif %}
                   </span>
                   {% if ad.aperto %}<span class="sp-piano-fai">{% include "anagrafica/partials/_azione_adempimento.html" with tipo=ad.tipo rif=ad.riferimento_id legacy_id=legacy_id back=piano_back %}</span>{% endif %}
                   {% if is_admin %}
@@ -1343,7 +1343,7 @@
               {% else %}
                 In attesa di attivazione automatica
               {% endif %}
-              {% if a.created_by %} · registrata da {{ a.created_by.get_full_name|default:a.created_by.username }}{% endif %}
+              {% if a.created_by %} · registrata da {% firstof a.created_by.get_full_name a.created_by.username %}{% endif %}
             </span>
             <div style="display:flex;gap:6px;">
               <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleSection('sp-edit-{{ a.pk }}')">Modifica</button>
@@ -1492,7 +1492,7 @@
               <td style="padding:8px 10px;color:#94a3b8;">{{ c.valore_precedente|default:"(vuoto)" }}</td>
               <td class="dp-td-ink" style="padding:8px 10px;font-weight:600;">{{ c.valore_nuovo|default:"(vuoto)" }}</td>
               <td style="padding:8px 10px;color:#64748b;font-size:12px;white-space:nowrap;">
-                {% if c.created_by %}{{ c.created_by.get_full_name|default:c.created_by.username }}{% else %}—{% endif %}
+                {% if c.created_by %}{% firstof c.created_by.get_full_name c.created_by.username %}{% else %}—{% endif %}
                 <br><span style="color:#cbd5e1;font-size:10px;">{{ c.created_at|date:"d-m-Y H:i" }}</span>
               </td>
             </tr>
@@ -1695,7 +1695,7 @@
       <div id="ruoli-list">
         {% for gruppo in ruoli_per_ambito %}
           <div class="dp-ruoli-gruppo">
-            <div class="dp-ruoli-gruppo-h" {% if gruppo.ambito %}title="{{ gruppo.ambito.descrizione|default:gruppo.ambito.nome }}"{% endif %}>
+            <div class="dp-ruoli-gruppo-h" {% if gruppo.ambito %}title="{% firstof gruppo.ambito.descrizione gruppo.ambito.nome %}"{% endif %}>
               {% if gruppo.ambito %}
                 <span class="dp-amb-dot" style="background-color:{{ gruppo.ambito.colore }};"></span>
                 {% if gruppo.ambito.icona %}{{ gruppo.ambito.icona }} {% endif %}{{ gruppo.ambito.nome }}

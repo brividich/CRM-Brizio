@@ -25,8 +25,8 @@
     <span>Revisioni:
       {% for r in revisioni %}<a class="rc-chip{% if r.numero == revisione.numero %} is-active{% endif %}" href="{% url 'sistema_gestione:soa_revisione' r.numero %}">Rev.{{ r.numero }}</a> {% endfor %}
     </span>
-    {% if revisione.preparata_da %}<span>Preparata da <strong>{{ revisione.preparata_da.get_full_name|default:revisione.preparata_da.username }}</strong>{% if revisione.proposta_il %}, proposta il {{ revisione.proposta_il|date:"d/m/Y H:i" }}{% endif %}</span>{% endif %}
-    {% if revisione.approvata_il %}<span>Approvata da <strong>{{ revisione.approvata_da.get_full_name|default:revisione.approvata_da.username }}</strong> il {{ revisione.approvata_il|date:"d/m/Y H:i" }}</span>{% endif %}
+    {% if revisione.preparata_da %}<span>Preparata da <strong>{% firstof revisione.preparata_da.get_full_name revisione.preparata_da.username %}</strong>{% if revisione.proposta_il %}, proposta il {{ revisione.proposta_il|date:"d/m/Y H:i" }}{% endif %}</span>{% endif %}
+    {% if revisione.approvata_il %}<span>Approvata da <strong>{% firstof revisione.approvata_da.get_full_name revisione.approvata_da.username %}</strong> il {{ revisione.approvata_il|date:"d/m/Y H:i" }}</span>{% endif %}
     {% if revisione.motivo %}<span>Motivo: {{ revisione.motivo }}</span>{% endif %}
     {% if revisione.copia_firmata %}<span><a href="{% url 'sistema_gestione:soa_copia_firmata' revisione.numero %}">Copia firmata</a> (caricata il {{ revisione.copia_firmata_caricata_il|date:"d/m/Y" }})</span>{% endif %}
     {% if precedente %}<span>{{ n_cambi }} controlli modificati rispetto alla Rev.{{ precedente.numero }}</span>{% endif %}

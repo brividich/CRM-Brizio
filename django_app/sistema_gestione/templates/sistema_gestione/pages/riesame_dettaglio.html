@@ -43,7 +43,7 @@
     <div class="rc-card sg-rz-corpo">
       {% if riesame.stato == "APPROVATO" %}<section class="sg-rz-pannello" id="approvazione" data-rz-pannello>
         <h2>Approvazione</h2>
-        <p>Approvato il {{ riesame.approvato_il|date:"d/m/Y H:i" }}{% if riesame.approvato_da %} da {{ riesame.approvato_da.get_full_name|default:riesame.approvato_da.username }}{% endif %}.</p>
+        <p>Approvato il {{ riesame.approvato_il|date:"d/m/Y H:i" }}{% if riesame.approvato_da %} da {% firstof riesame.approvato_da.get_full_name riesame.approvato_da.username %}{% endif %}.</p>
         {% if riesame.copia_firmata %}<p><a href="{% url 'sistema_gestione:riesame_copia_firmata' riesame.pk %}">Copia firmata: {{ riesame.copia_firmata_nome }}</a></p>{% else %}<p class="sg-muted">La copia con le firme dei partecipanti non è ancora caricata.</p>{% endif %}
         {% if puo_proporre %}<form method="post" enctype="multipart/form-data" action="{% url 'sistema_gestione:riesame_carica_firmata' riesame.pk %}" class="sg-actions sg-upload">{% csrf_token %}<label for="{{ form_firmata.file.id_for_label }}">{{ form_firmata.file.label }}</label>{{ form_firmata.file }}<button class="btn btn-secondary" type="submit">Carica</button></form>{% endif %}
       </section>{% endif %}
@@ -92,7 +92,7 @@
         <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Obiettivo</th><th>Processo</th><th>Indicatore</th><th>Risultato atteso</th><th>Responsabile e risorse</th><th>Scadenza</th><th>Stato</th>{% if puo_proporre %}<th>Azioni</th>{% endif %}</tr></thead><tbody>
           {% for o in obiettivi %}<tr>
             <td><strong>{{ o.descrizione }}</strong>{% if o.origine_id %} <span class="sg-badge">Ripianificato</span>{% endif %}</td><td>{{ o.processo.codice|default:"—" }}</td><td>{{ o.indicatore|default:"—" }}</td><td>{{ o.risultato_atteso|default:"—" }}</td>
-            <td>{% if o.responsabile %}{{ o.responsabile.get_full_name|default:o.responsabile.username }}{% else %}<span class="sg-badge warn">Manca</span>{% endif %}{% if o.risorse %}<div class="sg-muted">{{ o.risorse }}</div>{% endif %}</td>
+            <td>{% if o.responsabile %}{% firstof o.responsabile.get_full_name o.responsabile.username %}{% else %}<span class="sg-badge warn">Manca</span>{% endif %}{% if o.risorse %}<div class="sg-muted">{{ o.risorse }}</div>{% endif %}</td>
             <td>{{ o.scadenza|date:"d/m/Y"|default:"—" }}</td>
             <td>{% include "sistema_gestione/components/_obiettivo_stato.html" with testo=o.get_stato_display %}{% if o.nota and riesame.stato == "APPROVATO" %}<div class="sg-muted">{{ o.nota }}</div>{% endif %}</td>
             {% if puo_proporre %}<td class="sg-actions"><a href="{% url 'sistema_gestione:riesame_obiettivo' riesame.pk o.pk %}">{% if puo_modificare %}Modifica{% else %}Andamento{% endif %}</a>{% if puo_modificare %}<form method="post" action="{% url 'sistema_gestione:riesame_obiettivo_togli' riesame.pk o.pk %}">{% csrf_token %}<button class="sg-rz-togli" type="submit" aria-label="Togli l'obiettivo">×</button></form>{% endif %}</td>{% endif %}

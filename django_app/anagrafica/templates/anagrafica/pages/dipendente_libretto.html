@@ -334,7 +334,7 @@
           <tr>
             <td class="mono">{{ r.data_completamento|date:"d-m-Y" }}</td>
             <td>
-              <span style="font-weight:600;">{{ r.course_title_snapshot|default:r.corso.titolo }}</span>
+              <span style="font-weight:600;">{% firstof r.course_title_snapshot r.corso.titolo %}</span>
               {% if r.course_code_snapshot %}<span class="lb-muted" style="font-size:10.5px;"> · {{ r.course_code_snapshot }}</span>{% endif %}
               {% if r.plan_name_snapshot %}<div class="lb-muted" style="font-size:10.5px;">{{ r.plan_name_snapshot }}</div>{% endif %}
             </td>

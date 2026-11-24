@@ -67,7 +67,7 @@
   {% if meeting.is_annullato %}
     <div class="md-convocazione-note warn">
       <strong>Incontro annullato</strong>
-      {% if meeting.annullato_at %}il {{ meeting.annullato_at|date:"d-m-Y H:i" }}{% endif %}{% if meeting.annullato_da %} da {{ meeting.annullato_da.get_full_name|default:meeting.annullato_da.username }}{% endif %}{% if meeting.annullato_motivo %} — {{ meeting.annullato_motivo }}{% endif %}
+      {% if meeting.annullato_at %}il {{ meeting.annullato_at|date:"d-m-Y H:i" }}{% endif %}{% if meeting.annullato_da %} da {% firstof meeting.annullato_da.get_full_name meeting.annullato_da.username %}{% endif %}{% if meeting.annullato_motivo %} — {{ meeting.annullato_motivo }}{% endif %}
       {% if can_manage %}<span>Per riprogrammarlo apri «Modifica incontro» e riporta lo stato a Pianificato.</span>{% endif %}
     </div>
   {% endif %}
@@ -119,7 +119,7 @@
     {% endif %}
     {% if meeting.minuta_chiusa %}
       <span class="md-minute-locked">
-        Minuta approvata il {{ meeting.minuta_chiusa_at|date:"d-m-Y H:i" }}{% if meeting.minuta_chiusa_da %} da {{ meeting.minuta_chiusa_da.get_full_name|default:meeting.minuta_chiusa_da.username }}{% endif %}{% if meeting.minuta_riaperture %} · {{ meeting.minuta_riaperture }} riapertur{{ meeting.minuta_riaperture|pluralize:"a,e" }}{% endif %}
+        Minuta approvata il {{ meeting.minuta_chiusa_at|date:"d-m-Y H:i" }}{% if meeting.minuta_chiusa_da %} da {% firstof meeting.minuta_chiusa_da.get_full_name meeting.minuta_chiusa_da.username %}{% endif %}{% if meeting.minuta_riaperture %} · {{ meeting.minuta_riaperture }} riapertur{{ meeting.minuta_riaperture|pluralize:"a,e" }}{% endif %}
       </span>
     {% endif %}
   </div>
@@ -208,7 +208,7 @@
                       {% if issue.punto_info %}<a class="md-punto-chip" href="#agenda-item-{{ issue.punto }}" title="{{ issue.punto_info.titolo }}">punto {{ issue.punto_info.num }}</a>{% endif %}
                       {% if issue.source_meeting and issue.source_meeting_id != meeting.pk %}<span class="md-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
                       {% if issue.resolution_meeting %}<span class="md-issue-chip">Chiuso in incontro {{ issue.resolution_meeting.numero }}</span>{% endif %}
-                      {% if issue.assigned_to %}<span class="md-issue-chip">{{ issue.assigned_to.get_full_name|default:issue.assigned_to.username }}</span>{% endif %}
+                      {% if issue.assigned_to %}<span class="md-issue-chip">{% firstof issue.assigned_to.get_full_name issue.assigned_to.username %}</span>{% endif %}
                       {% if issue.due_date %}<span class="md-issue-chip">Scad. {{ issue.due_date|date:"d-m-Y" }}</span>{% endif %}
                       {% if issue.linked_task %}<a class="md-issue-chip" href="{% url 'tasks:detail' issue.linked_task.id %}">Task: {{ issue.linked_task.title }}</a>{% endif %}
                     </div>
@@ -284,7 +284,7 @@
                 <div class="md-action-title">{{ proposal.titolo }}</div>
                 <div class="mf-issue-meta">
                   <span class="mf-issue-chip">{{ proposal.get_stato_display }}</span>
-                  {% if proposal.proposed_by %}<span class="mf-issue-chip">{{ proposal.proposed_by.get_full_name|default:proposal.proposed_by.username }}</span>{% endif %}
+                  {% if proposal.proposed_by %}<span class="mf-issue-chip">{% firstof proposal.proposed_by.get_full_name proposal.proposed_by.username %}</span>{% endif %}
                 </div>
                 {% if proposal.nota %}<div class="mf-issue-desc">{{ proposal.nota }}</div>{% endif %}
                 {% if proposal.nota_decisione %}<div class="mf-issue-desc">Esito: {{ proposal.nota_decisione }}</div>{% endif %}
@@ -326,7 +326,7 @@
               <li>
                 <span class="mf-issue-chip">{{ decision.get_impatto_display }}</span>
                 {{ decision.testo }}
-                {% if decision.decisa_da %}<span class="mf-decision-who">— {{ decision.decisa_da.get_full_name|default:decision.decisa_da.username }}</span>{% endif %}
+                {% if decision.decisa_da %}<span class="mf-decision-who">— {% firstof decision.decisa_da.get_full_name decision.decisa_da.username %}</span>{% endif %}
                 {% if decision.punto_info %}<a class="md-punto-chip" href="#agenda-item-{{ decision.punto }}" title="{{ decision.punto_info.titolo }}">punto {{ decision.punto_info.num }}</a>{% endif %}
                 {% if decision.dettaglio %}<div class="mf-issue-desc">{{ decision.dettaglio }}</div>{% endif %}
               </li>
@@ -350,7 +350,7 @@
                 <div class="md-action-title">{{ action.title }}</div>
                 <div class="mf-issue-meta">
                   <span class="mf-issue-chip">{{ action.get_status_display }}</span>
-                  {% if action.assigned_to %}<span class="mf-issue-chip">{{ action.assigned_to.get_full_name|default:action.assigned_to.username }}</span>{% endif %}
+                  {% if action.assigned_to %}<span class="mf-issue-chip">{% firstof action.assigned_to.get_full_name action.assigned_to.username %}</span>{% endif %}
                   {% if action.due_date %}<span class="mf-issue-chip{% if action.is_overdue %} overdue{% endif %}">Scad. {{ action.due_date|date:"d-m-Y" }}</span>{% endif %}
                   {% if action.punto_info %}<a class="md-punto-chip" href="#agenda-item-{{ action.punto }}" title="{{ action.punto_info.titolo }}">punto {{ action.punto_info.num }}</a>{% endif %}
                   {% if action.source_meeting and action.source_meeting_id != meeting.pk %}<span class="mf-issue-chip">Da incontro {{ action.source_meeting.numero }}</span>{% endif %}

@@ -80,7 +80,7 @@
     </div>
     <div class="nc-sub" style="text-align:center;margin-top:10px;">Lo stato si aggiorna da solo in base a quello che &egrave; compilato e all'avanzamento delle anomalie. Nessuna sezione &egrave; obbligatoria.</div>
     {% if nc.is_chiusa %}
-      <div class="notice notice-success" style="margin-top:12px;">NC chiusa il {{ nc.chiusa_il|date:"d/m/Y H:i" }}{% if nc.chiusa_da %} da {{ nc.chiusa_da.get_full_name|default:nc.chiusa_da.username }}{% endif %}{% if nc.note_chiusura %}: {{ nc.note_chiusura }}{% endif %}. Le sezioni sono in sola lettura.</div>
+      <div class="notice notice-success" style="margin-top:12px;">NC chiusa il {{ nc.chiusa_il|date:"d/m/Y H:i" }}{% if nc.chiusa_da %} da {% firstof nc.chiusa_da.get_full_name nc.chiusa_da.username %}{% endif %}{% if nc.note_chiusura %}: {{ nc.note_chiusura }}{% endif %}. Le sezioni sono in sola lettura.</div>
     {% elif not perm.modifica %}
       <div class="notice" style="margin-top:12px;">Sola lettura: non gestisci questo OP.</div>
     {% endif %}
@@ -273,7 +273,7 @@
       {% for al in allegati %}
         <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:8px;">
           <div style="min-width:0;"><a href="{% url 'anomalie_nc_allegato' nc.pk al.pk %}" target="_blank" rel="noopener" style="font-weight:700;overflow-wrap:anywhere;">{{ al.nome }}</a>
-            <div class="nc-sub">{{ al.get_sezione_display }} &middot; {{ al.size|filesizeformat }} &middot; {{ al.created_at|date:"d/m/Y" }}{% if al.uploaded_by %} &middot; {{ al.uploaded_by.get_full_name|default:al.uploaded_by.username }}{% endif %}</div></div>
+            <div class="nc-sub">{{ al.get_sezione_display }} &middot; {{ al.size|filesizeformat }} &middot; {{ al.created_at|date:"d/m/Y" }}{% if al.uploaded_by %} &middot; {% firstof al.uploaded_by.get_full_name al.uploaded_by.username %}{% endif %}</div></div>
         </div>
       {% empty %}
         <div class="nc-sub">Nessun allegato (es. 8D, verbali, foto, rapporti di prova).</div>
@@ -294,7 +294,7 @@
     <div class="card-head"><div class="card-title">Chiusura</div></div>
     <div class="card-body">
       {% if nc.is_chiusa %}
-        <p style="margin:0 0 10px;">Chiusa il {{ nc.chiusa_il|date:"d/m/Y H:i" }}{% if nc.chiusa_da %} da {{ nc.chiusa_da.get_full_name|default:nc.chiusa_da.username }}{% endif %}.</p>
+        <p style="margin:0 0 10px;">Chiusa il {{ nc.chiusa_il|date:"d/m/Y H:i" }}{% if nc.chiusa_da %} da {% firstof nc.chiusa_da.get_full_name nc.chiusa_da.username %}{% endif %}.</p>
         {% if perm.chiude %}
         <form method="post" class="nc-fields">{% csrf_token %}<input type="hidden" name="action" value="riapri">
           <label>Motivo della riapertura<input type="text" name="motivo" class="input" maxlength="300"></label>

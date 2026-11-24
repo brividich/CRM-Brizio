@@ -721,13 +721,13 @@ body.theme-dark .wo-empty-row{color:var(--text-light)}
               <td>
                 <div class="wo-assignment">
                   <div><span class="as-badge {% if wo.status == 'OPEN' %}as-badge--warn{% elif wo.status == 'DONE' %}as-badge--ok{% else %}as-badge--muted{% endif %}">{{ wo.get_status_display }}</span></div>
-                  {% if wo.assigned_to_id == request.user.id %}<div class="wo-assignment-main wo-assignment--mine">Assegnato a te</div>{% elif wo.assigned_to %}<div class="wo-assignment-main">{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}</div>{% else %}<div class="wo-assignment-main wo-assignment--empty">Di nessuno</div>{% endif %}
+                  {% if wo.assigned_to_id == request.user.id %}<div class="wo-assignment-main wo-assignment--mine">Assegnato a te</div>{% elif wo.assigned_to %}<div class="wo-assignment-main">{% firstof wo.assigned_to.get_full_name wo.assigned_to.username %}</div>{% else %}<div class="wo-assignment-main wo-assignment--empty">Di nessuno</div>{% endif %}
                   {% comment %}Coda condivisa: chi non e' andato sul posto deve
                   vedere subito che qualcuno ci sta gia' lavorando, senza aprire
                   l'intervento. Il "chi" e' l'assegnatario (premere Inizia intesta
                   l'OdL a chi lo comincia), il "quando" e' started_at.{% endcomment %}
                   {% if wo.status == 'OPEN' and wo.started_at and not wo.is_waiting %}<div class="wo-muted wo-inprogress">In corso dalle {{ wo.started_at|time:"H:i" }} del {{ wo.started_at|date:"d-m" }}</div>{% endif %}
-                  {% if wo.executed_by %}<div class="wo-muted">Eseguito da {{ wo.executed_by.get_full_name|default:wo.executed_by.username }}</div>{% endif %}
+                  {% if wo.executed_by %}<div class="wo-muted">Eseguito da {% firstof wo.executed_by.get_full_name wo.executed_by.username %}</div>{% endif %}
                 </div>
               </td>
               <td>

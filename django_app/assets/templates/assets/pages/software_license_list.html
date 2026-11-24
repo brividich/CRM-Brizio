@@ -377,7 +377,7 @@ body.theme-dark .sl-empty{color:var(--text-light)}
                                 {% if renewal.supplier %}<br><span class="sl-meta">Fornitore: {{ renewal.supplier.ragione_sociale }}</span>{% endif %}
                                 {% if renewal.reference %}<br><span class="sl-meta">Rif. {{ renewal.reference }}</span>{% endif %}
                                 {% if renewal.notes %}<br><span class="sl-meta">{{ renewal.notes }}</span>{% endif %}
-                                {% if renewal.created_by %}<br><span class="sl-meta">Registrato da {{ renewal.created_by.get_full_name|default:renewal.created_by.username }}</span>{% endif %}
+                                {% if renewal.created_by %}<br><span class="sl-meta">Registrato da {% firstof renewal.created_by.get_full_name renewal.created_by.username %}</span>{% endif %}
                               </li>
                             {% endfor %}
                           </ol>

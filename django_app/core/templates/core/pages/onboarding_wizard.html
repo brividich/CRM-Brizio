@@ -400,7 +400,7 @@ body.theme-dark .onb-summary-badge.off{background:var(--surface-alt,#0f1b2d);col
     <div class="card onb-panel active" id="panel-1">
       <div class="card-body">
         <div class="onb-hero">
-          <div class="onb-hero-title">Benvenuto, {{ request.user.first_name|default:request.user.username }}!</div>
+          <div class="onb-hero-title">Benvenuto, {% firstof request.user.first_name request.user.username %}!</div>
           <div class="onb-hero-sub">
             Completa il setup iniziale del tuo profilo.<br>
             Troverai subito contatti, preferenze interfaccia e notifiche coerenti con il tuo ruolo.

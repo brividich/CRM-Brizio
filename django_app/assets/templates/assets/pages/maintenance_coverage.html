@@ -35,7 +35,7 @@
           {% for row in rows %}
             <tr>
               <td class="md-matrix-asset">
-                <a class="md-asset" href="{{ row.url }}">{{ row.asset.asset_tag|default:row.asset.name }}</a>
+                <a class="md-asset" href="{{ row.url }}">{% firstof row.asset.asset_tag row.asset.name %}</a>
                 {% if row.asset.reparto %}<span class="md-sub">{{ row.asset.reparto }}</span>{% endif %}
               </td>
               {% for cell in row.cells %}

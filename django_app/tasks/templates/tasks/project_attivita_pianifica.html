@@ -65,7 +65,7 @@
         <summary><strong>Già pianificate ({{ attivita_esistenti|length }})</strong></summary>
         <ul class="kc-gia">
           {% for t in attivita_esistenti %}
-            <li><a href="{% url 'tasks:detail' t.pk %}">{{ t.title }}</a>{% if t.assigned_to %} · {{ t.assigned_to.get_full_name|default:t.assigned_to.username }}{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m/Y" }}{% endif %}</li>
+            <li><a href="{% url 'tasks:detail' t.pk %}">{{ t.title }}</a>{% if t.assigned_to %} · {% firstof t.assigned_to.get_full_name t.assigned_to.username %}{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m/Y" }}{% endif %}</li>
           {% endfor %}
         </ul>
       </details>

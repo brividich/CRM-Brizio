@@ -164,7 +164,7 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
             {% for a in assignments %}
               <tr>
                 <td>
-                  <strong>{{ a.user.get_full_name|default:a.user.username }}</strong><br>
+                  <strong>{% firstof a.user.get_full_name a.user.username %}</strong><br>
                   <span style="font-size:11px;color:#64748b;">{{ a.user.email }}</span>
                 </td>
                 {% if tutte %}<td>{{ a.campaign.name }}</td>{% endif %}
