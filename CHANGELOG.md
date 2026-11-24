@@ -9,6 +9,18 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anomalie: lettore del report CMM in PDF rivisto sui report veri
+
+Verificato su 2861 report CMM della cartella Collaudo (198.515 righe): l'esito del portale ora coincide con l'eccedenza («+/-») scritta dal report in 198.514 righe (prima 111 righe non coincidevano).
+
+- **Tolleranza inferiore positiva** (es. Ø8 +0,034/+0,025, zona tutta sopra il nominale): prima il segno veniva girato e 40 righe fuori tolleranza risultavano «Dentro». Nel PDF ora vale col suo segno (lo screenshot OCR, dove il meno si perde, resta come prima). Il pannello mostra «+0.034 / +0.025».
+- **Angoli in gradi/primi/secondi** («24° 57' 32"»): prima la riga veniva scartata per intero, comprese quelle fuori tolleranza. Ora diventano gradi decimali, eccedenza compresa (circa 2.100 righe in più lette).
+- **Rilevato stampato in radianti** (0,7856 contro 45°): prima la riga risultava fuori di 44°. Ora viene riportato in gradi se lo scostamento del report lo conferma.
+- **Sottotitoli allineati ai nomi** (es. «PIANO -J- E DIAM -F- Ø46.982÷46.995» sotto «= PIANO J - DIAMETRO F =»): prima venivano scambiati per il nome andato a capo e le quote restavano nel gruppo di sopra o senza gruppo. Ora sono «Titolo › Sottotitolo». Le righe senza gruppo scendono da 14.395 a 452.
+- **Tipo della caratteristica**: si riconosce «Profile of a surface» e, se il report non ha l'etichetta, il tipo si ricava dal nome in italiano (Diametro_, Raggio, Pos, Planarità, Rotondità…). Le righe senza tipo scendono da 20.105 a 15.775 (le restanti hanno solo il numero).
+- **«da verificare»** compare anche quando il report segna un'eccedenza ma il calcolo dice «Dentro» o viceversa. «Fuori» mostra il segno e il valore dell'eccedenza del report.
+- File: `django_app/anomalie/report_cmm.py`, `django_app/anomalie/tests_report_cmm.py` (6 test nuovi), `django_app/anomalie/static/anomalie/js/src/apertura_segnalazione.jsx` + bundle, `django_app/anomalie/guida.py`, `django_app/core/guide_moduli/contenuti/anomalie.py`.
+
 ### Assistente AI: «Il tuo brief di oggi» pronto all'alba
 
 - **Brief preparato alle 6:10 dal cluster** per chi lo ha aperto negli ultimi 14 giorni (`ai_assistant/daily_brief_notturno.py`, task `ai_assistant.tasks.run_daily_brief_notturno`, schedule `ai_daily_brief_notturno`). Prima si generava alla prima apertura della home: 20-25 s di Ollama a persona, ogni mattina. Usa gli stessi dati e permessi della persona e va nella stessa cache della pagina. Chi non è in elenco lo genera come prima; ↻ lo rigenera con i dati di adesso.

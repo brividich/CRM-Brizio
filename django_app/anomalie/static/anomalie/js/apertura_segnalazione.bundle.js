@@ -1174,7 +1174,8 @@ const ReportPdfPannello = ({
     })), /*#__PURE__*/React.createElement("th", null, "Car."), /*#__PURE__*/React.createElement("th", null, "Tipo"), /*#__PURE__*/React.createElement("th", null, "Rilevato"), /*#__PURE__*/React.createElement("th", null, "Nominale"), /*#__PURE__*/React.createElement("th", null, "Toll."), /*#__PURE__*/React.createElement("th", null, "Esito"))), /*#__PURE__*/React.createElement("tbody", null, righe.map(x => {
       const k = `${rep.id}:${x.indice}`;
       const testa = x.sezione !== sezione ? (sezione = x.sezione, x.sezione) : null;
-      const inf = x.tol_inf <= 0 ? x.tol_inf : -x.tol_inf;
+      const inf = x.tol_inf_limite != null ? x.tol_inf_limite : x.tol_inf <= 0 ? x.tol_inf : -x.tol_inf;
+      const di = x.fuori_di != null && x.fuori_di !== 0 ? x.fuori_di : x.eccedenza != null && x.eccedenza !== 0 ? x.eccedenza : x.scostamento;
       return /*#__PURE__*/React.createElement(React.Fragment, {
         key: k
       }, testa && /*#__PURE__*/React.createElement("tr", {
@@ -1203,9 +1204,9 @@ const ReportPdfPannello = ({
         className: "num"
       }, fmtNum(x.nominale)), /*#__PURE__*/React.createElement("td", {
         className: "num"
-      }, "+", fmtNum(x.tol_sup), " / ", fmtNum(inf)), /*#__PURE__*/React.createElement("td", null, x.fuori ? /*#__PURE__*/React.createElement("span", {
+      }, "+", fmtNum(x.tol_sup), " / ", inf > 0 ? "+" : "", fmtNum(inf)), /*#__PURE__*/React.createElement("td", null, x.fuori ? /*#__PURE__*/React.createElement("span", {
         className: "mis-esito is-ko"
-      }, "Fuori ", x.scostamento > 0 ? '+' : '−', fmtNum(Math.abs(x.eccedenza != null && x.eccedenza !== 0 ? x.eccedenza : x.scostamento))) : /*#__PURE__*/React.createElement("span", {
+      }, "Fuori ", di > 0 ? '+' : '−', fmtNum(Math.abs(di))) : /*#__PURE__*/React.createElement("span", {
         className: "mis-esito is-ok"
       }, "Dentro"), x.da_verificare && /*#__PURE__*/React.createElement("span", {
         className: "pill-verifica",

@@ -258,6 +258,92 @@ class LetturaPdfTests(SimpleTestCase):
             rc.leggi_pdf(b"%PDF-1.7 rotto")
 
 
+def _pdf_casi_reali() -> bytes:
+    """Casi visti sui report veri (valori inventati): sottotitoli allineati ai nomi, angoli in gradi/primi/
+    secondi, rilevato in radianti, toll. inferiore positiva, tipo solo nel nome o «Profile of a surface»."""
+    import fitz
+
+    doc = fitz.open()
+    pagina = doc.new_page(width=595, height=842)
+
+    def scrivi(x, y, testo):
+        pagina.insert_text((x, y), testo, fontsize=8)
+
+    for x, t in ((34, "Name"), (215, "ID"), (261, "Actual"), (320, "Nominal"), (377, "Pos"), (396, "Tol"),
+                 (428, "Neg"), (447, "Tol"), (486, "Diff"), (536, "+/-")):
+        scrivi(x, 204, t)
+
+    def riga(y, nome, tipo, valori, ecc=None):
+        if tipo:
+            scrivi(204, y - 8, tipo)
+        if ecc:
+            scrivi(526, y - 5, ecc)
+        scrivi(51, y, nome)
+        for x, v in zip((261, 324, 379, 430, 479), valori):
+            scrivi(x, y, v)
+
+    scrivi(28, 230, "= PIANO J - DIAMETRO F =")
+    scrivi(36, 250, "PIANO -J- E DIAM -F- 46.982-46.995")            # sottotitolo allineato ai nomi
+    riga(270, "060,00", "Flatness", ("0,0319", "0,0000", "0,0350", "0,0000", "0,0319"))
+    scrivi(36, 292, "DIAMETRO 8 E6")
+    riga(314, "Diametro_Cerchio2", "", ("8,0248", "8,0000", "0,0340", "0,0250", "0,0248"), ecc="-0,0002")
+    riga(338, "Inclinazione cilindro 2", "", ("0,7856", "45,0000", "0,5000", "-0,5000", "0,0128"))
+    scrivi(28, 362, "ANGOLI")
+    # angolo in gradi/primi/secondi: ogni cella ha tre parole
+    scrivi(51, 384, "Proiezione Angolo A2")
+    for x, v in ((255, "24\u00b0 57' 32\""), (318, "25\u00b0 0' 0\""), (373, "0\u00b0 30' 0\""),
+                 (424, "-0\u00b0 30' 0\""), (473, "-0\u00b0 2' 28\"")):
+        scrivi(x, 384, v)
+    riga(408, "822,00 Forma-Sup1", "105 - Profile of a surface", ("0,0486", "0,0000", "0,0500", "0,0000", "0,0486"))
+    riga(430, "Wrap", "Length", ("10,0100", "10,0000", "0,1000", "-0,1000", "0,0100"))
+    dati = doc.tobytes()
+    doc.close()
+    return dati
+
+
+class CasiRealiPdfTests(SimpleTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.righe = {r["caratteristica"]: r for r in rc.leggi_pdf(_pdf_casi_reali())["righe"]}
+
+    def test_sottotitolo_allineato_ai_nomi(self):
+        self.assertEqual(self.righe["060,00"]["sezione"], "= PIANO J - DIAMETRO F = › PIANO -J- E DIAM -F- 46.982-46.995")
+        self.assertEqual(self.righe["Diametro_Cerchio2"]["sezione"], "= PIANO J - DIAMETRO F = › DIAMETRO 8 E6")
+
+    def test_tolleranza_inferiore_positiva_fuori(self):
+        r = self.righe["Diametro_Cerchio2"]
+        self.assertTrue(r["fuori"])                       # 8,0248 sotto il limite 8,025
+        self.assertEqual((r["a"], r["b"]), ("8.025", "8.034"))
+        self.assertEqual(r["fuori_di"], -0.0002)
+        self.assertFalse(r["da_verificare"])
+        self.assertEqual(r["car"], "diametro")            # tipo dal nome italiano
+
+    def test_rilevato_in_radianti(self):
+        r = self.righe["Inclinazione cilindro 2"]
+        self.assertFalse(r["fuori"])
+        self.assertAlmostEqual(r["misurato"], 45.0116, places=3)
+        self.assertFalse(r["da_verificare"])
+        self.assertEqual(r["car"], "angolo")
+
+    def test_angolo_in_gradi_primi_secondi(self):
+        r = self.righe["Proiezione Angolo A2"]
+        self.assertAlmostEqual(r["misurato"], 24.9589, places=3)
+        self.assertAlmostEqual(r["tol_inf"], -0.5, places=4)
+        self.assertFalse(r["fuori"])
+        self.assertFalse(r["da_verificare"])
+        self.assertEqual(r["sezione"], "ANGOLI")
+
+    def test_profile_of_a_surface(self):
+        self.assertEqual(self.righe["822,00 Forma-Sup1"]["car"], "profilo")
+
+    def test_ocr_toll_inferiore_senza_segno_resta_negativa(self):
+        p = rc.proposta_misura({"nome": "1", "tipo": "length", "misurato": 4.9, "nominale": 5.0, "tol_sup": 0.1,
+                                "tol_inf": 0.1, "scostamento": -0.1})
+        self.assertEqual((p["a"], p["b"]), ("4.9", "5.1"))
+        self.assertFalse(p["fuori"])
+
+
 class EndpointPdfTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_superuser(username="cmm-pdf", password="pass12345", email="p@example.local")

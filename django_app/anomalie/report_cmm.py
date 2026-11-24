@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import re
 import subprocess
 import tempfile
@@ -35,6 +36,7 @@ TIPI_ZEISS = {
     "symmetry": "simmetria", "flatness": "planarita", "straightness": "planarita", "roundness": "circolarita",
     "circularity": "circolarita", "cylindricity": "circolarita", "runout": "oscillazione",
     "totalrunout": "oscillazione", "profile": "profilo", "lineprofile": "profilo", "surfaceprofile": "profilo",
+    "profileofasurface": "profilo", "profileofaline": "profilo", "circularrunout": "oscillazione",
 }
 # I valori del protocollo hanno sempre 4 decimali (4,0539 · 0,1000 · -0,0090): cosi' non si
 # confondono con il nome della caratteristica (178,00). L'OCR a volte perde la virgola
@@ -144,6 +146,31 @@ def _tipo_da_nome(nome: str) -> str:
     return ""
 
 
+# Nomi scritti dal programmatore CMM in italiano («Diametro_Cerchio2», «Pos D1-D2», «Rotondità1»):
+# valgono solo se il report non ha l'etichetta del tipo. Prefissi in ordine, il primo vince.
+_PAROLE_TIPO_IT = (
+    ("diam", "diameter"), ("dia", "diameter"), ("ø", "diameter"), ("raggio", "radius"),
+    ("localizz", "position"), ("posiz", "position"), ("pos", "position"), ("distanz", "distance"), ("dist", "distance"),
+    ("quota", "distance"), ("valore", "distance"), ("val", "distance"), ("lungh", "length"),
+    ("angol", "angle"), ("inclinaz", "angle"), ("planar", "flatness"), ("plan", "flatness"), ("parall", "parallelism"),
+    ("perpend", "perpendicularity"), ("perp", "perpendicularity"), ("l-perp", "perpendicularity"),
+    ("concentr", "concentricity"), ("conc", "concentricity"), ("coass", "coaxiality"),
+    ("rotond", "roundness"), ("circolar", "roundness"), ("rot", "roundness"), ("cilindric", "cylindricity"),
+    ("rettilin", "straightness"), ("profilo", "profile"), ("forma", "profile"), ("simmetr", "symmetry"),
+    ("oscillaz", "runout"), ("runout", "runout"),
+)
+
+
+def _tipo_da_nome_it(nome: str) -> str:
+    for parola in re.split(r"[\s_.]+", nome.lower()):
+        if not parola or re.match(r"^\d", parola):
+            continue
+        for prefisso, tipo in _PAROLE_TIPO_IT:
+            if parola.startswith(prefisso):
+                return tipo
+    return ""
+
+
 # Simboli del protocollo letti dall'OCR come testo -> tipo (ultima risorsa, dopo etichetta e nome).
 _SIMBOLI_TIPO = (
     # ricavate da letture vere di Tesseract sui protocolli (⊕ -> «Q», «Q}»; lunghezza -> «?», «L:%»…)
@@ -222,19 +249,21 @@ def proposta_misura(riga: dict) -> dict:
     """Riga del protocollo -> misura della scheda (stessi campi di dettaglio_controllo)."""
     car = TIPI_ZEISS.get(riga.get("tipo") or "", "altro")
     n, p, m, a = riga["nominale"], riga["tol_sup"], riga["tol_inf"], riga["misurato"]
-    # Toll. negativa nel protocollo: con segno (-0,2500) o 0. Limiti = nominale + tolleranze.
-    inf = m if m <= 0 else -m
+    # Toll. negativa: nel PDF e' col segno e puo' essere positiva (Ø8 +0,034/+0,025: zona tutta sopra il
+    # nominale); dall'OCR il meno si perde, quindi li' un valore positivo vale come negativo.
+    inf = m if (m <= 0 or riga.get("tol_con_segno")) else -m
     if n == 0 and inf == 0:
         misura = {"modo": "max", "nom": "", "a": _fmt(p), "b": ""}
     else:
         misura = {"modo": "minmax", "nom": _fmt(n), "a": _fmt(n + inf), "b": _fmt(n + p)}
     d = riga["scostamento"]
     fuori = d > p + 1e-9 or d < inf - 1e-9
+    fuori_di = round(d - p, 4) if d > p + 1e-9 else round(d - inf, 4) if d < inf - 1e-9 else 0.0
     dove = " · ".join(x for x in (f"car. {riga['nome']}" if riga.get("nome") else "", riga.get("sezione") or "") if x)
     return {
         "car": car, "nome": "" if car != "altro" else (riga.get("tipo") or "Misura"),
         **misura, "ril": _fmt(a), "dove": dove[:120],
-        "fuori": fuori, "scostamento": d, "tipo_zeiss": riga.get("tipo") or "",
+        "fuori": fuori, "fuori_di": fuori_di, "tol_inf_limite": inf, "scostamento": d, "tipo_zeiss": riga.get("tipo") or "",
         "da_verificare": bool(riga.get("da_verificare")), "caratteristica": riga.get("nome") or "",
     }
 
@@ -394,6 +423,20 @@ MAX_RIGHE_PDF = 800
 MAX_PAGINE_OCR = 10
 
 _NUMERO = re.compile(r"^[-−–]?\d+(?:[.,]\d+)?$")
+# Angolo scritto in gradi, primi e secondi («24° 57' 32"», «-0° 2' 28"»): stesso valore in gradi decimali.
+_DMS = re.compile(r"""^([-−–]?)(\d+)°\s*(?:(\d+)['′]\s*)?(?:(\d+(?:[.,]\d+)?)["″])?$""")
+
+
+def _valore_cella(testo: str) -> float | None:
+    """Valore di una cella del report: numero oppure angolo in gradi/primi/secondi; None se non lo e'."""
+    testo = testo.strip()
+    if _NUMERO.match(testo):
+        return _num(testo)
+    m = _DMS.match(testo)
+    if not m:
+        return None
+    gradi = int(m.group(2)) + int(m.group(3) or 0) / 60 + _num(m.group(4) or "0") / 3600
+    return round(-gradi if m.group(1) else gradi, 4)
 _COLONNE_VALORI = ("actual", "nominal", "pos", "neg", "diff", "ecc")
 # Etichette dell'intestazione del report -> chiave restituita al browser.
 _ETICHETTE_TESTATA = (
@@ -499,6 +542,10 @@ def righe_da_pagina_pdf(parole: list[tuple], pagina: int = 1, sezione: str = "")
     tipo_sospeso = ""
     nome_sospeso = ""
     ecc_sospesa = None
+    # Titolo principale (parte a sinistra dei nomi) e sottotitolo (riga di solo testo allineata ai nomi,
+    # es. «PIANO -J- E DIAM -F- Ø46.982÷46.995»): se la misura dopo ha un nome suo, il testo era un
+    # sottotitolo; se non ce l'ha, era il suo nome andato a capo.
+    principale = sezione.split(" › ")[0] if sezione else ""
     for riga in righe[idx + 1:]:
         if _colonne_da_intestazione(riga):
             continue  # intestazione ripetuta
@@ -515,33 +562,47 @@ def righe_da_pagina_pdf(parole: list[tuple], pagina: int = 1, sezione: str = "")
         # nelle colonne ID/valori: non conta dove finisce, conta che non ci siano i numeri di una riga.
         numerici = sum(1 for w in riga if _colonna(w, col) in _COLONNE_VALORI and _NUMERO.match(w[4]))
         if riga[0][0] < col["name"] - 2 and numerici < 4 and not _NOME.match(riga[0][4]):
-            sezione = unito[:120]
+            sezione = principale = unito[:120]
             tipo_sospeso = nome_sospeso = ""
             ecc_sospesa = None
             continue
         if not valori:
-            if "id" in celle and not nome:
-                tipo_sospeso = _tipo(" ".join(celle["id"])) or _tipo("".join(celle["id"]))
+            etichetta = " ".join(celle.get("id", []))
+            tipo_id = (_tipo(etichetta) or _tipo(etichetta.replace(" ", ""))) if etichetta else ""
+            if etichetta and not nome:
+                tipo_sospeso = tipo_id
             elif nome:
-                nome_sospeso = nome  # nome della caratteristica andato a capo sopra i valori
+                # nome andato a capo o sottotitolo; un sottotitolo lungo sconfina anche in colonna ID
+                nome_sospeso = nome if (tipo_id or not etichetta) else unito
+                if tipo_id:
+                    tipo_sospeso = tipo_id
             continue
         if set(valori) == {"ecc"}:
             # Eccedenza sopra la riga (a volte alla stessa altezza del tipo): vale per la riga dopo.
             if "id" in celle:
                 tipo_sospeso = _tipo(" ".join(celle["id"])) or tipo_sospeso
-            ecc_sospesa = _num(valori["ecc"]) if _NUMERO.match(valori["ecc"]) else None
+            ecc_sospesa = _valore_cella(valori["ecc"])  # anche in gradi/primi/secondi
             continue
-        numeri = {k: _num(v) for k, v in valori.items() if _NUMERO.match(v)}
+        numeri = {k: v for k, v in ((k, _valore_cella(v)) for k, v in valori.items()) if v is not None}
         if not {"actual", "nominal", "pos", "neg"} <= set(numeri):
-            continue
+            continue  # valore senza tolleranze (coordinate «Valore X_…»): non si giudica
         a, n, p, m = numeri["actual"], numeri["nominal"], numeri["pos"], numeri["neg"]
         d = numeri.get("diff")
         coerente = d is not None and abs((a - n) - d) <= max(0.0011, abs(d) * 0.002)
+        if not coerente and d is not None and n and abs((math.degrees(a) - n) - d) <= 0.006:
+            a, coerente = round(math.degrees(a), 4), True  # angolo con il rilevato stampato in radianti
         tipo = (_tipo(" ".join(celle["id"])) if "id" in celle else "") or tipo_sospeso
+        if nome and nome_sospeso:
+            if principale and not nome_sospeso.startswith(principale):
+                sezione = f"{principale} › {nome_sospeso}"[:120]
+            else:
+                sezione = nome_sospeso[:120]
+            nome_sospeso = ""
         nome = (nome or nome_sospeso).strip(" -")
         out.append({
-            "nome": nome[:80], "tipo": _tipo_da_nome(nome) or tipo, "misurato": a, "nominale": n,
-            "tol_sup": p, "tol_inf": m, "scostamento": d if coerente else round(a - n, 4),
+            "nome": nome[:80], "tipo": _tipo_da_nome(nome) or tipo or _tipo_da_nome_it(nome), "misurato": a,
+            "nominale": n, "tol_sup": p, "tol_inf": m, "tol_con_segno": True,
+            "scostamento": d if coerente else round(a - n, 4),
             "da_verificare": not coerente, "sezione": sezione, "pagina": pagina,
             "eccedenza": numeri.get("ecc", ecc_sospesa),
         })
@@ -611,7 +672,9 @@ def leggi_pdf(contenuto: bytes) -> dict:
                   "misurato": r["misurato"], "nominale": r["nominale"], "tol_sup": r["tol_sup"], "tol_inf": r["tol_inf"],
                   "eccedenza": r.get("eccedenza")})
         # Il report segna l'eccedenza («+/-») solo fuori tolleranza: se non torna col calcolo, da controllare.
-        if p["eccedenza"] and not p["fuori"]:
+        if bool(p["eccedenza"]) != p["fuori"]:
             p["da_verificare"] = True
+        if p["eccedenza"]:
+            p["fuori_di"] = p["eccedenza"]
         proposte.append(p)
     return {"intestazione": intestazione, "righe": proposte, "pagine": pagine, "metodo": metodo}
