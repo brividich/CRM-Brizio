@@ -283,13 +283,110 @@ class SezioneProcessoTests(TestCase):
         cruscotto = self.client.get(reverse("anagrafica:mpq_cruscotto"))
         self.assertContains(cruscotto, 'title="Apri la sezione dedicata">P11TF12</a>')
         dettaglio = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.processo.pk]))
-        self.assertContains(dettaglio, "mpq-avviso-rif")
+        self.assertContains(dettaglio, "Aggiungi i riferimenti")
         self.processo.riferimenti.create(codice="MOD.161")
         dettaglio = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.processo.pk]))
-        self.assertNotContains(dettaglio, "mpq-avviso-rif")
+        self.assertNotContains(dettaglio, "Aggiungi i riferimenti")
 
     def test_mail_scadenze_porta_alla_sezione(self):
         from anagrafica.services.mpq_scadenze import _processo_html
 
         self.assertIn(reverse("anagrafica:mpq_sezione", args=["P11TF12"]), _processo_html(self.processo))
         self.assertEqual(_processo_html(self.altro), "Trattamento sintetico")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ConfigurazioneProcessoTests(TestCase):
+    """Configurazione, avviso doppioni, export, guida PDF, MOD.176 in officina (stessi dati sintetici)."""
+
+    setUp = SezioneProcessoTests.setUp
+
+    def test_configurazione_dice_cosa_manca(self):
+        from anagrafica.services.mpq_configurazione import riepilogo
+
+        r = riepilogo(self.processo)
+        stato = {v["codice"]: v["ok"] for v in r["voci"]}
+        self.assertEqual(stato, {"stato": True, "riferimenti": False, "persone": False, "requisiti": False,
+                                 "macchine": True, "utensili": False})
+        self.assertFalse(r["completa"])
+        dettaglio = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.processo.pk]))
+        self.assertContains(dettaglio, "Configurazione del processo")
+        self.assertContains(dettaglio, "2 di 6 fatti")
+        self.assertContains(dettaglio, reverse("anagrafica:mpq_processo_export", args=[self.processo.pk, "pdf"]))
+        sezione = self.client.get(reverse("anagrafica:mpq_sezione", args=["P11TF12"]))
+        self.assertContains(sezione, "Da completare:")
+        asset = self.client.get(reverse("assets:processo_sezione", args=["P11TF12"]))
+        self.assertContains(asset, "Da completare:")
+        # Il processo senza macchine né utensili non ha quelle voci.
+        self.assertEqual([v["codice"] for v in riepilogo(self.altro)["voci"]],
+                         ["stato", "riferimenti", "persone", "requisiti"])
+
+    def test_nuovo_processo_simile_avvisa_prima_di_salvare(self):
+        dati = {"cliente": self.cliente.pk, "nome": "Foratura sintetica",
+                "regime": ProcessoQualificato.REGIME_SPECIALE,
+                "tipo_validita": ProcessoQualificato.VALIDITA_ILLIMITATA,
+                "personale_modalita": ProcessoQualificato.MODALITA_NOMINALE,
+                "stato": ProcessoQualificato.STATO_ATTIVO}
+        url = reverse("anagrafica:mpq_processo_create")
+        n = ProcessoQualificato.objects.count()
+        risposta = self.client.post(url, dati)
+        self.assertEqual(risposta.status_code, 200)
+        self.assertContains(risposta, "Esiste già un processo simile")
+        self.assertEqual(ProcessoQualificato.objects.count(), n)
+        self.assertEqual(self.client.post(url, {**dati, "salva_comunque": "1"}).status_code, 302)
+        self.assertEqual(ProcessoQualificato.objects.count(), n + 1)
+        diverso = self.client.post(url, {**dati, "nome": "Saldatura sintetica"})
+        self.assertEqual(diverso.status_code, 302)
+
+    def test_export_processo_e_guida_pdf(self):
+        pdf = self.client.get(reverse("anagrafica:mpq_processo_export", args=[self.altro.pk, "pdf"]))
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
+        xlsx = self.client.get(reverse("anagrafica:mpq_processo_export", args=[self.processo.pk, "xlsx"]))
+        self.assertIn("processo-foratura-sintetica-", xlsx["Content-Disposition"])
+        self.assertEqual(self.client.get(reverse("anagrafica:mpq_processo_export", args=[self.processo.pk, "doc"])).status_code, 404)
+        guida = self.client.get(reverse("anagrafica:mpq_guida_pdf"))
+        self.assertTrue(guida.content.startswith(b"%PDF"))
+
+    def test_officina_registra_parti(self):
+        passo = TechnicalPlanPasso.objects.get(revisione__plan=self.tp)
+        nuovo = RegistroUtensile.objects.create(passo=passo, identificativo="KIT-SYN-2")
+        url = reverse("anagrafica:mpq_officina")
+        pagina = self.client.get(url)
+        self.assertContains(pagina, "KIT-SYN-1")
+        self.assertContains(pagina, "TCP raggiunto")
+        self.assertContains(pagina, 'name="registro" value="%d"' % nuovo.pk)
+        self.assertNotContains(self.client.get(url, {"q": "KIT-SYN-2"}), "KIT-SYN-1")
+        risposta = self.client.post(url, {"registro": nuovo.pk, "q": "KIT", "data": timezone.localdate().isoformat(),
+                                          "part_number": "PN-SYN-1", "quantita": 30})
+        self.assertEqual(risposta.status_code, 302)
+        self.assertIn("q=KIT", risposta["Location"])
+        self.assertEqual(nuovo.righe.get().quantita, 30)
+        self.assertTrue(SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:mpq_officina").exists() or
+                        not SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:mpq_cruscotto").exists())
+
+    def test_export_liste_mod128(self):
+        from anagrafica.models_mpq import RegistroUtensileRiga
+
+        RegistroUtensileRiga.objects.create(registro=self.registro, data=timezone.localdate(), part_number="PN-SYN-1",
+                                            quantita=5)
+        AbilitazioneProcesso.objects.create(legacy_anagrafica_id=990101, processo=self.processo)
+        export = lambda key, **q: self.client.get(reverse("anagrafica:export", args=[key]), q)  # noqa: E731
+        for key, extra in (("mpq_processi", {}), ("mpq_matrice", {}), ("mpq_elenco", {"processo": self.processo.pk}),
+                           ("mpq_registro_righe", {"registro": self.registro.pk})):
+            for fmt in ("xlsx", "pdf"):
+                r = export(key, format=fmt, scope="full", **extra)
+                self.assertEqual(r.status_code, 200, (key, fmt))
+        from anagrafica.exports import EXPORT_SPECS
+        from django.test import RequestFactory
+
+        req = RequestFactory().get("/", {"registro": self.registro.pk})
+        req.user = self.admin
+        self.assertEqual(EXPORT_SPECS["mpq_registro_righe"].dataset(req, "full")[0]["quantita"], 5)
+        req = RequestFactory().get("/", {"processo": self.processo.pk})
+        req.user = self.admin
+        righe = EXPORT_SPECS["mpq_elenco"].dataset(req, "full")
+        self.assertEqual({r["tipo"] for r in righe}, {"Persona", "Macchina"} if any(r["tipo"] == "Macchina" for r in righe) else {"Persona"})
+        req = RequestFactory().get("/", {"stato": "SOSPESO"})
+        req.user = self.admin
+        self.assertEqual(EXPORT_SPECS["mpq_processi"].dataset(req, "filtered"), [])
+        self.assertContains(self.client.get(reverse("anagrafica:mpq_cruscotto")), 'anagrafica/esporta/mpq_processi/')

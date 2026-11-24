@@ -320,6 +320,9 @@ urlpatterns = [
     path("mod128/sezione/<str:sigla>/", views_mpq.mpq_sezione, name="mpq_sezione"),
     path("mod128/sezione/<str:sigla>/export.<str:formato>", views_mpq.mpq_sezione_export,
          name="mpq_sezione_export"),
+    path("mod128/guida-configurazione.pdf", views_mpq.mpq_guida_pdf, name="mpq_guida_pdf"),
+    path("mod128/officina/", views_mpq_u.mpq_officina, name="mpq_officina"),
+    path("mod128/<int:processo_id>/export.<str:formato>", views_mpq.mpq_processo_export, name="mpq_processo_export"),
     # Gestione (CRUD) — gated anagrafica.mpq.manage
     path("mod128/nuovo/", views_mpq.mpq_processo_create, name="mpq_processo_create"),
     path("mod128/clienti/", views_mpq.mpq_cliente_list, name="mpq_cliente_list"),

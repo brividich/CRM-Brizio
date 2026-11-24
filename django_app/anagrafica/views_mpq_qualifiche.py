@@ -535,7 +535,7 @@ def mpq_elenco(request, processo_id: int):
     return render(request, "anagrafica/pages/mpq_elenco.html", {
         "processo": proc, "oggi": oggi,
         "gruppi": [(k, v) for k, v in gruppi.items() if v],
-        "n_persone": len(abil), "macchine": macchine,
+        "n_persone": len(abil), "macchine": macchine, "export_query": f"processo={proc.pk}",
     })
 
 

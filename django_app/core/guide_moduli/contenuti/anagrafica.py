@@ -685,6 +685,35 @@ GUIDA = {
             ],
         },
         {
+            "id": "configurazione-processo",
+            "titolo": "Configurare un processo qualificato (lista «Configurazione»)",
+            "blocchi": [
+                ("p", "In cima alla pagina del processo il riquadro «Configurazione del processo» dice cosa è già "
+                      "inserito (✓) e cosa manca (✗), con il pulsante che porta dove si sistema: processo attivo, "
+                      "documenti di riferimento, persone qualificate, «Cosa serve a una persona» e, se il processo li "
+                      "usa, macchine con verifica MOD.161 e utensili critici con Technical Plan approvati. Sparisce "
+                      "quando è tutto a posto. Lo stesso elenco compare nelle sezioni dedicate («Da completare»)."),
+                ("def", [
+                    ("Guida PDF", "«Guida passo passo (PDF)» nel riquadro, nel cruscotto MOD.128 e nelle sezioni "
+                                  "dedicate: tutti i passi con le etichette delle pagine."),
+                    ("Nuovo processo", "se esiste già un processo con lo stesso nome (o simile, per lo stesso "
+                                       "cliente) o con la stessa sigla di sezione, il portale non salva e lo mostra "
+                                       "con il link; «Salva comunque» se è davvero un altro processo."),
+                    ("Scarica PDF / Excel", "nella pagina del processo e in «Utensili e Technical Plan»: persone, "
+                                            "macchine, utensili, Technical Plan, MOD.176 e documenti del processo, "
+                                            "anche senza sezione dedicata."),
+                    ("Esporta", "menu «Esporta» (Excel o PDF, filtrati o tutto) nel registro processi del "
+                                "cruscotto, nella matrice persone × processi, nell'elenco qualificati e nelle parti "
+                                "lavorate di un registro MOD.176."),
+                    ("MOD.176 in officina", "voce in Competenze › Qualifiche: i registri utensili aperti a schede "
+                                            "grandi, adatte al tablet. Cerca il kit, l'utensile o il P/N, scrivi P/N, "
+                                            "quantità, OP e matricola e premi «Registra». Con il TCP raggiunto la "
+                                            "scheda diventa rossa e porta al registro per chiuderlo. Registrare "
+                                            "richiede «Processi qualificati MOD.128 - Gestisci»."),
+                ]),
+            ],
+        },
+        {
             "id": "mod128-attrezzature",
             "titolo": "MOD.128: attrezzature dei processi qualificati",
             "blocchi": [
