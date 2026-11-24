@@ -514,3 +514,8 @@ body.theme-dark .af-pop-item.is-danger { color:#fca5a5; }
 body.theme-dark .af-pop-item.is-danger:hover { background:rgba(185,28,28,.18); }
 body.theme-dark .af-back:hover { color:#93c5fd; }
 body.theme-dark .af-statusband-col { background:var(--surface); border-color:var(--border); }
+/* Cartelle di categoria per singolo asset (24/11) */
+.af-doc-folder-cat label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-mid, #334155); }
+.af-doc-folder-cat select { min-width: 220px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: var(--fs-sm); background: var(--surface, #fff); color: var(--text, #0f172a); }
+.af-doc-folder-nota { margin: 10px 0 0; font-size: var(--fs-sm); color: var(--text-light, #64748b); }
+body.theme-dark .af-doc-folder-cat select { background: var(--surface-alt); border-color: var(--border); color: var(--text); }

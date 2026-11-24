@@ -7,7 +7,7 @@
 
 {% block assets_shell_head %}
 {% include "assets/components/maintenance_domain_styles.html" %}
-<link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail.css' %}?v=20261112">
+<link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail.css' %}?v=20261124">
 {% if asset.asset_type == "WORK_MACHINE" or asset.asset_type == "CNC" %}
 {# FullCalendar 6 inietta la propria CSS dal bundle JS: nessun file CSS separato. #}
 <link rel="stylesheet" href="{% static 'assets/css/pagine/asset_detail-2.css' %}?v=20261112">
@@ -1138,6 +1138,17 @@
               {% endif %}
               <button class="af-btn af-btn-secondary" type="submit">+ Aggiungi cartella</button>
             </form>
+            {% if doc_cartelle_nascoste %}
+              <form class="af-doc-folder-add af-doc-folder-cat" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="aggiungi_cartella_categoria">
+                <label for="cartella-cat-sel">Cartelle della categoria non usate qui</label>
+                <select id="cartella-cat-sel" name="folder_slug" required>
+                  {% for c in doc_cartelle_nascoste %}<option value="{{ c.slug }}">{{ c.name }} ({{ c.motivo }})</option>{% endfor %}
+                </select>
+                <button class="af-btn af-btn-secondary" type="submit">Aggiungi a questo asset</button>
+              </form>
+            {% endif %}
           {% endif %}
 
           {% for spec in doc_category_specs %}
@@ -1228,13 +1239,23 @@
                 {% else %}
                   <div class="af-doc-empty">Nessun documento nella categoria {{ label }}.</div>
                 {% endif %}
+                {% if spec.scope == "category" and spec.togli and can_manage_asset_doc_folders %}
+                  <form method="post" class="af-doc-folder-remove" data-hub-confirm="Togliere la cartella &quot;{{ label }}&quot; da questo asset? Gli altri asset della categoria la tengono; puoi rimetterla da «Cartelle della categoria non usate qui».">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="togli_cartella_categoria">
+                    <input type="hidden" name="folder_slug" value="{{ spec.code }}">
+                    <button class="af-btn af-btn-secondary" type="submit">Togli da questo asset</button>
+                  </form>
+                {% elif spec.scope == "category" and can_manage_asset_doc_folders %}
+                  <p class="af-doc-folder-nota">Per togliere questa cartella da questo asset sposta o elimina prima i suoi documenti.</p>
+                {% endif %}
                 {% if spec.removable and spec.scope == "asset" and can_manage_asset_doc_folders or spec.removable and spec.scope == "category" and can_manage_doc_folders %}
                   <form method="post" class="af-doc-folder-remove" data-hub-confirm="Disattivare la cartella documento &quot;{{ label }}&quot;? Sara possibile solo se non contiene documenti{% if spec.scope == 'category' %}; vale per tutti gli asset della categoria{% endif %}.">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="deactivate_asset_document_folder">
                     <input type="hidden" name="folder_scope" value="{{ spec.scope }}">
                     <input type="hidden" name="folder_id" value="{{ spec.folder_id }}">
-                    <button class="af-btn af-btn-danger" type="submit">Disattiva questa cartella</button>
+                    <button class="af-btn af-btn-danger" type="submit">{% if spec.scope == "category" %}Disattiva per tutta la categoria{% else %}Disattiva questa cartella{% endif %}</button>
                   </form>
                 {% endif %}
               {% endwith %}

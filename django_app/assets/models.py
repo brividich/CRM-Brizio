@@ -2379,6 +2379,9 @@ class AssetCategoryDocumentFolder(models.Model):
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=60)
     is_active = models.BooleanField(default=True)
+    # Facoltativa: non compare da sola sugli asset della categoria; si aggiunge
+    # a un asset da «Cartelle della categoria» nei suoi Documenti.
+    facoltativa = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
