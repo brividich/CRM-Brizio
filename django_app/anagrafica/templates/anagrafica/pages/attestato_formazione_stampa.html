@@ -185,7 +185,7 @@
         <div class="as-course-title">{{ record.course_title_snapshot|default:corso.titolo|default:"Corso di formazione" }}</div>
         <div class="as-course-sub">
           {% with cod=record.course_code_snapshot|default:corso.codice %}{% if cod %}Codice {{ cod }}{% endif %}{% endwith %}
-          {% with piano=record.plan_name_snapshot|default:corso.piano.nome %}{% if piano %} · Piano: {{ piano }}{% endif %}{% endwith %}
+          {% firstof record.plan_name_snapshot corso.piano.nome as piano %}{% if piano %} · Piano: {{ piano }}{% endif %}
           {% if record.course_version_snapshot %} · Versione {{ record.course_version_snapshot }}{% endif %}
         </div>
       </div>

@@ -105,7 +105,7 @@
                   <span class="md-sub">OdL n. {{ wo.display_number }} · {{ wo.get_kind_display }}</span>
                 </td>
                 <td>
-                  <a class="md-op-title" href="{% url 'assets:asset_view' wo.asset_id %}">{{ wo.asset.asset_tag|default:wo.asset.name }}</a>
+                  <a class="md-op-title" href="{% url 'assets:asset_view' wo.asset_id %}">{% firstof wo.asset.asset_tag wo.asset.name %}</a>
                   <span class="md-sub">{{ wo.asset.name }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</span>
                 </td>
                 <td>
@@ -118,9 +118,9 @@
                     </div>
                     <span class="md-sub">
                       {% if wo.started_at %}
-                        {% if wo.assigned_to %}{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }} · {% endif %}dalle {{ wo.started_at|time:"H:i" }}
+                        {% if wo.assigned_to %}{% firstof wo.assigned_to.get_full_name wo.assigned_to.username %} · {% endif %}dalle {{ wo.started_at|time:"H:i" }}
                       {% elif wo.assigned_to %}
-                        Assegnato a {{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}
+                        Assegnato a {% firstof wo.assigned_to.get_full_name wo.assigned_to.username %}
                       {% else %}
                         Nessun assegnatario
                       {% endif %}

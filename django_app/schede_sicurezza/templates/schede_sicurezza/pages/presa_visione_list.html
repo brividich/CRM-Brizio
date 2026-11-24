@@ -20,7 +20,7 @@
         <tbody>
           {% for pv in prese %}
             <tr>
-              <td style="padding:8px 12px;">{{ pv.operatore.get_full_name|default:pv.operatore.username }}</td>
+              <td style="padding:8px 12px;">{% firstof pv.operatore.get_full_name pv.operatore.username %}</td>
               <td style="padding:8px 12px;">{{ pv.data_presa_visione|date:"d/m/Y H:i" }}</td>
               <td style="padding:8px 12px;">{{ pv.note|default:"—" }}</td>
             </tr>

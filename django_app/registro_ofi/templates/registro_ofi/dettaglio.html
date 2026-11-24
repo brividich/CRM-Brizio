@@ -199,7 +199,7 @@ body.theme-dark .pdca-step.current .pdca-cap{color:#fdba74}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Gestione e scadenza</div></div>
       <dl class="ofi-dl">
-        <dt>Responsabile</dt><dd>{% if voce.responsabile %}{{ voce.responsabile.get_full_name|default:voce.responsabile.username }}{% else %}— <span class="ofi-nota">(nessun utente: i solleciti vanno solo alla Qualità)</span>{% endif %}</dd>
+        <dt>Responsabile</dt><dd>{% if voce.responsabile %}{% firstof voce.responsabile.get_full_name voce.responsabile.username %}{% else %}— <span class="ofi-nota">(nessun utente: i solleciti vanno solo alla Qualità)</span>{% endif %}</dd>
         <dt>Owner di processo</dt><dd>{{ voce.owner_processo|default:"—" }}</dd>
         <dt>Proprietario</dt><dd>{{ voce.proprietario|default:"—" }}</dd>
         <dt>Priorità</dt><dd>{% if voce.priorita == "ALTA" %}<span class="fmd-badge fmd-b-red">Alta</span>{% elif voce.priorita == "MEDIA" %}<span class="fmd-badge fmd-b-orange">Media</span>{% else %}<span class="fmd-badge fmd-b-grey">Bassa</span>{% endif %}</dd>
@@ -216,7 +216,7 @@ body.theme-dark .pdca-step.current .pdca-cap{color:#fdba74}
         {% for al in voce.allegati.all %}
         <li><a class="fmd-data-link" href="{% url 'registro_ofi:allegato_scarica' voce.pk al.pk %}">{{ al.nome }}</a>
           {% if al.descrizione %}<span>{{ al.descrizione }}</span>{% endif %}
-          <span class="ofi-nota">{{ al.caricato_il|date:"d/m/Y H:i" }}{% if al.caricato_da %} · {{ al.caricato_da.get_full_name|default:al.caricato_da.username }}{% endif %}</span></li>
+          <span class="ofi-nota">{{ al.caricato_il|date:"d/m/Y H:i" }}{% if al.caricato_da %} · {% firstof al.caricato_da.get_full_name al.caricato_da.username %}{% endif %}</span></li>
         {% endfor %}
       </ul>
       {% else %}<p class="ofi-nota">Nessuna evidenza caricata.</p>{% endif %}
@@ -249,7 +249,7 @@ body.theme-dark .pdca-step.current .pdca-cap{color:#fdba74}
         {% for ev in voce.eventi.all %}
         <li><time datetime="{{ ev.quando|date:'c' }}">{{ ev.quando|date:"d/m/Y H:i" }}</time>
           <div><strong>{{ ev.get_tipo_display }}</strong>{% if ev.da %}: {{ ev.da }} → {{ ev.a|default:"—" }}{% elif ev.a %}: {{ ev.a }}{% endif %}
-            <span class="ofi-nota">· {% if ev.utente %}{{ ev.utente.get_full_name|default:ev.utente.username }}{% else %}sistema{% endif %}</span>
+            <span class="ofi-nota">· {% if ev.utente %}{% firstof ev.utente.get_full_name ev.utente.username %}{% else %}sistema{% endif %}</span>
             {% if ev.nota %}<div class="ofi-crono-testo">{{ ev.nota }}</div>{% endif %}</div></li>
         {% endfor %}
       </ul>

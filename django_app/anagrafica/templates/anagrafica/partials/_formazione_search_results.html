@@ -228,7 +228,7 @@
       <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span>
       <span class="fmd-area-body">
         <span class="fmd-area-title">{{ a.nome }}</span>
-        <span class="fmd-area-desc">{{ a.record.course_title_snapshot|default:a.record.corso.titolo|truncatechars:34 }}{% if a.record.data_completamento %} · {{ a.record.data_completamento|date:"d-m-Y" }}{% endif %}</span>
+        <span class="fmd-area-desc">{% firstof a.record.course_title_snapshot a.record.corso.titolo as titolo_corso %}{{ titolo_corso|truncatechars:34 }}{% if a.record.data_completamento %} · {{ a.record.data_completamento|date:"d-m-Y" }}{% endif %}</span>
       </span>
     </a>
     {% endfor %}

@@ -32,7 +32,7 @@ Con `testa_senza_quando` (scheda, fase «Prima») quando e dove non si ripetono:
     {% if meeting.created_by %}
       <span class="md-meta-item">
         <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
-        {{ meeting.created_by.get_full_name|default:meeting.created_by.username }}
+        {% firstof meeting.created_by.get_full_name meeting.created_by.username %}
       </span>
     {% endif %}
   </div>

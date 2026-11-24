@@ -209,7 +209,7 @@ body.theme-dark .dpi-btn-gray:hover{background:var(--surface-alt,#0f1b2d)}
             </div>
           </td>
           <td>{% if d.modello %}<span class="dpi-chip">{{ d.modello.nome }}<small>{{ d.modello.codice }} · {{ d.modello.tipo.categoria.nome }}</small></span>{% else %}<span class="dpi-muted">—</span>{% endif %}</td>
-          <td>{{ d.created_at|date:"d/m/Y" }}{% if d.caricato_da %}<div class="dpi-muted">{{ d.caricato_da.get_full_name|default:d.caricato_da.username }}</div>{% endif %}</td>
+          <td>{{ d.created_at|date:"d/m/Y" }}{% if d.caricato_da %}<div class="dpi-muted">{% firstof d.caricato_da.get_full_name d.caricato_da.username %}</div>{% endif %}</td>
           <td>{{ d.dimensione_bytes|filesizeformat }}</td>
           <td>
             <div class="dpi-actions">

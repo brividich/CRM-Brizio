@@ -27,7 +27,7 @@
         <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ mansione.get_tipo_display }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>{{ mansione.nome }}{% if not mansione.attiva %} <span class="fmd-badge fmd-b-grey">non attiva</span>{% endif %}</h1>
         <div class="mns-facts">
-          <div class="mns-fact"><span class="mns-fact-l">Tipo</span><span class="mns-fact-v">{{ mansione.get_tipo_display }}{% if mansione.asset %} · <span class="fmd-muted">asset {{ mansione.asset.asset_tag|default:mansione.asset.name }}</span>{% endif %}</span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Tipo</span><span class="mns-fact-v">{{ mansione.get_tipo_display }}{% if mansione.asset %} · <span class="fmd-muted">asset {% firstof mansione.asset.asset_tag mansione.asset.name %}</span>{% endif %}</span></div>
           <div class="mns-fact"><span class="mns-fact-l">Reparto</span><span class="mns-fact-v">{% if mansione.reparto_effettivo %}{{ mansione.reparto_effettivo }}{% if mansione.asset_id %} <span class="fmd-muted">(dall'asset)</span>{% endif %}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}</span></div>
           <div class="mns-fact"><span class="mns-fact-l">Ruoli</span><span class="mns-fact-v">{% for r in mansione.ruoli.all %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}?ruolo={{ r.pk }}#ruolo-{{ r.pk }}" title="Il ruolo nel Mansionario: le sue mansioni e chi lo ricopre">{{ r.nome }}</a>{% empty %}<span class="mns-warn-txt">nessun ruolo</span>{% endfor %}</span></div>
           <div class="mns-fact"><span class="mns-fact-l">Mansioni di rischio</span><span class="mns-fact-v">{% for m in mansione.mansioni_rischio.all %}<a class="fmd-badge fmd-b-violet" href="{% url 'anagrafica:mansione_requisiti' m.pk %}" title="DPI, visite e schede di sicurezza">{{ m.nome }}</a>{% empty %}<span class="mns-warn-txt">da indicare: senza, DPI, visite e SDS non si ricavano</span>{% endfor %}</span></div>
@@ -344,7 +344,7 @@
               <div class="fm-form-field"><label for="mm-reparto">Reparto</label>
                 {% if mansione.asset_id %}
                 <div class="mns-ro">{{ mansione.reparto_effettivo|default:"non indicato sull'asset" }}</div>
-                <div class="fm-help">Viene dalla macchina {{ mansione.asset.asset_tag|default:mansione.asset.name }}: si cambia dalla sua scheda.</div>
+                <div class="fm-help">Viene dalla macchina {% firstof mansione.asset.asset_tag mansione.asset.name %}: si cambia dalla sua scheda.</div>
                 {% else %}
                 <select id="mm-reparto" name="reparto" class="fm-input fm-select">
                   <option value="">— nessuno —</option>

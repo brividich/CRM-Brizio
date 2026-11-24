@@ -38,7 +38,7 @@
       <p class="lt-desc">{{ l.descrizione }}</p>
       <dl class="lt-meta">
         <div><dt>Quando gira</dt><dd>{{ l.quando }}</dd></div>
-        <div><dt>Ultimo giro</dt><dd>{% if u %}{{ u.avviata_il|date:"d/m/Y H:i" }}<small>{% if u.manuale %}a mano{% if u.utente %} da {{ u.utente.get_full_name|default:u.utente.username }}{% endif %}{% else %}automatico{% endif %}{% if u.durata_s is not None %} · {% if u.durata_s < 60 %}{{ u.durata_s }} s{% else %}{% widthratio u.durata_s 60 1 %} min{% endif %}{% endif %}</small>{% else %}mai{% endif %}</dd></div>
+        <div><dt>Ultimo giro</dt><dd>{% if u %}{{ u.avviata_il|date:"d/m/Y H:i" }}<small>{% if u.manuale %}a mano{% if u.utente %} da {% firstof u.utente.get_full_name u.utente.username %}{% endif %}{% else %}automatico{% endif %}{% if u.durata_s is not None %} · {% if u.durata_s < 60 %}{{ u.durata_s }} s{% else %}{% widthratio u.durata_s 60 1 %} min{% endif %}{% endif %}</small>{% else %}mai{% endif %}</dd></div>
       </dl>
       {% if s.manca %}<p class="lt-warn">{{ s.manca }}</p>{% endif %}
       {% if u.bloccato %}<p class="lt-warn">Il giro partito il {{ u.avviata_il|date:"d/m H:i" }} non ha mai finito: il servizio dei lavori in background (qcluster) potrebbe essere fermo.</p>{% endif %}
@@ -89,7 +89,7 @@
         <tr>
           <td class="sec-nowrap">{{ x.avviata_il|date:"d/m/Y H:i" }}</td>
           <td><a href="#lettura-{{ x.codice }}">{{ x.lettura.nome|default:x.codice }}</a></td>
-          <td>{% if x.manuale %}a mano{% if x.utente %} · {{ x.utente.get_full_name|default:x.utente.username }}{% endif %}{% else %}automatico{% endif %}</td>
+          <td>{% if x.manuale %}a mano{% if x.utente %} · {% firstof x.utente.get_full_name x.utente.username %}{% endif %}{% else %}automatico{% endif %}</td>
           <td class="sec-nowrap">{% if x.durata_s is not None %}{{ x.durata_s }} s{% else %}—{% endif %}</td>
           <td><span class="lt-st is-{{ x.stato }}">{% if x.bloccato %}Interrotta{% else %}{{ x.get_stato_display }}{% endif %}</span></td>
           <td class="lt-hist-read">{% include "security/partials/letture_riga.html" %}</td>

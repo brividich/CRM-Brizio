@@ -68,7 +68,7 @@ body.theme-dark .est-dl dt{ color:var(--text-light); }
       <td><a href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.numero }}</a></td>
       <td>{% if v.tipo == "NC" %}<span class="sg-badge danger">NC</span>{% else %}<span class="sg-badge warn">OFI</span>{% endif %}</td>
       <td class="sg-cell-text">{{ v.opportunita|truncatechars:160 }}</td><td>{{ v.rif_norma|default:"—" }}</td>
-      <td>{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}—{% endif %}</td>
+      <td>{% if v.responsabile %}{% firstof v.responsabile.get_full_name v.responsabile.username %}{% else %}—{% endif %}</td>
       <td>{% if v.is_scaduto %}<span class="sg-badge danger">{{ v.data_richiesta|date:"d/m/Y" }}</span>{% else %}{{ v.data_richiesta|date:"d/m/Y"|default:"—" }}{% endif %}</td>
       <td>{% if v.is_chiuso %}<span class="sg-badge ok">Chiuso</span>{% else %}{{ v.get_fase_display }}{% endif %}</td>
     </tr>{% empty %}<tr><td colspan="7">Nessun rilievo registrato.</td></tr>{% endfor %}
@@ -80,7 +80,7 @@ body.theme-dark .est-dl dt{ color:var(--text-light); }
     <p class="sg-muted" style="margin:0">Il piano si compila dalle voci del Registro OFI: analisi e azione (PLAN), attuazione (DO), verifica (CHECK), responsabile e data. Scaricalo, invialo all'ente e registra la data di invio: il promemoria del lunedì si ferma.</p>
     <div class="sg-actions">
       <a class="btn btn-secondary" href="{% url 'sistema_gestione:esterni_piano_export' audit.pk %}">Scarica il piano azioni (xlsx)</a>
-      {% if audit.piano_inviato_il %}<span class="sg-badge ok">Inviato il {{ audit.piano_inviato_il|date:"d/m/Y" }}{% if audit.piano_inviato_da %} da {{ audit.piano_inviato_da.get_full_name|default:audit.piano_inviato_da.username }}{% endif %}</span>
+      {% if audit.piano_inviato_il %}<span class="sg-badge ok">Inviato il {{ audit.piano_inviato_il|date:"d/m/Y" }}{% if audit.piano_inviato_da %} da {% firstof audit.piano_inviato_da.get_full_name audit.piano_inviato_da.username %}{% endif %}</span>
       {% elif piano_da_inviare %}<span class="sg-badge {% if audit.risposta_entro and audit.risposta_entro < oggi %}danger{% else %}warn{% endif %}">Da inviare{% if audit.risposta_entro %} entro il {{ audit.risposta_entro|date:"d/m/Y" }}{% endif %}</span>{% endif %}
     </div>
     {% if puo_modificare and not audit.piano_inviato_il %}

@@ -46,7 +46,7 @@
             <td><a class="gs-code" href="{% url 'gestione_specifiche:dettaglio' e.specifica_id %}" style="color:#1f87cd; text-decoration:none;">{{ e.specifica.codice }}</a></td>
             <td style="color:#3a4a63;">{% if e.stato_da %}{{ e.stato_da }} → {% endif %}{{ e.stato_a }}</td>
             <td>{% if e.trigger %}<span class="gs-tag is-blue">{{ e.trigger }}</span>{% else %}—{% endif %}</td>
-            <td style="color:#3a4a63;">{% if e.attore %}{{ e.attore.get_full_name|default:e.attore.username }}{% else %}—{% endif %}</td>
+            <td style="color:#3a4a63;">{% if e.attore %}{% firstof e.attore.get_full_name e.attore.username %}{% else %}—{% endif %}</td>
             <td style="color:#7c8aa2; max-width:300px;">{% if e.payload %}<code style="font-size:11px;">{{ e.payload }}</code>{% else %}—{% endif %}</td>
           </tr>
           {% empty %}

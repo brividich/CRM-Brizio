@@ -111,8 +111,8 @@ body.theme-dark .vm-detail-docs a:hover{background:rgba(59,130,246,.18)}
           <div class="hr-card-head"><h2 class="hr-card-title" id="vm-registro">Registrazione</h2></div>
           <div class="hr-card-pad" style="padding:16px;">
             <dl class="vm-detail-grid" style="grid-template-columns:1fr;gap:12px;">
-              <div class="vm-detail-field"><dt>Creata</dt><dd>{{ visita.created_at|date:"d/m/Y H:i" }}{% if visita.created_by %} · {{ visita.created_by.get_full_name|default:visita.created_by.username }}{% endif %}</dd></div>
-              <div class="vm-detail-field"><dt>Ultimo aggiornamento</dt><dd>{{ visita.updated_at|date:"d/m/Y H:i" }}{% if visita.updated_by %} · {{ visita.updated_by.get_full_name|default:visita.updated_by.username }}{% endif %}</dd></div>
+              <div class="vm-detail-field"><dt>Creata</dt><dd>{{ visita.created_at|date:"d/m/Y H:i" }}{% if visita.created_by %} · {% firstof visita.created_by.get_full_name visita.created_by.username %}{% endif %}</dd></div>
+              <div class="vm-detail-field"><dt>Ultimo aggiornamento</dt><dd>{{ visita.updated_at|date:"d/m/Y H:i" }}{% if visita.updated_by %} · {% firstof visita.updated_by.get_full_name visita.updated_by.username %}{% endif %}</dd></div>
               {% if visita.sessione_id %}<div class="vm-detail-field"><dt>Sessione</dt><dd><a href="{% url 'anagrafica:visite_mediche_sessione_detail' visita.sessione_id %}">Apri sessione #{{ visita.sessione_id }}</a></dd></div>{% endif %}
             </dl>
           </div>
@@ -129,7 +129,7 @@ body.theme-dark .vm-detail-docs a:hover{background:rgba(59,130,246,.18)}
         <form method="post" action="{% url 'anagrafica:visita_medica_superata' visita.pk %}">
           {% csrf_token %}
           {% if visita.superata_il %}
-            <p class="vm-detail-sub" style="margin:0 0 12px;">Segnata come superata il {{ visita.superata_il|date:"d/m/Y H:i" }}{% if visita.superata_da %} da {{ visita.superata_da.get_full_name|default:visita.superata_da.username }}{% endif %}: «{{ visita.superata_motivo }}».</p>
+            <p class="vm-detail-sub" style="margin:0 0 12px;">Segnata come superata il {{ visita.superata_il|date:"d/m/Y H:i" }}{% if visita.superata_da %} da {% firstof visita.superata_da.get_full_name visita.superata_da.username %}{% endif %}: «{{ visita.superata_motivo }}».</p>
             <input type="hidden" name="azione" value="ripristina">
             <button type="submit" class="hr-btn hr-btn-outline">Ripristina nello scadenziario</button>
           {% else %}

@@ -18,7 +18,7 @@
   <div class="rc-top">
     <div>
       <div class="rc-title">{{ p.nome }}</div>
-      <div class="rc-sub">{{ p.get_stato_display }}{% if p.applicato_il %} il {{ p.applicato_il|date:"d/m/Y H:i" }}{% if p.applicato_da %} da {{ p.applicato_da.get_full_name|default:p.applicato_da.username }}{% endif %}{% if p.decorrenza %}, decorrenza {{ p.decorrenza|date:"d/m/Y" }}{% endif %}{% endif %}.</div>
+      <div class="rc-sub">{{ p.get_stato_display }}{% if p.applicato_il %} il {{ p.applicato_il|date:"d/m/Y H:i" }}{% if p.applicato_da %} da {% firstof p.applicato_da.get_full_name p.applicato_da.username %}{% endif %}{% if p.decorrenza %}, decorrenza {{ p.decorrenza|date:"d/m/Y" }}{% endif %}{% endif %}.</div>
     </div>
     <div class="rc-actions"><a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:prospetti' %}">Tutti i prospetti</a></div>
   </div>

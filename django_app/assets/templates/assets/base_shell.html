@@ -56,7 +56,7 @@
     <div class="as-user">
       <span class="as-user-av">{{ request.user.username|slice:":1"|upper }}</span>
       <div>
-        <div class="as-user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
+        <div class="as-user-name">{% firstof request.user.get_full_name request.user.username %}</div>
         <div class="as-user-role">{% if can_gestione_admin %}Amministratore{% else %}Operatore Assets{% endif %}</div>
       </div>
     </div>

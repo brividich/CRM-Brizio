@@ -91,7 +91,7 @@
             <a href="{% url 'security:case_detail' ticket.pk %}"><strong>{{ ticket.title }}</strong></a>
             <small>{{ ticket.source.name }} · {% if ticket.origin == "manual" %}aperto a mano{% else %}automatico{% endif %}{% if ticket.cve_ids %} · {{ ticket.cve_ids|join:", " }}{% elif ticket.cve %} · {{ ticket.cve }}{% endif %}{% if ticket.occurrence_count > 1 %} · {{ ticket.occurrence_count }} occorrenze{% endif %}</small>
           </td>
-          <td>{% if ticket.assignee %}{{ ticket.assignee.get_full_name|default:ticket.assignee.username }}{% else %}<span class="sec-muted">Non assegnato</span>{% endif %}</td>
+          <td>{% if ticket.assignee %}{% firstof ticket.assignee.get_full_name ticket.assignee.username %}{% else %}<span class="sec-muted">Non assegnato</span>{% endif %}</td>
           <td class="sec-nowrap">{% if ticket.task_total %}<strong>{{ ticket.open_tasks }}</strong> da fare su {{ ticket.task_total }}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
           <td class="sec-nowrap">{{ ticket.updated_at|date:"d M Y, H:i" }}</td>
         </tr>

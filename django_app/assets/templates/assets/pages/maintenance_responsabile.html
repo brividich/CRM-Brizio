@@ -416,7 +416,7 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
             <tr>
               <td class="md-nowrap"><span class="md-due">{{ due.due_date|date:"d/m/Y" }}</span></td>
               <td><a href="{{ due.url }}">{{ due.title }}</a></td>
-              <td>{{ due.asset.asset_tag|default:due.asset.name }}</td>
+              <td>{% firstof due.asset.asset_tag due.asset.name %}</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -500,7 +500,7 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
               <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
               <td>{{ wo.title }}</td>
               <td class="md-right">{{ wo.occurrence_count }}</td>
-              <td>{% if wo.assigned_to %}{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}{% else %}<span class="md-sub">da assegnare</span>{% endif %}</td>
+              <td>{% if wo.assigned_to %}{% firstof wo.assigned_to.get_full_name wo.assigned_to.username %}{% else %}<span class="md-sub">da assegnare</span>{% endif %}</td>
               <td>
                 {% if wo.is_waiting %}<span class="md-badge badge-muted">In attesa</span>
                 {% elif wo.started_at %}<span class="md-badge badge-primary">In corso</span>
@@ -574,8 +574,8 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
               {% if can_bulk_workorders %}<td><input type="checkbox" name="workorder_ids" value="{{ wo.pk }}" form="wo-bulk-form" data-wo-check aria-label="Seleziona OdL #{{ wo.pk }}"></td>{% endif %}
               <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
               <td>{{ wo.title|truncatechars:70 }}</td>
-              <td>{{ wo.asset.asset_tag|default:wo.asset.name }}</td>
-              <td>{% if wo.assigned_to %}{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}{% else %}<span class="md-sub">da assegnare</span>{% endif %}</td>
+              <td>{% firstof wo.asset.asset_tag wo.asset.name %}</td>
+              <td>{% if wo.assigned_to %}{% firstof wo.assigned_to.get_full_name wo.assigned_to.username %}{% else %}<span class="md-sub">da assegnare</span>{% endif %}</td>
               <td class="md-right md-nowrap">{{ wo.days_open }} gg</td>
             </tr>
           {% empty %}
@@ -601,7 +601,7 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
             <tr>
               {% if can_bulk_workorders %}<td><input type="checkbox" name="workorder_ids" value="{{ wo.pk }}" form="wo-bulk-form" data-wo-check aria-label="Seleziona OdL #{{ wo.pk }}"></td>{% endif %}
               <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
-              <td>{{ wo.asset.asset_tag|default:wo.asset.name }}</td>
+              <td>{% firstof wo.asset.asset_tag wo.asset.name %}</td>
               <td>{{ wo.follow_up_reason|default:wo.title|truncatechars:90 }}</td>
               <td>{{ wo.follow_up_occurrence.plan.label }}</td>
               <td class="md-nowrap">{{ wo.opened_at|date:"d/m/Y" }}</td>
@@ -620,7 +620,7 @@ body.theme-dark .pn-wrap{--pn-line:var(--border);--pn-card:var(--surface);--pn-t
       <div style="padding:12px 16px;display:grid;gap:8px">
         {% for conflict in conflicts %}
           <div class="md-conflict">
-            <h3>{{ conflict.plan.label }} — {{ conflict.asset.asset_tag|default:conflict.asset.name }}</h3>
+            <h3>{{ conflict.plan.label }} — {% firstof conflict.asset.asset_tag conflict.asset.name %}</h3>
             <ul>
               {% for item in conflict.conflict_description %}<li>{{ item.target }}: {{ item.recurrence }}</li>{% endfor %}
             </ul>

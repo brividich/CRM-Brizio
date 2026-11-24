@@ -392,7 +392,7 @@ body.theme-dark .wmf-inline-note{color:var(--text-light)}
                             <a href="{% url 'assets:asset_document_download' doc.id %}" target="_blank" rel="noopener">{{ doc.original_name|default:doc.file.name }}</a>
                             <span class="wmf-upload-meta">
                               {{ doc.created_at|date:"d-m-Y H:i" }}
-                              {% if doc.uploaded_by %} · {{ doc.uploaded_by.get_full_name|default:doc.uploaded_by.username }}{% endif %}
+                              {% if doc.uploaded_by %} · {% firstof doc.uploaded_by.get_full_name doc.uploaded_by.username %}{% endif %}
                             </span>
                           </div>
                           {% if doc.notes %}<div class="wmf-upload-meta">{{ doc.notes }}</div>{% endif %}

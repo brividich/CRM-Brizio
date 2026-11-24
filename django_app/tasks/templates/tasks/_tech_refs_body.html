@@ -31,7 +31,7 @@
         <td class="tr-kind">{{ ref.kind }}</td>
         <td>{% if ref.code %}{{ ref.code }}{% if ref.revisione %} <span class="pg-rev">rev. {{ ref.revisione }}</span>{% endif %}{% else %}<span class="tr-empty">da inserire</span>{% endif %}{% if ref.macchina %}<div class="tl-task-desc">{{ ref.macchina.asset_tag }}</div>{% endif %}</td>
         <td>{% include "tasks/_tech_ref_link.html" %}</td>
-        <td>{% if ref.assigned_to %}{{ ref.assigned_to.get_full_name|default:ref.assigned_to.username }}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
+        <td>{% if ref.assigned_to %}{% firstof ref.assigned_to.get_full_name ref.assigned_to.username %}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
         <td>{% if ref.due_date %}{{ ref.due_date|date:"d/m/Y" }}{% else %}<span class="tr-empty">-</span>{% endif %}</td>
         <td>
           <span class="ts-chip {% if ref.is_overdue %}danger{% elif ref.fase == 'VALIDATO' %}ok{% elif ref.fase == 'DA_PROVARE' %}warn{% else %}info{% endif %}">{{ ref.get_fase_display }}{% if ref.is_overdue %} · in ritardo{% endif %}</span>
@@ -60,7 +60,7 @@
 <h3 class="tr-sezione">FAI</h3>
 {% if fai_non_richiesto %}
 <div class="fai-regola">
-  <div><strong>FAI non richiesto per questo kickoff</strong> <span>Deciso{% if project.fai_non_richiesto_da %} da {{ project.fai_non_richiesto_da.get_full_name|default:project.fai_non_richiesto_da.username }}{% endif %} il {{ project.fai_non_richiesto_il|date:"d/m/Y" }}.</span></div>
+  <div><strong>FAI non richiesto per questo kickoff</strong> <span>Deciso{% if project.fai_non_richiesto_da %} da {% firstof project.fai_non_richiesto_da.get_full_name project.fai_non_richiesto_da.username %}{% endif %} il {{ project.fai_non_richiesto_il|date:"d/m/Y" }}.</span></div>
   {% if tech_can_assign %}<button type="button" class="btn btn-secondary btn-sm" data-tr-fai="0">Annulla</button>{% endif %}
 </div>
 {% elif fai_esito %}
@@ -100,7 +100,7 @@
           {% if ref.source_meeting %}<div class="tl-task-desc">Incontro {{ ref.source_meeting.numero }}</div>{% endif %}
           {% if ref.task_id %}<div class="tl-task-desc"><a class="tl-task-link" href="{% url 'tasks:detail' ref.task_id %}">Attività: {{ ref.task.title }}</a></div>{% endif %}
         </td>
-        <td>{% if ref.assigned_to %}{{ ref.assigned_to.get_full_name|default:ref.assigned_to.username }}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
+        <td>{% if ref.assigned_to %}{% firstof ref.assigned_to.get_full_name ref.assigned_to.username %}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
         <td>{% if ref.due_date %}{{ ref.due_date|date:"d/m/Y" }}{% else %}<span class="tr-empty">-</span>{% endif %}</td>
         <td>
           <div class="tr-actions">

@@ -19,7 +19,7 @@
       {% for v in verbali %}<tr>
         <td><a href="{% url 'sistema_gestione:riesame_dettaglio' v.pk %}">{{ v.anno }}</a></td><td>{{ v.data|date:"d/m/Y" }}</td>
         <td><span class="sg-state is-{{ v.stato }}">{{ v.get_stato_display }}</span></td>
-        <td>{% if v.approvato_il %}{{ v.approvato_il|date:"d/m/Y" }}{% if v.approvato_da %} · {{ v.approvato_da.get_full_name|default:v.approvato_da.username }}{% endif %}{% else %}—{% endif %}</td>
+        <td>{% if v.approvato_il %}{{ v.approvato_il|date:"d/m/Y" }}{% if v.approvato_da %} · {% firstof v.approvato_da.get_full_name v.approvato_da.username %}{% endif %}{% else %}—{% endif %}</td>
       </tr>{% empty %}<tr><td colspan="4">Nessun verbale registrato.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
@@ -29,7 +29,7 @@
     <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Obiettivo</th><th>Processo</th><th>Risultato atteso</th><th>Responsabile</th><th>Scadenza</th><th>Verbale</th></tr></thead><tbody>
       {% for o in obiettivi %}<tr>
         <td><strong>{{ o.descrizione }}</strong></td><td>{{ o.processo.codice|default:"—" }}</td><td>{{ o.risultato_atteso|default:"—" }}</td>
-        <td>{% if o.responsabile %}{{ o.responsabile.get_full_name|default:o.responsabile.username }}{% else %}—{% endif %}</td>
+        <td>{% if o.responsabile %}{% firstof o.responsabile.get_full_name o.responsabile.username %}{% else %}—{% endif %}</td>
         <td>{% if o.scadenza and o.scadenza < oggi %}<span class="sg-badge danger">{{ o.scadenza|date:"d/m/Y" }}</span>{% else %}{{ o.scadenza|date:"d/m/Y"|default:"—" }}{% endif %}</td>
         <td><a href="{% url 'sistema_gestione:riesame_dettaglio' o.riesame_id %}#obiettivi">{{ o.riesame.anno }}</a></td>
       </tr>{% empty %}<tr><td colspan="6">Nessun obiettivo in corso.</td></tr>{% endfor %}

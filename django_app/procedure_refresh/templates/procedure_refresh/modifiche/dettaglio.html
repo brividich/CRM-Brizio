@@ -37,7 +37,7 @@
       <form method="post" action="{% url 'procedure_refresh:modifica_azione' m.pk %}" class="cn-mod-riga">
         {% csrf_token %}<input type="hidden" name="azione" value="in_verifica">
         <input class="cn-input" name="nota" maxlength="4000" placeholder="Nota per chi verifica (facoltativa)" style="flex:1;width:auto">
-        <button class="cn-btn pri" type="submit"{% if not ultima %} disabled title="Carica prima la bozza"{% endif %}>Invia in verifica{% if m.verificatore %} a {{ m.verificatore.get_full_name|default:m.verificatore.username }}{% endif %}</button>
+        <button class="cn-btn pri" type="submit"{% if not ultima %} disabled title="Carica prima la bozza"{% endif %}>Invia in verifica{% if m.verificatore %} a {% firstof m.verificatore.get_full_name m.verificatore.username %}{% endif %}</button>
       </form>
       {% endif %}
       {% if 'verificata' in azioni or 'approvata' in azioni %}
@@ -83,7 +83,7 @@
     {% if bozze %}
     <div class="cn-links">
       {% for b in bozze %}
-      <a href="{% url 'procedure_refresh:modifica_bozza' b.pk %}"><span class="ic">{{ b.numero }}</span><span class="tx">{{ b.nome_file }}<small>{{ b.caricata_da.get_full_name|default:b.caricata_da.username }} · {{ b.caricata_il|date:"d/m/Y H:i" }} · {{ b.dimensione|filesizeformat }}{% if b.sintesi %} · {{ b.sintesi|truncatechars:120 }}{% endif %}</small></span><span class="go">↓</span></a>
+      <a href="{% url 'procedure_refresh:modifica_bozza' b.pk %}"><span class="ic">{{ b.numero }}</span><span class="tx">{{ b.nome_file }}<small>{% firstof b.caricata_da.get_full_name b.caricata_da.username %} · {{ b.caricata_il|date:"d/m/Y H:i" }} · {{ b.dimensione|filesizeformat }}{% if b.sintesi %} · {{ b.sintesi|truncatechars:120 }}{% endif %}</small></span><span class="go">↓</span></a>
       {% endfor %}
     </div>
     {% else %}<p class="cn-empty">Nessuna bozza ancora.</p>{% endif %}
@@ -117,7 +117,7 @@
         {% if m.revisione_base %}<dt>Parte da</dt><dd>Rev.{{ m.revisione_base.revision_code }} del {{ m.revisione_base.revision_date|date:"d/m/Y" }}</dd>{% endif %}
         {% if m.revisione_emessa %}<dt>Emessa</dt><dd><b>Rev.{{ m.revisione_emessa.revision_code }}</b> del {{ m.revisione_emessa.revision_date|date:"d/m/Y" }}</dd>{% endif %}
         {% if m.entro %}<dt>Entro</dt><dd>{{ m.entro|date:"d/m/Y" }}</dd>{% endif %}
-        <dt>Aperta</dt><dd>{{ m.creata_il|date:"d/m/Y" }} da {{ m.creata_da.get_full_name|default:m.creata_da.username|default:"—" }}</dd>
+        <dt>Aperta</dt><dd>{{ m.creata_il|date:"d/m/Y" }} da {% firstof m.creata_da.get_full_name m.creata_da.username "—" %}</dd>
         <dt>Rilettura</dt><dd>{% if m.rilettura_automatica %}Chiesta all'emissione{% else %}Da chiedere a mano{% endif %}</dd>
       </dl>
     </div>
@@ -136,9 +136,9 @@
       </form>
       {% else %}
       <dl class="cn-kv">
-        <dt>Redige</dt><dd>{{ m.redattore.get_full_name|default:m.redattore.username|default:"—" }}</dd>
-        <dt>Verifica</dt><dd>{{ m.verificatore.get_full_name|default:m.verificatore.username|default:"—" }}</dd>
-        <dt>Approva</dt><dd>{{ m.approvatore.get_full_name|default:m.approvatore.username|default:"—" }}</dd>
+        <dt>Redige</dt><dd>{% firstof m.redattore.get_full_name m.redattore.username "—" %}</dd>
+        <dt>Verifica</dt><dd>{% firstof m.verificatore.get_full_name m.verificatore.username "—" %}</dd>
+        <dt>Approva</dt><dd>{% firstof m.approvatore.get_full_name m.approvatore.username "—" %}</dd>
       </dl>
       {% endif %}
       {% if stesso_redattore_verificatore %}<p class="cn-note" style="margin-top:8px;border-color:var(--cn-warn)">Chi redige verifica o approva anche: per la norma la verifica dovrebbe farla un'altra persona.</p>{% endif %}
@@ -147,7 +147,7 @@
     {% if segnalazioni %}
     <div class="cn-panel">
       <h4 class="cn-mod-h4">Segnalazioni da recepire · {{ segnalazioni|length }}</h4>
-      <div class="cn-mod-col">{% for s in segnalazioni %}<div style="font-size:12.5px">{{ s.testo|truncatechars:160 }}<small style="display:block;color:var(--text-light)">{{ s.created_by.get_full_name|default:s.created_by.username|default:"—" }} · {{ s.created_at|date:"d/m/Y" }} · {{ s.get_status_display }}</small></div>{% endfor %}</div>
+      <div class="cn-mod-col">{% for s in segnalazioni %}<div style="font-size:12.5px">{{ s.testo|truncatechars:160 }}<small style="display:block;color:var(--text-light)">{% firstof s.created_by.get_full_name s.created_by.username "—" %} · {{ s.created_at|date:"d/m/Y" }} · {{ s.get_status_display }}</small></div>{% endfor %}</div>
     </div>
     {% endif %}
 

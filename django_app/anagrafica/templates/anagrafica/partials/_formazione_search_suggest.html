@@ -71,7 +71,7 @@
     {% for a in risultati.attestati|slice:":3" %}
     <a class="fmd-suggest-item" href="{% url 'anagrafica:attestato_formazione' a.record.pk %}">
       <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span>
-      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ a.nome }}</span><span class="fmd-suggest-m">{{ a.record.course_title_snapshot|default:a.record.corso.titolo|truncatechars:30 }}</span></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ a.nome }}</span><span class="fmd-suggest-m">{% firstof a.record.course_title_snapshot a.record.corso.titolo as titolo_corso %}{{ titolo_corso|truncatechars:30 }}</span></span>
     </a>
     {% endfor %}
   {% endif %}

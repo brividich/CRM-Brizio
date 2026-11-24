@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Tutti i moduli: niente errore 500 quando una relazione è vuota nei template
+
+- **Il problema:** nei template `{{ a|default:b.c.d }}` va in errore 500 se `b.c` è vuoto (per esempio l'utente che ha creato un elemento ed è stato eliminato): Django risolve gli argomenti dei filtri senza tollerare gli anelli mancanti. È l'errore trovato il 24/11 nell'elenco dei prospetti.
+- **Correzione:** 212 espressioni in 125 template riscritte con `{% firstof … %}`, che tollera gli anelli vuoti e mostra lo stesso testo (asset, tasks, anagrafica, procedure_refresh, sistema_gestione, security e altri). Selezionate incrociando ogni catena con le relazioni che nei modelli possono essere vuote; 6 casi già protetti da un `{% if %}` restano com'erano. Tutti i template modificati si compilano.
+- **Prova permanente:** `core/test_template_default_catena.py` fallisce se torna un `|default:` su una relazione che può mancare.
+
+
 ### Anagrafica: sessioni formative (dalla richiesta approvata al nuovo livello)
 
 - **Che cos'è:** la richiesta approvata di assegnazione di mansione o di acquisizione di competenza diventa una sessione formativa `SF-AAAA-NNNN` (specifica della Qualità v1.0): una riga per competenza con livello richiesto, modalità P (pregressa: descrizione e data della verifica), A (affiancamento: tutor, periodo, ore, registro MOD.040 caricato) o C (corso: corso a catalogo o docente/ente e verifica attestato/test/conferma), livello raggiunto e chi ha valutato. Le competenze già al livello richiesto entrano «Già presente».

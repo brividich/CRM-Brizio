@@ -18,7 +18,7 @@
 
   {% if switch or orfani %}
   <nav class="rk-meta" aria-label="Vai a">
-    {% for b in switch %}<a class="rk-chip rk-mono" href="#switch-{{ b.asset.id }}">{{ b.titolo|default:b.asset.asset_tag }} · {{ b.mappa.totale }}</a>{% endfor %}
+    {% for b in switch %}<a class="rk-chip rk-mono" href="#switch-{{ b.asset.id }}">{% firstof b.titolo b.asset.asset_tag %} · {{ b.mappa.totale }}</a>{% endfor %}
     {% if orfani %}<a class="rk-chip rk-chip-warn" href="#senza-switch">Senza switch · {{ orfani|length }}</a>{% endif %}
   </nav>
   {% endif %}

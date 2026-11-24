@@ -35,7 +35,7 @@
       <div class="dp-eliminata">
         <div>
           <strong>Segnalazione eliminata</strong>
-          il {{ segnalazione.eliminata_il|date:"d-m-Y H:i" }}{% if segnalazione.eliminata_da %} da {{ segnalazione.eliminata_da.get_full_name|default:segnalazione.eliminata_da.get_username }}{% endif %}
+          il {{ segnalazione.eliminata_il|date:"d-m-Y H:i" }}{% if segnalazione.eliminata_da %} da {% firstof segnalazione.eliminata_da.get_full_name segnalazione.eliminata_da.get_username %}{% endif %}
           · motivo: {{ segnalazione.motivo_eliminazione|default:"-" }}
         </div>
         {% if can_manage_settings %}
@@ -87,7 +87,7 @@
           <div class="dp-allegato-item" id="allegato-{{ a.pk }}">
             <div class="dp-allegato-icon">[file]</div>
             <div class="dp-allegato-name">{{ a.nome_file }}
-              <span class="dp-allegato-meta">{% if a.sha256 %}SHA-256 {{ a.sha256|slice:":16" }}…{% else %}impronta non registrata (allegato precedente all'08/11/2026){% endif %}{% if a.caricato_da %} · caricato da {{ a.caricato_da.get_full_name|default:a.caricato_da.get_username }}{% endif %} · {{ a.uploaded_at|date:"d-m-Y H:i" }}</span>
+              <span class="dp-allegato-meta">{% if a.sha256 %}SHA-256 {{ a.sha256|slice:":16" }}…{% else %}impronta non registrata (allegato precedente all'08/11/2026){% endif %}{% if a.caricato_da %} · caricato da {% firstof a.caricato_da.get_full_name a.caricato_da.get_username %}{% endif %} · {{ a.uploaded_at|date:"d-m-Y H:i" }}</span>
             </div>
             <a href="{% url 'diario_preposto:allegato_download' a.pk %}" rel="noopener" class="dp-allegato-link">Scarica</a>
             {% if can_write %}

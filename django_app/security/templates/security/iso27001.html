@@ -87,7 +87,7 @@
     <tbody>{% for p in pacchetti %}<tr>
       <td class="sec-nowrap">{{ p.riepilogo.etichetta|default:p.periodo_dal }}</td>
       <td class="sec-nowrap">{{ p.generato_il|date:"d/m/Y H:i" }}</td>
-      <td>{% if p.automatico %}automatico{% elif p.generato_da %}{{ p.generato_da.get_full_name|default:p.generato_da.username }}{% else %}—{% endif %}</td>
+      <td>{% if p.automatico %}automatico{% elif p.generato_da %}{% firstof p.generato_da.get_full_name p.generato_da.username %}{% else %}—{% endif %}</td>
       <td>{% with cc=p.riepilogo.conteggi %}{% if cc %}<span class="iso-pill is-ok">{{ cc.ok }} ok</span> <span class="iso-pill is-attenzione">{{ cc.attenzione }}</span> <span class="iso-pill is-non_conforme">{{ cc.non_conforme }}</span> <span class="iso-pill is-non_disponibile">{{ cc.non_disponibile }}</span>{% endif %}{% endwith %}</td>
       <td><code class="iso-hash" title="{{ p.sha256 }}">{{ p.sha256|slice:":16" }}…</code></td>
       <td class="sec-small">{{ p.copia_esito|default:"—" }}</td>

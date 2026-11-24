@@ -158,7 +158,7 @@ body.theme-dark .capa-msg{background:rgba(56,161,105,.18);color:#86efac}
           <td><a href="{% url 'capa_detail' row.a.pk %}">{{ row.a.titolo }}</a></td>
           <td>{{ row.a.get_tipo_display }}</td>
           <td>{{ row.a.origine_label }}{% if row.a.source_label %} · <span style="color:#64748b">{{ row.a.source_label }}</span>{% endif %}</td>
-          <td>{% if row.a.responsabile %}{{ row.a.responsabile.get_full_name|default:row.a.responsabile.username }}{% else %}—{% endif %}</td>
+          <td>{% if row.a.responsabile %}{% firstof row.a.responsabile.get_full_name row.a.responsabile.username %}{% else %}—{% endif %}</td>
           <td>
             {% if row.a.data_scadenza %}
               {{ row.a.data_scadenza|date:"d/m/Y" }}

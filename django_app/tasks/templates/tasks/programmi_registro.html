@@ -48,8 +48,8 @@
               {% if ref.due_date %}<div class="tl-task-desc">Entro il {{ ref.due_date|date:"d/m/Y" }}</div>{% endif %}
             </td>
             <td>{% if ref.macchina %}{{ ref.macchina.asset_tag }}<div class="tl-task-desc">{{ ref.macchina.name }}</div>{% else %}<span class="tr-empty">—</span>{% endif %}</td>
-            <td><a class="tl-task-link" href="{% url 'tasks:project_tech_refs' ref.project_id %}">{{ ref.project.part_number|default:ref.project.name }}</a><div class="tl-task-desc">{{ ref.project.client_name }}</div></td>
-            <td>{% if ref.assigned_to %}{{ ref.assigned_to.get_full_name|default:ref.assigned_to.username }}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
+            <td><a class="tl-task-link" href="{% url 'tasks:project_tech_refs' ref.project_id %}">{% firstof ref.project.part_number ref.project.name %}</a><div class="tl-task-desc">{{ ref.project.client_name }}</div></td>
+            <td>{% if ref.assigned_to %}{% firstof ref.assigned_to.get_full_name ref.assigned_to.username %}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
             <td>{% include "tasks/_tech_ref_link.html" %}</td>
             <td>{% include "tasks/_programma_azioni.html" with azioni=r.azioni %}</td>
           </tr>

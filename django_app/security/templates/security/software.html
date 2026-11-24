@@ -64,7 +64,7 @@
         <ul class="pcs-list">
           {% for d in doppioni_uniti %}
             <li class="is-success"><span><strong>{{ d.product }}</strong> → {{ d.doppione_watchguard.1 }}</span>
-              <small>{% if d.decisa_da %}da {{ d.decisa_da.get_full_name|default:d.decisa_da.username }}{% else %}in automatico{% if d.modello %} (AI {{ d.confidenza }}%){% endif %}{% endif %} · {{ d.decisa_il|date:"d/m H:i" }}</small>
+              <small>{% if d.decisa_da %}da {% firstof d.decisa_da.get_full_name d.decisa_da.username %}{% else %}in automatico{% if d.modello %} (AI {{ d.confidenza }}%){% endif %}{% endif %} · {{ d.decisa_il|date:"d/m H:i" }}</small>
               {% if puo_decidere %}<form method="post" action="{% url 'security:software_doppione' d.pk %}" class="cy-dup-form">{% csrf_token %}<button type="submit" name="azione" value="annulla" class="pcs-link" data-hub-confirm="Annullare l'unione? Al prossimo giro delle due fonti le righe tornano separate.">Annulla</button></form>{% endif %}
             </li>
           {% endfor %}

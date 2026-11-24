@@ -141,7 +141,7 @@ body.theme-dark .ri-kpi--danger:not(.is-zero) .ri-kpi-n{color:#fca5a5}
       <tbody>
       {% for r in righe %}
         <tr class="{% if not r.presente %}ri-off{% elif r.senza_protezione or r.non_censito %}ri-alert{% endif %}">
-          <td class="ri-mono"><strong>{{ r.ip }}</strong>{% if r.ambito %}<br><span class="ri-meta">{{ r.ambito.nome|default:r.ambito.scope_id }}</span>{% endif %}</td>
+          <td class="ri-mono"><strong>{{ r.ip }}</strong>{% if r.ambito %}<br><span class="ri-meta">{% firstof r.ambito.nome r.ambito.scope_id %}</span>{% endif %}</td>
           <td>
             {% if r.nome_dhcp %}<strong>{{ r.nome_dhcp }}</strong>{% endif %}
             {% for n in r.nomi_dns %}{% if r.nome_dhcp or not forloop.first %}<br>{% endif %}<span class="{% if r.nome_dhcp %}ri-meta{% endif %}">{{ n }}</span>{% empty %}{% if not r.nome_dhcp %}<span class="ri-meta">—</span>{% endif %}{% endfor %}

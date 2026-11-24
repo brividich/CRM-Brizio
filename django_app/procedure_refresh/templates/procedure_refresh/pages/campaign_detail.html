@@ -361,7 +361,7 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
           <tbody>
             {% for a in assignments %}
               <tr>
-                <td>{{ a.user.get_full_name|default:a.user.username }}</td>
+                <td>{% firstof a.user.get_full_name a.user.username %}</td>
                 <td>{{ a.revision.document.code }}</td>
                 <td>{{ a.revision.revision_code }}</td>
                 <td>

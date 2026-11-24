@@ -94,7 +94,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
               </td>
               <td>{{ camp.start_date|date:"d-m-Y" }}</td>
               <td>{{ camp.due_date|date:"d-m-Y" }}</td>
-              <td>{{ camp.created_by.get_full_name|default:camp.created_by.username|default:"—" }}</td>
+              <td>{% firstof camp.created_by.get_full_name camp.created_by.username "—" %}</td>
               <td>{{ camp.published_at|date:"d-m-Y"|default:"—" }}</td>
               <td>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;">

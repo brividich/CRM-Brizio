@@ -54,7 +54,7 @@
         <tr>
           <td class="pres-mono">{{ a.aperto_il|date:"d-m-Y H:i" }}</td>
           <td>{% if a.esercitazione %}Esercitazione{% else %}Emergenza{% endif %}{% if a.nota %}<span class="pres-sub">{{ a.nota }}</span>{% endif %}</td>
-          <td class="pres-hide-sm">{{ a.aperto_da.get_full_name|default:a.aperto_da.username|default:"—" }}</td>
+          <td class="pres-hide-sm">{% firstof a.aperto_da.get_full_name a.aperto_da.username "—" %}</td>
           <td class="pres-mono">{{ a.chiuso_il|date:"H:i" }}</td>
           <td class="pres-c">{{ a.persone|length }}</td>
           <td style="white-space:nowrap;"><a href="{% url 'presenti:appello_verbale' a.pk %}">Verbale</a> · <a href="{% url 'presenti:appello_stampa' a.pk %}" target="_blank" rel="noopener">Elenco PDF</a></td>

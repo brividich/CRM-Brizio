@@ -154,7 +154,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
         <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Scadute <span class="fmd-count">{{ n_scadute }}</span></div></div>
         {% if scadute %}<ul class="ofih-voci">
           {% for v in scadute %}<li><a class="ofih-num" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a>
-            <span class="ofih-testo" title="{{ v.opportunita }}">{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}senza responsabile{% endif %} · {{ v.processo_sgi.codice|default:v.processo|default:"—" }}</span>
+            <span class="ofih-testo" title="{{ v.opportunita }}">{% if v.responsabile %}{% firstof v.responsabile.get_full_name v.responsabile.username %}{% else %}senza responsabile{% endif %} · {{ v.processo_sgi.codice|default:v.processo|default:"—" }}</span>
             <span class="ofih-data is-bad">{{ v.data_richiesta|date:"d/m/Y" }}</span></li>{% endfor %}
         </ul>{% if n_scadute > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?scaduti=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">Tutte le {{ n_scadute }} →</a>{% endif %}
         {% else %}<p class="ofic-vuoto">Nessuna voce scaduta.</p>{% endif %}
@@ -163,7 +163,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
         <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>In scadenza entro 30 giorni <span class="fmd-count">{{ n_in_scadenza }}</span></div></div>
         {% if in_scadenza %}<ul class="ofih-voci">
           {% for v in in_scadenza %}<li><a class="ofih-num" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a>
-            <span class="ofih-testo" title="{{ v.opportunita }}">{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}senza responsabile{% endif %} · {{ v.get_fase_display }}</span>
+            <span class="ofih-testo" title="{{ v.opportunita }}">{% if v.responsabile %}{% firstof v.responsabile.get_full_name v.responsabile.username %}{% else %}senza responsabile{% endif %} · {{ v.get_fase_display }}</span>
             <span class="ofih-data">{{ v.data_richiesta|date:"d/m/Y" }}</span></li>{% endfor %}
         </ul>{% if n_in_scadenza > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?in_scadenza=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">Tutte le {{ n_in_scadenza }} →</a>{% endif %}
         {% else %}<p class="ofic-vuoto">Nessuna scadenza nei prossimi 30 giorni.</p>{% endif %}
@@ -262,7 +262,7 @@ body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .of
         {% if eventi %}<ul class="ofih-crono">
           {% for ev in eventi %}<li><time datetime="{{ ev.quando|date:'c' }}">{{ ev.quando|date:"d/m/Y H:i" }}</time>
             <span><a class="fmd-data-link" href="{% url 'registro_ofi:dettaglio' ev.voce_id %}">{{ ev.voce.tipo }} {{ ev.voce.numero }}</a> · {{ ev.get_tipo_display }}{% if ev.a %}: {{ ev.a }}{% endif %}
-              <span class="ofih-chi">· {% if ev.utente %}{{ ev.utente.get_full_name|default:ev.utente.username }}{% else %}sistema{% endif %}</span></span></li>{% endfor %}
+              <span class="ofih-chi">· {% if ev.utente %}{% firstof ev.utente.get_full_name ev.utente.username %}{% else %}sistema{% endif %}</span></span></li>{% endfor %}
         </ul>{% else %}<p class="ofic-vuoto">Nessuna attività registrata.</p>{% endif %}
       </section>
     </div>
