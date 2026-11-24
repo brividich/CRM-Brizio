@@ -43,6 +43,15 @@ body.theme-dark .rq-altre label { color:var(--text); }
           {% for p in persone %}<option value="{{ p.id }}"{% if dati.persona == p.id %} selected{% endif %}>{{ p.nome }}</option>{% endfor %}
         </select>
       </div>
+      {% if puo_onboarding %}
+      <div data-rq-per="mansione">
+        <label><input type="checkbox" name="onboarding" value="1"{% if dati.onboarding %} checked{% endif %} data-rq-onboarding> Formazione in ingresso di un nuovo assunto</label>
+        <div data-rq-inquadramento style="margin-top:6px">
+          <label for="rq-inquadramento">Inquadramento (decide il prefisso della matricola):</label>
+          <select name="inquadramento" id="rq-inquadramento"><option value="">Scegli</option>{% for c, n in inquadramenti %}<option value="{{ c }}"{% if dati.inquadramento == c %} selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      {% endif %}
       <div data-rq-per="mansione">
         <label for="rq-mansione">Mansione:</label>
         <select name="mansione" id="rq-mansione">
@@ -102,6 +111,10 @@ body.theme-dark .rq-altre label { color:var(--text); }
   }
   form.addEventListener('change', aggiorna);
   aggiorna();
+  var ingresso = form.querySelector('[data-rq-onboarding]'), inq = form.querySelector('[data-rq-inquadramento]');
+  function aggiornaIngresso() { if (inq) inq.hidden = !(ingresso && ingresso.checked); }
+  if (ingresso) ingresso.addEventListener('change', aggiornaIngresso);
+  aggiornaIngresso();
   var cerca = form.querySelector('[data-rq-cerca-altre]');
   if (cerca) cerca.addEventListener('input', function () {
     var t = cerca.value.trim().toLowerCase();

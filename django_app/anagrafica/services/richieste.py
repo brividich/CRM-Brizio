@@ -152,7 +152,7 @@ def _evento(richiesta: R, a: Attore, azione: str, *, prima: str = "", dopo: str 
 
 @transaction.atomic
 def crea(a: Attore, *, tipo: str, persona_id: int, mansione_id=None, competenza_id=None, livello: str = "",
-         motivazione: str = "", altre_persone=()) -> R:
+         motivazione: str = "", altre_persone=(), onboarding: bool = False, inquadramento: str = "") -> R:
     motivazione = (motivazione or "").strip()
     livello = (livello or "").strip().upper()
     if tipo not in dict(R.TIPO_CHOICES):
@@ -190,6 +190,13 @@ def crea(a: Attore, *, tipo: str, persona_id: int, mansione_id=None, competenza_
             raise RichiestaNonValida("Scegli il livello da raggiungere.")
 
     altre = []
+    if onboarding:
+        if tipo != R.TIPO_AGGIUNTA or not a.gestione:
+            raise RichiestaNonValida("La formazione in ingresso la chiede HR, con una richiesta di assegnazione.")
+        if inquadramento not in dict(R.INQUADRAMENTO_CHOICES):
+            raise RichiestaNonValida("Per la formazione in ingresso scegli l'inquadramento: decide il prefisso della matricola.")
+    else:
+        inquadramento = ""
     for pid in dict.fromkeys(int(x) for x in (altre_persone or ()) if x):
         if pid == persona_id:
             continue
@@ -209,6 +216,7 @@ def crea(a: Attore, *, tipo: str, persona_id: int, mansione_id=None, competenza_
     richiesta = R.objects.create(
         codice=_nuovo_codice(tipo), tipo=tipo, legacy_anagrafica_id=persona_id, mansione=mansione,
         competenza=competenza, livello=livello, motivazione=motivazione, richiedente=a.user,
+        onboarding=bool(onboarding), inquadramento=inquadramento,
         richiedente_legacy_id=a.legacy_id, richiedente_nome=a.nome[:160],
     )
     for pid in altre:

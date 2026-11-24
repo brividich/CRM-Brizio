@@ -36,7 +36,7 @@ from ..models import (
     ordinale_livello,
 )
 from ..models_richieste import ContatoreRichieste, RichiestaCompetenze
-from ..models_sessioni import SessioneEvento, SessioneFormativa, SessionePartecipante, SessioneRiga
+from ..models_sessioni import ContatoreMatricola, SessioneEvento, SessioneFormativa, SessionePartecipante, SessioneRiga
 from . import competenze_catalogo, struttura_vista
 from . import mansionario_competenze as mc
 from . import richieste as rq
@@ -416,6 +416,40 @@ def _applica_competenza(a, riga: Riga, abilitazioni) -> list[str]:
     return note
 
 
+PREFISSO_MATRICOLA = {R.INQ_OPERATORE: "CNO", R.INQ_TECNICO: "T", R.INQ_AMMINISTRATIVO: "A"}
+
+
+def matricola_di(legacy_id: int) -> str:
+    from django.db import connection
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT matricola FROM anagrafica_dipendenti WHERE id = %s", [legacy_id])
+        riga = cursor.fetchone()
+    return str((riga or [""])[0] or "").strip()
+
+
+def _assegna_matricola(richiesta: R) -> str:
+    """Matricola alla chiusura dell'ingresso: solo se manca e solo con il contatore del prefisso attivo."""
+    from django.db import connection
+
+    persona = richiesta.legacy_anagrafica_id
+    if matricola_di(persona):
+        return f"Matricola già presente ({matricola_di(persona)}): non cambia."
+    prefisso = PREFISSO_MATRICOLA.get(richiesta.inquadramento, "")
+    contatore = ContatoreMatricola.objects.select_for_update().filter(prefisso=prefisso).first() if prefisso else None
+    if contatore is None or not contatore.attivo:
+        return f"Matricola da assegnare: il contatore {prefisso or '—'} non è attivo."
+    codice = contatore.prossima()
+    with connection.cursor() as cursor:
+        cursor.execute("UPDATE anagrafica_dipendenti SET matricola = %s WHERE id = %s AND (matricola IS NULL OR matricola = '')",
+                       [codice, persona])
+        if cursor.rowcount != 1:
+            return "Matricola non scritta: la riga del dipendente è cambiata nel frattempo."
+    contatore.ultimo += 1
+    contatore.save(update_fields=["ultimo", "aggiornato_il"])
+    return f"Matricola assegnata: {codice}."
+
+
 @transaction.atomic
 def chiudi(a, sessione: S) -> S:
     sessione = S.objects.select_for_update().select_related("richiesta__mansione").get(pk=sessione.pk)
@@ -446,6 +480,8 @@ def chiudi(a, sessione: S) -> S:
                 note=f"Sessione {sessione.codice} chiusa (richiesta {richiesta.codice})"[:255])
             storia.append(f"Mansione {richiesta.mansione.nome}: {prima or '—'} → {ab.livello}")
             rq._evento(richiesta, a, "Skill matrix: livello della mansione", prima=prima or "—", dopo=ab.livello)
+    if richiesta.onboarding:
+        storia.append(_assegna_matricola(richiesta))
     adesso = timezone.now()
     sessione.stato, sessione.chiusa_il, sessione.chiusa_da_nome = S.STATO_POSITIVA, adesso, (a.nome or "")[:160]
     sessione.save(update_fields=["stato", "chiusa_il", "chiusa_da_nome"])

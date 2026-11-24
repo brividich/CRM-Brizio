@@ -444,6 +444,7 @@ urlpatterns = [
     path("competenze/sessioni/<int:pk>/chiudi/", views_sessioni.chiudi, name="sessione_chiudi"),
     path("competenze/sessioni/<int:pk>/pdf/", views_sessioni.pdf, name="sessione_pdf"),
     path("competenze/storico/<int:legacy_id>/pdf/", views_sessioni.storico_pdf, name="storico_competenze_pdf"),
+    path("competenze/sessioni/matricole/", views_sessioni.matricole, name="sessioni_matricole"),
     path("competenze/sessioni/<int:pk>/file/<str:cosa>/", views_sessioni.scarica, name="sessione_file"),
     path("competenze/sessioni/<int:pk>/file/<str:cosa>/<int:riga_pk>/", views_sessioni.scarica, name="sessione_file_riga"),
     path("la-mia-scheda/", views_mia_scheda.mia_scheda, name="mia_scheda"),

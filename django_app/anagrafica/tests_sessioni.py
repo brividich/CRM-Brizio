@@ -273,7 +273,14 @@ class PagineTests(_Scenario):
             if accanto is not None:
                 self.assertIn((accanto.categoria_id, accanto.gruppo), posti)
         self.assertTrue(voci.exists())
-        self.assertTrue(all(v.etichetta == "Sessioni formative" for v in voci))
+        # In Organizzazione «Sessioni formative»; in Formazione «Formazione su mansioni», accanto a «Sessioni» dei corsi.
+        etichette = {(v.categoria_id, v.gruppo): v.etichetta for v in voci}
+        richieste = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:richieste").first()
+        corsi = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:formazione_sessioni_list").first()
+        if richieste is not None:
+            self.assertEqual(etichette[(richieste.categoria_id, richieste.gruppo)], "Sessioni formative")
+        if corsi is not None:
+            self.assertEqual(etichette[(corsi.categoria_id, corsi.gruppo)], "Formazione su mansioni")
 
 
     def test_da_fare_e_dashboard_mostrano_le_sessioni(self):
@@ -370,3 +377,55 @@ class GruppoEStampeTests(_Scenario):
                 "modalita": "C", "livello": "U", "docente_ente": "Ente", "verifica": "conferma"})
         destinatari = [c.args[0] for c in avviso.call_args_list]
         self.assertIn({self.neri}, destinatari)  # Neri è RDD: tocca a lui firmare
+
+
+
+class RefreshEIngressoTests(_Scenario):
+    def test_il_refresh_non_mostra_le_mansioni_sospese_e_porta_alle_richieste(self):
+        from .services import skillmatrix_refresh as refresh
+
+        r = self._ram(tipo=R.TIPO_SOSPENSIONE, mansione_id=self.fresa.pk, livello="", motivazione="Fuori reparto")
+        rq.decidi(self.rdd, r, approva=True)
+        persone = {a.legacy_anagrafica_id for a in refresh.abilitazioni_reparto("Fresatura")
+                   if a.competenza_id == self.fresa.pk}
+        self.assertNotIn(self.rossi, persone)
+
+    def test_formazione_in_ingresso_assegna_la_matricola_solo_col_contatore_acceso(self):
+        from django.db import connection
+
+        from .models_sessioni import ContatoreMatricola
+
+        with self.assertRaisesMessage(rq.RichiestaNonValida, "inquadramento"):
+            rq.crea(self.hr, tipo=R.TIPO_AGGIUNTA, persona_id=self.rossi, mansione_id=self.torno.pk, livello="U", onboarding=True)
+        with self.assertRaisesMessage(rq.RichiestaNonValida, "la chiede HR"):
+            rq.crea(self.capo, tipo=R.TIPO_AGGIUNTA, persona_id=self.rossi, mansione_id=self.torno.pk, livello="U",
+                    onboarding=True, inquadramento="operatore")
+
+        def chiudi_ingresso(mansione):
+            r = rq.crea(self.hr, tipo=R.TIPO_AGGIUNTA, persona_id=self.rossi, mansione_id=mansione.pk, livello="U",
+                        onboarding=True, inquadramento="operatore")
+            s = svc.apri(self.hr, rq.decidi(self.rdd, r, approva=True))
+            for riga in s.righe.exclude(stato=Riga.STATO_GIA_PRESENTE):
+                svc.valuta(self.hr, riga, modalita="C", livello="U", docente_ente="Ente", verifica="test")
+            s = svc.firma_approvatore(self.rdd, s)
+            s = svc.firma_persona(self.persona, s)
+            return svc.chiudi(self.hr, s)
+
+        with connection.cursor() as c:
+            c.execute("UPDATE anagrafica_dipendenti SET matricola = '' WHERE id = %s", [self.rossi])
+        cnt, _ = ContatoreMatricola.objects.get_or_create(prefisso="CNO", defaults={"inquadramento": "operatore"})
+        cnt.attivo, cnt.ultimo = False, 0
+        cnt.save()
+        s = chiudi_ingresso(self.torno)
+        self.assertEqual(svc.matricola_di(self.rossi), "")
+        self.assertIn("contatore CNO non è attivo", s.eventi.get(azione="Sessione chiusa positiva").nota)
+
+        cnt.attivo, cnt.ultimo = True, 41
+        cnt.save()
+        s = chiudi_ingresso(self._crea_mansione("Montaggio M7", self.in1, self.op))
+        self.assertEqual(svc.matricola_di(self.rossi), "CNO0042")
+        cnt.refresh_from_db()
+        self.assertEqual(cnt.ultimo, 42)
+        # Una matricola presente non si cambia più.
+        chiudi_ingresso(self._crea_mansione("Montaggio M8", self.in1, self.op))
+        self.assertEqual(svc.matricola_di(self.rossi), "CNO0042")

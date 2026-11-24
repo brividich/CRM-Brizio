@@ -95,7 +95,11 @@ def elenco(request):
         {"n": len(dati["da_firmare_io"]), "titolo": "Da firmare tu", "sotto": "La tua formazione è pronta"},
         {"n": len(dati["da_chiudere"]), "titolo": "Sessioni da chiudere", "sotto": "Firmate da tutti"},
     ) if x["n"]]
+    from .models_sessioni import ContatoreMatricola
+    from .views import _helpers
+
     return render(request, "anagrafica/pages/sessioni_elenco.html", {
+        "contatori": list(ContatoreMatricola.objects.all()) if _helpers._is_anagrafica_admin(request) else [],
         "righe": righe, "filtro": filtro, "n_tutte": len(tutte),
         "filtri": [{"chiave": k, "nome": n, "n": conteggi[k]} for k, (n, _) in FILTRI.items()],
         "scelta": next((x for x in righe if x["sessione"].pk == chiesta), righe[0] if righe else None),
@@ -297,3 +301,34 @@ def storico_pdf(request, legacy_id: int):
     risposta["Content-Disposition"] = f'inline; filename="storico_competenze_{legacy_id}.pdf"'
     log_action(request, "storico_competenze_pdf", MODULE, {"persona": legacy_id})
     return risposta
+
+
+@login_required
+@require_POST
+def matricole(request):
+    """Numero di partenza e accensione dei contatori: solo chi amministra l'anagrafica."""
+    from .models_sessioni import ContatoreMatricola
+    from .views import _helpers
+
+    if not _helpers._is_anagrafica_admin(request):
+        raise Http404
+    a = rq.attore(request)
+    cambiati = []
+    for c in ContatoreMatricola.objects.select_for_update().all():
+        ultimo = _int(request.POST.get(f"ultimo_{c.pk}"))
+        cifre = _int(request.POST.get(f"cifre_{c.pk}"))
+        attivo = request.POST.get(f"attivo_{c.pk}") == "1"
+        prima = (c.ultimo, c.cifre, c.attivo)
+        if ultimo is not None and ultimo >= 0:
+            c.ultimo = ultimo
+        if cifre is not None and 1 <= cifre <= 8:
+            c.cifre = cifre
+        c.attivo = attivo
+        if (c.ultimo, c.cifre, c.attivo) != prima:
+            c.aggiornato_da = (a.nome or "")[:160]
+            c.save()
+            cambiati.append({"prefisso": c.prefisso, "prima": list(prima), "dopo": [c.ultimo, c.cifre, c.attivo]})
+    if cambiati:
+        log_action(request, "matricole_contatori", MODULE, {"cambiati": cambiati})
+        messages.success(request, "Contatori delle matricole salvati.")
+    return redirect(f"{reverse('anagrafica:sessioni')}#matricole")

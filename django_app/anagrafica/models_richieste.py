@@ -81,6 +81,19 @@ class RichiestaCompetenze(models.Model):
     )
     motivazione = models.TextField(blank=True, default="")
 
+    INQ_OPERATORE = "operatore"
+    INQ_TECNICO = "tecnico"
+    INQ_AMMINISTRATIVO = "amministrativo"
+    INQUADRAMENTO_CHOICES = [
+        (INQ_OPERATORE, "Operatore"),
+        (INQ_TECNICO, "Impiegato tecnico"),
+        (INQ_AMMINISTRATIVO, "Impiegato amministrativo"),
+    ]
+    onboarding = models.BooleanField(
+        default=False, help_text="Formazione in ingresso di un nuovo assunto: alla chiusura si assegna la matricola.",
+    )
+    inquadramento = models.CharField(max_length=16, choices=INQUADRAMENTO_CHOICES, blank=True, default="")
+
     richiedente = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="richieste_competenze_fatte",
     )

@@ -23,7 +23,7 @@ from django.db import models
 
 from .models_skillmatrix import LivelloSkm
 
-__all__ = ["SessioneFormativa", "SessionePartecipante", "SessioneRiga", "SessioneEvento"]
+__all__ = ["SessioneFormativa", "SessionePartecipante", "SessioneRiga", "SessioneEvento", "ContatoreMatricola"]
 
 
 def _cartella_firme(istanza, nome: str) -> str:
@@ -235,3 +235,30 @@ class SessioneEvento(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValueError("Il registro delle sessioni è di sola aggiunta: una riga non si cancella.")
+
+
+class ContatoreMatricola(models.Model):
+    """Numerazione della matricola per prefisso (specifica: CNO operatori, T impiegati tecnici, A amministrativi).
+
+    Spento finché la Qualità non decide il numero di partenza: con il contatore spento la sessione
+    d'ingresso si chiude senza matricola, e la storia lo dice.
+    """
+
+    prefisso = models.CharField(max_length=6, unique=True)
+    inquadramento = models.CharField(max_length=16, blank=True, default="")
+    ultimo = models.PositiveIntegerField(default=0, help_text="Ultimo numero usato: la prossima matricola è il successivo.")
+    cifre = models.PositiveSmallIntegerField(default=4, help_text="Cifre del numero, con gli zeri davanti.")
+    attivo = models.BooleanField(default=False)
+    aggiornato_da = models.CharField(max_length=160, blank=True, default="")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["prefisso"]
+        verbose_name = "Contatore delle matricole"
+        verbose_name_plural = "Contatori delle matricole"
+
+    def __str__(self) -> str:
+        return f"{self.prefisso}: {self.ultimo}"
+
+    def prossima(self) -> str:
+        return f"{self.prefisso}{self.ultimo + 1:0{self.cifre}d}"
