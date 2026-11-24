@@ -326,6 +326,11 @@ class RiferimentoProcesso(models.Model):
     codice = models.CharField(max_length=200)
     tipo = models.CharField(max_length=14, choices=TIPO_CHOICES, default=TIPO_APPROVAZIONE)
     note = models.CharField(max_length=255, blank=True, default="")
+    # Revisione del documento nel registro SGI quando il riferimento è stato aggiunto o verificato:
+    # se quella in vigore cambia, la sezione dedicata chiede di ricontrollare persone e Technical Plan.
+    revisione_vista = models.CharField(max_length=40, blank=True, default="",
+                                       verbose_name="Revisione SGI verificata")
+    vista_il = models.DateField(null=True, blank=True, verbose_name="Verificata il")
 
     class Meta:
         ordering = ["processo", "id"]

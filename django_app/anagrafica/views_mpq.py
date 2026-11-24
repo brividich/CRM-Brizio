@@ -442,6 +442,7 @@ def mpq_processo_detail(request, processo_id: int):
         "clienti_addizionali": list(processo.clienti_addizionali.all()),
         "reparti": list(processo.reparti.all()),
         "riferimenti": list(processo.riferimenti.all()),
+        **_sgi_del_processo(processo),
         "tipi_per_persona": TIPI_REQUISITO_PER_PERSONA,
         "requisiti_generici": requisiti_generici,
         "ha_requisiti": ha_requisiti,
@@ -642,6 +643,22 @@ def _qa_corso_options():
     except Exception:
         pass
     return piani, categorie
+
+
+def _sgi_del_processo(processo) -> dict:
+    """Riferimenti abbinati al registro SGI e documenti suggeriti; un errore non fa cadere la pagina."""
+    import logging
+
+    from .services.mpq_sgi import stato_riferimenti, suggeriti
+
+    try:
+        stato = stato_riferimenti(processo)
+        return {"riferimenti_sgi": stato, "sgi_suggeriti": suggeriti(processo, stato=stato)}
+    except Exception:
+        logging.getLogger(__name__).exception("MOD.128: registro SGI non leggibile per il processo %s", processo.pk)
+        return {"riferimenti_sgi": [{"rif": r, "doc": None, "rev": None, "corrente": "", "nel_registro": None,
+                                     "nuova_revisione": False} for r in processo.riferimenti.all()],
+                "sgi_suggeriti": []}
 
 
 def _configurazione_sicura(processo, **kwargs):
@@ -1060,13 +1077,55 @@ def mpq_riferimento_add(request, processo_id: int):
     proc = get_object_or_404(ProcessoQualificato, pk=processo_id)
     form = RiferimentoProcessoForm(request.POST)
     if form.is_valid():
+        from .services.mpq_sgi import revisione_corrente
+
         rif = form.save(commit=False)
         rif.processo = proc
+        try:
+            rif.revisione_vista = revisione_corrente(rif.codice)
+        except Exception:
+            rif.revisione_vista = ""
+        if rif.revisione_vista:
+            rif.vista_il = timezone.localdate()
         rif.save()
-        messages.success(request, "Riferimento aggiunto.")
+        if rif.revisione_vista:
+            messages.success(request, f"Riferimento aggiunto: {rif.codice}, rev. {rif.revisione_vista} nel registro SGI.")
+        else:
+            messages.warning(request, f"Riferimento aggiunto, ma «{rif.codice}» non è nel registro SGI: controlla il "
+                                      "codice (per un'approvazione del cliente va bene così).")
     else:
         messages.error(request, "Codice riferimento non valido.")
     return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
+
+
+@login_required
+@require_POST
+def mpq_riferimento_verificato(request, rif_id: int):
+    """Nuova revisione del documento ricontrollata: la revisione in vigore diventa quella verificata."""
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    from .models_mpq import RiferimentoProcesso
+    from .services.mpq_sgi import revisione_corrente
+
+    rif = get_object_or_404(RiferimentoProcesso.objects.select_related("processo"), pk=rif_id)
+    prima = rif.revisione_vista
+    rif.revisione_vista = revisione_corrente(rif.codice) or prima
+    rif.vista_il = timezone.localdate()
+    rif.save(update_fields=["revisione_vista", "vista_il"])
+    _mpq_log(request, processo=rif.processo, evento="Nuova revisione verificata",
+             dettaglio=f"{rif.codice}: rev. {prima or '—'} → {rif.revisione_vista or '—'}")
+    messages.success(request, f"{rif.codice}: rev. {rif.revisione_vista} verificata.")
+    return redirect(reverse("anagrafica:mpq_processo_detail", args=[rif.processo_id]) + "#riferimenti")
+
+
+@login_required
+def mpq_sgi_cerca(request):
+    """Documenti del registro SGI per il campo «Nuovo codice» (JSON)."""
+    if not _check_mpq_permission(request):
+        return JsonResponse({"error": "Non hai i permessi per i processi qualificati (MOD.128)."}, status=403)
+    from .services.mpq_sgi import cerca
+
+    return JsonResponse({"risultati": cerca(request.GET.get("q", ""))})
 
 
 @login_required

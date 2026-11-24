@@ -48,9 +48,14 @@ SEZIONI: list[dict] = [
     {"id": "riferimenti", "titolo": "2. Documenti di riferimento", "blocchi": [
         ("passi", [
             "Pagina del processo › «Dati del processo» › «Riferimenti / codici di approvazione».",
-            "Un codice alla volta, con il tipo, poi «+ Aggiungi». Per P11TF12: MT CN 69, MOD.161, MOD.176 "
-            "(Specifica) e il codice di approvazione del cliente (Approvazione).",
+            "Scrivi parte del codice o del titolo e scegli il documento dal registro SGI; tipo, poi «+ Aggiungi». "
+            "Per P11TF12: MT CN 69, MOD.161, MOD.176 (Specifica) e il codice di approvazione del cliente "
+            "(Approvazione, può non essere nel registro).",
+            "Sotto, «Citati nei documenti di riferimento» propone i moduli citati nel testo delle istruzioni: un clic "
+            "li aggiunge.",
         ]),
+        ("nota", "Quando un documento passa a una nuova revisione, accanto al codice compare «nuova rev.»: "
+                 "ricontrolla persone e Technical Plan e premi «Verificata»."),
         ("p", "Nella sezione dedicata, parte «Documenti di riferimento», compare la revisione in vigore presa dal "
               "registro SGI."),
     ]},
