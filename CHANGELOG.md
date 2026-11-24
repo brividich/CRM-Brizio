@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Fix: import Excel della Struttura e delle assegnazioni non dà più «HTTP ERROR 405»
+
+- `anagrafica/views_struttura.py`: ricaricare la pagina dell'anteprima (F5, «Indietro», link) apriva in GET un indirizzo che accetta solo l'invio del modulo e il browser mostrava «HTTP ERROR 405». Ora si torna alla sezione d'import (Mansionario → Struttura → Importa; Ruoli in blocco → Da Excel), dove si ricarica il file. Nessun dato era salvato dalla prova.
+- `anagrafica/tests_struttura.py`: test della pagina ricaricata.
+
 ### Anomalie: report CMM in PDF, le quote non finiscono più nel gruppo sopra
 
 - **Segnalazione:** caricando il report CMM in PDF, alcune caratteristiche comparivano sotto il gruppo precedente (es. la 016 di «ALETTE QUOTA INTERNA 184.291÷184.342» elencata sotto «ALETTE QUOTA ESTERNA 206.3÷206.5»).
