@@ -163,3 +163,43 @@ class AttivitaDalPuntoTests(CollegamentiBase):
         punto = per_form(m, m.agenda_items)[0]
         self.assertNotIn("vivo", punto)
         self.assertEqual(punto["custom_fields"], [])
+
+
+class FormDinamiciTests(CollegamentiBase):
+    """«Collega» su una macchina chiede l'operazione; «+ Programma» chiede responsabile, entro, fase."""
+
+    def test_macchina_collegata_con_operazione_periodo_note(self):
+        uno = self.macchina("CNC-F1")
+        r = self.post(
+            action="collega", tipo="macchina", id=uno.pk, numero="30", lavorazione="Foratura",
+            dal="2026-12-01", al="2026-12-03", note="Staffare sul lato B",
+        )
+        self.assertTrue(r.json()["ok"])
+        riga = TaskExtraRef.objects.get(task=self.generica, asset=uno)
+        self.assertEqual((riga.operazione, riga.lavorazione, str(riga.dal), str(riga.al), riga.note_operatore),
+                         (30, "Foratura", "2026-12-01", "2026-12-03", "Staffare sul lato B"))
+
+    def test_periodo_rovesciato_rifiutato(self):
+        uno = self.macchina("CNC-F2")
+        self.post(action="collega", tipo="macchina", id=uno.pk)
+        r = self.post(action="operazione", chiave=f"mac:{uno.pk}", dal="2026-12-05", al="2026-12-01")
+        self.assertEqual(r.status_code, 400)
+
+    def test_programma_dal_form_con_responsabile_entro_e_fase(self):
+        r = self.post(
+            action="aggiungi", tipo="cam", testo="P-88 sgrossatura", responsabile=str(self.user.pk),
+            entro="2026-12-10", fase="DA_PROVARE",
+        )
+        self.assertTrue(r.json()["ok"])
+        ref = ProjectTechRef.objects.get(task=self.generica, kind=TechRefKind.CAM, code="P-88")
+        self.assertEqual((ref.assigned_to_id, str(ref.due_date), ref.fase), (self.user.pk, "2026-12-10", "DA_PROVARE"))
+
+    def test_programma_che_gira_sulla_macchina(self):
+        uno = self.macchina("CNC-F3")
+        self.post(action="aggiungi", tipo="cam", testo="P-99")
+        ref = ProjectTechRef.objects.get(task=self.generica, kind=TechRefKind.CAM, code="P-99")
+        self.post(action="collega", tipo="macchina", id=uno.pk, programma=str(ref.pk))
+        ref.refresh_from_db()
+        self.assertEqual(ref.macchina_id, uno.pk)
+        voce = next(v for v in svc.collegamenti(self.generica) if v["tipo"] == "macchina" and v["asset"].pk == uno.pk)
+        self.assertIn(ref.pk, voce["programmi_id"])

@@ -9,12 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
-### KICK-OFF: le attività si gestiscono dall'ordine del giorno, nel pannello laterale (24/11)
+### KICK-OFF: attività gestite dall'ordine del giorno nel pannello laterale, form dinamici per programma e macchina (24/11)
 
 - Scheda dell'incontro (fase Prima): «Attività» sul punto apre l'attività nel pannello laterale; «+ Attività» crea l'attività già col titolo del punto (per una tappa, col suo tipo) e la lega al punto. File: `django_app/tasks/templates/tasks/_meeting_prima.html`, `tasks/views/task.py`.
 - Form della convocazione: «Apri l'attività» sotto i punti, il pannello si chiude senza ricaricare il form; i punti con titolo e attività aggiornati. File: `tasks/static/tasks/js/meeting_form.js`, `tasks/forms.py`, `tasks/services/odg_vivo.py`, `core/static/core/js/hub-bulk-pannello.js`, `core/templates/core/base.html`.
 - Tappa con collegamento mancante: titolo «… : da collegare». File: `tasks/services/odg_vivo.py`, `_meeting_punto_vivo.html`, `static/tasks/css/tasks.css`.
-- Guide: `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`. Test `tasks/tests_sincronia.py`. Deploy: collectstatic, nessuna migrazione.
+- Form dinamici nel riquadro Collegamenti: «+ Programma CAM/CMM» chiede codice, descrizione, responsabile, entro il e fase di partenza; «Collega» su una macchina chiede operazione, lavorazione, periodo, programma che ci gira e note per l'operatore (tutto facoltativo, «Dettagli» per correggerli). Migrazione `tasks 0074_operazione_periodo_note`. File: `tasks/models.py`, `migrations/0074_operazione_periodo_note.py`, `services/collegamenti.py`, `services/programmi_fasi.py`, `views/collegamenti.py`, `templates/tasks/_collegamenti_body.html`, `static/tasks/js/collegamenti.js`, `static/tasks/css/tasks.css`.
+- Guide: `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`. Test `tasks/tests_sincronia.py`. Deploy: migrate (tasks 0074) + collectstatic.
 
 ### Assistente AI: «Il tuo brief di oggi» pronto all'alba
 

@@ -10,6 +10,13 @@ Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, t
 
 ## Dettaglio
 
+### Form dinamici per programma e macchina (24/11/2026)
+
+- Migrazione `tasks 0074_operazione_periodo_note`: `TaskExtraRef.dal`, `al` (DateField null) e `note_operatore` (CharField 300).
+- `_collegamenti_body.html`: form `data-kc-dform="programma"` (codice, descrizione, responsabile, entro il, fase di partenza) e `data-kc-dform="macchina"` (operazione, lavorazione, dal, al, programma che ci gira, note). Ogni macchina è un `<tbody data-kc-voce>` con la riga «Dettagli» (`data-kc-op-riga`); i campi `data-kc-op="<campo>"` mandano `action=operazione` col solo campo cambiato. Valori proposti da `views/collegamenti._form_dinamici` (`col.form`).
+- `collegamenti_azione`: `collega` macchina accetta `numero, lavorazione, dal, al, note, programma`; `aggiungi` CAM/CMM accetta `responsabile, entro, fase` (`svc.imposta_programma` → `programmi_fasi.imposta_partenza`, storico «Fase di partenza»). `svc.aggiorna_operazione` cambia solo i campi arrivati, controlla le date e lega il programma con `ProjectTechRef.macchina`. Disponibilità e conflitti della macchina usano il periodo dell'operazione se c'è.
+- Nel form «+ Attività» (attività non ancora salvata) i form dinamici non compaiono: restano ricerca e «Collega».
+
 ### Attività gestite dall'ordine del giorno nel pannello laterale (24/11/2026)
 
 - Scheda dell'incontro, fase Prima (`_meeting_prima.html`): su ogni punto «Attività» (`data-preview` → `tasks:detail`) o, se il punto non ha attività né problema/attività d'incontro e non è trattato, «+ Attività» → `tasks:create?project=&incontro=&punto=`. `views/task._punto_da_collegare` (solo chi gestisce la commessa, punto senza attività, incontro non annullato) propone il titolo del punto (per `tappa:<KEY>` il tipo della tappa e il suo nome) e dopo il salvataggio lega `MeetingAgendaItem.task` (log `kickoff_task_from_agenda_item`, `da=form`). Il pannello alla chiusura ricarica la pagina.
