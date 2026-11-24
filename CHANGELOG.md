@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: «Prova un cambiamento» (prospetto dei cambiamenti)
+
+- **Elenco** (`/anagrafica/struttura/prospetto/`): una tabella sola «Prova / Stato / Cambiamenti / Preparata da / Aggiornata» al posto dei due pannelli; la riga scelta mostra a destra «Prova scelta» con «Apri la prova», «Vai al confronto» e le pagine collegate (`?prova=`); «Come funziona» con i tre passi; «Nuova prova» in finestra.
+- **Dettaglio**: tre passi in cima («Che cosa cambia», «Confronto», «Conferma») che portano alle parti della pagina; «Tutte le prove» torna all'elenco sulla stessa prova.
+- **Errore corretto (c'era già su main):** l'elenco andava in errore 500 se una prova non aveva più l'autore (`creato_da` vuoto, ad esempio utente eliminato): il filtro `default:p.creato_da.username` valutava `None.username`. Ora il nome si calcola nella vista; prova in `tests_prospetto`.
+- File: `anagrafica/views_prospetto.py`, `pages/prospetti.html`, `pages/prospetto.html`, `tests_prospetto.py`, guida in pagina, Centro guide.
+
 ### Anagrafica: Organigramma con il reparto scelto
 
 - **Organigramma, vista Elenco** (`/anagrafica/organigramma/`): il riquadro di un reparto si clicca e a destra compaiono «Reparto scelto» (responsabile, ruolo responsabile, a chi riporta, persone, aree), la scheda del responsabile e le «Pagine collegate» (`?scelto=`); ricerca per reparto, area o persona; «Da fare» al posto delle tessere con i numeri; riquadri che si dispongono da soli. In stampa solo i riquadri. «Capo di ogni persona» e «Dashboard» passano da testata a «Pagine collegate»; il filtro `?reparto=` resta.

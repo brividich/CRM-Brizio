@@ -57,6 +57,18 @@ body.theme-dark .pr-stato.is-male { background:rgba(229,62,62,.2); color:#fca5a5
 body.theme-dark .pr-stato.is-attento { background:rgba(245,158,11,.16); color:#fdba74; }
 body.theme-dark .pr-info { background:var(--surface-alt,#0f1b2d); color:var(--text-mid); }
 </style>
+<style>
+.pr-passi { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin:0 0 14px; }
+.pr-passi a { display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; color:#475569; font-size:12.5px; text-decoration:none; }
+.pr-passi a:hover { border-color:#9cc6e6; }
+.pr-passi b { flex:0 0 26px; height:26px; border-radius:50%; background:#e8f3fb; color:#0c2545; display:flex; align-items:center; justify-content:center; }
+.pr-passi strong { display:block; color:#0f172a; font-size:13.5px; }
+body.theme-dark .pr-passi a { background:var(--surface,#13223a); border-color:var(--border); color:var(--text-light); }
+body.theme-dark .pr-passi strong { color:var(--text); }
+body.theme-dark .pr-passi b { background:#1e3a5f; color:#fff; }
+@media (max-width:640px) { .pr-passi { grid-template-columns:1fr; } }
+@media print { .pr-passi { display:none; } }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -69,15 +81,21 @@ body.theme-dark .pr-info { background:var(--surface-alt,#0f1b2d); color:var(--te
   <div class="rc-top">
     <div>
       <div class="rc-title">{{ p.nome }}</div>
-      <div class="rc-sub">Prospetto dei cambiamenti in preparazione: confronta <strong>Oggi</strong> e <strong>Dopo</strong>. Finché non applichi non cambia niente.{% if totali.mese %} Costi dell'ultimo mese con i cedolini: {{ totali.mese|date:"m/Y" }}.{% endif %}</div>
+      <div class="rc-sub">Prova in preparazione: confronta <strong>Oggi</strong> e <strong>Dopo</strong>. Finché non applichi non cambia niente.{% if totali.mese %} Costi dell'ultimo mese con i cedolini: {{ totali.mese|date:"m/Y" }}.{% endif %}</div>
     </div>
     <div class="rc-actions">
       {% include "anagrafica/partials/_guida_persone_link.html" with ancora="prospetto" %}
-      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:prospetti' %}">Tutti i prospetti</a>
+      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:prospetti' %}?prova={{ p.pk }}">Tutte le prove</a>
       <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:export' 'prospetto' %}?format=xlsx&amp;scope=filtered&amp;id={{ p.pk }}">Excel</a>
       <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:export' 'prospetto' %}?format=pdf&amp;scope=filtered&amp;id={{ p.pk }}">PDF</a>
     </div>
   </div>
+
+  <nav class="pr-passi" aria-label="Passi della prova">
+    <a href="#aggiungi"><b>1</b><span><strong>Che cosa cambia</strong>{{ righe_modifiche|length }} cambiament{{ righe_modifiche|length|pluralize:"o,i" }}</span></a>
+    <a href="#confronto"><b>2</b><span><strong>Confronto</strong>Oggi e dopo</span></a>
+    <a href="#applica"><b>3</b><span><strong>Conferma</strong>Applica o archivia</span></a>
+  </nav>
 
   <section class="rc-panel pr-sez" id="aggiungi">
     <h2>Cambiamenti da provare ({{ righe_modifiche|length }})</h2>

@@ -777,8 +777,12 @@ GUIDA = {
             "id": "prospetto",
             "titolo": "Prospetto dei cambiamenti",
             "blocchi": [
-                ("p", "Persone → Prospetto dei cambiamenti: confronta «Oggi» e «Dopo» prima di cambiare la struttura. "
-                      "Finché non premi «Applica» non cambia niente."),
+                ("p", "Organizzazione → Prospetto dei cambiamenti apre «Prova un cambiamento»: confronta «Oggi» e «Dopo» "
+                      "prima di cambiare la struttura. Finché non premi «Applica» non cambia niente."),
+                ("p", "L'elenco «Prove» mostra «Stato» («In preparazione», «Applicato», «Archiviato»), «Cambiamenti», "
+                      "«Preparata da» e «Aggiornata». Clicca una riga: a destra compaiono «Prova scelta» con «Apri la "
+                      "prova» e «Vai al confronto». «Nuova prova» apre una finestra con il nome. Nella prova, i tre passi "
+                      "in cima («Che cosa cambia», «Confronto», «Conferma») portano alle tre parti della pagina."),
                 ("def", [
                     ("Si prova", "reparto in un altro centro di costo; persona in un altro reparto (lascia o tiene le "
                                  "mansioni); ruolo di una persona; persona su una mansione; mansione in un altro reparto."),

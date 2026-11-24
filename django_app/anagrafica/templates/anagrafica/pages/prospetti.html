@@ -1,13 +1,32 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Prospetto dei cambiamenti | Anagrafica{% endblock %}
+{% block title %}Prova un cambiamento | Anagrafica{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% include "core/components/_hub_formkit.html" %}
 {% include "anagrafica/components/_rc_stili.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_flusso_dinamico.html" %}
+{% include "anagrafica/components/_scelta_riga.html" %}
+<style>
+.pv-tab tbody tr[data-sc-riga] { cursor:pointer; }
+.pv-tab tbody tr[data-sc-riga]:hover td { background:#f8fafc; }
+.pv-tab tbody tr.is-scelta td { background:#e8f3fb; }
+.pv-tab tbody tr:focus-visible { outline:2px solid #1f87cd; outline-offset:-2px; }
+.pv-tab td.pv-n, .pv-tab th.pv-n { text-align:right; }
+.pv-passi { list-style:none; margin:0; padding:6px 0; counter-reset:passo; }
+.pv-passi li { display:flex; gap:12px; padding:9px 16px; font-size:13px; color:#475569; }
+.pv-passi li b { flex:0 0 26px; height:26px; border-radius:50%; background:#e8f3fb; color:#0c2545; display:flex; align-items:center; justify-content:center; font-size:12.5px; }
+.pv-passi li strong { display:block; color:#0f172a; font-size:13.5px; }
+body.theme-dark .pv-tab tbody tr[data-sc-riga]:hover td { background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .pv-tab tbody tr.is-scelta td { background:#1e3a5f; color:#fff; }
+body.theme-dark .pv-passi li { color:var(--text-light); }
+body.theme-dark .pv-passi li strong { color:var(--text); }
+body.theme-dark .pv-passi li b { background:#1e3a5f; color:#fff; }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -18,48 +37,70 @@
   {% include "anagrafica/components/flash_messages.html" %}
   <div class="rc-top">
     <div>
-      <div class="rc-title">Prospetto dei cambiamenti</div>
-      <div class="rc-sub">Prova uno spostamento di reparti, persone, ruoli o mansioni e guarda che cosa succederebbe a persone, capi, costi e copertura delle mansioni. Finché non applichi non cambia niente.</div>
+      <div class="rc-title">Prova un cambiamento</div>
+      <div class="rc-sub">Guarda che cosa succede prima di spostare reparti, persone, ruoli o mansioni: persone, capi, costi e copertura delle mansioni. Finché non applichi non cambia niente.</div>
     </div>
     <div class="rc-actions">
       {% include "anagrafica/partials/_guida_persone_link.html" with ancora="prospetto" %}
-      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:esplora_struttura' %}">Esplora la struttura</a>
+      {% if is_admin %}<button type="button" class="rc-btn rc-btn-primary" data-pv-nuova>+ Nuova prova</button>{% endif %}
     </div>
   </div>
 
-  {% if is_admin %}
-  <section class="rc-panel">
-    <h2>Nuovo prospetto</h2>
-    <form method="post" action="{% url 'anagrafica:prospetto_crea' %}" class="rc-assegna">
-      {% csrf_token %}
-      <input type="text" name="nome" maxlength="150" required placeholder="Es. Sdoppiamento CN5G" aria-label="Nome del prospetto" style="flex:1 1 260px;padding:8px 12px;border:1px solid var(--border,#e2e8f0);border-radius:10px;font-size:13px;">
-      <button type="submit" class="rc-btn rc-btn-primary">Crea il prospetto</button>
-    </form>
-  </section>
-  {% endif %}
+  <div class="fx-flusso">
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">Prove <span>{{ bozze|length }} in preparazione{% if storico %} · {{ storico|length }} chius{{ storico|length|pluralize:"a,e" }}{% endif %}</span></h2>
+      {% if righe %}
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab pv-tab">
+        <thead><tr><th>Prova</th><th>Stato</th><th class="pv-n">Cambiamenti</th><th>Preparata da</th><th>Aggiornata</th></tr></thead>
+        <tbody>{% for r in righe %}<tr data-sc-riga="{{ r.p.pk }}" tabindex="0"{% if scelta.p.pk == r.p.pk %} class="is-scelta"{% endif %}>
+          <td><a href="{% url 'anagrafica:prospetto' r.p.pk %}"><b>{{ r.p.nome }}</b></a></td>
+          <td><span class="es-s-stato{% if r.tono %} es-s-stato-{{ r.tono }}{% endif %}">{{ r.p.get_stato_display }}</span></td>
+          <td class="pv-n">{{ r.n }}</td>
+          <td>{{ r.chi }}</td>
+          <td>{{ r.p.updated_at|date:"d/m/Y" }}</td>
+          <template data-sc-modello>{% include "anagrafica/partials/_scheda_scelta.html" with titolo="Prova scelta" scheda=r.scheda %}</template>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<p class="es-s-vuoto">Nessuna prova.{% if is_admin %} Creane una con «Nuova prova».{% endif %}</p>{% endif %}
+    </section></div>
 
-  <section class="rc-panel">
-    <h2>In preparazione ({{ bozze|length }})</h2>
-    {% if bozze %}
-    <table class="rc-aree" data-fm-table-skip="1">
-      <thead><tr><th>Prospetto</th><th class="rc-n">Cambiamenti</th><th>Di</th><th>Aggiornato</th></tr></thead>
-      <tbody>
-        {% for p in bozze %}<tr><td><a class="fmd-data-link" href="{% url 'anagrafica:prospetto' p.pk %}"><strong>{{ p.nome }}</strong></a></td><td class="rc-n">{{ p.modifiche.all|length }}</td><td>{{ p.creato_da.get_full_name|default:p.creato_da.username|default:"—" }}</td><td>{{ p.updated_at|date:"d/m/Y H:i" }}</td></tr>{% endfor %}
-      </tbody>
-    </table>
-    {% else %}<span class="rc-none">Nessun prospetto in preparazione.</span>{% endif %}
-  </section>
+    {% if scelta %}
+    <div class="fx-blocco"><div data-sc-scelta data-sc-param="prova">{% include "anagrafica/partials/_scheda_scelta.html" with titolo="Prova scelta" scheda=scelta.scheda %}</div></div>
+    {% endif %}
 
-  {% if storico %}
-  <section class="rc-panel">
-    <h2>Chiusi</h2>
-    <table class="rc-aree" data-fm-table-skip="1">
-      <thead><tr><th>Prospetto</th><th>Stato</th><th class="rc-n">Cambiamenti</th><th>Applicato il</th><th>Da</th></tr></thead>
-      <tbody>
-        {% for p in storico %}<tr><td><a class="fmd-data-link" href="{% url 'anagrafica:prospetto' p.pk %}">{{ p.nome }}</a></td><td>{{ p.get_stato_display }}</td><td class="rc-n">{{ p.modifiche.all|length }}</td><td>{{ p.applicato_il|date:"d/m/Y H:i"|default:"—" }}</td><td>{{ p.applicato_da.get_full_name|default:p.applicato_da.username|default:"—" }}</td></tr>{% endfor %}
-      </tbody>
-    </table>
-  </section>
-  {% endif %}
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Come funziona</h2>
+      <ol class="pv-passi">
+        <li><b>1</b><span><strong>Che cosa cambia</strong>Aggiungi gli spostamenti: reparti, persone, ruoli, mansioni.</span></li>
+        <li><b>2</b><span><strong>Confronto</strong>Oggi e dopo, fianco a fianco: capi, costi, mansioni scoperte.</span></li>
+        <li><b>3</b><span><strong>Conferma</strong>Applica i cambiamenti o archivia la prova. Una prova applicata non si modifica.</span></li>
+      </ol>
+    </section></div>
+  </div>
 </div>
+
+{% if is_admin %}
+<div id="pv-nuova-modal" class="rc-modal">
+  <div class="rc-modal-box" role="dialog" aria-modal="true" aria-labelledby="pv-nuova-title">
+    <div class="rc-modal-title" id="pv-nuova-title">Nuova prova</div>
+    <form method="post" action="{% url 'anagrafica:prospetto_crea' %}">
+      {% csrf_token %}
+      <div class="hub-form-stack">
+        <div class="hub-field"><label for="pv-nome">Nome della prova <span class="hub-req">*</span></label><input type="text" name="nome" id="pv-nome" maxlength="150" required placeholder="Es. Sdoppiamento CN5G"></div>
+        <div style="display:flex;gap:8px;"><button type="submit" class="rc-btn rc-btn-primary">Crea la prova</button><button type="button" class="rc-btn rc-btn-ghost" data-rc-chiudi>Annulla</button></div>
+      </div>
+    </form>
+  </div>
+</div>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var m = document.getElementById('pv-nuova-modal');
+  document.querySelectorAll('[data-pv-nuova]').forEach(function (b) {
+    b.addEventListener('click', function () { m.style.display = 'flex'; document.getElementById('pv-nome').focus(); });
+  });
+  m.addEventListener('click', function (e) { if (e.target === m || e.target.hasAttribute('data-rc-chiudi')) m.style.display = 'none'; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') m.style.display = 'none'; });
+})();
+</script>
+{% endif %}
 {% endblock %}

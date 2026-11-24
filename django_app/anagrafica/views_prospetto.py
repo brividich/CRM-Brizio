@@ -53,12 +53,47 @@ def _intero(valore):
 def prospetti(request):
     if not _puo_vedere(request):
         return _nega(request, "Non hai accesso alla struttura organizzativa.")
+    bozze = list(P.objects.filter(stato=P.STATO_BOZZA).prefetch_related("modifiche").select_related("creato_da"))
+    storico = list(P.objects.exclude(stato=P.STATO_BOZZA).prefetch_related("modifiche")
+                   .select_related("creato_da", "applicato_da")[:50])
+    righe = [_riga_prospetto(p) for p in bozze + storico]
+    chiesto = _intero(request.GET.get("prova"))
     return render(request, "anagrafica/pages/prospetti.html", {
-        "page_title": "Prospetto dei cambiamenti",
-        "bozze": P.objects.filter(stato=P.STATO_BOZZA).prefetch_related("modifiche").select_related("creato_da"),
-        "storico": P.objects.exclude(stato=P.STATO_BOZZA).prefetch_related("modifiche").select_related("creato_da", "applicato_da")[:50],
+        "page_title": "Prova un cambiamento",
+        "bozze": bozze,
+        "storico": storico,
+        "righe": righe,
+        "scelta": next((r for r in righe if r["p"].pk == chiesto), righe[0] if righe else None),
         "is_admin": _puo_gestire(request),
     })
+
+
+def _chi(utente) -> str:
+    return (utente.get_full_name() or utente.username) if utente else "—"
+
+
+def _riga_prospetto(p) -> dict:
+    """Riga dell'elenco e scheda di destra di una prova (prospetto)."""
+    n = len(p.modifiche.all())
+    campi = [("Prova", p.nome), ("Stato", p.get_stato_display()), ("Cambiamenti", str(n)),
+             ("Preparata da", _chi(p.creato_da)), ("Aggiornata il", timezone.localtime(p.updated_at).strftime("%d/%m/%Y"))]
+    if p.stato == P.STATO_APPLICATO:
+        campi += [("Applicata il", timezone.localtime(p.applicato_il).strftime("%d/%m/%Y") if p.applicato_il else "—"),
+                  ("Applicata da", _chi(p.applicato_da))]
+    if p.decorrenza:
+        campi.append(("Decorrenza", p.decorrenza.strftime("%d/%m/%Y")))
+    url = reverse("anagrafica:prospetto", args=[p.pk])
+    if p.stato == P.STATO_BOZZA:
+        azioni = [{"nome": "Apri la prova", "url": url}, {"nome": "Vai al confronto", "url": f"{url}#confronto"}]
+    else:
+        azioni = [{"nome": "Apri il confronto salvato", "url": url}]
+    collegate = [
+        {"nome": "Esplora la struttura", "spiega": "La struttura di oggi, reparto per reparto", "url": reverse("anagrafica:esplora_struttura")},
+        {"nome": "Reparti e capi", "spiega": "Responsabili e ruoli dei reparti", "url": reverse("anagrafica:aree_list")},
+    ]
+    tono = {"BOZZA": "info", "APPLICATO": "ok"}.get(p.stato, "")
+    return {"p": p, "n": n, "tono": tono, "chi": _chi(p.creato_da),
+            "scheda": {"campi": campi, "azioni": azioni, "collegate": collegate}}
 
 
 @login_required
