@@ -10,6 +10,16 @@ Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, t
 
 ## Dettaglio
 
+### Ordine del giorno legato alle attività, macchine come operazioni, chiuse sempre visibili (24/11/2026)
+
+- **Ordine del giorno vivo** (`services/odg_vivo.py`, chiamato da `filo_incontro.punti_con_filo`: scheda dell'incontro e conduzione). Ogni punto con `task_id` riceve `vivo` (stato, responsabile, scadenza, macchine come operazioni, altri collegamenti) letto al momento; template `_meeting_punto_vivo.html` incluso da `_meeting_punto_corpo.html`. I campi fotografati alla nascita («Stato», «Responsabile», «Entro il») non si mostrano più. Punti `tappa:<KEY>`: `titolo_vivo` con i codici collegati («Macchine: CNC-744, CNC-901») o lo stato della tappa; senza attività si agganciano alla prima attività della tappa (o, se la tappa non ne ha, a un'attività senza tipo che ha già il collegamento atteso). Un punto scritto a mano con lo stesso titolo (spazi e maiuscole a parte) di un'attività della commessa si aggancia a lei. Solo per incontri `PIANIFICATO`: agganci salvati su `MeetingAgendaItem.task`, punto segnato `done` quando le sue attività sono tutte `DONE` (mai il contrario). Nel riquadro Collegamenti la voce «Incontro» dice il numero del punto (`odg_vivo.numeri_dei_punti`).
+- **Macchine come operazioni**: migrazione `tasks 0073_operazioni_macchina` (`TaskExtraRef.operazione` PositiveSmallInteger null, `lavorazione` CharField 120). `collegamenti._collega_macchina` assegna 10, 20, 30… (`prossima_operazione`); `aggiorna_operazione` + `POST collegamenti_azione action=operazione` (`chiave=mac:<asset>`, `numero`, `lavorazione`, stesso permesso delle macchine). Le macchine si leggono in ordine di operazione. La tappa Macchina nasce con operazione 10.
+- **Programmi a passi**: `_voce_ref` espone `passi` (le quattro fasi) e `storico` (ultime 5 `ProgrammaStorico`, prefetch); i pulsanti `data-kc-passo` mandano `action=fase` al posto della tendina. FAI: «Compila la scheda FAI» / «Apri la scheda FAI» come pulsante.
+- **Scheda attività**: l'elenco «Viene dopo… / Viene prima di…» si vede solo durante la scelta (`.ka-colleg-lista:not(.is-scelta)` nascosto).
+- **Elenco della commessa** (`views/overview.project_actions`): le chiuse sono sempre incluse, in fondo, con la riga «Completate e chiuse N» (`primo_chiuso`) e il titolo barrato; tolti «Solo aperte / Anche chiuse».
+- **Testata dell'incontro**: con la data passata e l'incontro ancora pianificato, accanto a «Registra l'esito» c'è «Conduci incontro» (`_primaria_incontro` → `secondaria`).
+- Test `tasks/tests_sincronia.py`. Deploy: `migrate` (tasks 0073) + `collectstatic`.
+
 ### Collegamenti dell'attività (23/11/2026)
 
 Ogni attività di una commessa ha un solo riquadro «Collegamenti» (scheda `detail.html` e form `form.html`, partial `_collegamenti.html` + `_collegamenti_body.html`, script `static/tasks/js/collegamenti.js`): Macchina, Attrezzatura, Utensile, Programma CAM, Programma CMM, FAI, Incontro. Sostituisce il riquadro del programma, il pannello attrezzatura della scheda e i campi `tooling_*` del form, tolti dal codice con la pulizia del 23/11/2026 (vedi sotto).

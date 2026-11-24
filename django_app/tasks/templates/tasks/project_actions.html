@@ -68,14 +68,10 @@
   <div class="ts-panel-body">
     <nav class="ka-viste" aria-label="Quali attività mostrare">
       {% for codice, etichetta in viste %}
-        <a class="ka-vista{% if vista == codice %} is-on{% endif %}" href="{% url 'tasks:project_actions' project.id %}{% if codice or include_closed %}?{% endif %}{% if codice %}vista={{ codice }}{% endif %}{% if codice and include_closed %}&amp;{% endif %}{% if include_closed %}closed=1{% endif %}"{% if vista == codice %} aria-current="page"{% endif %}>{{ etichetta }}</a>
+        <a class="ka-vista{% if vista == codice %} is-on{% endif %}" href="{% url 'tasks:project_actions' project.id %}{% if codice %}?vista={{ codice }}{% endif %}"{% if vista == codice %} aria-current="page"{% endif %}>{{ etichetta }}</a>
       {% endfor %}
-      <span class="ka-viste-sep" aria-hidden="true"></span>
-      <a class="ka-vista{% if not include_closed %} is-on{% endif %}" href="{% url 'tasks:project_actions' project.id %}{% if vista %}?vista={{ vista }}{% endif %}">Solo aperte</a>
-      <a class="ka-vista{% if include_closed %} is-on{% endif %}" href="{% url 'tasks:project_actions' project.id %}?closed=1{% if vista %}&amp;vista={{ vista }}{% endif %}">Anche chiuse</a>
     </nav>
     <form method="get" class="ml-filters">
-      {% if include_closed %}<input type="hidden" name="closed" value="1">{% endif %}
       {% if vista %}<input type="hidden" name="vista" value="{{ vista }}">{% endif %}
       {% if filters.stato %}<input type="hidden" name="stato" value="{{ filters.stato }}">{% endif %}
       {% if elenco_raggruppa %}<input type="hidden" name="raggruppa" value="{{ elenco_raggruppa }}">{% endif %}
@@ -98,7 +94,7 @@
         <option value="senza"{% if filters.scadenza == "senza" %} selected{% endif %}>Senza scadenza</option>
       </select>
       <button type="submit" class="md-btn">Filtra</button>
-      {% if filters_active %}<a class="md-btn" href="{% url 'tasks:project_actions' project.id %}{% if include_closed %}?closed=1{% endif %}">Azzera</a>{% endif %}
+      {% if filters_active %}<a class="md-btn" href="{% url 'tasks:project_actions' project.id %}">Azzera</a>{% endif %}
     </form>
 
     {% if filters_active %}{% firstof "Nessuna voce corrisponde ai filtri." as vuoto %}{% else %}{% firstof "Nessuna attività su questa commessa." as vuoto %}{% endif %}

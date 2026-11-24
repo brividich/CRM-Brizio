@@ -2,7 +2,8 @@
 
 Un servizio solo sopra i modelli che c'erano già, senza un registro in più:
 
-- macchina      → ``TaskExtraRef`` (campo ``macchina``, una riga per macchina); in
+- macchina      → ``TaskExtraRef`` (campo ``macchina``, una riga per macchina, con il numero
+                  di operazione e la lavorazione: il lavoro si fa in più operazioni); in
                   ``Task.extra_data`` resta la prima, per chi legge ancora quel campo;
 - attrezzatura  → ``attrezzature.AttrezzaturaKickoffLink`` (catalogo: ``Attrezzatura``);
 - utensile      → ``ProjectUtensile.task`` (catalogo: ``Utensile``);
@@ -96,6 +97,20 @@ def _voce(tipo: str, chiave: str, codice: str, descrizione: str = "", **extra) -
     }
 
 
+STORICO_MAX = 5
+
+
+def _passi(fase: str) -> list[dict]:
+    """Le quattro fasi del programma, con quelle passate e quella di adesso."""
+    ordine = [f for f, _ in ProgrammaFase.choices]
+    ora = ordine.index(fase) if fase in ordine else 0
+    validato = fase == ProgrammaFase.VALIDATO
+    return [
+        {"nome": nome, "fatto": i < ora or (i == ora and validato), "ora": i == ora and not validato}
+        for i, (_f, nome) in enumerate(ProgrammaFase.choices)
+    ]
+
+
 def _voce_ref(ref: ProjectTechRef) -> dict:
     tipo = TIPO_DI_KIND[ref.kind]
     voce = _voce(tipo, f"ref:{ref.pk}", ref.etichetta_breve if ref.is_programma else (ref.code or "da compilare"), ref=ref)
@@ -105,6 +120,9 @@ def _voce_ref(ref: ProjectTechRef) -> dict:
         voce["stato"] = ref.get_fase_display()
         voce["tono"] = programmi_fasi.CLASSE.get(ref.fase, "")
         voce["fasi"] = programmi_fasi.azioni_possibili(ref)
+        voce["passi"] = _passi(ref.fase)
+        # Le ultime fasi, dalla più recente (prefetch nella lettura di più attività).
+        voce["storico"] = sorted(ref.storico.all(), key=lambda r: (r.created_at, r.pk), reverse=True)[:STORICO_MAX]
     else:
         record = getattr(ref, "fai_record", None)
         if record is not None:
@@ -127,16 +145,23 @@ def _voce_attrezzatura(attrezzatura) -> dict:
     return _voce(ATTREZZATURA, f"att:{attrezzatura.pk}", attrezzatura.codice or "senza codice", attrezzatura.descrizione)
 
 
-def _voce_macchina(asset) -> dict:
-    return _voce(MACCHINA, f"mac:{asset.pk}", asset.asset_tag or f"#{asset.pk}", asset.name, asset=asset)
+def _voce_macchina(asset, ref: TaskExtraRef | None = None) -> dict:
+    return _voce(
+        MACCHINA, f"mac:{asset.pk}", asset.asset_tag or f"#{asset.pk}", asset.name, asset=asset,
+        operazione=getattr(ref, "operazione", None), lavorazione=getattr(ref, "lavorazione", "") or "",
+    )
 
 
-def _voce_incontro(riga: MeetingAgendaItem, project_id: int) -> dict:
+def _voce_incontro(riga: MeetingAgendaItem, project_id: int, numero: int | None = None) -> dict:
     meeting = riga.meeting
     voce = _voce(
         INCONTRO, f"odg:{meeting.pk}", f"#{meeting.numero}",
-        " · ".join(p for p in (meeting.titolo, f"{meeting.data:%d/%m/%Y}" if meeting.data else "") if p),
+        " · ".join(p for p in (
+            meeting.titolo, f"{meeting.data:%d/%m/%Y}" if meeting.data else "",
+            f"punto {numero} dell'ordine del giorno" if numero else "",
+        ) if p),
     )
+    voce["punto"] = numero
     voce["stato"] = "All'ordine del giorno" if meeting.stato == MeetingStatus.PIANIFICATO else meeting.get_stato_display()
     voce["tono"] = "info" if meeting.stato == MeetingStatus.PIANIFICATO else ""
     voce["url"] = f"{reverse('tasks:project_meeting_detail', args=[project_id, meeting.pk])}#agenda-item-{riga.item_id}"
@@ -157,13 +182,15 @@ def collegamenti_per_attivita(tasks, *, incontri: bool = True, vuoti: bool = Fal
         per_tipo[task_id].setdefault(voce["tipo"], []).append(voce)
 
     viste = set()
-    for ref in (
-        TaskExtraRef.objects.filter(task_id__in=ids, field_code=CAMPO_MACCHINA, asset__isnull=False)
-        .select_related("asset").order_by("id")
-    ):
+    # Le macchine nell'ordine delle operazioni (10, 20, …); quelle senza numero in fondo.
+    righe_macchina = sorted(
+        TaskExtraRef.objects.filter(task_id__in=ids, field_code=CAMPO_MACCHINA, asset__isnull=False).select_related("asset"),
+        key=lambda r: (r.operazione is None, r.operazione or 0, r.pk),
+    )
+    for ref in righe_macchina:
         if (ref.task_id, ref.asset_id) not in viste:
             viste.add((ref.task_id, ref.asset_id))
-            metti(ref.task_id, _voce_macchina(ref.asset))
+            metti(ref.task_id, _voce_macchina(ref.asset, ref))
     try:
         from attrezzature.models import AttrezzaturaKickoffLink
 
@@ -182,23 +209,29 @@ def collegamenti_per_attivita(tasks, *, incontri: bool = True, vuoti: bool = Fal
     for ref in (
         ProjectTechRef.objects.filter(task_id__in=ids)
         .select_related("macchina", "fai_record__stato", "assigned_to", "source_meeting")
+        .prefetch_related("storico__utente")
     ):
         if ref.ha_contenuto or vuoti:
             voce = _voce_ref(ref)
             voce["vuoto"] = not ref.ha_contenuto
             metti(ref.task_id, voce)
     if incontri:
+        from .odg_vivo import numeri_dei_punti
+
         progetti = {t.pk: t.project_id for t in tasks}
         visti = set()
-        for riga in (
+        righe_odg = list(
             MeetingAgendaItem.objects.filter(task_id__in=ids)
             .exclude(meeting__stato=MeetingStatus.ANNULLATO)
             .select_related("meeting").order_by("-meeting__data", "-meeting_id", "ordine")
-        ):
+        )
+        numeri = numeri_dei_punti(righe_odg) if righe_odg else {}
+        for riga in righe_odg:
             if (riga.task_id, riga.meeting_id) in visti or riga.meeting.project_id != progetti.get(riga.task_id):
                 continue
             visti.add((riga.task_id, riga.meeting_id))
-            metti(riga.task_id, _voce_incontro(riga, riga.meeting.project_id))
+            numero = numeri.get((riga.meeting_id, riga.item_id))
+            metti(riga.task_id, _voce_incontro(riga, riga.meeting.project_id, numero))
     for pk in ids:
         esito[pk] = [voce for tipo in TIPI for voce in per_tipo[pk].get(tipo, [])]
     return esito
@@ -319,6 +352,9 @@ def riquadro(task: Task, *, con_stato_macchina: bool = True, visibili=None) -> d
     mancanti = manca(task, voci)
     return {
         "voci": voci,
+        # Le macchine si leggono insieme, una riga per operazione.
+        "macchine": [v for v in voci if v["tipo"] == MACCHINA],
+        "altre": [v for v in voci if v["tipo"] != MACCHINA],
         "manca": mancanti,
         "manca_testo": manca_testo(mancanti),
         "tipi": [
@@ -484,14 +520,41 @@ def _ricorda_prima_macchina(task: Task) -> None:
     Task.objects.filter(pk=task.pk).update(extra_data=dati)
 
 
+def prossima_operazione(task: Task) -> int:
+    """Numero della prossima operazione: 10, 20, 30… dopo l'ultima usata."""
+    numeri = [
+        n for n in TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset__isnull=False)
+        .values_list("operazione", flat=True) if n
+    ]
+    return (max(numeri) // 10 + 1) * 10 if numeri else 10
+
+
 def _collega_macchina(task: Task, asset) -> dict:
-    """Aggiunge la macchina alle altre. Un conflitto nel periodo non impedisce il collegamento: è un avviso."""
-    if not TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset=asset).exists():
-        TaskExtraRef.objects.create(task=task, field_code=CAMPO_MACCHINA, asset=asset)
+    """Aggiunge la macchina alle altre come operazione successiva. Un conflitto nel periodo non
+    impedisce il collegamento: è un avviso."""
+    ref = TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset=asset).first()
+    if ref is None:
+        ref = TaskExtraRef.objects.create(
+            task=task, field_code=CAMPO_MACCHINA, asset=asset, operazione=prossima_operazione(task),
+        )
     _ricorda_prima_macchina(task)
     # I programmi dell'attività girano su quella macchina, se non ne avevano già una.
     ProjectTechRef.objects.filter(task=task, macchina__isnull=True, kind__in=[TechRefKind.CAM, TechRefKind.CMM]).update(macchina=asset)
-    return _voce_macchina(asset)
+    return _voce_macchina(asset, ref)
+
+
+def aggiorna_operazione(task: Task, asset_id: int, *, numero, lavorazione: str) -> dict:
+    """Numero di operazione e lavorazione di una macchina dell'attività."""
+    righe = TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset_id=asset_id)
+    ref = righe.select_related("asset").order_by("id").first()
+    if ref is None:
+        raise CollegamentoNonValido("Questa macchina non è collegata all'attività.")
+    testo = str(numero or "").strip()
+    if testo and not (testo.isdigit() and 0 < int(testo) <= 9999):
+        raise CollegamentoNonValido("L'operazione è un numero (10, 20, 30…).")
+    righe.update(operazione=int(testo) if testo else None, lavorazione=(lavorazione or "").strip()[:120])
+    ref.refresh_from_db()
+    return _voce_macchina(ref.asset, ref)
 
 
 def _scollega_macchina(task: Task, asset_id: int) -> None:

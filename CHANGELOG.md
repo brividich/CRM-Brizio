@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: ordine del giorno legato alle attività, più macchine come operazioni, chiuse sempre visibili (24/11)
+
+- Ordine del giorno: ogni punto legato a un'attività ne mostra stato, responsabile, scadenza e macchine com'è adesso (non più la fotografia di quando è nato); i punti delle tappe si legano da soli alla loro attività e il titolo dice cosa è stato collegato; un punto con lo stesso titolo di un'attività si lega a lei; in un incontro da fare il punto si segna «Trattato» quando le attività sono completate. File: `django_app/tasks/services/odg_vivo.py` (nuovo), `services/filo_incontro.py`, `templates/tasks/_meeting_punto_corpo.html`, `_meeting_punto_vivo.html` (nuovo).
+- Più macchine per attività come operazioni (Op. 10, 20… con la lavorazione), migrazione `tasks 0073_operazioni_macchina`. File: `models.py`, `migrations/0073_operazioni_macchina.py`, `services/collegamenti.py`, `services/tappe.py`, `views/collegamenti.py`, `templates/tasks/_collegamenti_body.html`, `static/tasks/js/collegamenti.js`.
+- Riquadro Collegamenti: tornano le fasi del programma a passi con il pulsante del passo successivo e lo storico, e il pulsante «Compila / Apri la scheda FAI»; la voce «Incontro» dice il numero del punto; l'elenco «Viene dopo / prima di» si apre solo al clic. File: `services/collegamenti.py`, `templates/tasks/_collegamenti_body.html`, `static/tasks/css/tasks.css`, `static/tasks/css/percorso.css`.
+- Elenco della commessa: le attività chiuse restano visibili, in fondo e barrate sotto «Completate e chiuse»; tolti «Solo aperte / Anche chiuse». File: `views/overview.py`, `templates/tasks/project_actions.html`, `templates/tasks/_elenco_attivita.html`.
+- Testata dell'incontro: «Conduci incontro» accanto a «Registra l'esito» quando la data è passata. File: `services/testata.py`, `templates/tasks/base_shell.html`.
+- Guide: `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`. Test `tasks/tests_sincronia.py`. Deploy: migrate + collectstatic.
+
 ### Asset: documenti più comodi, scadenze dei documenti, nuovo asset come questo, SDS in elenco, ticket nello storico (24/11)
 
 - **Documenti dell'asset:** ricerca per nome in tutte le cartelle; numero di file su ogni linguetta (vuote in grigio); «Sposta i selezionati in…» tra cartelle; «Scarica ZIP (N)» per cartella; «Rinomina cartella» sulle cartelle «solo qui».

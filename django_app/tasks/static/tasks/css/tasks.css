@@ -5301,6 +5301,38 @@ body.theme-dark .kc-chip[aria-pressed="true"] { background: var(--primary-mid); 
   .kc-lista > li, .kc-ris > li { padding: 6px 8px; }
   .kc-x { padding: 6px 10px; }
 }
+/* Macchine come operazioni (Op. 10, 20…) e fasi del programma a passi, con lo storico. */
+.kc-voce--op, .kc-voce--prog { display: block !important; }
+.kc-op { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 13px; }
+.kc-op td { padding: 5px 6px; border-top: 1px solid var(--border); vertical-align: middle; overflow-wrap: anywhere; }
+.kc-op tr:first-child td { border-top: 0; }
+.kc-op-num { width: 74px; white-space: nowrap; font-weight: 700; color: var(--text-mid); }
+.kc-op-num input, .kc-op-lav input { width: 100%; min-width: 0; padding: 3px 6px; font-size: 12.5px; min-height: 0; height: auto; }
+.kc-op-num input { max-width: 64px; }
+.kc-op-stato { text-align: right; white-space: nowrap; }
+.kc-op-stato .ts-chip { margin-left: 4px; }
+.kc-op .kc-avviso, .kc-op .kc-operatori { margin: 2px 0 0; font-size: 12px; color: var(--text-mid); }
+.kc-prog-testa { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.kc-passi { display: flex; margin: 8px 0 6px; min-width: 0; }
+.kc-passi span { flex: 1 1 0; min-width: 0; text-align: center; padding: 5px 4px; font-size: 12px; border: 1px solid var(--border); border-left-width: 0; background: var(--surface); color: var(--text-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-passi span:first-child { border-left-width: 1px; border-radius: 8px 0 0 8px; }
+.kc-passi span:last-child { border-radius: 0 8px 8px 0; }
+.kc-passi .is-fatto { background: var(--success-bg); color: var(--success); font-weight: 600; }
+.kc-passi .is-ora { background: var(--hub-status-warning-bg); color: var(--hub-status-warning); font-weight: 700; }
+.kc-prog-azioni { display: flex; flex-wrap: wrap; gap: 6px; }
+.kc-storico { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: var(--text-mid); }
+.kc-voce--fai .btn { margin-left: auto; }
+/* Ordine del giorno: l'attività del punto com'è adesso. */
+.odgv { display: grid; gap: 4px; margin-top: 6px; min-width: 0; }
+.odgv-op { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.odgv-op td { padding: 4px 6px; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.odgv-op tr:first-child td { border-top: 0; }
+.odgv-op-num { width: 60px; white-space: nowrap; font-weight: 700; color: var(--text-mid); }
+.odgv-altri, .odgv-riga { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; }
+.odgv-riga small { color: var(--text-mid); font-size: 12px; }
+.md-agenda-item.done-item .odgv { opacity: .85; }
+a.md-agenda-task { text-decoration: none; }
+a.md-agenda-task:hover { text-decoration: underline; }
 /* Percorso come indice: i collegamenti delle attività sotto la tappa. */
 .tp-colleg { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; min-width: 0; }
 .tp-lk { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 100%; padding: 1px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-alt, var(--surface)); color: var(--text-mid); font-size: 11.5px; overflow-wrap: anywhere; }
@@ -5325,3 +5357,4 @@ body.theme-dark .kc-chip[aria-pressed="true"] { background: var(--primary-mid); 
 .rc-tabella .kc-avviso { margin-top: 3px; }
 /* Telefono: le griglie a una colonna della scheda e degli strumenti dell'incontro non si allargano al contenuto. */
 .td-card, .md-strumenti-body { grid-template-columns: minmax(0, 1fr); }
+.odgv-apri { font-size: 12px; }

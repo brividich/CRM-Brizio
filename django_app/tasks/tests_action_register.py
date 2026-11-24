@@ -294,7 +294,9 @@ class ProjectActionsViewTests(TasksBaseTestCase):
         self.assertEqual(open_response.context["open_count"], 1)
         self.assertEqual(open_response.context["overdue_count"], 0)
         self.assertContains(open_response, "Azione aperta")
-        self.assertNotContains(open_response, "Azione chiusa")
+        # Dal 24/11/2026 le chiuse non spariscono: in fondo, anche senza ?closed=1.
+        self.assertContains(open_response, "Azione chiusa")
+        self.assertContains(open_response, "Completate e chiuse")
         self.assertContains(closed_response, "Azione chiusa")
 
     def test_view_returns_404_outside_project_scope(self):

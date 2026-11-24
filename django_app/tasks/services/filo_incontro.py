@@ -162,6 +162,10 @@ def punti_con_filo(meeting: KickoffMeeting, items, *, emersi_data: dict | None =
     emersi_data = emersi_data or emersi(meeting, items)
     collegate = voci_collegate(meeting, items)
     out = []
+    # Attività e tappe lette adesso, non come erano quando il punto è nato.
+    from .odg_vivo import arricchisci
+
+    items = arricchisci(meeting, [dict(i) for i in items if isinstance(i, dict)])
     for item in items:
         if not isinstance(item, dict):
             continue
