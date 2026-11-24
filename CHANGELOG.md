@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: le attività si gestiscono dall'ordine del giorno, nel pannello laterale (24/11)
+
+- Scheda dell'incontro (fase Prima): «Attività» sul punto apre l'attività nel pannello laterale; «+ Attività» crea l'attività già col titolo del punto (per una tappa, col suo tipo) e la lega al punto. File: `django_app/tasks/templates/tasks/_meeting_prima.html`, `tasks/views/task.py`.
+- Form della convocazione: «Apri l'attività» sotto i punti, il pannello si chiude senza ricaricare il form; i punti con titolo e attività aggiornati. File: `tasks/static/tasks/js/meeting_form.js`, `tasks/forms.py`, `tasks/services/odg_vivo.py`, `core/static/core/js/hub-bulk-pannello.js`, `core/templates/core/base.html`.
+- Tappa con collegamento mancante: titolo «… : da collegare». File: `tasks/services/odg_vivo.py`, `_meeting_punto_vivo.html`, `static/tasks/css/tasks.css`.
+- Guide: `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`. Test `tasks/tests_sincronia.py`. Deploy: collectstatic, nessuna migrazione.
+
 ### Assistente AI: «Il tuo brief di oggi» pronto all'alba
 
 - **Brief preparato alle 6:10 dal cluster** per chi lo ha aperto negli ultimi 14 giorni (`ai_assistant/daily_brief_notturno.py`, task `ai_assistant.tasks.run_daily_brief_notturno`, schedule `ai_daily_brief_notturno`). Prima si generava alla prima apertura della home: 20-25 s di Ollama a persona, ogni mattina. Usa gli stessi dati e permessi della persona e va nella stessa cache della pagina. Chi non è in elenco lo genera come prima; ↻ lo rigenera con i dati di adesso.

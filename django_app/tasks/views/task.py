@@ -763,6 +763,41 @@ def _task_create_locked_project(request, projects_qs):
     )
 
 
+def _punto_da_collegare(request, project):
+    """Punto dell'ordine del giorno da cui nasce l'attività (``?incontro=<id>&punto=<item_id>``).
+
+    Dal punto «+ Attività» apre questo form nel pannello laterale: l'attività nasce col titolo
+    del punto (e il tipo della tappa, se il punto è una tappa del Percorso) e al salvataggio il
+    punto la riporta. Solo chi gestisce la commessa, solo un punto ancora senza attività.
+    """
+    from ..models import KickoffMeeting, MeetingAgendaItem, MeetingStatus
+
+    if project is None or not can_manage_project(request, project):
+        return None
+    meeting_id = (request.GET.get("incontro") or "").strip()
+    item_id = (request.GET.get("punto") or "").strip()
+    if not meeting_id.isdigit() or not item_id:
+        return None
+    meeting = KickoffMeeting.objects.filter(pk=int(meeting_id), project=project).exclude(stato=MeetingStatus.ANNULLATO).first()
+    if meeting is None:
+        return None
+    return MeetingAgendaItem.objects.filter(
+        meeting=meeting, item_id=item_id, task__isnull=True, issue__isnull=True, action__isnull=True,
+    ).select_related("meeting").first()
+
+
+def _iniziali_da_punto(punto) -> dict:
+    iniziali = {"title": punto.titolo[:200]}
+    if punto.source.startswith("tappa:"):
+        from ..services.tappe import tipi_per_tappa
+
+        tipo = tipi_per_tappa().get(punto.source[6:])
+        if tipo is not None:
+            # Il titolo della tappa («Macchina: da assegnare») non è un buon titolo d'attività.
+            iniziali = {"title": tipo.name, "category": tipo.pk}
+    return iniziali
+
+
 @task_permissions_required("tasks_view", "tasks_create")
 def task_create(request):
     projects_qs = scoped_projects_queryset(request).order_by("name", "id")
@@ -772,6 +807,7 @@ def task_create(request):
         locked_project is not None
         and Task.objects.filter(project=locked_project).exists()
     )
+    punto = _punto_da_collegare(request, locked_project)
 
     if request.method == "POST":
         form = TaskForm(
@@ -843,6 +879,14 @@ def task_create(request):
             # Collegamenti scelti nel riquadro prima che l'attività esistesse.
             for avviso in applica_dal_form(request, task):
                 messages.warning(request, avviso)
+            if punto is not None and task.project_id == punto.meeting.project_id:
+                from ..models import MeetingAgendaItem
+
+                MeetingAgendaItem.objects.filter(pk=punto.pk, task__isnull=True).update(task=task, task_label=task.title[:200])
+                log_action(request, "kickoff_task_from_agenda_item", "tasks", {
+                    "task_id": task.pk, "item_id": punto.item_id, "meeting_id": punto.meeting_id,
+                    "project_id": task.project_id, "da": "form",
+                })
             if form.reused_existing_project is not None and task.project_id:
                 if form.reused_existing_project_fields:
                     messages.info(
@@ -898,6 +942,8 @@ def task_create(request):
             initial["project_choice"] = locked_project.id
             initial["task_scope"] = "project"
             initial["project_link_mode"] = TaskForm.PROJECT_LINK_EXISTING
+        if punto is not None:
+            initial.update(_iniziali_da_punto(punto))
 
         form = TaskForm(
             user=request.user,

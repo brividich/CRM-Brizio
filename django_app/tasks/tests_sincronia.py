@@ -122,3 +122,44 @@ class ElencoEConduciTests(CollegamentiBase):
         primaria = _primaria_incontro(self.project, m, "", gestisce=True, puo_creare=True, oggi=timezone.localdate())
         self.assertEqual(primaria["label"], "Registra l'esito")
         self.assertEqual(primaria["secondaria"]["label"], "Conduci incontro")
+
+
+class AttivitaDalPuntoTests(CollegamentiBase):
+    """Dal punto dell'ordine del giorno l'attività si crea e si apre nel pannello laterale."""
+
+    def test_form_dal_punto_propone_il_titolo_e_al_salvataggio_lega_il_punto(self):
+        m = self.incontro()
+        MeetingAgendaItem.objects.create(meeting=m, ordine=1, item_id="p1", titolo="Verifica grezzo")
+        url = reverse("tasks:create") + f"?project={self.project.pk}&incontro={m.pk}&punto=p1"
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'value="Verifica grezzo"')
+        dati = {
+            "title": "Verifica grezzo", "task_scope": "project", "project_link_mode": "existing",
+            "project_choice": self.project.pk, "priority": "MEDIUM", "status": "TODO",
+            "next_step_due": "2026-12-01", "due_date": "2026-12-04",
+        }
+        self.client.post(url, dati)
+        punto = MeetingAgendaItem.objects.get(meeting=m, item_id="p1")
+        self.assertIsNotNone(punto.task_id)
+        self.assertEqual(punto.task.title, "Verifica grezzo")
+
+    def test_scheda_prima_ha_i_pulsanti_attivita(self):
+        m = self.incontro()
+        MeetingAgendaItem.objects.create(meeting=m, ordine=1, item_id="a", titolo="Senza attività xyz")
+        MeetingAgendaItem.objects.create(meeting=m, ordine=2, item_id="b", titolo="Altro", task=self.generica)
+        r = self.client.get(reverse("tasks:project_meeting_detail", args=[self.project.pk, m.pk]))
+        self.assertContains(r, f"incontro={m.pk}&amp;punto=a")
+        self.assertContains(r, f'data-preview="{reverse("tasks:detail", args=[self.generica.pk])}"')
+
+    def test_form_convocazione_ha_i_punti_aggiornati(self):
+        from .services.odg_vivo import per_form
+
+        m = self.incontro()
+        MeetingAgendaItem.objects.create(
+            meeting=m, ordine=1, item_id="p1", titolo="Lotto", task=self.generica,
+            custom_fields=[{"label": "Stato", "value": "Da assegnare"}],
+        )
+        punto = per_form(m, m.agenda_items)[0]
+        self.assertNotIn("vivo", punto)
+        self.assertEqual(punto["custom_fields"], [])

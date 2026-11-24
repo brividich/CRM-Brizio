@@ -5358,3 +5358,6 @@ a.md-agenda-task:hover { text-decoration: underline; }
 /* Telefono: le griglie a una colonna della scheda e degli strumenti dell'incontro non si allargano al contenuto. */
 .td-card, .md-strumenti-body { grid-template-columns: minmax(0, 1fr); }
 .odgv-apri { font-size: 12px; }
+/* Ordine del giorno: l'attività del punto si apre nel pannello laterale. */
+.agenda-apri { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--primary-mid); text-decoration: underline; text-underline-offset: 2px; }
+body.theme-dark .agenda-apri { color: var(--accent); }

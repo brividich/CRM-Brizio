@@ -10,6 +10,12 @@ Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, t
 
 ## Dettaglio
 
+### Attività gestite dall'ordine del giorno nel pannello laterale (24/11/2026)
+
+- Scheda dell'incontro, fase Prima (`_meeting_prima.html`): su ogni punto «Attività» (`data-preview` → `tasks:detail`) o, se il punto non ha attività né problema/attività d'incontro e non è trattato, «+ Attività» → `tasks:create?project=&incontro=&punto=`. `views/task._punto_da_collegare` (solo chi gestisce la commessa, punto senza attività, incontro non annullato) propone il titolo del punto (per `tappa:<KEY>` il tipo della tappa e il suo nome) e dopo il salvataggio lega `MeetingAgendaItem.task` (log `kickoff_task_from_agenda_item`, `da=form`). Il pannello alla chiusura ricarica la pagina.
+- Form della convocazione (`meeting_form.js`): «Apri l'attività» sotto i punti con attività, con `data-pannello-senza-ricarica`: `hub-bulk-pannello.js` alla chiusura non ricarica (perderebbe il form) e manda `hubpannello:cambiato`. I punti arrivano da `odg_vivo.per_form` (titolo delle tappe aggiornato, attività agganciate, senza «Stato/Responsabile/Entro il» fotografati).
+- Titolo di una tappa con collegamento mancante: «Attrezzatura: da collegare» (prima «Attrezzatura: manca: attrezzatura»).
+
 ### Ordine del giorno legato alle attività, macchine come operazioni, chiuse sempre visibili (24/11/2026)
 
 - **Ordine del giorno vivo** (`services/odg_vivo.py`, chiamato da `filo_incontro.punti_con_filo`: scheda dell'incontro e conduzione). Ogni punto con `task_id` riceve `vivo` (stato, responsabile, scadenza, macchine come operazioni, altri collegamenti) letto al momento; template `_meeting_punto_vivo.html` incluso da `_meeting_punto_corpo.html`. I campi fotografati alla nascita («Stato», «Responsabile», «Entro il») non si mostrano più. Punti `tappa:<KEY>`: `titolo_vivo` con i codici collegati («Macchine: CNC-744, CNC-901») o lo stato della tappa; senza attività si agganciano alla prima attività della tappa (o, se la tappa non ne ha, a un'attività senza tipo che ha già il collegamento atteso). Un punto scritto a mano con lo stesso titolo (spazi e maiuscole a parte) di un'attività della commessa si aggancia a lei. Solo per incontri `PIANIFICATO`: agganci salvati su `MeetingAgendaItem.task`, punto segnato `done` quando le sue attività sono tutte `DONE` (mai il contrario). Nel riquadro Collegamenti la voce «Incontro» dice il numero del punto (`odg_vivo.numeri_dei_punti`).

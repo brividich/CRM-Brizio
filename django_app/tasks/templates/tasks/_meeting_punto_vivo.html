@@ -21,7 +21,7 @@ e gli altri collegamenti. Contesto: vivo (services/odg_vivo._vivo).
   {% endif %}
   <p class="odgv-riga">
     <span class="ts-chip {{ vivo.tono }}">{{ vivo.stato }}</span>
-    {% if vivo.stesso_titolo %}<a class="odgv-apri" href="{{ vivo.url }}" data-preview="{{ vivo.url }}">Apri l'attività</a>{% endif %}
+    {% if vivo.stesso_titolo and not odg_modificabile %}<a class="odgv-apri" href="{{ vivo.url }}" data-preview="{{ vivo.url }}">Apri l'attività</a>{% endif %}
     <small>{{ vivo.responsabile|default:"Da assegnare" }}{% if vivo.scadenza %} &middot; entro {{ vivo.scadenza|date:"d/m" }}{% endif %}</small>
   </p>
 </div>

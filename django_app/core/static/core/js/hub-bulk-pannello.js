@@ -247,9 +247,13 @@
     drawer.classList.remove("is-open");
     drawer.setAttribute("aria-hidden", "true");
     document.documentElement.classList.remove("soc-drawer-open");
+    // Aperto da un form non ancora salvato (es. la convocazione): niente ricarica, che perderebbe
+    // quello che si sta scrivendo; la pagina riceve l'evento e si aggiorna da sé.
+    var resta = !!(current && current.hasAttribute("data-pannello-senza-ricarica"));
     if (current) { current.classList.remove("is-previewed"); if (current.focus) current.focus(); }
     current = null;
     // Un'azione fatta nel pannello cambia la lista: la si rilegge.
+    if (changed && resta) { changed = false; document.dispatchEvent(new CustomEvent("hubpannello:cambiato")); return; }
     if (changed) window.location.reload();
   }
 
