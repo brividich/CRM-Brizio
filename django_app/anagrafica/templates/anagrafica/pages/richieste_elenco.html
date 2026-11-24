@@ -23,9 +23,11 @@
 
   {% url 'anagrafica:richieste' as u_elenco %}
   <nav class="rq-filtri" aria-label="Filtra per stato">
-    <a href="{{ u_elenco }}"{% if not stato %} class="is-scelto" aria-current="true"{% endif %}>Tutte</a>
-    {% for s in stati %}<a href="{{ u_elenco }}?stato={{ s.chiave }}"{% if stato == s.chiave %} class="is-scelto" aria-current="true"{% endif %}>{{ s.nome }}: {{ s.n }}</a>{% endfor %}
+    <a href="{{ u_elenco }}{% if mansione %}?mansione={{ mansione.pk }}{% endif %}"{% if not stato %} class="is-scelto" aria-current="true"{% endif %}>Tutte</a>
+    {% for s in stati %}<a href="{{ u_elenco }}?stato={{ s.chiave }}{% if mansione %}&amp;mansione={{ mansione.pk }}{% endif %}"{% if stato == s.chiave %} class="is-scelto" aria-current="true"{% endif %}>{{ s.nome }}: {{ s.n }}</a>{% endfor %}
   </nav>
+
+  {% if mansione %}<p class="rq-nota" style="margin:0 0 12px">Mansione: <b>{{ mansione.nome }}</b> · <a href="{{ u_elenco }}">mostra tutte le richieste</a></p>{% endif %}
 
   <section class="es-s-card">
     {% if righe %}{% include "anagrafica/partials/_richieste_righe.html" with righe=righe azione="Apri" stato=1 %}

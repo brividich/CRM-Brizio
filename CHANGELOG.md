@@ -26,6 +26,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - **Promemoria con memoria (P10):** «SLA scaduto» all'assegnatario alla scadenza e poi ogni 3 giorni, non più ogni mattina; ore SLA delle categorie lette dalla cache, non con una query per ticket.
 - File: `tickets/sla.py` (nuovo), `tickets/models.py`, `tickets/migrations/0017_sla_promemoria.py`, `tickets/management/commands/send_sla_reminders.py`, `tickets/views.py`, `tickets/templates/tickets/pages/impostazioni.html`, `tickets/tests_sla_orario.py`; Centro guide Ticket, `docs/moduli/tickets.md`. **Migrazione `tickets 0017`.**
 
+### Anagrafica: «Esplora la struttura» con colonna «Mansioni» spostabile, altre informazioni e pagine collegate
+
+- **Colonna «Mansioni» per ultima o per prima:** «‹ Metti per prima» sull'intestazione porta la colonna davanti e la riempie con tutte le mansioni; scelta una mansione le altre colonne mostrano centro di costo, reparto e ruolo in cui sta. Lo spostamento avviene senza ricaricare la pagina, con una breve animazione; la scelta resta per la sessione e ogni link la porta nell'indirizzo (`?mansioni=prima`).
+- **Sulla mansione:** riquadro «Altre informazioni» («Persone abilitate», «Abilitazione con scadenza», «Richieste aperte») e «Pagine collegate», gli stessi collegamenti della vista completa più «Richieste su questa mansione». L'elenco delle richieste accetta `?mansione=` e mostra solo quelle della mansione.
+- **Tante competenze:** «Competenze richieste dalla mansione» e «Persone con questa mansione» hanno un'altezza massima e scorrono nel riquadro; la pagina non si allunga (provato con 60 competenze).
+- **Riquadri che si dispongono da soli** (`components/_flusso_dinamico.html`): tre colonne, un riquadro largo ne occupa due; ognuno va nel primo posto libero, accanto a una tabella lunga o sotto una tabella corta. Senza script resta una griglia normale; sotto i 1.100 punti una colonna sola.
+- I link che cambiano vista (semplice/completa) e le pagine collegate ricaricano la pagina: prima potevano mostrare per un minuto la vista precedente tenuta in memoria.
+- File: `anagrafica/services/esplora_semplice.py`, `anagrafica/views_esplora.py`, `anagrafica/views_richieste.py`, `anagrafica/templates/anagrafica/partials/_esplora_semplice.html`, `_esplora_completa.html`, `components/_flusso_dinamico.html` (nuovo), `components/_semplice_stili.html`, `pages/esplora_struttura.html`, `pages/richieste_elenco.html`, `anagrafica/tests_esplora_struttura.py`, `anagrafica/tests_richieste.py`, guida in pagina, Centro guide, `docs/moduli/anagrafica.md`.
+
 ### Fix: Mansionario → Struttura → Importa andava in errore 500
 
 - `anagrafica/services/struttura_excel.py`: il catalogo dei processi MOD.128 leggeva un campo `codice` che `ProcessoQualificato` non ha; con almeno un processo in archivio (produzione) ogni anteprima/import del file Struttura dava 500. Il processo si abbina per nome esatto, come dicono le istruzioni del file.

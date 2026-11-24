@@ -248,3 +248,18 @@ class PagineTests(_Scenario):
         struttura = SubnavLinkAnagrafica.objects.get(url_value="anagrafica:esplora_struttura")
         pilastri = set(SubnavLinkAnagrafica.objects.filter(gruppo="Richieste").values_list("categoria_id", flat=True))
         self.assertEqual(pilastri, {struttura.categoria_id})
+
+
+class FiltroMansioneTests(_Scenario):
+    def test_elenco_di_una_sola_mansione(self):
+        sua = self._ram()
+        altra = self._ram(mansione_id=self.fresa.pk, livello="O")
+        self.client.force_login(self.hr.user)
+        with mock.patch("anagrafica.views_richieste.svc.attore", return_value=self.hr):
+            r = self.client.get(reverse("anagrafica:richieste"), {"mansione": self.torno.pk})
+            tutte = self.client.get(reverse("anagrafica:richieste"))
+            ignoto = self.client.get(reverse("anagrafica:richieste"), {"mansione": "abc"})
+        self.assertEqual([x["richiesta"] for x in r.context["righe"]], [sua])
+        self.assertContains(r, "mostra tutte le richieste")
+        self.assertEqual({x["richiesta"] for x in tutte.context["righe"]}, {sua, altra})
+        self.assertEqual(len(ignoto.context["righe"]), 2)

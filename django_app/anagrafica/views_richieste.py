@@ -64,13 +64,19 @@ def elenco(request):
     a = svc.attore(request)
     stato = request.GET.get("stato") or ""
     qs = svc.visibili(a)
+    # Le richieste di una sola mansione: ci si arriva da «Esplora la struttura».
+    from .models import CompetenzaSkm
+
+    mansione = CompetenzaSkm.objects.filter(pk=_int(request.GET.get("mansione"))).first()
+    if mansione is not None:
+        qs = qs.filter(mansione=mansione)
     conteggi = {chiave: qs.filter(stato=chiave).count() for chiave, _ in R.STATO_CHOICES}
     if stato in dict(R.STATO_CHOICES):
         qs = qs.filter(stato=stato)
     else:
         stato = ""
     return render(request, "anagrafica/pages/richieste_elenco.html", {
-        "righe": svc.righe(qs[:300]), "stato": stato,
+        "righe": svc.righe(qs[:300]), "stato": stato, "mansione": mansione,
         "stati": [{"chiave": c, "nome": n, "n": conteggi[c]} for c, n in R.STATO_CHOICES],
         "puo_chiedere": bool(svc.tipi_ammessi(a)),
     })
