@@ -42,6 +42,30 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 - **Approvatore unico per periodo e per permesso ripetuto** (`django_app/assenze/views/_helpers.py`, `django_app/assenze/views/richieste.py`, `django_app/assenze/serie.py`, `django_app/assenze/templates/assenze/partials/_richiesta_campo_capo.html`, `django_app/assenze/templates/assenze/pages/impostazioni.html`, `django_app/core/guide_moduli/contenuti/assenze.py`, `docs/moduli/assenze.md`, test in `assenze/tests.py`, `assenze/tests_hr.py`, `assenze/test_sharepoint_sync.py`). La richiesta passa al superiore del caporeparto solo se il capo è assente in tutti i giorni richiesti (lun-ven fra inizio e fine; nel permesso ripetuto i giorni della serie). Prima bastava l'assenza nel primo giorno: un permesso ripetuto con il capo in ferie solo il primo giorno mandava l'unica mail di approvazione al superiore, che decideva anche per i giorni assegnati al capo. Ora la serie ha un solo capo, e solleciti, Outlook e SharePoint usano la stessa regola. Nessuna migrazione.
 
+### Prestazioni: pagine lente di Asset, SOC e Anagrafica (misurate sui dati di produzione)
+
+- **Calcoli ripetuti nella stessa pagina, una volta sola** (`core/memo_richiesta.py`, decoratore `per_richiesta`, attivo solo nelle richieste GET aperte da `ACLMiddleware`). Applicato a:
+  - SOC: `triage_tempi.riepilogo`, `iso_incidenti.riepilogo`, `cve_gestione.correzioni_valide`, `cve_sla.riepilogo` / `esposizioni_aperte`, `pc_copertura.righe`, `battito.stato`, `backup_center.overview`;
+  - Asset: `responsabile_asset.persone_per_reparto`.
+  Il report ISO 27001 scende da 7,5 a 3,9 s.
+- **SOC:**
+  - «Vulnerabilità»: i riquadri «Tempi di correzione» e «Ciclo di chiusura» restano in cache 120 s (`SOC_STATISTICHE_CACHE_SECONDS`; prima 4 s, ora 1,5 s);
+  - dettaglio CVE: i nomi dei prodotti in minuscolo si calcolano una volta (`cve_impact`; erano 1,6 milioni di chiamate; da 2,1 a 1,4 s);
+  - conversione del giorno locale in cache (`cve_sla._giorno`, `patch_sla._giorno`).
+- **Asset:**
+  - Riconciliazione dispositivi: Intune non si rilegge più per i PC che non lo hanno (`hardware_vita.valuta`, segnaposto `_DA_LEGGERE`);
+  - «Da fare»: categoria precaricata nella tendina dei piani (da 81 a 28 query, 0,65 s);
+  - Scadenze amministrative: completamenti letti in un colpo (`_deadline_completion_rows_batch`; da 113 a 20 query, 0,42 s);
+  - Quadro manutenzione, utente normale: da 3,5 a 1,1 s;
+  - Rack di rete: `rack` incluso negli switch fuori rack (da 1,8 a 0,53 s);
+  - Copertura piani: link delle celle costruiti nella view invece di circa 43.000 `{% url %}` nel template (da 3,7 a 1,2 s);
+  - piani delle scadenze con la categoria precaricata (`_OCCURRENCE_SELECT`).
+- **Anagrafica:**
+  - Revisioni della struttura: competenze di tutte le mansioni in una lettura (da 279 a 28 query, da 2,2 a 0,58 s);
+  - organigramma (diagramma e albero): titolari dei ruoli in una lettura (da 88 a 28 query);
+  - Impostazioni: reparto precaricato nelle aree aziendali (da 106 a 58 query).
+- File: `core/memo_richiesta.py` (nuovo), `security/services/{triage_tempi,iso_incidenti,cve_gestione,cve_sla,pc_copertura,battito,cve_impact,patch_sla,backup_center}.py`, `security/views_vuln.py`, `assets/services/{hardware_vita,responsabile_asset,rete_switch}.py`, `assets/views_maintenance.py`, `assets/forms_maintenance.py`, `assets/views/deadlines.py`, `assets/templates/assets/pages/maintenance_coverage.html`, `anagrafica/services/{struttura_revisioni,organigramma_albero}.py`, `anagrafica/views/configurazione.py`, `config/settings/base.py`, `config/settings/test.py`.
+
 ### Asset: cartelle documento della categoria scelte per singolo asset (24/11)
 
 - **«Togli da questo asset»** su una cartella di categoria vuota: sparisce solo da quella scheda. «Cartelle della categoria non usate qui» → «Aggiungi a questo asset» la rimette. Il pulsante per tutta la categoria ora si chiama «Disattiva per tutta la categoria».

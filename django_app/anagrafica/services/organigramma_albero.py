@@ -17,7 +17,6 @@ comincia da lui.
 from __future__ import annotations
 
 from anagrafica.models import RuoloOperativo
-from core.operational_roles import get_anagrafica_ids_for_role
 
 from core import naming
 
@@ -91,10 +90,15 @@ def build_ruolo_albero(ambito_id: int | None = None) -> list[dict]:
     # resta a storico, ma nell'organigramma la casella e' vuota (o la tiene solo
     # chi e' ancora in forza).
     cessati = cessati_legacy_ids()
-    titolari_ids: dict[int, list[int]] = {
-        r.id: [lid for lid in get_anagrafica_ids_for_role(r.id) if int(lid or 0) not in cessati]
-        for r in ruoli
-    }
+    # Titolari di tutti i ruoli in una lettura (prima una query per ruolo, ~60 nel diagramma),
+    # stesso ordine di ``get_anagrafica_ids_for_role``.
+    from core.operational_roles import _assegnazioni_in_corso
+
+    titolari_ids: dict[int, list[int]] = {r.id: [] for r in ruoli}
+    for ruolo_id, lid in (_assegnazioni_in_corso().filter(ruolo_id__in=list(titolari_ids))
+                          .values_list("ruolo_id", "legacy_anagrafica_id")):
+        if int(lid or 0) not in cessati:
+            titolari_ids.setdefault(ruolo_id, []).append(lid)
     tutti_ids = {lid for ids in titolari_ids.values() for lid in ids}
     nomi = _nome_map(tutti_ids)
 
