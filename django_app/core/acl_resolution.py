@@ -260,28 +260,43 @@ def _explain(decision, *, person: str, role_name: str, portal_role_id: int | Non
     )
 
 
-def describe_access(*, legacy_user, permission_code: str) -> dict:
+def describe_access(*, legacy_user, permission_code: str, permessi: dict | None = None, memo: dict | None = None) -> dict:
     """Lo stato di un permesso per una persona, pronto per essere mostrato.
 
     Ricalcola dal resolver, cosi' quello che si vede e' lo stato di *adesso*,
     non quello del momento in cui il 403 e' stato registrato.
+
+    Chi descrive molte righe (elenco accessi negati) passa ``permessi`` (code ->
+    PermissionDefinition già letti) e un ``memo`` condiviso: ruolo della persona e
+    sistema ruoli si calcolano una volta per persona invece che a ogni riga.
     """
     code = str(permission_code or "").strip()
+    memo = memo if memo is not None else {}
     permission = None
-    try:
-        permission = PermissionDefinition.objects.filter(code=code).first() if code else None
-    except DatabaseError:
-        permission = None
+    if permessi is not None:
+        permission = permessi.get(code)
+    else:
+        try:
+            permission = PermissionDefinition.objects.filter(code=code).first() if code else None
+        except DatabaseError:
+            permission = None
     person = str(getattr(legacy_user, "nome", "") or "").strip() or "questa persona"
-    portale = _sistema_ruoli_attivo()
-    if portale:
-        role = _portal_role_info(getattr(legacy_user, "id", None))
+    if "portale" not in memo:
+        memo["portale"] = _sistema_ruoli_attivo()
+    portale = memo["portale"]
+    uid = getattr(legacy_user, "id", None)
+    chiave_ruolo = ("ruolo", portale, uid, getattr(legacy_user, "ruolo_id", None))
+    if chiave_ruolo in memo:
+        role = memo[chiave_ruolo]
+    elif portale:
+        role = _portal_role_info(uid)
         from core.permessi.ruolo_azienda import ruoli_in_azienda
 
-        uid = getattr(legacy_user, "id", None)
         role = {**role, "ruolo_azienda": ruoli_in_azienda([uid]).get(int(uid), "") if uid else ""}
+        memo[chiave_ruolo] = role
     else:
         role = _role_info(getattr(legacy_user, "ruolo_id", None))
+        memo[chiave_ruolo] = role
 
     decision = None
     if permission is not None and legacy_user is not None:

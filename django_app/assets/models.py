@@ -4844,7 +4844,14 @@ class MaintenanceOccurrence(models.Model):
     @property
     def is_external(self) -> bool:
         if self.assignment_id and self.assignment:
-            return self.assignment.effective_execution_mode == "EXTERNAL"
+            assegnazione = self.assignment
+            if assegnazione.execution_mode:
+                return assegnazione.execution_mode == "EXTERNAL"
+            if assegnazione.plan_id == self.plan_id:
+                # Stesso piano della scadenza, già caricato: prima ``assignment.plan``
+                # costava una query per scadenza (quadro manutenzione: ~300 per pagina).
+                return getattr(self.plan, "execution_mode", "INTERNAL") == "EXTERNAL"
+            return assegnazione.effective_execution_mode == "EXTERNAL"
         return getattr(self.plan, "execution_mode", "") == "EXTERNAL"
 
     @property

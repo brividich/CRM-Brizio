@@ -59,7 +59,7 @@ def _dominio(esito: str, dettagli: list[str]) -> dict[str, Any]:
     return {"esito": esito, "dettagli": dettagli}
 
 
-def _persone(legacy_ids: list[int], mansioni_per_legacy: dict[int, str] | None = None):
+def _persone(legacy_ids: list[int], mansioni_per_legacy: dict[int, str] | None = None, ctx=None):
     """(contesto, ``{id richiesto: Dipendente}``) dal motore unico.
 
     Gli id richiesti vengono ricondotti alla persona (anagrafiche doppie). Con
@@ -72,7 +72,9 @@ def _persone(legacy_ids: list[int], mansioni_per_legacy: dict[int, str] | None =
 
     from . import requisiti
 
-    ctx = requisiti.ambito()
+    # ``ctx`` condiviso fra i domini dello stesso calcolo: il contesto tiene in cache
+    # l'elenco dei dipendenti, prima ricaricato per formazione, qualifiche e idoneità.
+    ctx = ctx or requisiti.ambito()
     tutti = {d.id: d for d in ctx._tutti()}
     out = {}
     for lid in legacy_ids:
@@ -198,13 +200,13 @@ def _visite_batch(legacy_ids: list[int], include_dettaglio: bool,
     return out
 
 
-def _qualifiche_batch(legacy_ids: list[int]) -> dict[int, dict[str, Any]]:
+def _qualifiche_batch(legacy_ids: list[int], ctx=None) -> dict[int, dict[str, Any]]:
     """Qualifica corrente per persona e tipo: una qualifica rinnovata non lascia la vecchia «scaduta»."""
     from . import requisiti
 
     oggi = timezone.localdate()
     soglia = oggi + timedelta(days=SOGLIA_WARN_GIORNI)
-    ctx, richiesti = _persone(legacy_ids)
+    ctx, richiesti = _persone(legacy_ids, ctx=ctx)
     persone = {p.id: p for p in richiesti.values()}
     correnti, _sostituite = requisiti.qualifiche_correnti(ctx, DipendenteQualifica.objects.all(), persone)
     per_pid: dict[int, list] = {}
@@ -421,7 +423,7 @@ def stato_conformita_batch(
     ctx, richiesti = _persone(legacy_ids)
     formazione = _formazione_batch(legacy_ids, _voci_formazione(ctx, richiesti))
     visite = _visite_batch(legacy_ids, include_visite_dettaglio, _voci_visite(ctx, richiesti))
-    qualifiche = _qualifiche_batch(legacy_ids)
+    qualifiche = _qualifiche_batch(legacy_ids, ctx=ctx)
     dpi = _dpi_batch(legacy_ids)
     idoneita = (
         _idoneita_batch(
