@@ -124,9 +124,9 @@ def asset_document_qr_download(request: HttpRequest, public_qr_token: str, docum
     """Download di un documento asset tramite il token QR stampato sulla macchina.
 
     Il token e' la chiave d'accesso: i file NON sono raggiungibili via /media/
-    (deny IIS su media/assets_documents). Nessun filtro di categoria — dal QR si
-    vedono tutti i documenti dell'asset — ma il documento deve appartenere
-    esattamente all'asset di quel token: nessun accesso cross-asset.
+    (deny IIS su media/assets_documents). Il documento deve appartenere esattamente
+    all'asset di quel token e stare in una cartella resa pubblica dal pannello QR
+    (di base solo «Manuali», audit P3).
     """
     token = _clean_string(public_qr_token)
     if not token:
@@ -135,7 +135,11 @@ def asset_document_qr_download(request: HttpRequest, public_qr_token: str, docum
     if asset is None:
         raise Http404("Link non disponibile.")
 
-    document = AssetDocument.objects.filter(pk=document_id, asset_id=asset.id).first()
+    from ..services.asset_qr import contenuti_pubblici
+
+    document = AssetDocument.objects.filter(
+        pk=document_id, asset_id=asset.id, category__in=contenuti_pubblici(asset)[0]
+    ).first()
     if document is None:
         # Documento inesistente o di un altro asset: stessa risposta, nessun oracolo.
         log_action(

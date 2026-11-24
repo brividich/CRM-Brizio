@@ -94,6 +94,15 @@ class AssetDocumentQrAccessTests(_MediaRootMixin, TestCase):
             AuditLog.objects.filter(azione="download_asset_document_qr", modulo="assets").exists()
         )
 
+    def test_cartella_non_pubblica_non_si_scarica(self):
+        # Audit P3: dal QR pubblico solo le cartelle scelte (di base «Manuali»).
+        from assets.services.asset_qr import salva_contenuti_pubblici
+
+        url = self._qr_url(self.other_asset.public_qr_token, self.other_document.id)
+        self.assertEqual(self.client.get(url).status_code, 404)  # Specifiche: non pubblica di base
+        salva_contenuti_pubblici(self.other_asset, ["SPECIFICHE"], False)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
     def test_token_di_un_asset_non_scarica_i_documenti_di_un_altro(self):
         response = self.client.get(self._qr_url(self.asset.public_qr_token, self.other_document.id))
 

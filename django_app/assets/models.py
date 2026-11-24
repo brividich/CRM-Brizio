@@ -2414,6 +2414,28 @@ class AssetDocumentFolder(models.Model):
         return f"AssetDocumentFolder<{self.asset_id}:{self.slug}>"
 
 
+class AssetQrPubblico(models.Model):
+    """Cosa mostra il link pubblico del QR di un asset (audit P3, 23/11/2026).
+
+    Senza riga valgono i valori di base: solo la cartella «Manuali» e nessun
+    caricamento di file dal QR. Tabella a parte per non toccare quella degli asset.
+    """
+
+    CARTELLE_DEFAULT = ["MANUALI"]
+
+    asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="qr_pubblico")
+    cartelle = models.JSONField(default=list, blank=True)  # codici AssetDocument.category visibili
+    caricamento_file = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Contenuti del QR pubblico"
+        verbose_name_plural = "Contenuti del QR pubblico"
+
+    def __str__(self) -> str:
+        return f"AssetQrPubblico<{self.asset_id}>"
+
+
 class AssetTimelineEntry(models.Model):
     """Voce inserita a mano nella timeline di vita di un asset.
 
