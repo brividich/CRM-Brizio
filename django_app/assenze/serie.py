@@ -38,6 +38,31 @@ def _ids_serie(capofila_id: int) -> list[int]:
     )
 
 
+def giorni_di(assenza_id) -> list[date]:
+    """Giorni della serie a cui appartiene ``assenza_id`` (capofila o no); [] se non è in una serie.
+
+    Il caporeparto della serie è uno solo: si decide guardando tutti i giorni.
+    """
+    from .models import AssenzaSerie
+
+    try:
+        aid = int(assenza_id)
+        capofila = AssenzaSerie.objects.filter(assenza_id=aid).values_list("capofila_id", flat=True).first()
+        if not capofila:
+            return []
+        ids = _ids_serie(capofila)
+        if len(ids) < 2:
+            return []
+        from .views import _helpers
+
+        segnaposti = ", ".join(["%s"] * len(ids))
+        righe = _helpers._fetch_all_dict(f"SELECT data_inizio FROM assenze WHERE id IN ({segnaposti})", ids)
+    except Exception:
+        logger.warning("assenze.serie: giorni della serie di %s non letti", assenza_id, exc_info=True)
+        return []
+    return sorted({d.date() for d in (_dt(r.get("data_inizio")) for r in righe) if d})
+
+
 def _dt(value) -> datetime | None:
     if isinstance(value, datetime):
         return value

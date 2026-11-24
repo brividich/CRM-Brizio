@@ -15,10 +15,10 @@ sul capo ASSEGNATO; gli abilitati scelgono e il server accetta solo capi in elen
     {% endfor %}
   </select>
   {% if assenze_can_choose_capo %}
-    <div class="abs-field-hint" id="caporeparto-hint">Proposto dall'organigramma (se il capo sei tu, è chi ti sta sopra). Se ne scegli un altro, la richiesta la vede e la approva solo lui; se resta quello proposto ed è assente quel giorno, l'approvazione passa al suo superiore.</div>
+    <div class="abs-field-hint" id="caporeparto-hint">Proposto dall'organigramma (se il capo sei tu, è chi ti sta sopra). Se ne scegli un altro, la richiesta la vede e la approva solo lui; se resta quello proposto ed è assente in tutti i giorni richiesti, l'approvazione passa al suo superiore.</div>
   {% elif not capo_bloccato %}
     <div class="abs-field-hint" id="caporeparto-hint">Non risulta un capo assegnato: scegli a chi inviare la richiesta.</div>
   {% else %}
-    <div class="abs-field-hint" id="caporeparto-hint">Assegnato dall'area aziendale del dipendente. Se è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
+    <div class="abs-field-hint" id="caporeparto-hint">Assegnato dall'area aziendale del dipendente. Se è assente in tutti i giorni della richiesta, l'approvazione passa al suo superiore.</div>
   {% endif %}
 </div>

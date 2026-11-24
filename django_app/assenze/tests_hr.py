@@ -670,6 +670,17 @@ class PermessoRipetutoTests(TestCase):
         # Il flag che spegne i trigger si accende e spegne attorno al solo secondo insert.
         self.assertEqual([c.args[0] for c in skip.call_args_list], [True, False])
 
+    def test_un_solo_approvatore_deciso_su_tutti_i_giorni(self, *_mocks):
+        from datetime import date
+
+        with patch("assenze.views.richieste._insert_assenza", side_effect=[101, 102, 103]),                 patch("assenze.hr.avvisi_richiesta", return_value=[]),                 patch("assenze.views._helpers._effective_capo_option", return_value=("", False)) as eff:
+            self._invia(ripeti_fino_al="2026-11-02")
+        # Il caporeparto si risolve una volta sola, guardando tutti i giorni della serie.
+        eff.assert_called_once()
+        self.assertEqual(
+            eff.call_args.kwargs["request_days"], [date(2026, 10, 29), date(2026, 10, 30), date(2026, 11, 2)]
+        )
+
     def test_senza_ripeti_una_sola_richiesta(self, *_mocks):
         with patch("assenze.views.richieste._insert_assenza", return_value=101) as ins, \
                 patch("assenze.hr.avvisi_richiesta", return_value=[]):
@@ -693,6 +704,16 @@ class SerieMailTests(TestCase):
             {"id": 201, "data_inizio": datetime(2026, 10, 29, 8), "data_fine": datetime(2026, 10, 29, 10)},
             {"id": 203, "data_inizio": datetime(2026, 11, 2, 8), "data_fine": datetime(2026, 11, 2, 10)},
         ]
+
+    def test_giorni_di_vale_per_ogni_giorno_della_serie(self):
+        from datetime import date
+        from . import serie
+
+        with patch("assenze.views._helpers._fetch_all_dict", return_value=self.righe):
+            attesi = [date(2026, 10, 29), date(2026, 10, 30), date(2026, 11, 2)]
+            self.assertEqual(serie.giorni_di(201), attesi)
+            self.assertEqual(serie.giorni_di(203), attesi)
+        self.assertEqual(serie.giorni_di(999), [])
 
     def test_mail_della_capofila_dice_dal_al(self):
         from . import serie

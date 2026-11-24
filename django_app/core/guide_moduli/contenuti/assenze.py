@@ -364,7 +364,7 @@ GUIDA = {
             "sintomo": "Non riesco a cambiare il capo reparto nella richiesta",
             "perche": "in Impostazioni → «Cambio capo reparto» c'è un elenco di persone abilitate e tu non ci sei.",
             "fare": [
-                "Invia la richiesta al capo assegnato: se è assente quel giorno, l'approvazione passa al suo superiore.",
+                "Invia la richiesta al capo assegnato: passa al suo superiore solo se il capo è assente in tutti i giorni richiesti. Un permesso ripetuto ha un solo approvatore per tutti i giorni.",
                 "Chi amministra il modulo può aggiungerti in Impostazioni → «Cambio capo reparto» (serve un utente collegato all'anagrafica).",
             ],
         },

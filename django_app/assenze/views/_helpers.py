@@ -1549,8 +1549,11 @@ def _sp_lookup_maps() -> dict:
 def _capo_email_for_row(row: dict) -> str:
     """Email del capo che approva la richiesta, con la stessa regola del form (area aziendale)."""
     capi = _load_capi_options()
-    dt_start = row.get("data_inizio")
-    request_day = dt_start.date() if isinstance(dt_start, datetime) else timezone.localdate()
+    # Stessi giorni del form: tutto il periodo, o tutta la serie se è un permesso
+    # ripetuto (un solo approvatore per la serie).
+    from .. import serie
+
+    request_days = serie.giorni_di(row.get("id")) or _giorni_periodo(row.get("data_inizio"), row.get("data_fine"))
     option = ""
     try:
         option, _escalated = _effective_capo_option(
@@ -1559,7 +1562,7 @@ def _capo_email_for_row(row: dict) -> str:
             username=str(row.get("aliasusername") or ""),
             legacy_user_id=_as_int(row.get("utente_id")),
             capi=capi,
-            request_day=request_day,
+            request_days=request_days,
         )
     except Exception:
         logger.warning("[assenze:sp_push] assenza %s: capo non risolto", row.get("id"), exc_info=True)
@@ -3560,24 +3563,49 @@ def _superior_capo_option(capo_anagrafica_id: int | None, capi: list[dict]) -> s
     return ""
 
 
+def _giorni_periodo(dt_start, dt_end, limite: int = 31) -> list:
+    """Giorni da lunedì a venerdì fra inizio e fine (il primo giorno conta sempre).
+
+    Serve a decidere se il caporeparto è assente per TUTTO il periodo di una
+    richiesta su più giorni. Oltre ``limite`` giorni si guarda solo il primo.
+    """
+    def _d(v):
+        return v.date() if isinstance(v, datetime) else v
+
+    inizio, fine = _d(dt_start), _d(dt_end)
+    if inizio is None:
+        return [timezone.localdate()]
+    if fine is None or fine <= inizio or (fine - inizio).days > limite:
+        return [inizio]
+    giorni = [inizio]
+    g = inizio + timedelta(days=1)
+    while g <= fine:
+        if g.weekday() < 5:
+            giorni.append(g)
+        g += timedelta(days=1)
+    return giorni
+
+
 def _effective_capo_option(
     *, name: str, email: str, username: str, legacy_user_id: int | None,
-    capi: list[dict], request_day,
+    capi: list[dict], request_day=None, request_days=None,
 ) -> tuple[str, bool]:
     """Caporeparto autoritativo per la richiesta: ``(option, escalated)``.
 
     Risolve il caporeparto ASSEGNATO al dipendente e, **se e solo se** quel
-    caporeparto risulta assente (assenza approvata) nel giorno della richiesta,
-    lo sostituisce col superiore. Fail-safe: in caso di dubbio ritorna il
-    caporeparto assegnato senza escalation.
+    caporeparto risulta assente (assenza approvata) in TUTTI i giorni della
+    richiesta (``request_days``, o il solo ``request_day``), lo sostituisce col
+    superiore: se il capo c'è anche un solo giorno, approva lui. Fail-safe: in
+    caso di dubbio ritorna il caporeparto assegnato senza escalation.
     """
+    giorni = [g for g in (request_days or [request_day]) if g is not None]
     base = _resolve_default_capo_for_user(
         name=name, email=email, username=username, capi=capi, legacy_user_id=legacy_user_id,
     )
     if not base:
         return "", False
     capo = _find_capo_dict_for_option(base, capi)
-    if capo is None or not _capo_absent_on(capo, request_day):
+    if capo is None or not giorni or not all(_capo_absent_on(capo, g) for g in giorni):
         return base, False
     sup = _superior_capo_option(_as_int(capo.get("AnagraficaLegacyId")), capi)
     return (sup, True) if sup else (base, False)
