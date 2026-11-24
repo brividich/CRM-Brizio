@@ -17,6 +17,7 @@ from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
@@ -370,11 +371,43 @@ def struttura_revisioni(request):
             messages.success(request, f"Emessa la Rev. {nuova.numero} della struttura.")
             return redirect("anagrafica:struttura_revisione", numero=nuova.numero)
     ultima = rev.ultima()
+    modifiche = rev.confronto(ultima.dati if ultima else {}, rev.fotografia())
+    n_modifiche = sum(len(s["aggiunte"]) + len(s["tolte"]) + len(s["cambiate"]) for s in modifiche)
+    if not ultima:
+        stato = {"nome": "Nessuna revisione emessa", "tono": "warning"}
+    elif n_modifiche:
+        stato = {"nome": "Bozza diversa dalla revisione", "tono": "warning"}
+    else:
+        stato = {"nome": "Bozza uguale alla revisione", "tono": "ok"}
+    campi = [
+        ("Revisione in vigore", f"Rev. {ultima.numero}" if ultima else "Nessuna"),
+        ("Emessa il", timezone.localtime(ultima.emessa_il).strftime("%d/%m/%Y") if ultima else "—"),
+        ("Emessa da", (ultima.emessa_da_nome or "—") if ultima else "—"),
+        ("Modifiche non emesse", str(n_modifiche)),
+        ("Chi può emettere", "Solo chi ha il ruolo MSM"),
+    ]
+    url_struttura = reverse("anagrafica:struttura_org")
+    da_completare = [{"titolo": x["titolo"], "n": len(x["voci"]), "url": f"{url_struttura}#completare"}
+                     for x in vista.da_completare()]
+    collegate = [
+        {"nome": "Struttura organizzativa", "spiega": "La bozza viva: reparti, processi, ruoli", "url": url_struttura},
+        {"nome": "Rischi da confermare", "spiega": "Mansioni di rischio proposte", "url": reverse("anagrafica:struttura_rischi")},
+        {"nome": "Reparti e capi", "spiega": "Ruolo responsabile di ogni reparto", "url": reverse("anagrafica:aree_list")},
+        {"nome": "Mansioni", "spiega": "Competenze richieste da ogni mansione", "url": reverse("anagrafica:mansionario")},
+    ]
+    if ultima:
+        collegate.append({"nome": f"Scarica la Rev. {ultima.numero}", "spiega": "La revisione in vigore, in PDF",
+                          "url": reverse("anagrafica:struttura_revisione_pdf", args=[ultima.numero])})
     return render(request, "anagrafica/pages/struttura_revisioni.html", {
-        "page_title": "Revisioni della struttura",
+        "page_title": "Struttura e revisioni",
         "revisioni": StrutturaRevisione.objects.all(),
         "ultima": ultima,
-        "modifiche": rev.confronto(ultima.dati if ultima else {}, rev.fotografia()),
+        "modifiche": modifiche,
+        "n_modifiche": n_modifiche,
+        "stato": stato,
+        "campi": campi,
+        "da_completare": da_completare,
+        "collegate": collegate,
         "puo_emettere": puo,
     })
 

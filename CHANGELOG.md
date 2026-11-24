@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: «Struttura e revisioni»
+
+- **Revisioni della struttura** (`/anagrafica/struttura/revisioni/`) diventa «Struttura e revisioni»: in alto i dati etichettati della revisione in vigore (revisione, emessa il, da, modifiche non emesse, chi può emettere, stato); poi modifiche non emesse con il modulo «Emetti» (solo MSM, raggiungibile dal pulsante in alto), «Da completare prima di emettere» (da `struttura_vista.da_completare`, con il numero e il link alla struttura), «Pagine collegate» (struttura, rischi da confermare, reparti e capi, mansioni, PDF della revisione in vigore) e revisioni emesse. Riquadri che si dispongono da soli. Emissione e permessi invariati.
+- File: `anagrafica/views_struttura_org.py`, `pages/struttura_revisioni.html`, `tests_struttura_v8.py`, Centro guide.
+
 ### Anagrafica: «Prova un cambiamento» (prospetto dei cambiamenti)
 
 - **Elenco** (`/anagrafica/struttura/prospetto/`): una tabella sola «Prova / Stato / Cambiamenti / Preparata da / Aggiornata» al posto dei due pannelli; la riga scelta mostra a destra «Prova scelta» con «Apri la prova», «Vai al confronto» e le pagine collegate (`?prova=`); «Come funziona» con i tre passi; «Nuova prova» in finestra.

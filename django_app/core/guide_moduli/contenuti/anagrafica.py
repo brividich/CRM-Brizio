@@ -1148,6 +1148,13 @@ GUIDA = {
                       "ruolo MSM (Management System Manager) apre «Revisioni», legge le modifiche rispetto alla revisione "
                       "in vigore, scrive il motivo e preme «Emetti la Rev. N». Nessun altro può emetterla, nemmeno "
                       "l'amministratore del portale. Se non è cambiato niente il portale non emette."),
+                ("p", "La pagina si chiama «Struttura e revisioni». In alto i dati della revisione in vigore: «Revisione in "
+                      "vigore», «Emessa il», «Emessa da», «Modifiche non emesse», «Chi può emettere» e «Stato» («Nessuna "
+                      "revisione emessa», «Bozza diversa dalla revisione», «Bozza uguale alla revisione»). Sotto: le "
+                      "modifiche non ancora emesse con il modulo per emettere (solo MSM; il pulsante «Emetti la "
+                      "revisione» in alto porta lì), «Da completare prima di emettere» con il numero di voci e il link "
+                      "alla struttura, le «Pagine collegate» (anche il PDF della revisione in vigore) e l'elenco delle "
+                      "revisioni emesse."),
                 ("p", "Ogni revisione è una fotografia non modificabile: processi, reparti, aree, ruoli, mansioni con "
                       "competenze richieste e mansioni di rischio. Non contiene nominativi né livelli delle persone. "
                       "Dalla revisione: confronto con un'altra («Confronta con») e «Scarica PDF», il mansionario "
