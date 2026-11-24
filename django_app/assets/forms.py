@@ -369,6 +369,13 @@ class AssetCategoryFieldMixin:
 
 class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.ModelForm):
     asset_tag = forms.CharField(required=False)
+    usa_cartelle_categoria = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Usa le cartelle documento della categoria",
+        help_text="Togli la spunta se a questo asset bastano le 3 cartelle di base e le sue: "
+        "le cartelle della categoria si aggiungono poi una per una dai Documenti.",
+    )
     network_ip = forms.CharField(required=False, label="IP", max_length=80)
     network_switch_name = forms.CharField(required=False, label="Switch", max_length=120)
     network_switch_port = forms.CharField(required=False, label="Porta SW", max_length=120)
@@ -524,6 +531,11 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         for native_field in ("purchase_date", "production_date"):
             if getattr(instance, native_field, None):
                 next_extra.pop(native_field, None)
+        from .services import cartelle_asset
+
+        sc = cartelle_asset.scelte(instance) if instance.pk else cartelle_asset.scelte(None)
+        sc["senza_categoria"] = not self.cleaned_data.get("usa_cartelle_categoria", True)
+        next_extra = cartelle_asset.con_scelte(next_extra, sc)
         instance.extra_columns = next_extra
         self._apply_assignment_chooser(instance)
         if commit:
@@ -571,6 +583,10 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             else {}
         )
         self._setup_category_fields(work_machine_only=False)
+        if self.instance and self.instance.pk:
+            from .services.cartelle_asset import scelte as _scelte_cartelle
+
+            self.fields["usa_cartelle_categoria"].initial = not _scelte_cartelle(self.instance)["senza_categoria"]
         self.it_network_category_ids: list[int] = []
         it_network_types = {
             Asset.TYPE_PC, Asset.TYPE_NOTEBOOK, Asset.TYPE_SERVER, Asset.TYPE_VM,

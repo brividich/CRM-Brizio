@@ -1129,9 +1129,17 @@ def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
                 "scope": "base",
             }
         )
+    from ..services import cartelle_asset
+
+    has_pk = asset is not None and getattr(asset, "pk", None)
+    usate = set(asset.documents.values_list("category", flat=True)) if has_pk else set()
+    sc = cartelle_asset.scelte(asset) if asset is not None else cartelle_asset.scelte(None)
     category = getattr(asset, "asset_category", None)
     if category is not None:
         for folder in category.document_folders.filter(is_active=True):
+            usata = folder.slug in usate
+            if not cartelle_asset.visibile(folder, sc, usata):
+                continue
             specs.append(
                 {
                     "code": folder.slug,
@@ -1140,9 +1148,11 @@ def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
                     "removable": True,
                     "folder_id": folder.id,
                     "scope": "category",
+                    # «Togli da questo asset»: solo se vuota (i file non spariscono mai).
+                    "togli": not usata,
                 }
             )
-    if asset is not None and getattr(asset, "pk", None):
+    if has_pk:
         codes = {spec["code"] for spec in specs}
         for folder in asset.document_folders.filter(is_active=True):
             if folder.slug in codes:
@@ -1161,9 +1171,7 @@ def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
         # più (tipicamente dopo un cambio di categoria). Restano visibili con il
         # loro nome originale invece di sparire dalla scheda.
         codes = {spec["code"] for spec in specs}
-        orphan_codes = sorted(
-            {code for code in asset.documents.values_list("category", flat=True) if code and code not in codes}
-        )
+        orphan_codes = sorted({code for code in usate if code and code not in codes})
         if orphan_codes:
             names: dict[str, str] = {}
             for slug, name in AssetCategoryDocumentFolder.objects.filter(slug__in=orphan_codes).order_by(
@@ -1186,6 +1194,23 @@ def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
                     }
                 )
     return specs
+
+
+def _asset_document_hidden_category_folders(asset: "Asset | None", specs: list[dict]) -> list[dict]:
+    """Cartelle attive della categoria che non compaiono su questo asset (tolte,
+    facoltative o asset senza cartelle di categoria): si possono aggiungere."""
+    from ..services import cartelle_asset
+
+    category = getattr(asset, "asset_category", None)
+    if category is None or not getattr(asset, "pk", None):
+        return []
+    shown = {spec["code"] for spec in specs}
+    sc = cartelle_asset.scelte(asset)
+    return [
+        {"slug": folder.slug, "name": folder.name, "motivo": cartelle_asset.motivo_nascosta(folder, sc)}
+        for folder in category.document_folders.filter(is_active=True)
+        if folder.slug not in shown
+    ]
 
 
 def _asset_document_category_label(specs: list[dict], code: str) -> str:

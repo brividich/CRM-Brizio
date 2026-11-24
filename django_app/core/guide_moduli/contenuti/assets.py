@@ -939,6 +939,14 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Un asset ha cartelle della categoria che non gli servono",
+            "fare": [
+                "Nei Documenti dell'asset apri la cartella e clicca «Togli da questo asset» (solo se è vuota): gli altri asset della categoria la tengono.",
+                "Se non servono quasi mai, in Modifica asset togli «Usa le cartelle documento della categoria», oppure (amministratori) rendi la cartella «facoltativa» in Impostazioni → categorie.",
+                "Per rimetterla: «Cartelle della categoria non usate qui» → «Aggiungi a questo asset».",
+            ],
+        },
+        {
             "sintomo": "Ho cambiato categoria all'asset e non trovo più alcuni documenti",
             "fare": [
                 "Nei Documenti della scheda cerca le cartelle segnate «categoria precedente»: i file sono lì, con il nome della vecchia cartella.",

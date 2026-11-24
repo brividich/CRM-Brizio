@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Asset: cartelle documento della categoria scelte per singolo asset (24/11)
+
+- **«Togli da questo asset»** su una cartella di categoria vuota: sparisce solo da quella scheda. «Cartelle della categoria non usate qui» → «Aggiungi a questo asset» la rimette. Il pulsante per tutta la categoria ora si chiama «Disattiva per tutta la categoria».
+- **«Usa le cartelle documento della categoria»** nel modulo Nuovo/Modifica asset: senza spunta l'asset ha solo le 3 cartelle di base, le sue e quelle aggiunte una per una.
+- **Cartelle facoltative:** in Impostazioni → categorie «Rendi facoltativa» / «Su tutti gli asset»; una cartella facoltativa compare solo dove viene aggiunta. Migrazione `assets` 0174.
+- Una cartella con documenti resta sempre visibile. File: `assets/services/cartelle_asset.py`, `assets/models.py`, `assets/migrations/0174_cartella_categoria_facoltativa.py`, `assets/views/_helpers.py`, `assets/views/asset_detail.py`, `assets/views/settings_admin.py`, `assets/forms.py`, `assets/templates/assets/pages/asset_detail.html`, `assets/templates/assets/pages/asset_form.html`, `assets/templates/assets/pages/gestione_admin.html`, `assets/static/assets/css/pagine/asset_detail.css`, guida in-app `assets/templates/assets/pages/guida.html`, Centro guide `core/guide_moduli/contenuti/assets.py`, `docs/moduli/assets.md`, test `assets/tests_cartelle_per_asset.py`.
+
 ### Ticket: pagina di gestione riordinata, ticket IT dei gestori manutenzione, «Rimuovi» asset (24/11)
 
 - **Gestione ticket, una sola barra azioni:** «Prendo io/Risolvi», «Metti in attesa», «Chiudi ticket», «Assegnato a: …» (tecnico e fornitore in un menu a comparsa) e «⋯» con «Annulla ticket…». I cambi di stato chiedono nota, data prevista o motivo (obbligatorio per l'annullamento) in una finestra al centro. Tolto il riquadro «Aggiorna stato / Assegna».

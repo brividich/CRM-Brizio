@@ -72,6 +72,7 @@ from ._helpers import (  # noqa: F401
     _asset_component_create_page_url,
     _asset_component_page_url,
     _asset_document_folder_specs,
+    _asset_document_hidden_category_folders,
     _asset_maintenance_rule_list_page_url,
     _assistance_contracts_page_url,
     _build_asset_documents_by_category,
@@ -574,6 +575,38 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                     },
                 )
                 messages.success(request, f"Documento \"{doc_label}\" eliminato.")
+            return redirect("assets:asset_view", id=asset.id)
+        if action in {"togli_cartella_categoria", "aggiungi_cartella_categoria"}:
+            # Cartella di categoria tolta o aggiunta su questo solo asset.
+            from ..services import cartelle_asset
+
+            if not (_can_manage_asset_document_folders(request) or _can_edit_asset(request, asset.id)):
+                messages.error(request, "Permessi insufficienti per gestire le cartelle documento.")
+                return redirect("assets:asset_view", id=asset.id)
+            slug = _clean_string(request.POST.get("folder_slug"))[:60]
+            folder = (
+                asset.asset_category.document_folders.filter(slug=slug, is_active=True).first()
+                if asset.asset_category_id and slug
+                else None
+            )
+            if folder is None:
+                messages.error(request, "Cartella della categoria non trovata.")
+                return redirect("assets:asset_view", id=asset.id)
+            sc = cartelle_asset.scelte(asset)
+            if action == "togli_cartella_categoria":
+                if AssetDocument.objects.filter(asset=asset, category=folder.slug).exists():
+                    messages.error(request, f"La cartella \"{folder.name}\" contiene documenti: spostali o eliminali prima di toglierla.")
+                    return redirect("assets:asset_view", id=asset.id)
+                sc["tolte"].add(folder.slug)
+                sc["aggiunte"].discard(folder.slug)
+                testo = f"Cartella \"{folder.name}\" tolta da questo asset. Gli altri asset della categoria la tengono."
+            else:
+                sc["tolte"].discard(folder.slug)
+                sc["aggiunte"].add(folder.slug)
+                testo = f"Cartella \"{folder.name}\" aggiunta a questo asset."
+            cartelle_asset.salva(asset, sc)
+            log_action(request, action, "assets", {"asset_id": asset.id, "slug": folder.slug, "category_id": folder.category_id})
+            messages.success(request, testo)
             return redirect("assets:asset_view", id=asset.id)
         if action == "add_asset_document_folder" and request.POST.get("folder_scope") == "asset":
             # Cartella del solo asset: basta poter modificare l'asset.
@@ -1520,6 +1553,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "document_upload_field_map": doc_upload_field_map,
             "can_manage_doc_folders": can_manage_doc_folders,
             "can_manage_asset_doc_folders": can_manage_asset_doc_folders,
+            "doc_cartelle_nascoste": _asset_document_hidden_category_folders(asset, doc_category_specs),
             "asset_report_pdf_url": _asset_report_pdf_url(asset.id),
             "asset_qr_url": reverse("assets:asset_qr_label", kwargs={"id": asset.id}),
             "asset_label_designer_url": (
