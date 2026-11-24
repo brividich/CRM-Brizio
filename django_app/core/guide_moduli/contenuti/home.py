@@ -238,6 +238,26 @@ GUIDA = {
             ],
         },
         {
+            "id": "tendine",
+            "titolo": "Tendine: cercare scrivendo e ordinare",
+            "blocchi": [
+                ("p", "Ogni menu a tendina con almeno due voci si cerca scrivendo: apri la tendina e digita una parte "
+                      "del testo, la lista si restringe mentre scrivi (più parole valgono in qualunque ordine, gli "
+                      "accenti non contano). Invio o clic sceglie la voce."),
+                ("def", [
+                    ("Ordina: Come arriva · A→Z · Z→A", "barra in cima alle tendine con almeno 6 voci. «Come arriva» è "
+                     "l'ordine della pagina (stati, priorità e mesi hanno un ordine voluto), «A→Z» e «Z→A» l'ordine "
+                     "alfabetico. Il portale ricorda la scelta per quella tendina di quella pagina. La voce vuota "
+                     "(«— scegli —») resta sempre in cima; mentre cerchi vengono prima le voci più pertinenti."),
+                    ("Persone", "nelle tendine di persone il nominativo è sempre COGNOME NOME, in ordine di cognome, e "
+                     "compare solo chi è in forza: account attivo e nessuna data di cessazione in Anagrafica. "
+                     "Chi è già scelto su un record resta visibile anche se nel frattempo ha lasciato l'azienda."),
+                ]),
+                ("nota", "Restano tendine normali quelle con una voce sola e le liste a più righe che hanno già una "
+                         "casella «Filtra» propria."),
+            ],
+        },
+        {
             "id": "scadenzario",
             "titolo": "Lo Scadenzario globale",
             "blocchi": [

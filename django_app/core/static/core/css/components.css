@@ -193,3 +193,18 @@ a.kpi-link * { cursor: pointer; }
 /* La lista dei risultati si appende al body: deve stare sopra finestre e pannelli laterali (z-index fino a 10000),
    altrimenti dentro una finestra la ricerca sembra non trovare niente (24/11/2026). */
 body .ts-dropdown.ts-dropdown { z-index: 100000; }
+/* Barra «Ordina» in cima alla lista (tomselect-init.js, ordinamento()). */
+.ts-dropdown .ts-ordina {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 6px 8px; border-bottom: 1px solid var(--border, #e2e8f0);
+  background: var(--surface-alt, #f8fafc); font-size: 12px;
+}
+.ts-dropdown .ts-ordina[hidden] { display: none; }
+.ts-dropdown .ts-ordina-lbl { color: var(--text-light, #64748b); margin-right: 2px; }
+.ts-dropdown .ts-ordina-btn {
+  border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fff); color: var(--text, #0f172a);
+  border-radius: 999px; padding: 2px 10px; font: inherit; line-height: 1.5; cursor: pointer;
+}
+.ts-dropdown .ts-ordina-btn:hover { border-color: var(--primary, #002b5c); }
+.ts-dropdown .ts-ordina-btn.is-on { background: var(--primary, #002b5c); border-color: var(--primary, #002b5c); color: #fff; }
+body.theme-dark .ts-dropdown .ts-ordina-btn.is-on { background: #1f87cd; border-color: #1f87cd; }

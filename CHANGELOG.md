@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Tendine: «Ordina: Come arriva · A→Z · Z→A» dentro la lista (24/11)
+
+- Nelle tendine con almeno 6 voci, in cima alla lista, la barra «Ordina» con tre scelte: l'ordine della pagina, alfabetico, alfabetico inverso. La scelta si ricorda per quella tendina di quella pagina; la voce vuota resta in cima e mentre si cerca vale prima la pertinenza. Esclusione con `data-no-ordina`.
+- Centro guide: nuova sezione «Tendine: cercare scrivendo e ordinare» (con la regola delle tendine di persone).
+- File: `core/static/core/js/tomselect-init.js` (v11), `core/static/core/css/components.css`, `core/templates/core/base.html`, `core/guide_moduli/contenuti/home.py`, `docs/moduli/core.md`. Dopo il deploy: `collectstatic`.
+
 ### Fix: import Excel della Struttura e delle assegnazioni non dà più «HTTP ERROR 405»
 
 - `anagrafica/views_struttura.py`: ricaricare la pagina dell'anteprima (F5, «Indietro», link) apriva in GET un indirizzo che accetta solo l'invio del modulo e il browser mostrava «HTTP ERROR 405». Ora si torna alla sezione d'import (Mansionario → Struttura → Importa; Ruoli in blocco → Da Excel), dove si ricarica il file. Nessun dato era salvato dalla prova.

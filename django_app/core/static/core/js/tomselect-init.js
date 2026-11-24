@@ -1,5 +1,8 @@
 /* NOVICROM HUB — init Tom Select sui <select class="js-searchable">.
  *
+ * Ogni tendina con almeno due voci è ricercabile e, da 6 voci, ha in cima la
+ * barra «Ordina: Come arriva · A→Z · Z→A» (esclusione con data-no-ordina).
+ *
  * Progressive enhancement, opt-in via classe: il <select> nativo continua a
  * funzionare se JS e' disattivo o la libreria non carica. Inizializza anche i
  * select arrivati via HTMX (htmx:afterSwap) e ignora quelli gia' inizializzati.
@@ -36,6 +39,7 @@
         },
       });
       collega(el, ts);
+      ordinamento(el, ts);
       // Scelta singola: mentre si digita il valore già scelto (es. «Io stesso»)
       // resterebbe accanto al testo cercato e si sovrapporrebbe: si nasconde
       // finché c'è testo nella ricerca (CSS .ts-digita in components.css).
@@ -117,6 +121,94 @@
     el.tsRiallinea = riallinea;
     nascoste();
     if (Array.prototype.some.call(el.options, function (o) { return o.hidden; })) riallinea();
+  }
+
+  // Ordinamento scelto dall'utente dentro la tendina: «A→Z», «Z→A» oppure «Come
+  // arriva» (l'ordine della pagina: stati, priorità, mesi hanno un ordine voluto).
+  // La scelta si ricorda per quella tendina di quella pagina. La barra compare solo
+  // con almeno ORDINA_MIN voci; la voce vuota («— scegli —») resta sempre in cima.
+  // Mentre si cerca vale prima la pertinenza, poi l'ordine scelto (24/11/2026).
+  var ORDINA_MIN = 6;
+  var ORDINI = [
+    { k: "originale", t: "Come arriva", title: "Ordine della pagina" },
+    { k: "az", t: "A→Z", title: "Ordine alfabetico" },
+    { k: "za", t: "Z→A", title: "Ordine alfabetico inverso" },
+  ];
+
+  function chiaveOrdine(el) {
+    var nome = el.name || el.id || "";
+    if (!nome) return "";
+    return "hub:tendina-ordine:" + location.pathname + "|" + nome;
+  }
+
+  function leggiOrdine(el) {
+    var k = chiaveOrdine(el);
+    try { return (k && localStorage.getItem(k)) || "originale"; } catch (e) { return "originale"; }
+  }
+
+  function campiOrdine(ordine) {
+    var campi = [{ field: "$score" }, { field: "_vuota", direction: "desc" }];
+    if (ordine === "az") campi.push({ field: "text", direction: "asc" });
+    else if (ordine === "za") campi.push({ field: "text", direction: "desc" });
+    campi.push({ field: "$order" });
+    return campi;
+  }
+
+  function ordinamento(el, ts) {
+    if (el.hasAttribute("data-no-ordina")) return;
+    var segna = function (value, data) { if (data) data._vuota = value === "" ? 1 : 0; };
+    Object.keys(ts.options).forEach(function (v) { segna(v, ts.options[v]); });
+    ts.on("option_add", segna);
+
+    var ordine = leggiOrdine(el);
+    ts.settings.sortField = campiOrdine(ordine);
+
+    var barra = document.createElement("div");
+    barra.className = "ts-ordina";
+    barra.setAttribute("role", "group");
+    barra.setAttribute("aria-label", "Ordina le voci");
+    var etichetta = document.createElement("span");
+    etichetta.className = "ts-ordina-lbl";
+    etichetta.textContent = "Ordina";
+    barra.appendChild(etichetta);
+    ORDINI.forEach(function (o) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "ts-ordina-btn";
+      b.dataset.ordine = o.k;
+      b.textContent = o.t;
+      b.title = o.title;
+      barra.appendChild(b);
+    });
+    var evidenzia = function () {
+      Array.prototype.forEach.call(barra.querySelectorAll(".ts-ordina-btn"), function (b) {
+        var attivo = b.dataset.ordine === ordine;
+        b.classList.toggle("is-on", attivo);
+        b.setAttribute("aria-pressed", attivo ? "true" : "false");
+      });
+    };
+    evidenzia();
+    // mousedown: senza preventDefault il clic toglie il fuoco e chiude la tendina.
+    barra.addEventListener("mousedown", function (e) { e.preventDefault(); e.stopPropagation(); });
+    barra.addEventListener("click", function (e) {
+      var b = e.target.closest(".ts-ordina-btn");
+      if (!b) return;
+      e.preventDefault();
+      e.stopPropagation();
+      ordine = b.dataset.ordine;
+      var k = chiaveOrdine(el);
+      try { if (k) { if (ordine === "originale") localStorage.removeItem(k); else localStorage.setItem(k, ordine); } } catch (err) { /* niente memoria */ }
+      ts.settings.sortField = campiOrdine(ordine);
+      evidenzia();
+      ts.refreshOptions(false);
+      ts.focus();
+    });
+    ts.dropdown.insertBefore(barra, ts.dropdown.firstChild);
+    var mostra = function () {
+      barra.hidden = Object.keys(ts.options).length < ORDINA_MIN;
+    };
+    mostra();
+    ts.on("dropdown_open", mostra);
   }
 
   // Oltre all'opt-in (.js-searchable), ogni tendina diventa ricercabile da sola, in
