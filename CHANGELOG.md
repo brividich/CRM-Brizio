@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: «Mansioni» in vista semplice
+
+- **Mansionario** (`/anagrafica/mansionario/`) si apre in vista semplice: elenco «Mansione / Reparto / Ruolo / Competenze / Persone / Stato», mansione scelta a destra con «Apri la mansione», «Competenze richieste» col livello in un riquadro ad altezza fissa (verificato con 60 competenze: 300 px) e «Pagine collegate». Filtri «Senza competenze», «Senza persone», «Da guardare» con il numero; ricerca per mansione, reparto o ruolo; `?mansione=` ricorda la scelta. La pagina di prima resta come «Vista completa» (`?vista=completa`, scelta in sessione) con «Torna alla vista semplice».
+- `?ruolo=` restringe l'elenco alle mansioni di un ruolo: i link «ruolo» di scheda mansione, scheda competenza, requisiti e catalogo ruoli portano anche `?ruolo=` (l'ancora `#ruolo-` resta per la vista completa). `?flag=da-guardare` (Dashboard, Centri di costo) diventa il filtro; gli altri `?flag=` aprono la vista completa per quella volta, senza cambiare la scelta.
+- Le prove della vista completa la chiedono con `?vista=completa` (`tests_mansionario`, `tests_centro_filtro`, `tests_capi_mansione`, `tests_scheda_competenza`).
+- File: `anagrafica/services/mansioni_semplice.py` (nuovo), `anagrafica/views_mansionario.py`, `pages/mansionario_semplice.html` (nuovo), `partials/_mansione_scheda.html` (nuovo), `pages/mansionario.html`, `pages/mansionario_mansione.html`, `pages/mansionario_competenza.html`, `pages/mansione_requisiti.html`, `partials/_ruoli_operativi_body.html`, Centro guide, `docs/moduli/anagrafica.md`.
+
 ### Anagrafica: «Reparti e capi» e «Richieste» con la scheda a destra
 
 - **Reparti e capi** (`/anagrafica/aree/`): un reparto per riga («Reparto», «Centro di costo», «Responsabile», «Persone», «Stato») al posto delle schede; la riga si apre sulla gestione di sempre (capo, aree, ruolo responsabile, «Modifica», «Elimina»). A destra «Reparto scelto» con i dati etichettati e le «Pagine collegate» (`?reparto=` nell'indirizzo); «Da fare» e «Capi delle persone» al posto delle tessere con i numeri; filtri «Tutti / Attivi / Con il capo / Da sistemare» con le regole di prima (`FILTRI_REPARTI`); ricerca per reparto, area o persona; «Apri tutto», «Chiudi tutto»; «Nuovo reparto» e «Nuova area» in finestra. Tolti dalla testata i collegamenti ad altre pagine. Nessun dato nuovo: `services/reparti_capi_vista.py` legge le schede di `views_capi_reparti._contesto`.

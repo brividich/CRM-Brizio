@@ -1,0 +1,25 @@
+{# Mansione scelta: dati etichettati, competenze richieste (riquadro ad altezza fissa) e pagine collegate. Parametro: r. #}
+<section class="es-s-card">
+  <h2 class="es-s-h">Mansione scelta</h2>
+  <div class="es-s-testa"><dl class="es-s-campi es-s-campi-1">
+    {% for etichetta, valore in r.scheda.campi %}<div class="es-s-campo"><dt>{{ etichetta }}:</dt><dd>{{ valore }}</dd></div>{% endfor %}
+  </dl></div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 14px">{% for a in r.scheda.azioni %}<a class="rc-btn rc-btn-ghost rc-btn-sm" href="{{ a.url }}">{{ a.nome }}</a>{% endfor %}</div>
+</section>
+<section class="es-s-card mn-sotto">
+  <h2 class="es-s-h">Competenze richieste <span>{{ r.competenze|length }}</span></h2>
+  {% if r.competenze %}
+  <div class="es-tab-wrap es-s-scorre" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+    <thead><tr><th>Competenza</th><th>Livello richiesto</th></tr></thead>
+    <tbody>{% for c in r.competenze %}<tr><td><b>{{ c.nome }}</b>{% if c.bloccante %}<small>Bloccante: senza, la mansione non è operativa</small>{% endif %}</td><td>{% include "anagrafica/partials/_esplora_livello.html" with l=c.livello %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="es-s-vuoto">Nessuna competenza indicata per questa mansione.</p>{% endif %}
+</section>
+{% if r.scheda.collegate %}
+<section class="es-s-card mn-sotto">
+  <h2 class="es-s-h">Pagine collegate <span>{{ r.scheda.collegate|length }}</span></h2>
+  <div class="es-s-collegate">
+    {% for x in r.scheda.collegate %}<a href="{{ x.url }}"><span><b>{{ x.nome }}</b><small>{{ x.spiega }}</small></span><span class="es-s-freccia" aria-hidden="true">→</span></a>{% endfor %}
+  </div>
+</section>
+{% endif %}

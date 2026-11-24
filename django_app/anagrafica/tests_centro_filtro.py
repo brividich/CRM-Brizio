@@ -136,7 +136,7 @@ class DashboardTests(_Dati):
 
 class MansionarioTests(_Base):
     def test_gli_stessi_numeri_del_carico(self):
-        r = self.client.get(reverse("anagrafica:mansionario"))
+        r = self.client.get(reverse("anagrafica:mansionario"), {"vista": "completa"})
         c = carico_mansioni.calcola().conteggi()
         self.assertEqual((r.context["kpi"]["scoperte"], r.context["kpi"]["uomo_solo"], r.context["kpi"]["concentrate"]),
                          (c["scoperte"], c["uomo_solo"], c["concentrate"]))

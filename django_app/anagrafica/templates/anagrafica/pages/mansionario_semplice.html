@@ -1,0 +1,98 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Mansioni | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_rc_stili.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_flusso_dinamico.html" %}
+{% include "anagrafica/components/_scelta_riga.html" %}
+<style>
+.mn-filtri { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 12px; }
+.mn-filtri input[type=search] { width:320px; max-width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; }
+.mn-chip { padding:6px 12px; border-radius:999px; border:1px solid #d7e0ea; background:#fff; font-size:12.5px; font-weight:600; color:#475569; text-decoration:none; }
+.mn-chip.is-scelto { background:#e8f3fb; border-color:#9cc6e6; color:#0c2545; }
+.mn-sotto { margin-top:14px; }
+/* L'elenco ha un'altezza massima e scorre: con 250 mansioni la pagina non si allunga all'infinito. */
+.mn-elenco { max-height:max(420px, calc(100vh - 260px)); overflow:auto; }
+.mn-elenco thead th { position:sticky; top:0; z-index:1; }
+.mn-tab tbody tr[data-sc-riga] { cursor:pointer; }
+.mn-tab tbody tr[data-sc-riga]:hover td { background:#f8fafc; }
+.mn-tab tbody tr.is-scelta td { background:#e8f3fb; }
+.mn-tab tbody tr:focus-visible { outline:2px solid #1f87cd; outline-offset:-2px; }
+.mn-tab td.mn-n, .mn-tab th.mn-n { text-align:right; }
+.mn-legenda { display:flex; flex-wrap:wrap; gap:10px 16px; padding:12px 16px; font-size:12.5px; color:#475569; }
+body.theme-dark .mn-filtri input[type=search], body.theme-dark .mn-chip { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
+body.theme-dark .mn-chip.is-scelto { background:#1e3a5f; border-color:#2563a8; color:#fff; }
+body.theme-dark .mn-tab tbody tr[data-sc-riga]:hover td { background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .mn-tab tbody tr.is-scelta td { background:#1e3a5f; color:#fff; }
+body.theme-dark .mn-legenda { color:var(--text-light); }
+@media (max-width:760px) {
+  .mn-tab .mn-c3, .mn-tab .mn-c4 { display:none; }
+  .mn-elenco { max-height:none; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="rc-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="rc-top">
+    <div>
+      <div class="rc-title">Mansioni</div>
+      <div class="rc-sub">Tutte le mansioni: che cosa richiedono e chi le ha. Clicca una mansione per vederne le competenze.</div>
+    </div>
+    <div class="rc-actions">
+      <a class="rc-btn rc-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#mansionario">? Guida</a>
+      {% if is_admin %}<a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:mansionario_struttura_import' %}">Importa da Excel</a>
+      <a class="rc-btn rc-btn-primary" href="{% url 'anagrafica:mansionario_struttura_nuova' %}">+ Nuova mansione</a>{% endif %}
+    </div>
+  </div>
+
+  {% url 'anagrafica:mansionario' as u_m %}
+  <div class="mn-filtri">
+    <input type="search" data-sc-cerca placeholder="Cerca una mansione, un reparto o un ruolo…" aria-label="Cerca una mansione, un reparto o un ruolo" autocomplete="off">
+    <a class="mn-chip{% if not filtro %} is-scelto{% endif %}" href="{{ u_m }}{% if ruolo %}?ruolo={{ ruolo.pk }}{% endif %}"{% if not filtro %} aria-current="true"{% endif %}>Tutte · {{ n_tutte }}</a>
+    {% for f in filtri %}<a class="mn-chip{% if filtro == f.chiave %} is-scelto{% endif %}" href="{{ u_m }}?filtro={{ f.chiave }}{% if ruolo %}&amp;ruolo={{ ruolo.pk }}{% endif %}"{% if filtro == f.chiave %} aria-current="true"{% endif %}>{{ f.nome }} · {{ f.n }}</a>{% endfor %}
+  </div>
+
+  {% if ruolo %}<p class="rc-old" style="margin:0 0 12px">Ruolo: <b>{{ ruolo.nome }}</b> · <a href="{{ u_m }}">mostra tutte le mansioni</a></p>{% endif %}
+
+  <div class="fx-flusso">
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">Elenco <span>{{ elenco|length }} mansion{{ elenco|length|pluralize:"e,i" }}</span></h2>
+      {% if elenco %}
+      <div class="mn-elenco" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab mn-tab">
+        <thead><tr><th>Mansione</th><th>Reparto</th><th class="mn-c3">Ruolo</th><th class="mn-n mn-c4">Competenze</th><th class="mn-n">Persone</th><th>Stato</th></tr></thead>
+        <tbody>{% for r in elenco %}<tr data-sc-riga="{{ r.mansione.pk }}" tabindex="0"{% if scelta.mansione.pk == r.mansione.pk %} class="is-scelta"{% endif %} data-sc-testo="{{ r.testo }}">
+          <td><b>{{ r.nome }}</b></td>
+          <td>{{ r.reparto|default:"—" }}</td>
+          <td class="mn-c3">{{ r.ruoli_testo|default:"—" }}</td>
+          <td class="mn-n mn-c4">{{ r.competenze|length }}</td>
+          <td class="mn-n">{{ r.in_lista }}</td>
+          <td><span class="es-s-stato es-s-stato-{{ r.stato_semplice.tono }}">{{ r.stato_semplice.nome }}</span></td>
+          <template data-sc-modello>{% include "anagrafica/partials/_mansione_scheda.html" with r=r %}</template>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<p class="es-s-vuoto">Nessuna mansione{% if filtro %} con questo filtro{% endif %}.</p>{% endif %}
+    </section></div>
+
+    {% if scelta %}
+    <div class="fx-blocco"><div data-sc-scelta data-sc-param="mansione">{% include "anagrafica/partials/_mansione_scheda.html" with r=scelta %}</div></div>
+    {% endif %}
+
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Livelli</h2>
+      <div class="mn-legenda">{% for l in legenda %}<span>{% include "anagrafica/partials/_esplora_livello.html" with l=l %}</span>{% endfor %}</div>
+    </section></div>
+  </div>
+
+  <p class="es-s-cambia"><a href="{{ url_vista_completa }}" target="_self">Vista completa</a>: riquadri per ruolo, segnali di carico, filtri per area, centro e persona, lacune.</p>
+</div>
+{% endblock %}

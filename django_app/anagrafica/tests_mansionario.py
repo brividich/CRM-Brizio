@@ -106,7 +106,7 @@ class PagineTests(_Base):
     def test_pagine_e_scheda_della_mansione(self):
         self.client.force_login(self.admin)
         svc.assegna(self.tornio, legacy_anagrafica_id=self.p1.pk, livello="U")
-        r = self.client.get(reverse("anagrafica:mansionario"))
+        r = self.client.get(reverse("anagrafica:mansionario"), {"vista": "completa"})
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'id="mns-elenco"')
         self.assertContains(r, reverse("anagrafica:mansionario_mansione", args=[self.tornio.pk]))
@@ -116,10 +116,53 @@ class PagineTests(_Base):
         self.assertContains(r, "(dall'asset)")
         self.assertEqual(self.client.get(reverse("anagrafica:mansionario_mansione", args=[self.contatore.pk])).status_code, 404)
 
+    def test_vista_semplice_elenco_e_mansione_scelta(self):
+        from .models_skillmatrix import VoceMacchinaCatalogo
+
+        self.client.force_login(self.admin)
+        self.tornio.ruoli.set([self.ruolo])
+        for i in range(60):
+            VoceMacchinaCatalogo.objects.create(codice=f"VS-{i}", nome=f"Competenza {i}", mansione=self.tornio, livello_minimo="U")
+        r = self.client.get(reverse("anagrafica:mansionario"))
+        self.assertTemplateUsed(r, "anagrafica/pages/mansionario_semplice.html")
+        riga = next(x for x in r.context["elenco"] if x["mansione"] == self.tornio)
+        self.assertEqual((len(riga["competenze"]), riga["stato_semplice"]["nome"]), (60, "Senza persone"))
+        # Le competenze stanno in un riquadro ad altezza fissa: 60 non allungano la pagina.
+        self.assertContains(r, 'class="es-tab-wrap es-s-scorre"')
+        for testo in ("data-sc-cerca", "Vista completa", "<template data-sc-modello>", 'data-sc-param="mansione"'):
+            self.assertContains(r, testo)
+        self.assertNotContains(r, "{#")
+        r = self.client.get(reverse("anagrafica:mansionario"), {"mansione": self.tornio.pk})
+        campi = dict(r.context["scelta"]["scheda"]["campi"])
+        self.assertEqual((campi["Mansione"], campi["Ruolo"], campi["Competenze richieste"]),
+                         (self.tornio.nome, self.ruolo.nome, "60"))
+        self.assertEqual(self.client.get(r.context["scelta"]["scheda"]["azioni"][0]["url"]).status_code, 200)
+        for x in r.context["scelta"]["scheda"]["collegate"]:
+            self.assertEqual(self.client.get(x["url"]).status_code, 200, x["nome"])
+
+    def test_vista_semplice_filtri_ruolo_e_flag(self):
+        self.client.force_login(self.admin)
+        self.tornio.ruoli.set([self.ruolo])
+        r = self.client.get(reverse("anagrafica:mansionario"), {"filtro": "senza-persone"})
+        self.assertTrue(r.context["elenco"])
+        self.assertTrue(all(x["stato_semplice"]["nome"] == "Senza persone" for x in r.context["elenco"]))
+        conta = {f["chiave"]: f["n"] for f in r.context["filtri"]}
+        self.assertEqual(conta["senza-persone"], len(r.context["elenco"]))
+        r = self.client.get(reverse("anagrafica:mansionario"), {"ruolo": self.ruolo.pk})
+        self.assertEqual([x["mansione"] for x in r.context["elenco"]], [self.tornio])
+        self.assertContains(r, "mostra tutte le mansioni")
+        # «da-guardare» lo filtra la vista semplice; gli altri flag aprono la completa senza cambiare la scelta.
+        self.assertEqual(self.client.get(reverse("anagrafica:mansionario"), {"flag": "da-guardare"}).context["filtro"], "da-guardare")
+        self.assertIn("gruppi", self.client.get(reverse("anagrafica:mansionario"), {"flag": "scoperta"}).context)
+        self.assertIn("elenco", self.client.get(reverse("anagrafica:mansionario")).context)
+        self.client.get(reverse("anagrafica:mansionario"), {"vista": "completa"})
+        self.assertIn("gruppi", self.client.get(reverse("anagrafica:mansionario")).context)
+        self.assertContains(self.client.get(reverse("anagrafica:mansionario")), "Torna alla vista semplice")
+
     def test_elenco_raggruppato_per_ruolo_con_quelle_da_collegare_in_fondo(self):
         self.client.force_login(self.admin)
         self.tornio.ruoli.set([self.ruolo])
-        r = self.client.get(reverse("anagrafica:mansionario"))
+        r = self.client.get(reverse("anagrafica:mansionario"), {"vista": "completa"})
         gruppi = r.context["gruppi"]
         self.assertEqual([g["nome"] for g in gruppi], ["Operatore MU sintetico", "Da collegare a un ruolo"])
         self.assertEqual([s["titolo"] for s in gruppi[0]["schede"]], ["Tornio CNC TC-02"])

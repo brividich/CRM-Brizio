@@ -1193,6 +1193,14 @@ GUIDA = {
             "blocchi": [
                 ("p", "Competenze → Skill Matrix → «Mansionario». La struttura è ruolo → mansione → persone. Una mansione "
                       "è una macchina o un processo: sono le colonne della skill matrix MOD.187."),
+                ("p", "La pagina si apre in vista semplice, «Mansioni»: un elenco con «Mansione», «Reparto», «Ruolo», "
+                      "«Competenze», «Persone» e «Stato» («Completa», «Senza competenze», «Senza persone», «Da "
+                      "guardare»). Clicca una riga: a destra compaiono «Mansione scelta» con i suoi dati e «Apri la "
+                      "mansione», le «Competenze richieste» con il livello (il riquadro ha un'altezza fissa e scorre, "
+                      "anche con molte competenze) e le «Pagine collegate». Il campo di ricerca cerca mansione, reparto "
+                      "o ruolo; i filtri accanto contano le mansioni di ogni stato. «Vista completa», in fondo, apre la "
+                      "pagina descritta qui sotto; «Torna alla vista semplice» la richiude. La scelta resta finché non "
+                      "esci dal portale. Dai link di un ruolo l'elenco si apre già ristretto alle sue mansioni."),
                 ("def", [
                     ("Elenco per ruolo", "la pagina mostra un blocco per ruolo con le sue mansioni; si apre e si chiude "
                                          "cliccando il nome del ruolo («Apri tutti» / «Chiudi tutti» per tutti insieme). "

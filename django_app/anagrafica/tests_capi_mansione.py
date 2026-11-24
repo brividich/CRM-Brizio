@@ -258,7 +258,7 @@ class PaginaRepartiCapiTests(_ScenarioMansioni):
 
     def test_mansionario_mostra_titolare_e_chi_ha_il_ruolo(self):
         self._assegna(self.resp_fres, self.neri)
-        resp = self.client.get(reverse("anagrafica:mansionario"))
+        resp = self.client.get(reverse("anagrafica:mansionario"), {"vista": "completa"})
         self.assertEqual(resp.status_code, 200)
         gruppo = next(g for g in resp.context["gruppi"] if g["ruolo"] and g["ruolo"].pk == self.capo.pk)
         chi = {p["id"]: p["senza_mansione"] for p in gruppo["chi"]["persone"]}
