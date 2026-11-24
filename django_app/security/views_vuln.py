@@ -182,8 +182,41 @@ def _correzioni_csv(request, dati):
     return risposta
 
 
+def _statistica_in_cache(nome: str, calcola, *parti):
+    """Riquadri statistici della pagina (uguali per tutti) tenuti ``SOC_STATISTICHE_CACHE_SECONDS``.
+
+    Default 120 s, 0 = spento: prima ogni apertura di «Vulnerabilità» ricalcolava andamento,
+    serie settimanale e ciclo di chiusura su tutte le correzioni (oltre 2 s di calcolo).
+    """
+    from django.conf import settings
+    from django.core.cache import cache
+    from django.utils import timezone as _tz
+
+    durata = int(getattr(settings, "SOC_STATISTICHE_CACHE_SECONDS", 120) or 0)
+    if durata <= 0:
+        return calcola()
+    chiave = "soc:stat:" + ":".join(str(x) for x in (nome, _tz.localdate().isoformat(), *parti))
+    try:
+        trovato = cache.get(chiave)
+    except Exception:  # noqa: BLE001
+        trovato = None
+    if trovato is not None:
+        return trovato
+    valore = calcola()
+    if valore is not None:
+        try:
+            cache.set(chiave, valore, durata)
+        except Exception:  # noqa: BLE001
+            logger.warning("Statistica SOC %s non salvata in cache", nome, exc_info=True)
+    return valore
+
+
 def _termini_cve(giorni=90):
     """Riquadro «Tempi di correzione» (ISO 27001 8.8): accessorio, la pagina resta leggibile senza."""
+    return _statistica_in_cache("termini_cve", lambda: _termini_cve_calcola(giorni), giorni)
+
+
+def _termini_cve_calcola(giorni=90):
     try:
         from .services import cve_sla
 
@@ -210,6 +243,10 @@ def _termini_cve(giorni=90):
 
 
 def _ciclo_cve():
+    return _statistica_in_cache("ciclo_cve", _ciclo_cve_calcola)
+
+
+def _ciclo_cve_calcola():
     try:
         from .services.cve_chiusura import metriche
 

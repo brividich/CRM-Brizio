@@ -21,6 +21,8 @@ from security.models import SecurityAlert, SecurityAlertActionLog, Severity
 from security.services import soc_settings
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 
+from core.memo_richiesta import per_richiesta
+
 # Gravità del SOC -> classe di obiettivo (le quattro soglie impostabili).
 CLASSE = {
     Severity.CRITICAL: "critical",
@@ -136,6 +138,7 @@ def alert_oltre_tempo(now=None):
     return rows
 
 
+@per_richiesta  # ricalcolato più volte nella stessa pagina (core/memo_richiesta.py)
 def riepilogo(dal, al) -> dict:
     """Numeri del periodo (alert creati fra ``dal`` e ``al``): presi in tempo, in ritardo, non presi, mediana."""
     targets = target_ore()

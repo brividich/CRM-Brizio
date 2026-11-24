@@ -165,9 +165,13 @@ class Contesto:
         self.per_prodotto = defaultdict(list)
         self.per_host = defaultdict(list)
         self.per_pk = {install.pk: install for install in self.installs}
+        # Nome prodotto già in minuscolo: ``nome_contiene`` lo cercava rifacendo ``lower()`` su tutto
+        # l'inventario a ogni criterio (oltre un milione e mezzo di chiamate per una CVE).
+        self._prodotti_ci: list = []
         for install in self.installs:
             self.per_prodotto[(_ci(install.vendor), _ci(install.product))].append(install)
             self.per_host[install.host].append(install)
+            self._prodotti_ci.append((_ci(install.product), install))
         # Release di Windows dalla build (services.windows_build): sistemi operativi Windows con famiglia e build.
         # None = come da impostazione; True/False forzato (anteprima di windows_build).
         self.windows_per_build = (bool(soc_settings.value("cve.windows.per_build")) if windows_per_build is None
@@ -193,7 +197,7 @@ class Contesto:
         return list(visti.values())
 
     def nome_contiene(self, testo):
-        return [install for install in self.installs if testo in _ci(install.product)]
+        return [install for prodotto, install in self._prodotti_ci if testo in prodotto]
 
 
 def evaluate(record, today=None, ctx=None):

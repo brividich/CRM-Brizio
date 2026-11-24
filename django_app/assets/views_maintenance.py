@@ -116,6 +116,7 @@ def _deny(request: HttpRequest, message: str, fallback: str = "assets:maintenanc
 
 _OCCURRENCE_SELECT = (
     "plan",
+    "plan__asset_category",  # nome del piano nelle righe (MaintenancePlan.__str__)
     "asset",
     "asset__asset_category",
     "assignment",
@@ -3452,6 +3453,16 @@ def maintenance_coverage(request: HttpRequest) -> HttpResponse:
                     }
                 )
         rows.append({"asset": asset, "cells": cells})
+
+    # Link delle celle costruiti da un modello invece che con {% url %} per ogni cella:
+    # la griglia asset × piani faceva ~43.000 reverse() nel template (3-4 s di pagina).
+    _A, _P = 987654301, 987654302
+    modello_cella = reverse("assets:asset_plan_customize", args=[_A, _P])
+    modello_asset = reverse("assets:asset_maintenance_plans", args=[_A])
+    for row in rows:
+        row["url"] = modello_asset.replace(str(_A), str(row["asset"].pk))
+        for cell in row["cells"]:
+            cell["url"] = modello_cella.replace(str(_A), str(cell["asset"].pk)).replace(str(_P), str(cell["plan"].pk))
 
     return render(
         request,

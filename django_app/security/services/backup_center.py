@@ -22,6 +22,8 @@ from django.utils import timezone
 
 from security.models import BackupJobRecord
 
+from core.memo_richiesta import per_richiesta
+
 OK, WARN, FAIL = "completed", "warning", "failed"
 STATUS_LABELS = {OK: "Riuscito", WARN: "Con avvisi", FAIL: "Fallito", "unknown": "Sconosciuto"}
 STATUS_TONES = {OK: "success", WARN: "warning", FAIL: "critical"}
@@ -136,6 +138,7 @@ def _mean(values):
     return sum(values) / len(values) if values else None
 
 
+@per_richiesta  # la dashboard SOC lo chiedeva due volte (backup e PC senza backup)
 def overview(days=30, now=None):
     now = now or timezone.now()
     since = now - timedelta(days=days)

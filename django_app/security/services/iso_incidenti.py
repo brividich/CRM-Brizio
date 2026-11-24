@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from security.services import soc_settings
 
+from core.memo_richiesta import per_richiesta
+
 RUOLI = [
     ("iso.ruoli.incident_manager", "Responsabile degli incidenti"),
     ("iso.ruoli.vice", "Sostituto"),
@@ -28,6 +30,7 @@ def ruoli() -> dict:
     return {"voci": voci, "completi": not mancanti, "mancanti": mancanti}
 
 
+@per_richiesta  # ricalcolato più volte nella stessa pagina (core/memo_richiesta.py)
 def riepilogo(dal, al) -> dict:
     """Numeri del periodo ``dal``-``al`` (date) per il cruscotto di conformità.
 

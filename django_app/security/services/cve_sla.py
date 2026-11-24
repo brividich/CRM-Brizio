@@ -22,6 +22,7 @@ import logging
 import threading
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
+from functools import lru_cache
 from statistics import median
 
 from django.utils import timezone
@@ -30,6 +31,8 @@ from security.models import SecurityAlert, SecurityCveImpact, SecurityEventRecor
 from security.services import soc_settings, traccia
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 from security.services.dedup import make_hash
+
+from core.memo_richiesta import per_richiesta
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +93,14 @@ def giorni(cls) -> int:
 
 def _giorno(valore) -> date:
     if isinstance(valore, datetime):
-        return timezone.localtime(valore).date() if timezone.is_aware(valore) else valore.date()
+        return _giorno_locale(valore) if timezone.is_aware(valore) else valore.date()
     return valore
+
+
+@lru_cache(maxsize=65536)
+def _giorno_locale(valore: datetime) -> date:
+    """Giorno locale di un istante: puro, in cache (le pagine SLA lo chiedevano decine di migliaia di volte)."""
+    return timezone.localtime(valore).date()
 
 
 def scadenza(record, aperta_dal) -> date:
@@ -136,6 +145,7 @@ def _voce(impatto, oggi, coperture):
 
 
 @termini_fissati()
+@per_richiesta  # ricalcolato più volte nella stessa pagina (core/memo_richiesta.py)
 def esposizioni_aperte(oggi=None):
     """Tutte le esposizioni «Impatta» con il loro termine (voci come ``scadute``), nell'ordine del ritardo."""
     oggi = oggi or timezone.localdate()
@@ -157,6 +167,7 @@ def _aware(valore, fine=False):
 
 
 @termini_fissati()
+@per_richiesta  # ricalcolato più volte nella stessa pagina (core/memo_richiesta.py)
 def riepilogo(dal, al) -> dict:
     """Per classe: corrette nel periodo (in tempo / in ritardo rispetto al termine), aperte, aperte scadute.
 
