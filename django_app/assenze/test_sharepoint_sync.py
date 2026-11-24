@@ -617,7 +617,7 @@ class SharePointLookupTests(TestCase):
         )
 
         self.assertEqual(email, "capo.area@example.local")
-        self.assertEqual(mock_effective.call_args.kwargs["request_day"].isoformat(), "2026-09-23")
+        self.assertEqual([g.isoformat() for g in mock_effective.call_args.kwargs["request_days"]], ["2026-09-23"])
 
     @patch("assenze.views._helpers._update_assenza", return_value=True)
     @patch("assenze.views._helpers._graph_create", return_value=(True, {"id": "900"}))

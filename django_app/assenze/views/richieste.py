@@ -1760,14 +1760,14 @@ def invio_placeholder(request):
     capi_options = _helpers._load_capi_options()
     capo_username = "" if inserting_for_other else request.user.get_username()
 
-    def _capo_del_giorno(giorno):
+    def _capo_del_periodo(giorni_richiesta):
         capo_effective, capo_escalated = _helpers._effective_capo_option(
             name=display_name,
             email=email,
             username=capo_username,
             legacy_user_id=legacy_id,
             capi=capi_options,
-            request_day=giorno,
+            request_days=giorni_richiesta,
         )
         capo_final = capo_effective or capo_raw
         # Non abilitato al cambio e senza capo assegnato: sceglie, ma solo dall'elenco.
@@ -1807,12 +1807,14 @@ def invio_placeholder(request):
         legacy_user_id=legacy_id, email=email, username=capo_username, name=display_name,
     )
 
-    capi_giorno = []
-    for occ_start, _occ_end in occorrenze:
-        capo = _capo_del_giorno(occ_start.date())
-        if capo is None:
-            return _render_richiesta(request, error="Caporeparto selezionato non valido.", form_data=request.POST.dict())
-        capi_giorno.append(capo)
+    # Un solo approvatore per tutta la richiesta (anche per il permesso ripetuto,
+    # dove la decisione sulla prima vale per tutti i giorni): passa al superiore
+    # solo se il caporeparto è assente in TUTTI i giorni richiesti.
+    giorni_richiesta = giorni if ripetuto else _helpers._giorni_periodo(dt_start, dt_end)
+    capo = _capo_del_periodo(giorni_richiesta)
+    if capo is None:
+        return _render_richiesta(request, error="Caporeparto selezionato non valido.", form_data=request.POST.dict())
+    capi_giorno = [capo] * len(occorrenze)
 
     def _payload(occ_start, occ_end, capo_final):
         return {

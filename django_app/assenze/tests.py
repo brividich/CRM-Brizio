@@ -1776,6 +1776,45 @@ class AssenzeCaporepartoEscalationTests(TestCase):
         self.assertEqual(opt, "capoa@example.com")
         self.assertFalse(escalated)
 
+    @patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="capoa@example.com")
+    def test_periodo_capo_assente_solo_un_giorno_non_passa_al_superiore(self, _mock_base):
+        from datetime import date
+        from anagrafica.models import DipendenteAnagraficaAziendale
+        from assenze.views import _effective_capo_option
+
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=501, caporeparto_legacy_id=999)
+        assente = {date(2026, 7, 13)}
+        with patch("assenze.views._helpers._capo_absent_on", side_effect=lambda _c, g: g in assente):
+            opt, escalated = _effective_capo_option(
+                name="X", email="x@e.com", username="x", legacy_user_id=1, capi=self._capi(),
+                request_days=[date(2026, 7, 13), date(2026, 7, 14), date(2026, 7, 15)],
+            )
+        self.assertEqual(opt, "capoa@example.com")
+        self.assertFalse(escalated)
+
+    @patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="capoa@example.com")
+    @patch("assenze.views._helpers._capo_absent_on", return_value=True)
+    def test_periodo_capo_assente_tutti_i_giorni_passa_al_superiore(self, _mock_absent, _mock_base):
+        from datetime import date
+        from anagrafica.models import DipendenteAnagraficaAziendale
+        from assenze.views import _effective_capo_option
+
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=501, caporeparto_legacy_id=999)
+        opt, escalated = _effective_capo_option(
+            name="X", email="x@e.com", username="x", legacy_user_id=1, capi=self._capi(),
+            request_days=[date(2026, 7, 13), date(2026, 7, 14)],
+        )
+        self.assertEqual(opt, "superb@example.com")
+        self.assertTrue(escalated)
+
+    def test_giorni_periodo_salta_il_fine_settimana(self):
+        from datetime import datetime
+        from assenze.views._helpers import _giorni_periodo
+
+        giorni = _giorni_periodo(datetime(2026, 11, 20, 8), datetime(2026, 11, 24, 17))
+        self.assertEqual([g.day for g in giorni], [20, 23, 24])
+        self.assertEqual([g.day for g in _giorni_periodo(datetime(2026, 11, 20, 8), datetime(2026, 11, 20, 12))], [20])
+
 
 class AssenzeCapoDaAreaAziendaleTests(TestCase):
     """L'approvatore e' il responsabile dell'AREA AZIENDALE del dipendente;
