@@ -12,6 +12,7 @@ from decimal import Decimal
 from html import escape
 from pathlib import Path
 
+from core import naming
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -104,8 +105,12 @@ def _contract_scope_payload(contract: AssistanceContract) -> dict[str, str]:
 
 def _anagrafica_employee_options() -> tuple[list[tuple[str, str]], dict[str, dict[str, str]]]:
     try:
+        from core.persone_tendine import anagrafica_in_forza
+
+        # Solo chi è in forza: l'assegnatario già salvato lo rimette il form.
+        # (naming serve anche sotto, per etichetta e ordine.)
         rows = list(
-            AnagraficaDipendente.objects.all()
+            anagrafica_in_forza()
             .values(
                 "id",
                 "nome",
@@ -129,7 +134,7 @@ def _anagrafica_employee_options() -> tuple[list[tuple[str, str]], dict[str, dic
         nome = _clean_string(row.get("nome"))
         cognome = _clean_string(row.get("cognome"))
         alias = _clean_string(row.get("aliasusername"))
-        display_name = " ".join([value for value in [cognome, nome] if value]).strip() or alias
+        display_name = naming.nome_completo(nome, cognome) or alias
         email = _clean_string(row.get("email"))
         notification_email = _clean_string(row.get("email_notifica"))
         label_email = notification_email or email
@@ -142,7 +147,7 @@ def _anagrafica_employee_options() -> tuple[list[tuple[str, str]], dict[str, dic
             "reparto": _clean_string(row.get("reparto")),
             "legacy_user_id": str(row.get("utente_id") or "").strip(),
         }
-    options.sort(key=lambda item: item[1].casefold())
+    options.sort(key=lambda item: naming.chiave_testo(item[1]))
     return options, details
 
 

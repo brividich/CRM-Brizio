@@ -584,7 +584,9 @@ def _persone_assegna() -> list[str]:
 
     from anagrafica.models import Fornitore
 
-    utenti = get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+    from core.persone_tendine import utenti_in_forza
+
+    utenti = utenti_in_forza(get_user_model().objects.all())  # COGNOME NOME, in forza
     esito = [f"{(u.get_full_name() or u.username).strip()} ({u.username})" for u in utenti]
     fornitori = Fornitore.objects.filter(is_active=True).order_by("ragione_sociale").values_list("pk", "ragione_sociale")
     esito += [f"{(nome or '').strip()} · fornitore esterno [F{pk}]" for pk, nome in fornitori]

@@ -11,11 +11,11 @@ from .models import ChecklistTaskTemplate, ChiusuraEvento, ChiusuraProposta, Chi
 
 def _responsabili_queryset():
     # Solo dipendenti collegati a un account utente: sono gli unici che possono
-    # accedere alla pagina "Gestione" e confermare i propri task.
-    return (
-        AnagraficaDipendente.objects.filter(utente_id__isnull=False)
-        .order_by("cognome", "nome")
-    )
+    # accedere alla pagina "Gestione" e confermare i propri task. E solo chi è
+    # ancora in forza (regola unica delle tendine persone).
+    from core.persone_tendine import anagrafica_in_forza
+
+    return anagrafica_in_forza(AnagraficaDipendente.objects.filter(utente_id__isnull=False))
 
 
 def _prepara_vice(form) -> None:

@@ -609,19 +609,27 @@ def _mpq_log(request, *, processo=None, abilitazione=None, evento="", dettaglio=
         pass
 
 
-def _dipendenti_scelte():
-    """[(legacy_id, 'Cognome Nome'), ...] per il picker dipendente (fail-safe)."""
+def _dipendenti_scelte(tieni=None):
+    """[(legacy_id, 'COGNOME NOME'), ...] per il picker dipendente (fail-safe).
+
+    Solo persone in forza; ``tieni`` = persona già salvata sull'abilitazione,
+    che resta in elenco anche se nel frattempo è cessata.
+    """
     out = []
     try:
+        from core import naming
         from core.legacy_models import AnagraficaDipendente
-        for r in (AnagraficaDipendente.objects
-                  .values("id", "cognome", "nome").order_by("cognome", "nome")):
+        from core.persone_tendine import anagrafica_in_forza
+
+        qs = anagrafica_in_forza()
+        if str(tieni or "").isdigit():
+            qs = (qs | AnagraficaDipendente.objects.filter(id=int(tieni))).order_by("cognome", "nome", "id")
+        for r in qs.values("id", "cognome", "nome"):
             lid = r.get("id")
             if lid is None:
                 continue
-            cog = (r.get("cognome") or "").strip()
-            nom = (r.get("nome") or "").strip()
-            out.append((int(lid), f"{cog} {nom}".strip() or f"#{lid}"))
+            out.append((int(lid), naming.nome_completo(r.get("nome"), r.get("cognome")) or f"#{lid}"))
+        out.sort(key=lambda x: naming.chiave_testo(x[1]))
     except Exception:
         pass
     return out
@@ -851,7 +859,7 @@ def _abilitazione_form_ctx(form, processo, titolo, *, multi_select=False, ruoli_
         "ruoli_catalogo": list(processo.ruoli.filter(codice_modulo="")),
         "ruoli_sel": {int(r) for r in ruoli_sel if str(r).isdigit()},
         "ruoli_standard": [(c, n, c in set(std_sel)) for c, n, _f in STANDARD_RUOLI],
-        "dipendenti": _dipendenti_scelte(),
+        "dipendenti": _dipendenti_scelte(tieni=form["dipendente"].value() if "dipendente" in form.fields else None),
         "multi_select": multi_select,
         "back_url": reverse("anagrafica:mpq_processo_detail", args=[processo.id]),
     }

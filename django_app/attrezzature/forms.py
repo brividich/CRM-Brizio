@@ -88,7 +88,9 @@ class AttrezzaturaTaskForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["attrezzatura"].required = False
         self.fields["assegnato_a"].required = False
-        self.fields["assegnato_a"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        from core.persone_tendine import tendina_utenti_form
+
+        tendina_utenti_form(self, "assegnato_a")  # in forza, COGNOME NOME
         self.fields["assegnato_a"].label_from_instance = user_display_label
         self.fields["attrezzatura"].queryset = Attrezzatura.objects.order_by("codice", "part_number", "id")
 

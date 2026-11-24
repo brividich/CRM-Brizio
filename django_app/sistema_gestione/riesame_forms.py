@@ -10,7 +10,10 @@ _DATA = {"type": "date"}
 
 
 def _utenti():
-    return get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+    from core.persone_tendine import utenti_in_forza
+
+    # In forza, ordine COGNOME NOME (first_name = cognome).
+    return utenti_in_forza(get_user_model().objects.all())
 
 
 def _etichetta_utente(u) -> str:

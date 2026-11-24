@@ -191,7 +191,7 @@ body.theme-dark .canonical-badge{background:rgba(139,92,246,.2)}
               <option value="">Seleziona utente...</option>
               {% for u in users %}
                 <option value="{{ u.id }}" {% if selected_user_id == u.id %}selected{% endif %}>
-                  {{ u.nome|default:u.email }} (#{{ u.id }}){% if u.ruolo %} — {{ u.ruolo }}{% endif %}
+                  {{ u.etichetta }} (#{{ u.id }}){% if u.ruolo %} — {{ u.ruolo }}{% endif %}
                 </option>
               {% endfor %}
             </select>

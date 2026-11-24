@@ -138,7 +138,15 @@ def coerenza_capi(request):
         "ambigui": [r for r in righe if r["alternative"]],
         "eccezioni": [r for r in righe if r["eccezione_id"]],
     }[filtro]
-    persone = sorted(nomi.items(), key=lambda kv: kv[1].casefold())
+    # Tendina «capo»: solo chi è ancora in forza (data_cessazione vuota).
+    from core.persone_tendine import cessati_anagrafica_ids
+    from core.naming import chiave_testo
+
+    cessati = cessati_anagrafica_ids()
+    persone = sorted(
+        ((lid, nome) for lid, nome in nomi.items() if lid not in cessati),
+        key=lambda kv: chiave_testo(kv[1]),
+    )
     return render(request, "anagrafica/pages/coerenza_capi.html", {
         "righe": visibili,
         "filtri": [(codice, etichetta, conteggi[codice]) for codice, etichetta in FILTRI],

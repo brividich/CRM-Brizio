@@ -49,7 +49,9 @@ def pool_utenti(cfg=None):
     """Utenti assegnabili singolarmente nel menu «Assegna a» (nomi aggiuntivi della config)."""
     from .models import NotificaConfig
     cfg = cfg or NotificaConfig.get_config()
-    return cfg.utenti_aggiuntivi.filter(is_active=True).order_by("first_name", "last_name", "username")
+    from core.persone_tendine import utenti_in_forza
+
+    return utenti_in_forza(cfg.utenti_aggiuntivi.all())
 
 
 def _url_scheda(spec) -> str:

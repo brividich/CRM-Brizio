@@ -53,22 +53,84 @@
         this.dropdown.style.top = ((r.bottom - ra.top) / k) + "px";
         this.dropdown.style.left = ((r.left - ra.left) / k) + "px";
       };
+      tieniAllineato(el, ts);
     } catch (e) {
       // Fail-safe: in caso di errore resta il select nativo.
       el.dataset.tsInit = "";
     }
   }
 
-  // Oltre all'opt-in (.js-searchable), ogni tendina lunga diventa ricercabile da
-  // sola: con più di AUTO_MIN opzioni cercare a occhio non funziona più
-  // (corsi, persone, mansioni, asset). Si esclude con data-no-search, oppure
-  // quando è una lista a più righe (size) — lì la ricerca la fa già la pagina.
-  var AUTO_MIN = 10;
+  // Da quando ogni tendina è ricercabile anche le piccole (stati, filtri) che gli
+  // script di pagina riempiono o cambiano a mano passano da Tom Select: si tiene
+  // la tendina ricercabile allineata al <select> nativo, così quegli script
+  // continuano a funzionare senza sapere nulla di Tom Select.
+  function tieniAllineato(el, ts) {
+    var inSync = false;
+    var getValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").get;
+    // Impronta delle voci indipendente dall'ordine: Tom Select stesso sposta in
+    // fondo al <select> la voce scelta, e quello non deve far ricaricare nulla.
+    var impronta = function () {
+      return Array.prototype.map.call(el.options, function (o) {
+        return o.value + "\u0001" + o.text + (o.disabled ? "\u0002" : "");
+      }).sort().join("\u0003");
+    };
+    var ultima = impronta();
+    var valoriScelti = function () {
+      return Array.prototype.filter.call(el.options, function (o) { return o.selected; })
+        .map(function (o) { return o.value; });
+    };
+    var allinea = function () {
+      if (inSync) return;
+      inSync = true;
+      try {
+        var adesso = impronta();
+        if (adesso !== ultima) {
+          ultima = adesso;
+          ts.clearOptions();
+          ts.sync();
+        }
+        if (el.disabled) ts.disable(); else ts.enable();
+      } catch (e) { /* resta la tendina com'era */ }
+      inSync = false;
+    };
+    var timer = null;
+    new MutationObserver(function () {
+      clearTimeout(timer);
+      timer = setTimeout(allinea, 0);
+    }).observe(el, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["disabled"] });
+
+    // select.value = "x" / selectedIndex = n dagli script di pagina.
+    ["value", "selectedIndex"].forEach(function (prop) {
+      var d = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, prop);
+      if (!d || !d.set || Object.prototype.hasOwnProperty.call(el, prop)) return;
+      try {
+        Object.defineProperty(el, prop, {
+          configurable: true,
+          get: function () { return d.get.call(el); },
+          set: function (v) {
+            d.set.call(el, v);
+            if (inSync) return;
+            inSync = true;
+            try { ts.setValue(el.multiple ? valoriScelti() : getValue.call(el), true); }
+            catch (e) { /* resta il valore nativo */ }
+            inSync = false;
+          },
+        });
+      } catch (e) { /* proprietà non ridefinibile: niente allineamento */ }
+    });
+  }
+
+  // Ogni tendina è ricercabile mentre si digita, non solo le lunghe: oltre
+  // all'opt-in (.js-searchable) si attiva da sola su tutti i <select>.
+  // Si esclude con data-no-search (anche su un contenitore), con data-picker,
+  // sulle liste a più righe (size: lì la ricerca la fa già la pagina) e sui
+  // select nascosti di proposito (display:none sul select stesso, usati come dato).
   function autoCandidata(el) {
     if (el.hasAttribute("data-no-search") || el.hasAttribute("data-picker")) return false;
     if (el.size && el.size > 1) return false;
     if (el.closest("[data-no-search]")) return false;
-    return el.options.length > AUTO_MIN || el.multiple;
+    if (el.hidden || el.style.display === "none") return false;
+    return true;
   }
 
   function initAll(root) {

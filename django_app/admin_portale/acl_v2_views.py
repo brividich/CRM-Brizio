@@ -928,9 +928,10 @@ def acl_canonico(request):
     user_override_rows: list[dict] = []
     all_legacy_users: list = []
     try:
-        all_legacy_users = list(
-            UtenteLegacy.objects.filter(attivo=True).order_by("nome", "id").values("id", "nome", "email", "ruolo_id")
-        )
+        from core.persone_tendine import utenti_legacy_in_forza
+
+        # Attivi e in forza; l'ordine finale è sull'etichetta COGNOME NOME (sotto).
+        all_legacy_users = list(utenti_legacy_in_forza().values("id", "nome", "email", "ruolo_id"))
         # Arricchisci con cognome da anagrafica
         anag_map = {
             a.utente_id: a
@@ -944,6 +945,7 @@ def acl_canonico(request):
                 u["display"] = naming.nome_completo(anag.nome, anag.cognome) + f" — {u['email'] or ''}"
             else:
                 u["display"] = f"{naming.normalizza_parte(u['nome'])} — {u['email'] or ''}"
+        all_legacy_users.sort(key=lambda u: naming.chiave_testo(u["display"]))
     except DatabaseError:
         all_legacy_users = []
 

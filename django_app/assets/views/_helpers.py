@@ -1668,12 +1668,11 @@ def _can_delete_asset(request: HttpRequest) -> bool:
 
 
 def _legacy_employee_options() -> tuple[list[tuple[str, str]], dict[str, dict[str, str]]]:
+    from core.persone_tendine import utenti_legacy_in_forza
+
     try:
-        users = list(
-            UtenteLegacy.objects.filter(attivo=True)
-            .exclude(id__isnull=True)
-            .order_by("nome", "email", "id")
-        )
+        # Attivi e in forza; ordine finale sull'etichetta COGNOME NOME (in fondo).
+        users = list(utenti_legacy_in_forza(UtenteLegacy.objects.exclude(id__isnull=True)))
     except DatabaseError:
         return [], {}
 
@@ -1700,12 +1699,15 @@ def _legacy_employee_options() -> tuple[list[tuple[str, str]], dict[str, dict[st
         uid = int(user.id)
         anagrafica = anagrafica_map.get(uid)
         extra = extra_map.get(uid)
-        nome = naming.normalizza_parte(user.nome)
+        # COGNOME NOME dall'anagrafica collegata (cognome e nome separati);
+        # utenti.nome è un campo unico scritto come capitava e resta il ripiego.
+        nome = ""
+        if anagrafica:
+            nome = naming.nome_completo(getattr(anagrafica, "nome", ""), getattr(anagrafica, "cognome", ""))
+        nome = nome or naming.normalizza_parte(user.nome)
         email = _clean_string(user.email)
         notification_email = _clean_string(getattr(anagrafica, "email_notifica", ""))
         calendar_user_id = email or notification_email
-        if not nome and anagrafica:
-            nome = naming.nome_completo(getattr(anagrafica, "nome", ""), getattr(anagrafica, "cognome", ""))
         display_name = nome or email or f"Utente #{uid}"
         reparto = _clean_string(getattr(extra, "reparto", "")) or _clean_string(getattr(anagrafica, "reparto", ""))
         label_email = calendar_user_id
@@ -1718,15 +1720,16 @@ def _legacy_employee_options() -> tuple[list[tuple[str, str]], dict[str, dict[st
             "calendar_user_id": calendar_user_id,
             "reparto": reparto,
         }
+    options.sort(key=lambda o: naming.chiave_testo(o[1]))
     return options, details
 
 
 def _anagrafica_assignment_options() -> tuple[list[tuple[str, str]], dict[str, dict[str, str]], list[str]]:
     try:
-        rows = list(
-            AnagraficaDipendente.objects.all()
-            .order_by("cognome", "nome", "id")[:1000]
-        )
+        from core.persone_tendine import anagrafica_in_forza
+
+        # Solo chi è in forza (prima anche i cessati), COGNOME NOME.
+        rows = list(anagrafica_in_forza()[:1000])
     except DatabaseError:
         return [], {}, []
 

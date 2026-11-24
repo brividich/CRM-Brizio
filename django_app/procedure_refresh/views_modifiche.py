@@ -41,9 +41,10 @@ from .views_libreria import _contesto_base, _solo_gestori
 
 
 def _utenti():
-    User = get_user_model()
-    return list(User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
-                .only("pk", "first_name", "last_name", "username"))
+    from core.persone_tendine import utenti_in_forza
+
+    # Attivi e in forza, COGNOME NOME (regola unica delle tendine persone).
+    return list(utenti_in_forza().only("pk", "first_name", "last_name", "username"))
 
 
 def _id_utente(raw, validi: set[int]):

@@ -431,7 +431,9 @@ def issue_detail(request, issue_id: int):
         .filter(Q(related_issue=issue) | Q(job__module_name=issue.module_name, status=AutomationExecution.Status.FAILED))
         .order_by("-started_at", "-id")[:20]
     )
-    assignable_users = get_user_model().objects.filter(is_active=True).order_by("username")
+    from core.persone_tendine import utenti_in_forza
+
+    assignable_users = utenti_in_forza(get_user_model().objects.all())  # COGNOME NOME, in forza
 
     context = {
         "issue": issue,

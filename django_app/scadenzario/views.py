@@ -363,7 +363,9 @@ def elenco(request):
 
 
 def _utenti_attivi():
-    return get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+    from core.persone_tendine import utenti_in_forza
+
+    return utenti_in_forza(get_user_model().objects.all())
 
 
 @login_required

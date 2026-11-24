@@ -98,8 +98,13 @@ class RilievoEsternoForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         campo = self.fields["responsabile"]
-        campo.queryset = get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
-        campo.label_from_instance = lambda u: (u.get_full_name() or u.get_username())
+        from core.persone_tendine import imposta_tendina_persone, utenti_in_forza
+
+        # In forza, COGNOME NOME (first_name = cognome); il valore iniziale resta.
+        iniziale = self.initial.get("responsabile")
+        imposta_tendina_persone(
+            campo, utenti_in_forza(get_user_model().objects.all()), tieni=[getattr(iniziale, "pk", iniziale)]
+        )
 
 
 class RapportoEsternoForm(forms.Form):

@@ -123,7 +123,10 @@ class ChiusuraCompilazioneForm(forms.Form):
     def __init__(self, *args, **kwargs):
         from django.contrib.auth import get_user_model
         super().__init__(*args, **kwargs)
-        self.fields["approvatore"].queryset = get_user_model().objects.filter(is_active=True)
+        from core.persone_tendine import etichetta_utente, utenti_in_forza
+
+        self.fields["approvatore"].queryset = utenti_in_forza(get_user_model().objects.all())
+        self.fields["approvatore"].label_from_instance = etichetta_utente
 
 
 class ApprovazioneForm(forms.Form):
@@ -219,10 +222,10 @@ class RegistroOFIForm(forms.ModelForm):
             from django.utils import timezone
             self.fields["data_apertura"].initial = timezone.localdate()
         # Responsabile tra gli utenti attivi: riceve i solleciti e vede la voce in «Le mie voci».
-        from django.contrib.auth import get_user_model
         resp = self.fields["responsabile"]
-        resp.queryset = get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
-        resp.label_from_instance = lambda u: (u.get_full_name() or u.get_username())
+        from core.persone_tendine import tendina_utenti_form
+
+        tendina_utenti_form(self, "responsabile")  # in forza, COGNOME NOME
         resp.help_text = ("Riceve i solleciti di scadenza e può far avanzare la voce nel PDCA. "
                           "Se lo lasci vuoto vale il responsabile del processo del catalogo.")
         from sistema_gestione.models import Processo

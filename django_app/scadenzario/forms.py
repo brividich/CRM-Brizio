@@ -73,9 +73,14 @@ class ScadenzaForm(forms.ModelForm):
         if categorie_ammesse is not None:
             qs = qs.filter(pk__in=categorie_ammesse)
         self.fields["categoria"].queryset = qs.distinct().order_by("nome")
-        self.fields["responsabile"].queryset = get_user_model().objects.filter(is_active=True).order_by(
-            "last_name", "first_name", "username")
-        self.fields["responsabile"].label_from_instance = lambda u: u.get_full_name() or u.username
+        from core.persone_tendine import imposta_tendina_persone, utenti_in_forza
+
+        # In forza, ordine COGNOME NOME (first_name = cognome); il valore salvato resta.
+        imposta_tendina_persone(
+            self.fields["responsabile"],
+            utenti_in_forza(get_user_model().objects.all()),
+            tieni=[getattr(self.instance, "responsabile_id", None)],
+        )
         self.fields["asset"].required = False
         self.fields["fornitore"].required = False
         from anagrafica.models import Fornitore
@@ -167,9 +172,15 @@ def persone_choices() -> list[tuple[int, str]]:
     """Persone con utenza del portale: (utenti.id, «Cognome Nome»)."""
     from core.legacy_models import AnagraficaDipendente
 
-    righe = AnagraficaDipendente.objects.filter(utente_id__isnull=False).values_list("utente_id", "cognome", "nome")
+    from core import naming
+    from core.persone_tendine import anagrafica_in_forza, utenti_legacy_in_forza
+
+    # Solo persone in forza con account attivo; COGNOME NOME in ordine alfabetico.
+    righe = anagrafica_in_forza(
+        AnagraficaDipendente.objects.filter(utente_id__in=utenti_legacy_in_forza().values("id"))
+    ).values_list("utente_id", "cognome", "nome")
     esito = {}
     for uid, cognome, nome in righe:
-        etichetta = " ".join(p for p in ((cognome or "").strip(), (nome or "").strip()) if p) or f"Utente {uid}"
+        etichetta = naming.nome_completo(nome, cognome) or f"Utente {uid}"
         esito.setdefault(int(uid), etichetta)
-    return sorted(esito.items(), key=lambda x: x[1].casefold())
+    return sorted(esito.items(), key=lambda x: naming.chiave_testo(x[1]))

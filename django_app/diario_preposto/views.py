@@ -1219,11 +1219,13 @@ def api_cerca_utenti(request):
     results = []
     try:
         from core.legacy_models import AnagraficaDipendente
+        from core.persone_tendine import anagrafica_in_forza
 
-        qs = AnagraficaDipendente.objects.filter(
+        # Solo chi è in forza (regola unica delle tendine persone).
+        qs = anagrafica_in_forza(AnagraficaDipendente.objects.filter(
             Q(nome__icontains=q) | Q(cognome__icontains=q) | naming.q_persona(q, "nome", "cognome") |
             Q(email__icontains=q) | Q(aliasusername__icontains=q)
-        ).order_by("cognome", "nome")[:20]
+        ))[:20]
 
         for a in qs:
             nome_completo = naming.nome_completo(a.nome, a.cognome)
@@ -1238,7 +1240,9 @@ def api_cerca_utenti(request):
     except Exception:
         from django.contrib.auth import get_user_model
         User = get_user_model()
-        qs = User.objects.filter(username__icontains=q).order_by("first_name", "last_name")[:20]
+        from core.persone_tendine import utenti_in_forza
+
+        qs = utenti_in_forza(User.objects.filter(username__icontains=q))[:20]
         for u in qs:
             nome = u.get_full_name() or u.username
             results.append({

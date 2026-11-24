@@ -60,11 +60,11 @@ ACCESSO_TUTTI, ACCESSO_ADMIN, ACCESSO_RUOLI.
       <input type="text" class="imp-perm-search" placeholder="Filtra utenti…" data-perm-search="{{ card.prefix }}">
       <div class="imp-perm-utenti" data-perm-utenti="{{ card.prefix }}">
         {% for u in utenti_acl %}
-          <label data-uname="{{ u.nome|default:u.email|lower }}">
+          <label data-uname="{{ u.etichetta|lower }} {{ u.nome|default:''|lower }} {{ u.email|default:''|lower }}">
             <input type="checkbox" name="{{ card.prefix }}_utente_ids" value="{{ u.id }}"
                    {% if u.id in card.utente_ids %}checked{% endif %}
                    {% if not is_admin %}disabled{% endif %}>
-            {{ u.nome|default:u.email }}
+            {{ u.etichetta }}
           </label>
         {% endfor %}
       </div>

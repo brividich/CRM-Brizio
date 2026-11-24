@@ -1914,9 +1914,9 @@
               </div>
               <div class="imp-field">
                 <label class="imp-label" for="avviso_it_utenti">Utenti IT da notificare nel portale (campanella)</label>
-                <select class="imp-select" id="avviso_it_utenti" name="avviso_it_utenti" multiple size="4">
+                <select class="imp-select js-searchable" id="avviso_it_utenti" name="avviso_it_utenti" multiple size="4">
                   {% for u in utenti_acl %}
-                    <option value="{{ u.id }}" {% if u.id in avviso_it.utenti_ids %}selected{% endif %}>{{ u.nome|upper|default:u.email }}{% if u.email %} — {{ u.email }}{% endif %}</option>
+                    <option value="{{ u.id }}" {% if u.id in avviso_it.utenti_ids %}selected{% endif %}>{{ u.etichetta }}{% if u.email %} — {{ u.email }}{% endif %}</option>
                   {% endfor %}
                 </select>
                 <p class="imp-help">Ctrl+clic per selezionarne più di uno.</p>
@@ -2195,7 +2195,7 @@
                   <label class="imp-label">Utente</label>
                   <select name="legacy_user_id" class="imp-select" required>
                     <option value="">— scegli utente —</option>
-                    {% for u in utenti_acl %}<option value="{{ u.id }}">{{ u.nome|upper|default:u.email }}</option>{% endfor %}
+                    {% for u in utenti_acl %}<option value="{{ u.id }}">{{ u.etichetta }}</option>{% endfor %}
                   </select>
                 </div>
                 <div class="imp-acl-ov-perms">
