@@ -1,11 +1,14 @@
 {# Nodo ricorsivo dell'organigramma: tessera + riporti affiancati sotto, ad albero genealogico. Riceve: nodo (only). #}
-<li class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}">
+<li class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}"
+    data-nodo="{{ nodo.ruolo.id }}-{{ nodo.chiave_persona }}">
   {% comment %}
     Con una sola persona si clicca tutta la tessera (il JS risale a `data-persona`);
     il nome resta comunque un `button`, che e' il comando raggiungibile da tastiera.
     Niente `role=button` sulla tessera: dentro c'e' gia' il pulsante di collasso.
+    `data-cerca` e' il testo su cui cerca la casella della barra.
   {% endcomment %}
   <div class="ogd-card ogd-card--{{ nodo.tipo }}{% if nodo.titolari|length == 1 %} ogd-card--apribile{% endif %}"
+       data-cerca="{{ nodo.ruolo.nome|lower }}{% for t in nodo.titolari %} {{ t.nome|lower }}{% endfor %}"
        {% if nodo.titolari|length == 1 %}data-persona="{{ nodo.titolari.0.legacy_id }}"{% endif %}>
     {% if nodo.titolari|length > 1 %}
       <span class="ogd-avatar ogd-avatar--gruppo" aria-hidden="true">{{ nodo.titolari|length }}</span>
