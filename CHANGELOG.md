@@ -9,6 +9,10 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Assenze: un solo approvatore per richiesta, superiore solo se il capo manca tutto il periodo (24/11)
+
+- **Approvatore unico per periodo e per permesso ripetuto** (`django_app/assenze/views/_helpers.py`, `django_app/assenze/views/richieste.py`, `django_app/assenze/serie.py`, `django_app/assenze/templates/assenze/partials/_richiesta_campo_capo.html`, `django_app/assenze/templates/assenze/pages/impostazioni.html`, `django_app/core/guide_moduli/contenuti/assenze.py`, `docs/moduli/assenze.md`, test in `assenze/tests.py`, `assenze/tests_hr.py`, `assenze/test_sharepoint_sync.py`). La richiesta passa al superiore del caporeparto solo se il capo è assente in tutti i giorni richiesti (lun-ven fra inizio e fine; nel permesso ripetuto i giorni della serie). Prima bastava l'assenza nel primo giorno: un permesso ripetuto con il capo in ferie solo il primo giorno mandava l'unica mail di approvazione al superiore, che decideva anche per i giorni assegnati al capo. Ora la serie ha un solo capo, e solleciti, Outlook e SharePoint usano la stessa regola. Nessuna migrazione.
+
 ### Asset: cartelle documento della categoria scelte per singolo asset (24/11)
 
 - **«Togli da questo asset»** su una cartella di categoria vuota: sparisce solo da quella scheda. «Cartelle della categoria non usate qui» → «Aggiungi a questo asset» la rimette. Il pulsante per tutta la categoria ora si chiama «Disattiva per tutta la categoria».
