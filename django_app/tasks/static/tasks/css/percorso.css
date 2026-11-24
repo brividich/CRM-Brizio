@@ -716,7 +716,8 @@
 }
 .ka-colleg-lista li strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ka-colleg-lista li small { color: var(--text-light); white-space: nowrap; font-size: 11.5px; }
-.ka-colleg-lista:not(.is-scelta) li { opacity: .75; }
+/* L'elenco delle altre attività si apre solo con «Viene dopo…» / «Viene prima di…» (o trascinandoli). */
+.ka-colleg-lista:not(.is-scelta) { display: none; }
 .ka-colleg-lista.is-scelta li { cursor: pointer; }
 .ka-colleg-lista.is-scelta li:hover, .ka-colleg-lista li:focus-visible, .ka-colleg-lista li.is-bersaglio {
   background: var(--accent-light); border-color: var(--accent); outline: none; opacity: 1;
@@ -806,3 +807,8 @@ html.ka-sceglie [data-ka-riga]:hover, [data-ka-riga].is-bersaglio { background: 
   .ka-elenco-conta { margin-left: 0; }
 }
 .ka-prontezza { margin-top: 4px; }
+/* Elenco: le chiuse restano in fondo, barrate, sotto «Completate e chiuse». */
+.ka-elenco tr.status-done .tl-task-link { text-decoration: line-through; color: var(--text-light); }
+.ka-elenco tr.status-done td { opacity: .72; }
+.ka-elenco tr.status-done:hover td { opacity: 1; }
+.ka-gruppo--chiuse th { border-top: 2px solid var(--border); }

@@ -1,0 +1,27 @@
+{% comment %}
+L'attività del punto com'è adesso: stato, responsabile, scadenza, macchine (una per operazione)
+e gli altri collegamenti. Contesto: vivo (services/odg_vivo._vivo).
+{% endcomment %}
+<div class="odgv{% if vivo.chiusa %} is-chiusa{% endif %}">
+  {% if vivo.operazioni %}
+  <table class="odgv-op">
+    <tbody>
+      {% for m in vivo.operazioni %}
+      <tr>
+        <td class="odgv-op-num">{% if m.operazione %}Op. {{ m.operazione }}{% else %}&ndash;{% endif %}</td>
+        <td><b>{{ m.codice }}</b> {{ m.descrizione }}</td>
+        <td>{{ m.lavorazione }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if vivo.altri %}
+  <p class="odgv-altri">{% for v in vivo.altri %}<span class="ts-chip{% if v.tono %} {{ v.tono }}{% endif %}">{{ v.nome }} {{ v.codice }}{% if v.stato %} &middot; {{ v.stato }}{% endif %}</span>{% endfor %}</p>
+  {% endif %}
+  <p class="odgv-riga">
+    <span class="ts-chip {{ vivo.tono }}">{{ vivo.stato }}</span>
+    {% if vivo.stesso_titolo %}<a class="odgv-apri" href="{{ vivo.url }}" data-preview="{{ vivo.url }}">Apri l'attività</a>{% endif %}
+    <small>{{ vivo.responsabile|default:"Da assegnare" }}{% if vivo.scadenza %} &middot; entro {{ vivo.scadenza|date:"d/m" }}{% endif %}</small>
+  </p>
+</div>

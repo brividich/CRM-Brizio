@@ -36,6 +36,7 @@ della pagina porta data-ka-pannello e data-csrf.
       <tbody>
         {% if gruppo.etichetta %}<tr class="ka-gruppo"><th colspan="{% if mostra_commessa %}6{% else %}5{% endif %}">{{ gruppo.etichetta }} <span>{{ gruppo.righe|length }}</span></th></tr>{% endif %}
         {% for r in gruppo.righe %}{% with task=r.task %}
+        {% if r.primo_chiuso and not elenco_raggruppa %}<tr class="ka-gruppo ka-gruppo--chiuse"><th colspan="{% if mostra_commessa %}6{% else %}5{% endif %}">Completate e chiuse <span>{{ r.primo_chiuso }}</span></th></tr>{% endif %}
         <tr class="tl-row-clickable{% if r.in_ritardo %} status-overdue{% elif not r.aperta %} status-done{% endif %}" data-href="{{ r.url }}"{% if task %} data-ka-riga="{{ task.pk }}" data-progetto="{{ task.project_id|default:'' }}"{% endif %}>
           <td>
             <span class="ts-chip {{ r.chip }} ka-origine">{% if r.origine == "action" or r.origine == "azione" %}Attività d'incontro{% else %}{{ r.etichetta_origine }}{% endif %}</span>

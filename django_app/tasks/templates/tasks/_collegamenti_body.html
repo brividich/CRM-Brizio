@@ -1,27 +1,66 @@
-{% comment %}Corpo del riquadro «Collegamenti»: si rifà a ogni comando (tasks:collegamenti_azione).{% endcomment %}
+{% comment %}Corpo del riquadro «Collegamenti»: si rifà a ogni comando (tasks:collegamenti_azione).
+Macchine: una riga per operazione (numero, macchina, lavorazione). Programmi: le quattro fasi a passi,
+il pulsante del passo successivo e lo storico. FAI da compilare: il pulsante che apre la scheda.{% endcomment %}
 {% if col.manca_testo %}<p class="kc-manca"><span class="ts-chip warn">{{ col.manca_testo }}</span></p>{% endif %}
 <ul class="kc-lista" data-kc-lista>
-  {% for v in col.voci %}
-  <li class="kc-voce" data-kc-voce="{{ v.chiave }}">
-    <span class="kc-tipo">{{ v.nome }}</span>
-    <span class="kc-desc">{% if v.vuoto %}{% if v.puo_compilare %}<a class="kc-codice" href="{{ v.url }}">Compila la scheda FAI</a>{% else %}<b class="kc-codice">da compilare</b>{% endif %}{% elif v.url %}<a class="kc-codice" href="{{ v.url }}">{{ v.codice }}</a>{% else %}<b class="kc-codice">{{ v.codice }}</b>{% endif %}{% if v.descrizione %}<small>{{ v.descrizione }}</small>{% endif %}{% if v.ref.path %}<small>{% include "tasks/_tech_ref_link.html" with ref=v.ref %}</small>{% endif %}</span>
+  {% if col.macchine %}
+  <li class="kc-voce kc-voce--op">
+    <span class="kc-tipo">{% if col.macchine|length > 1 %}Macchine{% else %}Macchina{% endif %}</span>
+    <table class="kc-op">
+      <tbody>
+        {% for v in col.macchine %}
+        <tr data-kc-voce="{{ v.chiave }}">
+          {% if v.puo %}
+          <td class="kc-op-num"><input class="input" type="text" inputmode="numeric" maxlength="4" value="{{ v.operazione|default_if_none:'' }}" placeholder="Op." data-kc-op-num aria-label="Operazione della macchina {{ v.codice }}"></td>
+          {% else %}
+          <td class="kc-op-num">{% if v.operazione %}Op. {{ v.operazione }}{% else %}&ndash;{% endif %}</td>
+          {% endif %}
+          <td>
+            <span class="kc-desc"><b class="kc-codice">{{ v.codice }}</b>{% if v.descrizione %} {{ v.descrizione }}{% endif %}</span>
+            {% if v.avviso %}<p class="kc-avviso" role="note"><b>Avviso:</b> {{ v.avviso }}</p>{% endif %}
+            {% if v.operatori %}{% with m=v.operatori %}
+            <p class="kc-operatori">
+              {% if m.abilitati is None %}<span class="tp-meta">skill matrix non disponibile</span>
+              {% elif m.abilitati == 0 %}<span class="ts-chip danger">Nessun abilitato operativo</span>
+              {% else %}<span class="ts-chip {% if m.disponibili == 0 %}danger{% elif m.abilitati == 1 or m.assenti %}warn{% else %}ok{% endif %}">{{ m.disponibili }} su {{ m.abilitati }} abilitati disponibili</span>{% endif %}
+              {% for a in m.assenti %}<span class="tp-meta">{% if a.nome %}{{ a.nome }}{% else %}1 abilitato{% endif %} assente{% for p in a.periodi %} {{ p.0|date:"d/m" }}–{{ p.1|date:"d/m" }}{% endfor %}</span>{% endfor %}
+            </p>
+            {% endwith %}{% endif %}
+          </td>
+          {% if v.puo %}
+          <td class="kc-op-lav"><input class="input" type="text" maxlength="120" value="{{ v.lavorazione }}" placeholder="Lavorazione (es. sgrossatura)" data-kc-op-lav aria-label="Lavorazione sulla macchina {{ v.codice }}"></td>
+          {% else %}
+          <td class="kc-op-lav">{{ v.lavorazione }}</td>
+          {% endif %}
+          <td class="kc-op-stato">{% if v.stato %}<span class="ts-chip {{ v.tono }}">{{ v.stato }}</span>{% endif %}{% if v.puo %}<button type="button" class="kc-x" data-kc-togli aria-label="Togli la macchina {{ v.codice }}">&times;</button>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </li>
+  {% endif %}
+  {% for v in col.altre %}
+  {% if v.passi %}
+  <li class="kc-voce kc-voce--prog" data-kc-voce="{{ v.chiave }}">
+    <div class="kc-prog-testa">
+      <span class="kc-tipo">{{ v.nome }}</span>
+      <span class="kc-desc">{% if v.url %}<a class="kc-codice" href="{{ v.url }}">{{ v.codice }}</a>{% else %}<b class="kc-codice">{{ v.codice }}</b>{% endif %}{% if v.descrizione %}<small>{{ v.descrizione }}</small>{% endif %}{% if v.ref.path %}<small>{% include "tasks/_tech_ref_link.html" with ref=v.ref %}</small>{% endif %}</span>
+      {% if v.modificabile %}<button type="button" class="kc-mod" data-kc-modifica aria-expanded="false">Modifica</button>{% endif %}
+      {% if v.puo %}<button type="button" class="kc-x" data-kc-togli aria-label="Togli {{ v.nome }} {{ v.codice }}">&times;</button>{% endif %}
+    </div>
+    <div class="kc-passi" aria-label="Fase: {{ v.stato }}">
+      {% for p in v.passi %}<span class="{% if p.fatto %}is-fatto{% elif p.ora %}is-ora{% endif %}"{% if p.ora %} aria-current="step"{% endif %}>{{ p.nome }}</span>{% endfor %}
+    </div>
     {% if v.fasi and v.puo %}
-    <select class="input kc-fase" data-kc-fase data-no-search aria-label="Fase di {{ v.codice }}">
-      <option value="" selected>{{ v.stato }}</option>
-      {% for azione, etichetta in v.fasi %}<option value="{{ azione }}">{{ etichetta }}</option>{% endfor %}
-    </select>
-    {% elif v.stato and not v.vuoto %}<span class="ts-chip {{ v.tono }}">{{ v.stato }}</span>{% endif %}
-    {% if v.modificabile %}<button type="button" class="kc-mod" data-kc-modifica aria-expanded="false">Modifica</button>{% endif %}
-    {% if v.puo %}<button type="button" class="kc-x" data-kc-togli aria-label="Togli {{ v.nome }} {{ v.codice }}">&times;</button>{% endif %}
-    {% if v.avviso %}<p class="kc-avviso" role="note"><b>Avviso:</b> {{ v.avviso }}</p>{% endif %}
-    {% if v.operatori %}{% with m=v.operatori %}
-    <p class="kc-operatori">
-      {% if m.abilitati is None %}<span class="tp-meta">skill matrix non disponibile</span>
-      {% elif m.abilitati == 0 %}<span class="ts-chip danger">Nessun abilitato operativo</span>
-      {% else %}<span class="ts-chip {% if m.disponibili == 0 %}danger{% elif m.abilitati == 1 or m.assenti %}warn{% else %}ok{% endif %}">{{ m.disponibili }} su {{ m.abilitati }} abilitati disponibili</span>{% endif %}
-      {% for a in m.assenti %}<span class="tp-meta">{% if a.nome %}{{ a.nome }}{% else %}1 abilitato{% endif %} assente{% for p in a.periodi %} {{ p.0|date:"d/m" }}–{{ p.1|date:"d/m" }}{% endfor %}</span>{% endfor %}
-    </p>
-    {% endwith %}{% endif %}
+    <div class="kc-prog-azioni">
+      {% for azione, etichetta in v.fasi %}<button type="button" class="btn btn-sm{% if not forloop.first %} btn-secondary{% endif %}" data-kc-passo="{{ azione }}">{{ etichetta }}</button>{% endfor %}
+    </div>
+    {% endif %}
+    {% if v.storico %}
+    <ul class="kc-storico">
+      {% for s in v.storico %}<li>{{ s.created_at|date:"d/m H:i" }} &middot; {{ s.get_fase_display }}{% if s.revisione %} &middot; rev. {{ s.revisione }}{% endif %}{% if s.utente %} &middot; {{ s.utente.get_full_name|default:s.utente.username }}{% endif %}{% if s.nota %} &middot; {{ s.nota }}{% endif %}</li>{% endfor %}
+    </ul>
+    {% endif %}
     {% if v.modificabile %}
     <div class="kc-form" data-kc-form hidden>
       <input class="input" type="text" data-kc-code maxlength="120" value="{{ v.ref.code }}" placeholder="Codice" aria-label="Codice">
@@ -30,12 +69,32 @@
     </div>
     {% endif %}
   </li>
+  {% else %}
+  <li class="kc-voce{% if v.tipo == 'fai' %} kc-voce--fai{% endif %}" data-kc-voce="{{ v.chiave }}">
+    <span class="kc-tipo">{{ v.nome }}</span>
+    <span class="kc-desc">{% if v.vuoto %}<b class="kc-codice">da compilare</b>{% elif v.url and v.tipo != 'fai' %}<a class="kc-codice" href="{{ v.url }}">{{ v.codice }}</a>{% else %}<b class="kc-codice">{{ v.codice }}</b>{% endif %}{% if v.descrizione %}<small>{{ v.descrizione }}</small>{% endif %}{% if v.ref.path %}<small>{% include "tasks/_tech_ref_link.html" with ref=v.ref %}</small>{% endif %}</span>
+    {% if v.stato and not v.vuoto %}<span class="ts-chip {{ v.tono }}">{{ v.stato }}</span>{% endif %}
+    {% if v.tipo == 'fai' and v.url %}
+      {% if v.ref.fai_record %}<a class="btn btn-secondary btn-sm" href="{{ v.url }}">Apri la scheda FAI</a>
+      {% elif v.puo_compilare %}<a class="btn btn-sm" href="{{ v.url }}">Compila la scheda FAI</a>{% endif %}
+    {% endif %}
+    {% if v.modificabile %}<button type="button" class="kc-mod" data-kc-modifica aria-expanded="false">Modifica</button>{% endif %}
+    {% if v.puo %}<button type="button" class="kc-x" data-kc-togli aria-label="Togli {{ v.nome }} {{ v.codice }}">&times;</button>{% endif %}
+    {% if v.modificabile %}
+    <div class="kc-form" data-kc-form hidden>
+      <input class="input" type="text" data-kc-code maxlength="120" value="{{ v.ref.code }}" placeholder="Codice" aria-label="Codice">
+      <input class="input" type="text" data-kc-path maxlength="500" value="{{ v.ref.path }}" placeholder="\\server\cartella o file" aria-label="Cartella o file">
+      <button type="button" class="btn btn-sm" data-kc-salva>Salva</button>
+    </div>
+    {% endif %}
+  </li>
+  {% endif %}
   {% empty %}
-  <li class="kc-vuoto" data-kc-vuoto>Nessun collegamento.</li>
+  {% if not col.macchine %}<li class="kc-vuoto" data-kc-vuoto>Nessun collegamento.</li>{% endif %}
   {% endfor %}
 </ul>
 {% if col.puo and col.tipi %}
 <div class="kc-chips" role="group" aria-label="Aggiungi un collegamento">
-  {% for t in col.tipi %}<button type="button" class="kc-chip{% if t.serve %} is-serve{% endif %}" data-kc-tipo="{{ t.codice }}" data-kc-nome="{{ t.nome }}" aria-pressed="false">+ {{ t.nome }}</button>{% endfor %}
+  {% for t in col.tipi %}<button type="button" class="kc-chip{% if t.serve %} is-serve{% endif %}" data-kc-tipo="{{ t.codice }}" data-kc-nome="{{ t.nome }}" aria-pressed="false">+ {% if t.codice == 'macchina' and col.macchine %}Operazione su altra macchina{% else %}{{ t.nome }}{% endif %}</button>{% endfor %}
 </div>
 {% endif %}
