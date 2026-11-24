@@ -53,7 +53,7 @@ def _certificazione_presenza_dipendenti_attivi() -> list[str]:
         return []
 
     cols = _helpers.legacy_table_columns("anagrafica_dipendenti")
-    select_cols = [c for c in ["cognome", "nome", "attivo"] if c in cols]
+    select_cols = [c for c in ["id", "cognome", "nome", "attivo"] if c in cols]
     if "nome" not in select_cols or "cognome" not in select_cols:
         return []
 
@@ -73,9 +73,14 @@ def _certificazione_presenza_dipendenti_attivi() -> list[str]:
         """
     )
 
+    from core.persone_tendine import cessati_anagrafica_ids
+
+    cessati = cessati_anagrafica_ids()  # rapporto cessato: fuori dall'elenco
     names: list[str] = []
     seen: set[str] = set()
     for row in rows:
+        if row.get("id") is not None and int(row["id"]) in cessati:
+            continue
         full_name = naming.nome_completo(row.get('nome'), row.get('cognome'))
         if not full_name:
             continue

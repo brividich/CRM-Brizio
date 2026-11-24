@@ -1053,7 +1053,9 @@ def _squadra_manutenzione_context() -> dict:
 
     valori = squadra.impostazioni()
     membri = squadra.membri_squadra()
-    candidati = membri if membri is not None else get_user_model().objects.filter(is_active=True)
+    from core.persone_tendine import utenti_in_forza
+
+    candidati = utenti_in_forza(membri if membri is not None else get_user_model().objects.all())
     return {
         "squadra_gruppo": valori["gruppo"],
         "squadra_assegnatario": valori["assegnatario"],

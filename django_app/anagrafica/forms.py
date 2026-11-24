@@ -46,6 +46,23 @@ from .models_sorveglianza import (
 # insieme alle view dei fornitori. Vedere `fornitori/forms.py`.
 
 
+def _docenti_in_forza(tieni=None):
+    """Docenti attivi per le tendine, esclusi gli interni non più in forza.
+
+    ``tieni``: docente già salvato sulla sessione/lezione, che resta scelto anche
+    se nel frattempo è cessato.
+    """
+    from core.persone_tendine import cessati_anagrafica_subquery
+
+    qs = TrainingInstructor.objects.filter(is_active=True).exclude(
+        tipo="INTERNO", legacy_anagrafica_id__in=cessati_anagrafica_subquery()
+    )
+    tieni = getattr(tieni, "pk", tieni)
+    if str(tieni or "").isdigit():
+        qs = qs | TrainingInstructor.objects.filter(pk=int(tieni))
+    return qs.order_by("nome")
+
+
 class PrivateClearableFileInput(forms.ClearableFileInput):
     """ClearableFileInput per file su storage privato (senza URL pubblico).
 
@@ -1077,7 +1094,7 @@ class TrainingSessionForm(forms.ModelForm):
         self.fields["corso"].queryset = (
             TrainingCourse.objects.filter(is_active=True).order_by("piano__nome", "titolo")
         )
-        self.fields["docente"].queryset = TrainingInstructor.objects.filter(is_active=True).order_by("nome")
+        self.fields["docente"].queryset = _docenti_in_forza(getattr(getattr(self, "instance", None), "docente_id", None) or self.initial.get("docente"))
         self.fields["docente"].required = False
         self.fields["docente_ente"].queryset = TrainingProvider.objects.filter(is_active=True).order_by("nome")
         self.fields["docente_ente"].required = False
@@ -1310,7 +1327,7 @@ class TrainingSessioneUnicaForm(_TrainingOrarioMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["docente"].queryset = TrainingInstructor.objects.filter(is_active=True).order_by("nome")
+        self.fields["docente"].queryset = _docenti_in_forza(getattr(getattr(self, "instance", None), "docente_id", None) or self.initial.get("docente"))
         self.fields["docente"].empty_label = "— Nessuno —"
 
     def clean(self):
@@ -1394,7 +1411,7 @@ class TrainingLezioniGeneraForm(_TrainingOrarioMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["docente"].queryset = TrainingInstructor.objects.filter(is_active=True).order_by("nome")
+        self.fields["docente"].queryset = _docenti_in_forza(getattr(getattr(self, "instance", None), "docente_id", None) or self.initial.get("docente"))
         self.fields["docente"].empty_label = "— Come la sessione —"
 
     def clean(self):
@@ -1631,7 +1648,7 @@ class TrainingLessonForm(forms.ModelForm):
     def __init__(self, *args, sessione=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.sessione = sessione
-        self.fields["docente"].queryset = TrainingInstructor.objects.filter(is_active=True).order_by("nome")
+        self.fields["docente"].queryset = _docenti_in_forza(getattr(getattr(self, "instance", None), "docente_id", None) or self.initial.get("docente"))
         self.fields["docente"].required = False
         self.fields["docente_ente"].queryset = TrainingProvider.objects.filter(is_active=True).order_by("nome")
         self.fields["docente_ente"].required = False

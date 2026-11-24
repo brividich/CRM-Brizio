@@ -89,19 +89,22 @@ def task_active_users_queryset():
     utenti Django collegati a legacy attivi. Se il mapping legacy non e'
     disponibile (test/dev minimale), fallback non bloccante agli auth_user attivi.
     """
-    base_qs = User.objects.filter(is_active=True).select_related("profile")
+    from core.persone_tendine import utenti_in_forza
+
+    # utenti_in_forza: attivi, senza chi ha il rapporto cessato, ordine COGNOME NOME.
+    base_qs = utenti_in_forza(User.objects.select_related("profile"))
     try:
         active_legacy_ids = list(
             UtenteLegacy.objects.filter(attivo=True).values_list("id", flat=True)
         )
     except DatabaseError:
-        return base_qs.order_by("first_name", "last_name", "username")
+        return base_qs
     if not active_legacy_ids:
-        return base_qs.order_by("first_name", "last_name", "username")
+        return base_qs
     mapped_qs = base_qs.filter(profile__legacy_user_id__in=active_legacy_ids)
     if not mapped_qs.exists():
-        return base_qs.order_by("first_name", "last_name", "username")
-    return mapped_qs.order_by("first_name", "last_name", "username")
+        return base_qs
+    return mapped_qs
 
 
 def _users_for_role(role_type: str):

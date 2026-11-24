@@ -4588,7 +4588,8 @@ class SoftwareLicenseTests(TestCase):
         self.assertEqual(response.status_code, 302)
         license_row = SoftwareLicense.objects.get(license_reference="AV-200")
         self.assertEqual(license_row.assigned_anagrafica_id, int(row[0]))
-        self.assertIn("Rossi", license_row.assigned_to_display)
+        # Nominativo nel formato canonico COGNOME NOME (core.naming), tutto maiuscolo.
+        self.assertIn("ROSSI", license_row.assigned_to_display)
 
     def test_asset_detail_shows_software_license(self):
         SoftwareLicense.objects.create(

@@ -133,6 +133,13 @@ def _handle_ai_knowledge_post(request: HttpRequest, *, redirect_to: str):
     return None, entry
 
 
+def _utenti_in_forza_simulabili(User):
+    """Tendina «utente simulato» del runtime AI: in forza, ordine COGNOME NOME."""
+    from core.persone_tendine import utenti_in_forza
+
+    return utenti_in_forza(User.objects.all())
+
+
 def _safe_int(value, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
     try:
         parsed = int(value)
@@ -706,7 +713,8 @@ def ai_settings(request: HttpRequest):
             "runtime_audit_rows": runtime_audit_rows,
             "runtime_audit_filters": runtime_audit_filters,
             "runtime_test_result": runtime_test_result,
-            "runtime_simulated_users": User.objects.filter(is_active=True).order_by("username")[:100],
+            # Tutti gli utenti in forza (non più i primi 100 per username), COGNOME NOME.
+            "runtime_simulated_users": _utenti_in_forza_simulabili(User),
             "governance_rows": governance_rows,
             "governance_edit_key": governance_edit_key,
             "governance_edit_review": governance_edit_review,

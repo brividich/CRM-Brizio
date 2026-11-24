@@ -1354,9 +1354,13 @@ def _permessi_timbri_context() -> dict:
         user_override_rows = list(user_override_map.values())
 
         # Tutti gli utenti attivi (per la select di aggiunta)
-        all_users = list(
-            User.objects.filter(is_active=True).order_by("username").values("id", "username", "first_name", "last_name")
-        )
+        from core.persone_tendine import etichetta_utente, utenti_in_forza
+
+        # In forza, COGNOME NOME, ordine alfabetico (prima: username, sempre come etichetta).
+        all_users = [
+            {"id": u.id, "username": u.username, "etichetta": etichetta_utente(u)}
+            for u in utenti_in_forza(User.objects.all()).only("id", "username", "first_name", "last_name")
+        ]
         overridden_user_ids = set(user_override_map.keys())
 
         return {

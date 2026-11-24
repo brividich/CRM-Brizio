@@ -11,6 +11,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
+from core.persone_tendine import utenti_in_forza as _utenti_in_forza
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -481,7 +482,7 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
     category_options = list(AssetCategory.objects.order_by("sort_order", "label", "id"))
     from django.contrib.auth import get_user_model
     User = get_user_model()
-    user_options = list(User.objects.filter(is_active=True).order_by("first_name", "last_name", "username"))
+    user_options = list(_utenti_in_forza(User.objects.all()))
     active_filter_chips = _workorder_list_filter_chips(
         request,
         status=status,
@@ -653,7 +654,7 @@ def workorder_campaign_create(request: HttpRequest) -> HttpResponse:
         group_label = asset.asset_category.label if asset.asset_category_id else "Senza categoria"
         campaign_asset_groups.setdefault(group_label, []).append(asset)
 
-    user_options = list(User.objects.filter(is_active=True).order_by("first_name", "last_name", "username"))
+    user_options = list(_utenti_in_forza(User.objects.all()))
 
     if request.method == "POST":
         template_id = _as_int(request.POST.get("intervention_template"), default=0)
@@ -1247,7 +1248,7 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
     from django.contrib.auth import get_user_model
 
     User = get_user_model()
-    assignable_users = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+    assignable_users = _utenti_in_forza(User.objects.all())
     logs = workorder.logs.select_related("author").all()
     attachments = workorder.attachments.all()
     checklist_items = list(

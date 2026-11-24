@@ -12,6 +12,13 @@ from anagrafica.models import AreaAziendale, Reparto
 from core.form_fields import UserChoiceField, user_display_label
 from .models import SuggestionCorner
 
+
+def _utenti_in_forza():
+    """Utenti attivi e in forza, ordine COGNOME NOME (regola unica delle tendine)."""
+    from core.persone_tendine import utenti_in_forza
+
+    return utenti_in_forza(get_user_model().objects.all())
+
 User = get_user_model()
 
 
@@ -155,7 +162,7 @@ class ModificaSegnalazioneForm(forms.ModelForm):
                   "reparto_destinazione", "area_destinazione"):
             self.fields[f].required = False
         for f in ("incaricato", "controllore"):
-            self.fields[f].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+            self.fields[f].queryset = _utenti_in_forza()
             self.fields[f].label_from_instance = user_display_label
 
     def clean(self):
@@ -266,11 +273,11 @@ class ClassificaForm(forms.Form):
 
 class PlanForm(forms.Form):
     incaricato = UserChoiceField(
-        queryset=User.objects.filter(is_active=True).order_by("first_name", "last_name", "username"),
+        queryset=_utenti_in_forza(),
         label="Incaricato (DO)",
     )
     controllore = UserChoiceField(
-        queryset=User.objects.filter(is_active=True).order_by("first_name", "last_name", "username"),
+        queryset=_utenti_in_forza(),
         label="Controllore (CHECK)",
     )
     data_limite_esecuzione = forms.DateField(

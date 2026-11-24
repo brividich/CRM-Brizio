@@ -149,10 +149,11 @@ def _persone_per_conto_di(escludi_id: int | None) -> list[dict]:
     """Colleghi a nome dei quali si puo' aprire il ticket: utenti attivi del portale."""
     from django.contrib.auth import get_user_model
 
-    qs = (
-        get_user_model().objects.filter(is_active=True, profile__legacy_user_id__isnull=False)
-        .exclude(pk=escludi_id or 0)
-        .order_by("last_name", "first_name", "username")
+    from core.persone_tendine import utenti_in_forza
+
+    # In forza e in ordine COGNOME NOME (first_name = cognome; prima ordinava per nome).
+    qs = utenti_in_forza(
+        get_user_model().objects.filter(profile__legacy_user_id__isnull=False).exclude(pk=escludi_id or 0)
     )
     return [{"id": u.pk, "label": u.get_full_name() or u.get_username()} for u in qs]
 
@@ -3050,11 +3051,14 @@ def api_cerca_utenti(request):
         from django.db.models import Q
 
         # Cerca in anagrafica_dipendenti (nome + cognome) e utenti (email/UPN)
-        qs = AnagraficaDipendente.objects.filter(
+        from core.persone_tendine import anagrafica_in_forza
+
+        # Solo chi è in forza (regola unica delle tendine persone).
+        qs = anagrafica_in_forza(AnagraficaDipendente.objects.filter(
             Q(nome__icontains=q) | Q(cognome__icontains=q) | naming.q_persona(q, "nome", "cognome") |
             Q(email__icontains=q) | Q(aliasusername__icontains=q) |
             Q(email_notifica__icontains=q)
-        ).select_related("utente").order_by("cognome", "nome")[:20]
+        ).select_related("utente"))[:20]
 
         for a in qs:
             nome_completo = naming.nome_completo(a.nome, a.cognome)

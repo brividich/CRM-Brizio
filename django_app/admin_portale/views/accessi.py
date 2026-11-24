@@ -1448,7 +1448,10 @@ def permessi(request):
         return redirect(url)
 
     roles = _helpers._role_choices()
-    users = list(UtenteLegacy.objects.order_by("nome", "id"))
+    from core.persone_tendine import utenti_legacy_per_tendina
+
+    # Attivi e in forza, etichetta COGNOME NOME, ordine alfabetico.
+    users = utenti_legacy_per_tendina()
     target_type = request.GET.get("target_type", "role")  # "role" | "user"
     selected_role_id = _helpers._int_or_none(request.GET.get("ruolo_id"))
     selected_user_id = _helpers._int_or_none(request.GET.get("user_id"))

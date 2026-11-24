@@ -41,7 +41,10 @@ CASE_STATUS_ACTIONS = [
 
 
 def _assignable_users():
-    return get_user_model().objects.filter(is_active=True).order_by("username")
+    from core.persone_tendine import utenti_in_forza
+
+    # Attivi e in forza, in ordine COGNOME NOME (prima era per username).
+    return utenti_in_forza(get_user_model().objects.all())
 
 
 def _parse_ids(values):

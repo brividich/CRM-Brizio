@@ -122,10 +122,14 @@ def tipi_ammessi(a: Attore, persona_id: int | None = None) -> list[str]:
 
 def persone_ammesse(a: Attore) -> list[dict]:
     """Le persone per cui l'attore può aprire almeno un tipo di richiesta."""
+    from core.naming import chiave_testo
+    from core.persone_tendine import cessati_anagrafica_ids
+
     ids = set(in_forza()) if (a.gestione or a.ha(SIGLA_COMPETENZE)) else set(a.team)
+    ids -= cessati_anagrafica_ids()  # tendina: solo chi ha il rapporto in corso
     nomi = struttura_vista._nomi(sorted(ids))
     righe = [{"id": i, "nome": nomi.get(i) or f"#{i}"} for i in ids]
-    righe.sort(key=lambda p: p["nome"].casefold())
+    righe.sort(key=lambda p: chiave_testo(p["nome"]))
     return righe
 
 

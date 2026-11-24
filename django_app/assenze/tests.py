@@ -313,6 +313,8 @@ class SharePointSyncDiagnosticsTests(SimpleTestCase):
         self.assertEqual(row["sp_resolved_status"], "Rifiutato")
 
 
+# I cessati (data_cessazione) si leggono dal DB: qui nessuno è cessato.
+@patch("core.persone_tendine.cessati_anagrafica_ids", new=lambda: set())
 class CertificazionePresenzaDipendentiTests(SimpleTestCase):
     @patch("assenze.views._helpers._fetch_all_dict")
     @patch("assenze.views._helpers.legacy_table_columns")

@@ -1211,7 +1211,9 @@ def campaign_detail(request, pk: int):
         .order_by("document__document_type", "document__code", "-revision_date")
     )
 
-    users = User.objects.filter(is_active=True).order_by("first_name", "last_name")
+    from core.persone_tendine import utenti_in_forza
+
+    users = utenti_in_forza(User.objects.all())
     # Assegnazione «per reparto + lista + cerca»: raggruppa gli utenti per reparto
     # così il template può offrire optgroup per reparto, ricerca e «seleziona tutto
     # il reparto». Il backend (`assign_users`) accetta già più `user_ids`.
@@ -1757,7 +1759,9 @@ def report_user(request):
         return redirect("procedure_refresh:my_assignments")
 
     user_id = request.GET.get("user_id", "")
-    users = User.objects.filter(is_active=True).order_by("first_name", "last_name")
+    from core.persone_tendine import utenti_in_forza
+
+    users = utenti_in_forza(User.objects.all())
 
     assignments = []
     selected_user = None

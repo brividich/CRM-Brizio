@@ -119,16 +119,17 @@
     if (Array.prototype.some.call(el.options, function (o) { return o.hidden; })) riallinea();
   }
 
-  // Oltre all'opt-in (.js-searchable), ogni tendina lunga diventa ricercabile da
-  // sola: con più di AUTO_MIN opzioni cercare a occhio non funziona più
-  // (corsi, persone, mansioni, asset). Si esclude con data-no-search, oppure
-  // quando è una lista a più righe (size) — lì la ricerca la fa già la pagina.
-  // Nel modulo Anagrafica tutte le tendine si cercano scrivendo, anche le corte (richiesta del 24/11/2026).
-  var AUTO_MIN = (location.pathname.indexOf("/anagrafica/") === 0 || window.HUB_TENDINE_TUTTE_RICERCABILI) ? 1 : 10;
+  // Oltre all'opt-in (.js-searchable), ogni tendina diventa ricercabile da sola, in
+  // tutto il portale e anche le corte (richiesta del 24/11/2026: prima solo oltre 10
+  // voci, poi tutte in Anagrafica). Resta nativa solo con una voce sola. Si esclude
+  // con data-no-search, oppure quando è una lista a più righe (size) — lì la ricerca
+  // la fa già la pagina — o un select nascosto di proposito (usato come dato).
+  var AUTO_MIN = 1;
   function autoCandidata(el) {
     if (el.hasAttribute("data-no-search") || el.hasAttribute("data-picker")) return false;
     if (el.size && el.size > 1) return false;
     if (el.closest("[data-no-search]")) return false;
+    if (el.hidden || el.style.display === "none") return false;
     // Il mese del calendario (flatpickr) fa parte del calendario: resta com'è.
     if (el.closest(".flatpickr-calendar")) return false;
     return el.options.length > AUTO_MIN || el.multiple;

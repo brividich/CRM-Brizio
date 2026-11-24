@@ -1759,11 +1759,19 @@ def notifiche_hub(request):
 
     # Lista dipendenti per form invio
     try:
-        dipendenti = [
-            {"id": int(r.get("id") or 0), "nome": naming.nome_completo(r.get('nome'), r.get('cognome')), "reparto": r.get("reparto","") or ""}
-            for r in fetch_anagrafica_rows()
-            if int(r.get("id") or 0) > 0
-        ]
+        from core.persone_tendine import cessati_anagrafica_ids
+
+        # In forza, COGNOME NOME, in ordine alfabetico (prima: ordine della tabella).
+        _cessati = cessati_anagrafica_ids()
+        dipendenti = sorted(
+            (
+                {"id": int(r.get("id") or 0), "nome": naming.nome_completo(r.get('nome'), r.get('cognome')), "reparto": r.get("reparto","") or ""}
+                for r in fetch_anagrafica_rows()
+                if int(r.get("id") or 0) > 0 and int(r.get("id") or 0) not in _cessati
+                and (r.get("attivo") is None or bool(r.get("attivo")))
+            ),
+            key=lambda d: naming.chiave_testo(d["nome"]),
+        )
         reparti = sorted({d["reparto"] for d in dipendenti if d["reparto"]})
     except Exception:
         dipendenti = []

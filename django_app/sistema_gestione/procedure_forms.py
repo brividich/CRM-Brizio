@@ -34,6 +34,9 @@ class CarForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["versione"].initial = self.instance.versione
+        from core.persone_tendine import tendina_utenti_form
+
+        tendina_utenti_form(self, "responsabile")
         if self.instance.pk:
             self.fields["data_richiesta"].disabled = True
         perche = list(self.instance.analisi_perche or []) + [""] * 5

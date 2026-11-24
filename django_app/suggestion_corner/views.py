@@ -145,16 +145,11 @@ def gestione(request, *args, **kwargs):
     }
 
     User = get_user_model()
-    team = (
-        User.objects.filter(groups__name=config.sms_team_group_name, is_active=True)
-        .order_by("username")
-    )
-    # Candidati = utenti attivi non ancora nel team (per la select "aggiungi").
-    candidati = (
-        User.objects.filter(is_active=True)
-        .exclude(groups__name=config.sms_team_group_name)
-        .order_by("first_name", "last_name", "username")
-    )
+    from core.persone_tendine import utenti_in_forza
+
+    team = utenti_in_forza(User.objects.filter(groups__name=config.sms_team_group_name))
+    # Candidati = utenti in forza non ancora nel team (per la select "aggiungi").
+    candidati = utenti_in_forza(User.objects.exclude(groups__name=config.sms_team_group_name))
 
     return render(request, "suggestion_corner/gestione.html", {
         "form_config": form_config,

@@ -174,7 +174,10 @@ def persone(ruolo: str) -> list[dict]:
             n = naming.nome_completo(d.nome, d.cognome)
             if n:
                 nomi[d.utente_id] = n
-        utenti = list(UtenteLegacy.objects.filter(attivo=True).only("id", "nome"))
+        from core.persone_tendine import utenti_legacy_in_forza
+
+        # Attivi e con il rapporto in corso (data_cessazione vuota).
+        utenti = list(utenti_legacy_in_forza(UtenteLegacy.objects.only("id", "nome")))
     except Exception:
         logger.warning("incaricati: elenco persone non letto", exc_info=True)
         return []
@@ -186,7 +189,7 @@ def persone(ruolo: str) -> list[dict]:
         except Exception:
             ref = set()
         out = [p for p in out if _chiave_persona(p["nome"]) in ref]
-    return sorted(out, key=lambda p: p["nome"].lower())
+    return sorted(out, key=lambda p: naming.chiave_testo(p["nome"]))
 
 
 def persona(uid) -> dict | None:
