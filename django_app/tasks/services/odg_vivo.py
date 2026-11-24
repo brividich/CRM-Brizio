@@ -78,7 +78,12 @@ def _titolo_tappa(riga: dict, voci_tappa: list[dict], stato_label: str) -> str:
             codici.append(v["codice"])
     if codici:
         return f"{plurale if len(codici) > 1 else singolare}: {', '.join(codici)}"
-    return f"{riga['label']}: {stato_label[0].lower() + stato_label[1:]}" if stato_label else riga["label"]
+    if not stato_label:
+        return riga["label"]
+    if stato_label.startswith("Manca:"):
+        # «Attrezzatura: manca: attrezzatura» diceva due volte la stessa cosa.
+        return f"{riga['label']}: da collegare"
+    return f"{riga['label']}: {stato_label[0].lower() + stato_label[1:]}"
 
 
 def _attivita_per_tappa(project, righe: dict) -> dict[str, list[Task]]:
@@ -224,3 +229,18 @@ def numeri_dei_punti(righe) -> dict[tuple[int, str], int]:
         contatore[mid] = contatore.get(mid, 0) + 1
         numeri[(mid, item_id)] = contatore[mid]
     return numeri
+
+
+def per_form(meeting, items) -> list[dict]:
+    """Punti per il form della convocazione: titolo, attività e campi come li vede la scheda.
+
+    Il form salva di nuovo l'ordine del giorno: qui restano solo le chiavi dei punti (niente
+    ``vivo``), con il titolo aggiornato delle tappe e senza la fotografia di quando sono nati.
+    """
+    punti = arricchisci(meeting, [dict(i) for i in (items or []) if isinstance(i, dict)])
+    for p in punti:
+        if p.get("titolo_vivo"):
+            p["titolo"] = p["titolo_vivo"]
+        for chiave in ("vivo", "titolo_vivo", "trattato_da_solo"):
+            p.pop(chiave, None)
+    return punti

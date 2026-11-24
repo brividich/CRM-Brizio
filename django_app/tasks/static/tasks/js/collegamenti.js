@@ -6,8 +6,11 @@
    «+ Attività» l'attività non esiste ancora: le scelte restano in un campo
    nascosto (collegamenti_json) e si applicano al salvataggio.
 
-   Macchine come operazioni: numero e lavorazione si salvano all'uscita dal campo.
-   Programmi: un pulsante per il passo successivo (data-kc-passo).
+   Macchine come operazioni: numero, lavorazione e «Dettagli» (periodo, programma, note) si
+   salvano all'uscita dal campo. Programmi: un pulsante per il passo successivo (data-kc-passo).
+   Form dinamici (data-kc-dform): «+ Programma CAM/CMM» mostra sotto la ricerca il form del
+   programma (responsabile, entro il, fase di partenza); «Collega» su una macchina apre il form
+   dell'operazione invece di collegare subito. Fuori dalla scheda (form «+ Attività») niente form.
 
    Lo script può essere caricato più volte (il pannello laterale lo riesegue):
    gli ascoltatori si montano una volta sola, sul documento. */
@@ -49,6 +52,7 @@
       if (j.html != null) {
         root.querySelector('[data-kc-corpo]').innerHTML = j.html;
         segnaTipo(root);
+        mostraFormProgramma(root, stato(root).tipo);
       }
       dici(j.messaggio);
       // Macchina già impegnata nel periodo: il collegamento è salvato, questo è solo un avviso.
@@ -69,12 +73,26 @@
     });
   }
 
+  function dform(root, nome) { return root.querySelector('[data-kc-dform="' + nome + '"]'); }
+  function chiudiForm(root) {
+    root.querySelectorAll('[data-kc-dform]').forEach(function (f) { f.hidden = true; });
+  }
+  function mostraFormProgramma(root, tipo) {
+    var f = dform(root, 'programma');
+    if (!f || root.hasAttribute('data-kc-attesa')) return;
+    f.hidden = !(tipo === 'cam' || tipo === 'cmm');
+    var nome = f.querySelector('[data-kc-dform-nome]');
+    if (nome) nome.textContent = tipo === 'cmm' ? 'programma CMM' : 'programma CAM';
+  }
+
   function apri(root, tipo) {
     var st = stato(root), box = root.querySelector('[data-kc-cerca]');
     if (!box) return;
     st.tipo = st.tipo === tipo ? '' : tipo;
     segnaTipo(root);
     box.hidden = !st.tipo;
+    chiudiForm(root);
+    mostraFormProgramma(root, st.tipo);
     if (!st.tipo) return;
     var bottone = root.querySelector('[data-kc-tipo="' + tipo + '"]');
     var nome = bottone ? bottone.getAttribute('data-kc-nome') : '';
@@ -160,6 +178,16 @@
     var st = stato(root), attesa = root.hasAttribute('data-kc-attesa');
     if ((b = el.closest('[data-kc-tipo]'))) { apri(root, b.getAttribute('data-kc-tipo')); return; }
     if ((b = el.closest('[data-kc-collega]'))) {
+      var fm = dform(root, 'macchina');
+      if (!attesa && st.tipo === 'macchina' && fm) {
+        // Prima di collegare: operazione, lavorazione, periodo, programma, note.
+        fm.setAttribute('data-asset', b.getAttribute('data-kc-collega'));
+        fm.querySelector('[data-kc-dform-mac]').textContent = b.getAttribute('data-kc-codice') + ' ' + (b.getAttribute('data-kc-descrizione') || '');
+        fm.hidden = false;
+        var lav = fm.querySelector('[data-kc-f="lavorazione"]');
+        if (lav) lav.focus();
+        return;
+      }
       if (attesa) {
         mettiInAttesa(root, {
           tipo: st.tipo, nome: nomeTipo(root, st.tipo), id: b.getAttribute('data-kc-collega'),
@@ -174,6 +202,15 @@
     }
     if ((b = el.closest('[data-kc-nuovo]'))) {
       var testo = b.getAttribute('data-kc-nuovo');
+      var fp = dform(root, 'programma');
+      if (!attesa && fp && !fp.hidden) {
+        // Programma nuovo: il codice scritto va nel form, che chiede il resto.
+        var pezzi = testo.trim().split(/\s+/);
+        fp.querySelector('[data-kc-f="codice"]').value = pezzi.shift() || '';
+        fp.querySelector('[data-kc-f="descrizione"]').value = pezzi.join(' ');
+        fp.querySelector('[data-kc-f="responsabile"]').focus();
+        return;
+      }
       if (attesa) {
         var parti = testo.trim().split(/\s+/);
         mettiInAttesa(root, { tipo: st.tipo, nome: nomeTipo(root, st.tipo), testo: testo, codice: parti.shift(), descrizione: parti.join(' ') });
@@ -200,6 +237,34 @@
       form.hidden = !form.hidden;
       b.setAttribute('aria-expanded', form.hidden ? 'false' : 'true');
       if (!form.hidden) form.querySelector('[data-kc-code]').focus();
+      return;
+    }
+    if ((b = el.closest('[data-kc-dform-annulla]'))) {
+      b.closest('[data-kc-dform]').hidden = true;
+      return;
+    }
+    if ((b = el.closest('[data-kc-dform-salva]'))) {
+      var f = b.closest('[data-kc-dform]');
+      var v = function (k) { var c = f.querySelector('[data-kc-f="' + k + '"]'); return c ? c.value.trim() : null; };
+      var dati;
+      if (f.getAttribute('data-kc-dform') === 'programma') {
+        if (!v('codice')) { dici('Scrivi il codice del programma.', true); f.querySelector('[data-kc-f="codice"]').focus(); return; }
+        dati = { action: 'aggiungi', tipo: st.tipo, testo: (v('codice') + ' ' + v('descrizione')).trim(), responsabile: v('responsabile'), entro: v('entro'), fase: v('fase') };
+      } else {
+        dati = { action: 'collega', tipo: 'macchina', id: f.getAttribute('data-asset'), numero: v('numero'), lavorazione: v('lavorazione'), dal: v('dal'), al: v('al'), note: v('note') };
+        if (v('programma') !== null) dati.programma = v('programma');
+      }
+      b.disabled = true;
+      invia(root, dati).then(function (j) {
+        b.disabled = false;
+        if (j.ok) { st.tipo = ''; segnaTipo(root); chiudiForm(root); var box = root.querySelector('[data-kc-cerca]'); if (box) box.hidden = true; }
+      });
+      return;
+    }
+    if ((b = el.closest('[data-kc-op-dettagli]'))) {
+      var riga = b.closest('[data-kc-voce]').querySelector('[data-kc-op-riga]');
+      riga.hidden = !riga.hidden;
+      b.setAttribute('aria-expanded', riga.hidden ? 'false' : 'true');
       return;
     }
     if ((b = el.closest('[data-kc-passo]'))) {
@@ -241,13 +306,12 @@
     document.addEventListener('change', function (e) {
       var el = e.target;
       // Operazione e lavorazione di una macchina: si salvano appena si esce dal campo.
-      if (el.matches && el.matches('[data-kc-op-num], [data-kc-op-lav]')) {
-        var r = radice(el), riga = el.closest('[data-kc-voce]');
-        if (!r || !riga) return;
-        invia(r, {
-          action: 'operazione', chiave: riga.getAttribute('data-kc-voce'),
-          numero: riga.querySelector('[data-kc-op-num]').value, lavorazione: riga.querySelector('[data-kc-op-lav]').value
-        });
+      if (el.matches && el.matches('[data-kc-op]')) {
+        var r = radice(el), gruppo = el.closest('[data-kc-voce]');
+        if (!r || !gruppo) return;
+        var dati = { action: 'operazione', chiave: gruppo.getAttribute('data-kc-voce') };
+        dati[el.getAttribute('data-kc-op')] = el.value;
+        invia(r, dati);
         return;
       }
       if (!el.matches || !el.matches('[data-kc-fase]') || !el.value) return;
@@ -266,7 +330,7 @@
         e.preventDefault();
         var primo = root.querySelector('[data-kc-ris] button');
         if (primo) primo.click();
-      } else if (e.target.matches('[data-kc-op-num], [data-kc-op-lav]')) {
+      } else if (e.target.matches('[data-kc-op], [data-kc-f]')) {
         // Invio salva l'operazione senza mandare il form che contiene il riquadro.
         e.preventDefault();
         e.target.blur();

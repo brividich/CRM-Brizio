@@ -122,3 +122,84 @@ class ElencoEConduciTests(CollegamentiBase):
         primaria = _primaria_incontro(self.project, m, "", gestisce=True, puo_creare=True, oggi=timezone.localdate())
         self.assertEqual(primaria["label"], "Registra l'esito")
         self.assertEqual(primaria["secondaria"]["label"], "Conduci incontro")
+
+
+class AttivitaDalPuntoTests(CollegamentiBase):
+    """Dal punto dell'ordine del giorno l'attività si crea e si apre nel pannello laterale."""
+
+    def test_form_dal_punto_propone_il_titolo_e_al_salvataggio_lega_il_punto(self):
+        m = self.incontro()
+        MeetingAgendaItem.objects.create(meeting=m, ordine=1, item_id="p1", titolo="Verifica grezzo")
+        url = reverse("tasks:create") + f"?project={self.project.pk}&incontro={m.pk}&punto=p1"
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'value="Verifica grezzo"')
+        dati = {
+            "title": "Verifica grezzo", "task_scope": "project", "project_link_mode": "existing",
+            "project_choice": self.project.pk, "priority": "MEDIUM", "status": "TODO",
+            "next_step_due": "2026-12-01", "due_date": "2026-12-04",
+        }
+        self.client.post(url, dati)
+        punto = MeetingAgendaItem.objects.get(meeting=m, item_id="p1")
+        self.assertIsNotNone(punto.task_id)
+        self.assertEqual(punto.task.title, "Verifica grezzo")
+
+    def test_scheda_prima_ha_i_pulsanti_attivita(self):
+        m = self.incontro()
+        MeetingAgendaItem.objects.create(meeting=m, ordine=1, item_id="a", titolo="Senza attività xyz")
+        MeetingAgendaItem.objects.create(meeting=m, ordine=2, item_id="b", titolo="Altro", task=self.generica)
+        r = self.client.get(reverse("tasks:project_meeting_detail", args=[self.project.pk, m.pk]))
+        self.assertContains(r, f"incontro={m.pk}&amp;punto=a")
+        self.assertContains(r, f'data-preview="{reverse("tasks:detail", args=[self.generica.pk])}"')
+
+    def test_form_convocazione_ha_i_punti_aggiornati(self):
+        from .services.odg_vivo import per_form
+
+        m = self.incontro()
+        MeetingAgendaItem.objects.create(
+            meeting=m, ordine=1, item_id="p1", titolo="Lotto", task=self.generica,
+            custom_fields=[{"label": "Stato", "value": "Da assegnare"}],
+        )
+        punto = per_form(m, m.agenda_items)[0]
+        self.assertNotIn("vivo", punto)
+        self.assertEqual(punto["custom_fields"], [])
+
+
+class FormDinamiciTests(CollegamentiBase):
+    """«Collega» su una macchina chiede l'operazione; «+ Programma» chiede responsabile, entro, fase."""
+
+    def test_macchina_collegata_con_operazione_periodo_note(self):
+        uno = self.macchina("CNC-F1")
+        r = self.post(
+            action="collega", tipo="macchina", id=uno.pk, numero="30", lavorazione="Foratura",
+            dal="2026-12-01", al="2026-12-03", note="Staffare sul lato B",
+        )
+        self.assertTrue(r.json()["ok"])
+        riga = TaskExtraRef.objects.get(task=self.generica, asset=uno)
+        self.assertEqual((riga.operazione, riga.lavorazione, str(riga.dal), str(riga.al), riga.note_operatore),
+                         (30, "Foratura", "2026-12-01", "2026-12-03", "Staffare sul lato B"))
+
+    def test_periodo_rovesciato_rifiutato(self):
+        uno = self.macchina("CNC-F2")
+        self.post(action="collega", tipo="macchina", id=uno.pk)
+        r = self.post(action="operazione", chiave=f"mac:{uno.pk}", dal="2026-12-05", al="2026-12-01")
+        self.assertEqual(r.status_code, 400)
+
+    def test_programma_dal_form_con_responsabile_entro_e_fase(self):
+        r = self.post(
+            action="aggiungi", tipo="cam", testo="P-88 sgrossatura", responsabile=str(self.user.pk),
+            entro="2026-12-10", fase="DA_PROVARE",
+        )
+        self.assertTrue(r.json()["ok"])
+        ref = ProjectTechRef.objects.get(task=self.generica, kind=TechRefKind.CAM, code="P-88")
+        self.assertEqual((ref.assigned_to_id, str(ref.due_date), ref.fase), (self.user.pk, "2026-12-10", "DA_PROVARE"))
+
+    def test_programma_che_gira_sulla_macchina(self):
+        uno = self.macchina("CNC-F3")
+        self.post(action="aggiungi", tipo="cam", testo="P-99")
+        ref = ProjectTechRef.objects.get(task=self.generica, kind=TechRefKind.CAM, code="P-99")
+        self.post(action="collega", tipo="macchina", id=uno.pk, programma=str(ref.pk))
+        ref.refresh_from_db()
+        self.assertEqual(ref.macchina_id, uno.pk)
+        voce = next(v for v in svc.collegamenti(self.generica) if v["tipo"] == "macchina" and v["asset"].pk == uno.pk)
+        self.assertIn(ref.pk, voce["programmi_id"])

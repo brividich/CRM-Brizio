@@ -33,6 +33,9 @@ Contesto: views.meetings._prima_context.
                 </div>
                 {% if odg_modificabile %}
                   <div class="mprima-azioni">
+                    {# L'attività del punto si gestisce nel pannello laterale, senza lasciare la pagina. #}
+                    {% if item.task_id %}<a class="mprima-btn" href="{% url 'tasks:detail' item.task_id %}" data-preview="{% url 'tasks:detail' item.task_id %}" aria-label="Apri l'attività del punto: {{ item.titolo }}">Attività</a>
+                    {% elif not item.issue_id and not item.action_id and not item.done %}<a class="mprima-btn" href="{% url 'tasks:create' %}?project={{ project.id }}&amp;incontro={{ meeting.id }}&amp;punto={{ item.id|urlencode }}" data-preview="{% url 'tasks:create' %}?project={{ project.id }}&amp;incontro={{ meeting.id }}&amp;punto={{ item.id|urlencode }}" aria-label="Crea l'attività del punto: {{ item.titolo }}">+ Attività</a>{% endif %}
                     <button type="button" class="mprima-btn icona" data-odg-sposta="su" title="Sposta su" aria-label="Sposta su: {{ item.titolo }}"{% if forloop.first %} disabled{% endif %}>&uarr;</button>
                     <button type="button" class="mprima-btn icona" data-odg-sposta="giu" title="Sposta giù" aria-label="Sposta giù: {{ item.titolo }}"{% if forloop.last %} disabled{% endif %}>&darr;</button>
                     {% if not item.emersi %}<button type="button" class="mprima-btn" data-odg-togli aria-label="Togli: {{ item.titolo }}">Togli</button>{% endif %}

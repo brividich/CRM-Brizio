@@ -91,6 +91,25 @@ def avanza(ref, user, azione: str, *, nota: str = "") -> None:
         _allinea_attivita(ref, user)
 
 
+def imposta_partenza(ref, user, fase: str) -> None:
+    """Fase scelta nel form «+ Programma» per un programma che esiste già (es. già validato altrove)."""
+    if not ref.is_programma or fase not in ProgrammaFase.values or fase == ref.fase:
+        return
+    if fase in (ProgrammaFase.DA_PROVARE, ProgrammaFase.VALIDATO) and not ref.code:
+        raise PassaggioNonValido("Scrivi prima il codice del programma.")
+    with transaction.atomic():
+        if fase != ProgrammaFase.DA_SCRIVERE and not ref.revisione:
+            ref.revisione = "A"
+        ref.fase = fase
+        if fase == ProgrammaFase.VALIDATO:
+            ref.mark_done(user=user if getattr(user, "is_authenticated", False) else None)
+        elif ref.status == TechRefStatus.DONE:
+            ref.status, ref.done_by, ref.done_at = TechRefStatus.OPEN, None, None
+        ref.save()
+        registra(ref, user, "Fase di partenza")
+        _allinea_attivita(ref, user)
+
+
 def programmi_dell_attivita(task, *, escludi=None) -> list:
     """I programmi CAM e CMM dell'attività che hanno codice o cartella."""
     from ..models import ProjectTechRef

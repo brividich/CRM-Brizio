@@ -5358,3 +5358,21 @@ a.md-agenda-task:hover { text-decoration: underline; }
 /* Telefono: le griglie a una colonna della scheda e degli strumenti dell'incontro non si allargano al contenuto. */
 .td-card, .md-strumenti-body { grid-template-columns: minmax(0, 1fr); }
 .odgv-apri { font-size: 12px; }
+/* Ordine del giorno: l'attività del punto si apre nel pannello laterale. */
+.agenda-apri { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--primary-mid); text-decoration: underline; text-underline-offset: 2px; }
+body.theme-dark .agenda-apri { color: var(--accent); }
+/* Form dinamici del riquadro Collegamenti: programma (responsabile, entro, fase) e macchina (operazione). */
+.kc-dform { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); min-width: 0; }
+.kc-dform-titolo { margin: 0; font-size: 13px; font-weight: 700; color: var(--text); }
+.kc-dform-titolo small { font-weight: 400; color: var(--text-light); margin-left: 6px; }
+.kc-dgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 10px; min-width: 0; }
+.kc-dgrid label { display: grid; gap: 3px; min-width: 0; }
+.kc-dgrid label > span { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-light); }
+.kc-dgrid .input { width: 100%; min-width: 0; padding: 4px 8px; font-size: 13px; min-height: 0; height: auto; }
+.kc-dgrid-largo { grid-column: span 2; }
+.kc-dform-azioni { display: flex; flex-wrap: wrap; gap: 6px; }
+.kc-op tbody + tbody tr:first-child td { border-top: 1px solid var(--border); }
+.kc-op tbody tr:first-child td { border-top: 0; }
+.kc-op-dett td { border-top: 0 !important; padding-top: 0; }
+.kc-op-info { display: block; font-size: 11.5px; color: var(--text-mid); }
+@media (max-width: 640px) { .kc-dgrid-largo { grid-column: auto; } }

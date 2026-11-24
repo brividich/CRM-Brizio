@@ -149,6 +149,8 @@ def _voce_macchina(asset, ref: TaskExtraRef | None = None) -> dict:
     return _voce(
         MACCHINA, f"mac:{asset.pk}", asset.asset_tag or f"#{asset.pk}", asset.name, asset=asset,
         operazione=getattr(ref, "operazione", None), lavorazione=getattr(ref, "lavorazione", "") or "",
+        dal=getattr(ref, "dal", None), al=getattr(ref, "al", None),
+        note_operatore=getattr(ref, "note_operatore", "") or "", programmi=[], programmi_id=[],
     )
 
 
@@ -233,6 +235,13 @@ def collegamenti_per_attivita(tasks, *, incontri: bool = True, vuoti: bool = Fal
             numero = numeri.get((riga.meeting_id, riga.item_id))
             metti(riga.task_id, _voce_incontro(riga, riga.meeting.project_id, numero))
     for pk in ids:
+        macchine = {v["asset"].pk: v for v in per_tipo[pk].get(MACCHINA, [])}
+        for tipo in (CAM, CMM):
+            for v in per_tipo[pk].get(tipo, []):
+                ref = v.get("ref")
+                if ref is not None and ref.macchina_id in macchine and not v.get("vuoto"):
+                    macchine[ref.macchina_id]["programmi"].append(v["codice"])
+                    macchine[ref.macchina_id]["programmi_id"].append(ref.pk)
         esito[pk] = [voce for tipo in TIPI for voce in per_tipo[pk].get(tipo, [])]
     return esito
 
@@ -331,7 +340,9 @@ def stato_macchina(asset, inizio, fine, *, escludi_task_id=None) -> tuple[str, s
 
 
 def _segna_conflitti(voce: dict, task: Task, visibili) -> None:
+    # Il periodo dell'operazione su quella macchina, se scritto; altrimenti quello dell'attività.
     inizio, fine = _finestra(task)
+    inizio, fine = voce.get("dal") or inizio, voce.get("al") or fine
     conflitti = conflitti_macchina(voce["asset"], inizio, fine, escludi_task_id=task.pk, visibili=visibili)
     voce["conflitti"] = conflitti
     voce["stato"], voce["tono"] = stato_da_conflitti(conflitti)
@@ -543,18 +554,82 @@ def _collega_macchina(task: Task, asset) -> dict:
     return _voce_macchina(asset, ref)
 
 
-def aggiorna_operazione(task: Task, asset_id: int, *, numero, lavorazione: str) -> dict:
-    """Numero di operazione e lavorazione di una macchina dell'attività."""
+_INVARIATO = object()
+
+
+def _data(valore):
+    testo = str(valore or "").strip()
+    if not testo:
+        return None
+    try:
+        return date.fromisoformat(testo)
+    except ValueError as exc:
+        raise CollegamentoNonValido("Data non valida.") from exc
+
+
+def aggiorna_operazione(
+    task: Task, asset_id: int, *, numero=_INVARIATO, lavorazione=_INVARIATO, dal=_INVARIATO, al=_INVARIATO,
+    note=_INVARIATO, programma=_INVARIATO,
+) -> dict:
+    """Operazione di una macchina dell'attività: numero, lavorazione, periodo, note per l'operatore e
+    programma CAM/CMM che ci gira. Si cambia solo quello che arriva; tutto è facoltativo."""
     righe = TaskExtraRef.objects.filter(task=task, field_code=CAMPO_MACCHINA, asset_id=asset_id)
     ref = righe.select_related("asset").order_by("id").first()
     if ref is None:
         raise CollegamentoNonValido("Questa macchina non è collegata all'attività.")
-    testo = str(numero or "").strip()
-    if testo and not (testo.isdigit() and 0 < int(testo) <= 9999):
-        raise CollegamentoNonValido("L'operazione è un numero (10, 20, 30…).")
-    righe.update(operazione=int(testo) if testo else None, lavorazione=(lavorazione or "").strip()[:120])
+    campi = {}
+    if numero is not _INVARIATO:
+        testo = str(numero or "").strip()
+        if testo and not (testo.isdigit() and 0 < int(testo) <= 9999):
+            raise CollegamentoNonValido("L'operazione è un numero (10, 20, 30…).")
+        campi["operazione"] = int(testo) if testo else None
+    if lavorazione is not _INVARIATO:
+        campi["lavorazione"] = str(lavorazione or "").strip()[:120]
+    if dal is not _INVARIATO:
+        campi["dal"] = _data(dal)
+    if al is not _INVARIATO:
+        campi["al"] = _data(al)
+    inizio = campi.get("dal", ref.dal)
+    fine = campi.get("al", ref.al)
+    if inizio and fine and fine < inizio:
+        raise CollegamentoNonValido("La fine dell'operazione non può venire prima dell'inizio.")
+    if note is not _INVARIATO:
+        campi["note_operatore"] = str(note or "").strip()[:300]
+    if campi:
+        righe.update(**campi)
+    if programma is not _INVARIATO:
+        testo = str(programma or "").strip()
+        programmi = ProjectTechRef.objects.filter(task=task, kind__in=[TechRefKind.CAM, TechRefKind.CMM])
+        if testo:
+            if not testo.isdigit() or not programmi.filter(pk=int(testo)).exists():
+                raise CollegamentoNonValido("Programma non trovato fra quelli dell'attività.")
+            programmi.filter(pk=int(testo)).update(macchina_id=asset_id)
     ref.refresh_from_db()
     return _voce_macchina(ref.asset, ref)
+
+
+def imposta_programma(ref: ProjectTechRef, user, *, responsabile=_INVARIATO, entro=_INVARIATO, fase: str = "") -> None:
+    """Dal form «+ Programma CAM/CMM»: chi lo scrive, entro quando e la fase da cui parte."""
+    from django.contrib.auth import get_user_model
+
+    campi = []
+    if responsabile is not _INVARIATO:
+        testo = str(responsabile or "").strip()
+        utente = get_user_model().objects.filter(pk=int(testo), is_active=True).first() if testo.isdigit() else None
+        if testo and utente is None:
+            raise CollegamentoNonValido("Responsabile non trovato.")
+        ref.assigned_to = utente
+        campi.append("assigned_to")
+    if entro is not _INVARIATO:
+        ref.due_date = _data(entro)
+        campi.append("due_date")
+    if campi:
+        ref.save(update_fields=campi + ["updated_at"])
+    if fase:
+        try:
+            programmi_fasi.imposta_partenza(ref, user, fase)
+        except programmi_fasi.PassaggioNonValido as exc:
+            raise CollegamentoNonValido(str(exc)) from exc
 
 
 def _scollega_macchina(task: Task, asset_id: int) -> None:
