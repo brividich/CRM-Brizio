@@ -281,6 +281,53 @@ class PaginaRepartiCapiTests(_ScenarioMansioni):
         self.client.post(reverse("anagrafica:capi_passaggio"), {"conferma": "1"})
         self.assertFalse(capo_team.regola_unica_attiva())
 
+    def test_elenco_che_si_apre_con_la_scheda_del_reparto(self):
+        resp = self.client.get(reverse("anagrafica:aree_list"))
+        self.assertIsNone(resp.context["scelta"])
+        schede = {s["reparto"].nome: s for s in resp.context["schede"]}
+        # Nessuno ha la «Responsabilità del reparto» di Saldatura: è da sistemare.
+        self.assertEqual(schede["Saldatura"]["riga"]["stato"]["nome"], "Da sistemare")
+        self.assertEqual(schede["Saldatura"]["riga"]["capo"], "")
+        self.assertContains(resp, "<template data-ap-modello>", count=len(schede))
+        for testo in ("Apri tutto", "Chiudi tutto", 'data-ap-cerca', 'data-rp-apri="nuovo-rep-modal"',
+                      "Apri un reparto: qui compaiono i suoi dati", 'class="fx-flusso"', "Capi delle persone"):
+            self.assertContains(resp, testo)
+        self.assertNotContains(resp, "{#")
+
+        resp = self.client.get(reverse("anagrafica:aree_list"), {"reparto": self.fresatura.pk})
+        scelta = resp.context["scelta"]
+        self.assertEqual(scelta["reparto"], self.fresatura)
+        campi = dict(scelta["scheda"]["campi"])
+        self.assertEqual((campi["Reparto"], campi["Aree"], campi["Ruolo responsabile"]), ("Fresatura", "IN1, IN2", "Caporeparto"))
+        self.assertContains(resp, f'id="rep-{self.fresatura.pk}" data-ap-riga="{self.fresatura.pk}"')
+        nomi = [x["nome"] for x in scelta["scheda"]["collegate"]]
+        self.assertIn("Persone del reparto", nomi)
+        self.assertIn("Capo di ogni persona", nomi)
+        for x in scelta["scheda"]["collegate"]:
+            self.assertEqual(self.client.get(x["url"]).status_code, 200, x["nome"])
+        self.assertIsNone(self.client.get(reverse("anagrafica:aree_list"), {"reparto": "abc"}).context["scelta"])
+
+    def test_da_fare_usa_i_numeri_dei_filtri(self):
+        resp = self.client.get(reverse("anagrafica:aree_list"))
+        da_fare = {x["titolo"]: x for x in resp.context["da_fare"]}
+        self.assertEqual(da_fare["Reparti da sistemare"]["n"], resp.context["kpi"]["da_sistemare"])
+        filtrato = self.client.get(da_fare["Reparti da sistemare"]["url"].split("#")[0])
+        self.assertEqual(len(filtrato.context["schede"]), da_fare["Reparti da sistemare"]["n"])
+        self.assertEqual(filtrato.context["n_tutti"], resp.context["n_tutti"])
+
+    def test_chi_non_amministra_non_vede_i_comandi(self):
+        from django.utils import timezone
+
+        from core.models import UserOnboarding
+
+        utente = User.objects.create_user(username="rc_vede", password="x")
+        UserOnboarding.objects.update_or_create(user=utente, defaults={"completed": True, "completed_at": timezone.now()})
+        self.client.force_login(utente)
+        resp = self.client.get(reverse("anagrafica:aree_list"), follow=True)
+        if resp.context and "schede" in resp.context:
+            for testo in ("data-rp-apri", "data-edit-rep-id", "Capo di ogni persona"):
+                self.assertNotContains(resp, testo)
+
 
 class ReportStrutturaTests(_ScenarioMansioni):
     def _calcola(self, chiave, **opzioni):

@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: «Reparti e capi» e «Richieste» con la scheda a destra
+
+- **Reparti e capi** (`/anagrafica/aree/`): un reparto per riga («Reparto», «Centro di costo», «Responsabile», «Persone», «Stato») al posto delle schede; la riga si apre sulla gestione di sempre (capo, aree, ruolo responsabile, «Modifica», «Elimina»). A destra «Reparto scelto» con i dati etichettati e le «Pagine collegate» (`?reparto=` nell'indirizzo); «Da fare» e «Capi delle persone» al posto delle tessere con i numeri; filtri «Tutti / Attivi / Con il capo / Da sistemare» con le regole di prima (`FILTRI_REPARTI`); ricerca per reparto, area o persona; «Apri tutto», «Chiudi tutto»; «Nuovo reparto» e «Nuova area» in finestra. Tolti dalla testata i collegamenti ad altre pagine. Nessun dato nuovo: `services/reparti_capi_vista.py` legge le schede di `views_capi_reparti._contesto`.
+- **Richieste** (`/anagrafica/competenze/richieste/`): cliccando una riga compaiono a destra «Richiesta scelta» e le «Pagine collegate» (`?richiesta=`), senza ricaricare; ricerca per persona, mansione o numero; «Da fare» con ciò che aspetta chi guarda.
+- Componenti riusabili: `components/_apri_scelta.html` (righe che si aprono → scheda a destra, apri/chiudi tutto, ricerca), `components/_scelta_riga.html` (riga di tabella → scheda), `partials/_scheda_scelta.html`.
+- **Centri di costo:** il filtro «Attivi» torna con l'ancora `#centri` (lo chiede `tests_kpi_link_persone`).
+- File: `anagrafica/services/reparti_capi_vista.py` (nuovo), `anagrafica/views_capi_reparti.py`, `anagrafica/views_richieste.py`, `pages/aree_list.html`, `pages/richieste_elenco.html`, `pages/centri_costo.html`, `partials/_richiesta_scheda.html` (nuovo), prove in `tests_capi_mansione.py` e `tests_richieste.py`, guida in pagina, Centro guide, `docs/moduli/anagrafica.md`.
+
 ### Anagrafica: «Centri di costo» con l'albero che si apre
 
 - **Albero di ogni centro:** l'elenco dei centri di costo sostituisce le schede; ogni centro si apre sui suoi reparti, ogni reparto sui ruoli, ogni ruolo sulle mansioni, con etichetta («Reparto:», «Ruolo:», «Mansione:») e numero di persone. Stessi dati e conteggi di «Esplora la struttura», a cui ogni riga porta. «Apri tutto», «Chiudi tutto» e ricerca per nome di centro o di reparto.

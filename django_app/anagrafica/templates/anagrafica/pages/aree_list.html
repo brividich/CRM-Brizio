@@ -8,6 +8,57 @@
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% include "core/components/_hub_formkit.html" %}
 {% include "anagrafica/components/_rc_stili.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_flusso_dinamico.html" %}
+{% include "anagrafica/components/_apri_scelta.html" %}
+<style>
+.rp-filtri { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 12px; }
+.rp-filtri input[type=search] { width:300px; max-width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; }
+.rp-chip { padding:6px 12px; border-radius:999px; border:1px solid #d7e0ea; background:#fff; font-size:12.5px; font-weight:600; color:#475569; text-decoration:none; }
+.rp-chip.is-scelto { background:#e8f3fb; border-color:#9cc6e6; color:#0c2545; }
+.rp-filtri .rp-dx { margin-left:auto; display:flex; gap:8px; }
+/* Elenco: una riga per reparto, con le colonne allineate all'intestazione; la riga si apre sulla gestione. */
+.rp-col { display:grid; grid-template-columns:14px minmax(120px,1.3fr) minmax(90px,1fr) minmax(110px,1.2fr) 64px 112px; column-gap:12px; align-items:center; padding:10px 16px; }
+.rp-intest { background:#f8fafc; color:#64748b; font-weight:600; font-size:12px; border-bottom:1px solid #e2e8f0; padding-top:8px; padding-bottom:8px; }
+.rp-rep { border-bottom:1px solid #f1f5f9; }
+.rp-rep:last-of-type { border-bottom:0; }
+.rp-rep > summary { list-style:none; cursor:pointer; font-size:13.5px; }
+.rp-rep > summary::-webkit-details-marker { display:none; }
+.rp-rep > summary b { color:#0f172a; }
+.rp-rep[open] > summary, .rp-rep.is-scelto > summary { background:#e8f3fb; }
+.rp-rep.is-off > summary b { color:#64748b; }
+.rp-rep > summary > span { min-width:0; overflow-wrap:anywhere; }
+.rp-fr { color:#6b8db3; font-size:12px; }
+.rp-fr::before { content:"▸"; }
+.rp-rep[open] > summary > .rp-fr::before { content:"▾"; }
+.rp-num { text-align:right; }
+.rp-nessuno { color:#94a3b8; }
+.rp-gestione { padding:12px 16px 16px 42px; background:#fbfdff; border-top:1px solid #f1f5f9; display:flex; flex-direction:column; gap:10px; }
+.rp-gestione .rc-aree { width:100%; }
+.rp-comandi { display:flex; gap:8px; justify-content:flex-end; }
+.rp-fare { display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid #f1f5f9; }
+.rp-fare:last-child { border-bottom:0; }
+.rp-fare > b { flex:0 0 40px; font-size:20px; text-align:center; color:#0c2545; }
+.rp-fare div { flex:1; min-width:0; }
+.rp-fare strong { display:block; font-size:13.5px; color:#0f172a; }
+.rp-fare small { display:block; font-size:12px; color:#64748b; }
+.rp-pad { padding:12px 16px 14px; }
+.rp-pad .rc-list { margin:0; }
+#passaggio { margin-bottom:14px; }
+body.theme-dark .rp-filtri input[type=search], body.theme-dark .rp-chip { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
+body.theme-dark .rp-chip.is-scelto, body.theme-dark .rp-rep[open] > summary, body.theme-dark .rp-rep.is-scelto > summary { background:#1e3a5f; border-color:#2563a8; color:#fff; }
+body.theme-dark .rp-intest, body.theme-dark .rp-gestione { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text-light); }
+body.theme-dark .rp-rep, body.theme-dark .rp-fare { border-color:var(--border); }
+body.theme-dark .rp-rep > summary b, body.theme-dark .rp-fare strong { color:var(--text); }
+body.theme-dark .rp-fare small { color:var(--text-light); }
+body.theme-dark .rp-fare > b { color:#7cc0f0; }
+@media (max-width:760px) {
+  .rp-col { grid-template-columns:14px minmax(0,1fr) auto; }
+  .rp-col > .rp-c3, .rp-col > .rp-c4, .rp-col > .rp-c5 { display:none; }
+  .rp-intest { display:none; }
+  .rp-gestione { padding-left:16px; }
+}
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -19,32 +70,29 @@
 
   <div class="rc-top">
     <div>
-      <div class="rc-title">Reparti, aree e capi</div>
-      <div class="rc-sub">Un criterio per tutti, quello della struttura della Qualità: il <strong>capo del reparto</strong> è chi ha la sua «Responsabilità del reparto», il <strong>responsabile dell'area</strong> chi ha la «Responsabilità dell'area». Le mansioni nascono dal <strong>ruolo responsabile</strong>; un'area senza ruolo responsabile, o senza nessuno sulla mansione, segue il reparto. Assenze, DPI, permessi del team, solleciti e schede usano questo capo.</div>
+      <div class="rc-title">Reparti e capi</div>
+      <div class="rc-sub">Chi guida ogni reparto e quante persone ci lavorano. Il capo è chi ha la «Responsabilità del reparto»; apri un reparto per cambiarlo.</div>
     </div>
     <div class="rc-actions">
       {% include "anagrafica/partials/_guida_persone_link.html" with ancora="coerenza-capi" %}
-      {% if is_admin %}<a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:coerenza_capi' %}">Capo di ogni persona</a>{% endif %}
-      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:centri_costo' %}">Centri di costo</a>
-      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:esplora_struttura' %}">Esplora la struttura</a>
       <span class="rc-label">Reparti</span>{% include "anagrafica/partials/_export_buttons.html" with export_key="reparti" %}
       <span class="rc-label">Aree</span>{% include "anagrafica/partials/_export_buttons.html" with export_key="aree" %}
+      {% if is_admin %}<button type="button" class="rc-btn rc-btn-ghost" data-rp-apri="nuova-area-modal">+ Nuova area</button>
+      <button type="button" class="rc-btn rc-btn-primary" data-rp-apri="nuovo-rep-modal">+ Nuovo reparto</button>{% endif %}
     </div>
   </div>
 
-  {% url 'anagrafica:aree_list' as u_aree %}{% url 'anagrafica:coerenza_capi' as u_coer %}
-  <div class="rc-kpis">
-    <a class="rc-kpi kpi-link" href="{{ u_aree }}?filtro=attivi#schede" title="Apri l'elenco filtrato: reparti attivi"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti attivi</div></a>
-    <a class="rc-kpi kpi-link" href="{{ u_aree }}?filtro=con_capo#schede" title="Apri l'elenco filtrato: reparti attivi con il capo dalla mansione"><div class="rc-kpi-n">{{ kpi.con_capo }}</div><div class="rc-kpi-l">Con qualcuno sulla «Responsabilità del reparto»</div></a>
-    <a class="rc-kpi kpi-link {% if kpi.da_sistemare %}rc-kpi-warn{% endif %}" href="{{ u_aree }}?filtro=da_sistemare#schede" title="Apri l'elenco filtrato: reparti attivi da sistemare"><div class="rc-kpi-n">{{ kpi.da_sistemare }}</div><div class="rc-kpi-l">Reparti da sistemare</div></a>
-    {% if is_admin %}
-    <a class="rc-kpi kpi-link {% if kpi.senza_capo %}rc-kpi-warn{% endif %}" href="{{ u_coer }}?filtro=senza" title="Apri l'elenco filtrato: persone senza capo, da risolvere"><div class="rc-kpi-n">{{ kpi.senza_capo }}</div><div class="rc-kpi-l">Persone senza capo (su {{ kpi.persone }})</div></a>
-    <a class="rc-kpi kpi-link" href="{{ u_coer }}?filtro=eccezioni" title="Apri l'elenco filtrato: persone con un'eccezione sul capo"><div class="rc-kpi-n">{{ kpi.eccezioni }}</div><div class="rc-kpi-l">Eccezioni sulla persona</div></a>
-    {% else %}
-    {% comment %}«Capo di ogni persona» è riservato agli amministratori: per gli altri le tessere restano informative.{% endcomment %}
-    <div class="rc-kpi {% if kpi.senza_capo %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.senza_capo }}</div><div class="rc-kpi-l">Persone senza capo (su {{ kpi.persone }})</div></div>
-    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.eccezioni }}</div><div class="rc-kpi-l">Eccezioni sulla persona</div></div>
-    {% endif %}
+  {% url 'anagrafica:aree_list' as u_aree %}
+  <div class="rp-filtri">
+    <input type="search" data-ap-cerca placeholder="Cerca un reparto, un'area o una persona…" aria-label="Cerca un reparto, un'area o una persona" autocomplete="off">
+    <a class="rp-chip{% if not filtro %} is-scelto{% endif %}" href="{{ u_aree }}"{% if not filtro %} aria-current="true"{% endif %}>Tutti · {{ n_tutti }}</a>
+    <a class="rp-chip{% if filtro == 'attivi' %} is-scelto{% endif %}" href="{{ u_aree }}?filtro=attivi#schede" title="Reparti attivi">Attivi · {{ kpi.reparti }}</a>
+    <a class="rp-chip{% if filtro == 'con_capo' %} is-scelto{% endif %}" href="{{ u_aree }}?filtro=con_capo#schede" title="Reparti attivi con qualcuno sulla «Responsabilità del reparto»">Con il capo · {{ kpi.con_capo }}</a>
+    <a class="rp-chip{% if filtro == 'da_sistemare' %} is-scelto{% endif %}" href="{{ u_aree }}?filtro=da_sistemare#schede" title="Reparti attivi da sistemare">Da sistemare · {{ kpi.da_sistemare }}</a>
+    <span class="rp-dx">
+      <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-ap-tutti="1">Apri tutto</button>
+      <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-ap-tutti="0">Chiudi tutto</button>
+    </span>
   </div>
 
   {% if not regola_attiva %}
@@ -87,20 +135,16 @@
   </section>
   {% endif %}
 
-  {% if filtro %}
-  <div class="rc-filtro" id="schede">Filtro: <strong>{{ filtro_label }}</strong> · {{ schede|length }} repart{{ schede|length|pluralize:"o,i" }} · <a href="{{ u_aree }}">Mostra tutti</a></div>
-  {% endif %}
-  <div class="rc-grid"{% if not filtro %} id="schede"{% endif %}>
-    {% for s in schede %}
-    {% with r=s.reparto %}
-    <article class="rc-card {% if not r.is_active %}is-off{% endif %}" id="rep-{{ r.pk }}" style="--rc-color:{{ r.colore }};">
-      <div class="rc-card-head">
-        <div>
-          <div class="rc-card-name">{{ r.nome }}</div>
-          <div class="rc-card-meta">{{ s.persone }} person{{ s.persone|pluralize:"a,e" }} · {{ s.aree|length }} are{{ s.aree|length|pluralize:"a,e" }}{% if not r.is_active %} · non attivo{% endif %}{% if r.descrizione %} · {{ r.descrizione }}{% endif %}</div>
-        </div>
-        {% if is_admin %}
-        <div class="rc-actions">
+  <div class="fx-flusso">
+    <div class="fx-blocco fx-largo"><section class="es-s-card" id="schede" data-ap-elenco>
+      <h2 class="es-s-h">Elenco <span>{{ schede|length }} repart{{ schede|length|pluralize:"o,i" }}{% if filtro %} · {{ filtro_label }}{% endif %}</span></h2>
+      {% if schede %}<div class="rp-col rp-intest"><span></span><span>Reparto</span><span class="rp-c3">Centro di costo</span><span class="rp-c4">Responsabile</span><span class="rp-c5 rp-num">Persone</span><span>Stato</span></div>{% endif %}
+      {% for s in schede %}
+      {% with r=s.reparto %}
+      <details class="rp-rep{% if not r.is_active %} is-off{% endif %}{% if s.aperto %} is-scelto{% endif %}" id="rep-{{ r.pk }}" data-ap-riga="{{ r.pk }}" data-ap-testo="{{ s.riga.testo }}"{% if s.aperto %} open{% endif %}>
+        <summary class="rp-col"><span class="rp-fr" aria-hidden="true"></span><span><b>{{ r.nome }}</b></span><span class="rp-c3">{{ s.riga.centri|default:"Nessuno" }}</span><span class="rp-c4">{% if s.riga.capo %}{{ s.riga.capo }}{% else %}<span class="rp-nessuno">Nessuno</span>{% endif %}</span><span class="rp-c5 rp-num">{{ s.persone }}</span><span><span class="es-s-stato{% if s.riga.stato.tono %} es-s-stato-{{ s.riga.stato.tono }}{% endif %}">{{ s.riga.stato.nome }}</span></span></summary>
+        <div class="rp-gestione">
+          {% if is_admin %}<div class="rp-comandi">
           <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm"
                   data-edit-rep-id="{{ r.pk }}" data-edit-rep-nome="{{ r.nome }}" data-edit-rep-desc="{{ r.descrizione }}"
                   data-edit-rep-colore="{{ r.colore }}" data-edit-rep-ruolo="{{ r.ruolo_responsabile_id|default_if_none:'' }}"
@@ -108,10 +152,7 @@
           <form method="post" action="{% url 'anagrafica:area_delete' r.pk %}" data-hub-confirm="Eliminare il reparto «{{ r.nome }}»?">
             {% csrf_token %}<button type="submit" class="rc-btn rc-btn-danger rc-btn-sm">Elimina</button>
           </form>
-        </div>
-        {% endif %}
-      </div>
-      <div class="rc-card-body">
+          </div>{% endif %}
         <div class="rc-row">
           <span class="rc-label">Ruolo responsabile</span>
           <span class="rc-mansione">{% if r.ruolo_responsabile %}{{ r.ruolo_responsabile.nome }}{% if s.mansione %} · {% if is_admin %}<a href="{% url 'anagrafica:mansionario_mansione' s.mansione.pk %}">{{ s.mansione.nome }}</a>{% else %}{{ s.mansione.nome }}{% endif %}{% endif %}{% else %}<span class="rc-none">da scegliere</span>{% endif %}</span>
@@ -195,26 +236,52 @@
         {% else %}
           <span class="rc-none">Nessuna area in questo reparto.</span>
         {% endif %}
+        </div>
+        <template data-ap-modello>{% include "anagrafica/partials/_scheda_scelta.html" with titolo="Reparto scelto" scheda=s.scheda %}</template>
+      </details>
+      {% endwith %}
+      {% empty %}
+      <p class="es-s-vuoto">Nessun reparto{% if filtro %} con questo filtro{% else %}. Creane uno con «Nuovo reparto»{% endif %}.</p>
+      {% endfor %}
+    </section></div>
+
+    <div class="fx-blocco"><div data-ap-scelta data-ap-param="reparto">
+      {% if scelta %}{% include "anagrafica/partials/_scheda_scelta.html" with titolo="Reparto scelto" scheda=scelta.scheda %}
+      {% else %}<section class="es-s-card"><h2 class="es-s-h">Reparto scelto</h2><p class="es-s-vuoto">Apri un reparto: qui compaiono i suoi dati e le pagine collegate.</p></section>{% endif %}
+    </div></div>
+
+    {% if da_fare %}
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Da fare</h2>
+      {% for x in da_fare %}<div class="rp-fare"><b>{{ x.n }}</b><div><strong>{{ x.titolo }}</strong><small>{{ x.sotto }}</small></div>{% if x.url %}<a class="rc-btn rc-btn-ghost rc-btn-sm" href="{{ x.url }}">{{ x.azione }}</a>{% endif %}</div>{% endfor %}
+    </section></div>
+    {% endif %}
+
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Capi delle persone</h2>
+      <div class="es-s-testa"><dl class="es-s-campi es-s-campi-1">
+        <div class="es-s-campo"><dt>Persone in forza:</dt><dd>{{ kpi.persone }}</dd></div>
+        <div class="es-s-campo"><dt>Senza capo:</dt><dd>{{ kpi.senza_capo }}</dd></div>
+        <div class="es-s-campo"><dt>Con un'eccezione sulla persona:</dt><dd>{{ kpi.eccezioni }}</dd></div>
+      </dl></div>
+      {% if is_admin %}<div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 14px"><a class="rc-btn rc-btn-ghost rc-btn-sm" href="{% url 'anagrafica:coerenza_capi' %}">Capo di ogni persona</a><a class="rc-btn rc-btn-ghost rc-btn-sm" href="{% url 'anagrafica:coerenza_capi' %}?filtro=eccezioni">Vedi le eccezioni</a></div>{% endif %}
+    </section></div>
+
+    {% if aree_senza_reparto %}
+    <div class="fx-blocco fx-largo"><section class="es-s-card" id="senza-reparto">
+      <h2 class="es-s-h">Aree senza reparto ({{ aree_senza_reparto|length }})</h2>
+      <div class="rp-pad"><p class="rc-old" style="margin:0 0 8px">Queste aree non hanno un capo: assegnale a un reparto.</p>
+      <ul class="rc-list">{% for a in aree_senza_reparto %}<li>{{ a.nome }}{% if is_admin %} <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-edit-area-id="{{ a.pk }}" data-edit-area-nome="{{ a.nome }}" data-edit-area-desc="{{ a.descrizione }}" data-edit-area-reparto="" data-edit-area-ruolo="{{ a.ruolo_responsabile_id|default_if_none:'' }}" data-edit-area-centro="{{ a.centro_di_costo_id|default_if_none:'' }}" data-edit-area-active="{{ a.is_active|yesno:'1,0' }}">Modifica</button>{% endif %}</li>{% endfor %}</ul>
       </div>
-    </article>
-    {% endwith %}
-    {% empty %}
-      <div class="rc-panel">Nessun reparto. Creane uno qui sotto.</div>
-    {% endfor %}
+    </section></div>
+    {% endif %}
   </div>
+</div>
 
-  {% if aree_senza_reparto %}
-  <section class="rc-panel rc-panel-warn">
-    <h2>Aree senza reparto ({{ aree_senza_reparto|length }})</h2>
-    <p>Queste aree non hanno un capo: assegnale a un reparto.</p>
-    <ul class="rc-list">{% for a in aree_senza_reparto %}<li>{{ a.nome }}{% if is_admin %} <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-edit-area-id="{{ a.pk }}" data-edit-area-nome="{{ a.nome }}" data-edit-area-desc="{{ a.descrizione }}" data-edit-area-reparto="" data-edit-area-ruolo="{{ a.ruolo_responsabile_id|default_if_none:'' }}" data-edit-area-centro="{{ a.centro_di_costo_id|default_if_none:'' }}" data-edit-area-active="{{ a.is_active|yesno:'1,0' }}">Modifica</button>{% endif %}</li>{% endfor %}</ul>
-  </section>
-  {% endif %}
-
-  {% if is_admin %}
-  <div class="rc-add">
-    <details>
-      <summary>+ Nuovo reparto</summary>
+{% if is_admin %}
+<div id="nuovo-rep-modal" class="rc-modal">
+  <div class="rc-modal-box" role="dialog" aria-modal="true" aria-labelledby="nuovo-rep-title">
+    <div class="rc-modal-title" id="nuovo-rep-title">Nuovo reparto</div>
       <form method="post" action="{% url 'anagrafica:area_create' %}">
         {% csrf_token %}
         <div class="hub-form-stack">
@@ -226,12 +293,15 @@
             <select name="ruolo_responsabile"><option value="">— Nessuno —</option>{% for ro in ruoli_opts %}<option value="{{ ro.pk }}">{{ ro.nome }}</option>{% endfor %}</select>
             <p class="hub-help">Genera la «Responsabilità del reparto»: chi la ha nel Mansionario è il capo.</p>
           </div>
-          <div><button type="submit" class="rc-btn rc-btn-primary">Crea reparto</button></div>
+          <div style="display:flex;gap:8px;"><button type="submit" class="rc-btn rc-btn-primary">Crea reparto</button><button type="button" class="rc-btn rc-btn-ghost" data-rc-chiudi>Annulla</button></div>
         </div>
       </form>
-    </details>
-    <details>
-      <summary>+ Nuova area aziendale</summary>
+  </div>
+</div>
+
+<div id="nuova-area-modal" class="rc-modal">
+  <div class="rc-modal-box" role="dialog" aria-modal="true" aria-labelledby="nuova-area-title">
+    <div class="rc-modal-title" id="nuova-area-title">Nuova area aziendale</div>
       <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}">
         {% csrf_token %}
         <div class="hub-form-stack">
@@ -243,15 +313,12 @@
             <select name="ruolo_responsabile"><option value="">Segue il capo del reparto</option>{% for ro in ruoli_opts %}<option value="{{ ro.pk }}">{{ ro.nome }}</option>{% endfor %}</select>
           </div>
           <div class="hub-field"><label>Centro di costo</label><select name="centro_di_costo"><option value="">— Nessuno —</option>{% for cc in centri_opts %}<option value="{{ cc.pk }}">{{ cc.nome }}</option>{% endfor %}</select></div>
-          <div><button type="submit" class="rc-btn rc-btn-primary">Crea area</button></div>
+          <div style="display:flex;gap:8px;"><button type="submit" class="rc-btn rc-btn-primary">Crea area</button><button type="button" class="rc-btn rc-btn-ghost" data-rc-chiudi>Annulla</button></div>
         </div>
       </form>
-    </details>
   </div>
-  {% endif %}
 </div>
 
-{% if is_admin %}
 <div id="edit-rep-modal" class="rc-modal">
   <div class="rc-modal-box" role="dialog" aria-modal="true" aria-labelledby="edit-rep-title">
     <div class="rc-modal-title" id="edit-rep-title">Modifica reparto</div>
@@ -302,7 +369,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   function apri(id) { document.getElementById(id).style.display = 'flex'; }
   function chiudi(m) { m.style.display = 'none'; }
@@ -311,6 +378,14 @@
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') document.querySelectorAll('.rc-modal').forEach(chiudi);
+  });
+  document.querySelectorAll('[data-rp-apri]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var id = b.getAttribute('data-rp-apri');
+      apri(id);
+      var primo = document.querySelector('#' + id + ' input[type=text]');
+      if (primo) primo.focus();
+    });
   });
   var repBase = "{% url 'anagrafica:area_edit' 0 %}";
   document.querySelectorAll('[data-edit-rep-id]').forEach(function (b) {

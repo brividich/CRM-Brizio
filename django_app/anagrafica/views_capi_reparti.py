@@ -161,12 +161,21 @@ def _contesto(request) -> dict:
 
 @login_required
 def reparti_capi(request):
+    from .services import reparti_capi_vista as vista
+
     ctx = _contesto(request)
+    ctx["n_tutti"] = len(ctx["schede"])
     filtro = (request.GET.get("filtro") or "").strip()
     if filtro in FILTRI_REPARTI:
         etichetta, regola = FILTRI_REPARTI[filtro]
         ctx["schede"] = [s for s in ctx["schede"] if regola(s)]
         ctx["filtro"], ctx["filtro_label"] = filtro, etichetta
+    # Il reparto nell'indirizzo si apre con la sua scheda a destra.
+    chiesto = (request.GET.get("reparto") or "").strip()
+    vista.arricchisci(request, ctx, da_sistemare=FILTRI_REPARTI["da_sistemare"][1],
+                      scelto=int(chiesto) if chiesto.isdigit() and len(chiesto) < 10 else None)
+    ctx["scelta"] = next((s for s in ctx["schede"] if s["aperto"]), None)
+    ctx["da_fare"] = vista.da_fare(ctx)
     return render(request, "anagrafica/pages/aree_list.html", ctx)
 
 

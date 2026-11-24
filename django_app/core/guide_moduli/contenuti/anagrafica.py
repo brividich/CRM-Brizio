@@ -175,6 +175,11 @@ GUIDA = {
                     "Stati: «In approvazione», «Approvata», «Respinta», «Evasa».",
                     "Da «Esplora la struttura» → «Richieste su questa mansione» l'elenco si apre già ristretto a quella "
                     "mansione; «mostra tutte le richieste» toglie il filtro.",
+                    "Nell'elenco «Richieste» clicca una riga: a destra compaiono «Richiesta scelta» (numero, tipo, "
+                    "persona, mansione o competenza, livello da raggiungere, stato, chi l'ha chiesta, motivo, «Tocca a») "
+                    "e le «Pagine collegate» (la richiesta, la scheda della persona, «Esplora la struttura» sulla "
+                    "mansione, le richieste della stessa mansione). Il campo di ricerca filtra per persona, mansione o "
+                    "numero; «Da fare» ricorda ciò che aspetta te.",
                 ]),
                 ("p", "Che cosa cambia all'approvazione. Assegnazione: se la persona non ha ancora la mansione, entra "
                       "nella skill matrix a livello I (in formazione); il livello chiesto arriva solo alla chiusura "
@@ -727,7 +732,13 @@ GUIDA = {
                       "cambia il capo a mano e vince su tutto. Nessuno è capo di sé stesso. "
                       "Più persone con la stessa mansione sono co-capo: le assenze le approva la prima, le richieste DPI "
                       "tutte. Il team è l'inverso: le persone di cui sei il capo, e i loro team."),
-                ("p", "Persone → Reparti apre «Reparti, aree e capi»: una scheda per reparto con «Ruolo responsabile», "
+                ("p", "Organizzazione → Reparti apre «Reparti e capi»: un elenco con «Reparto», «Centro di costo», "
+                      "«Responsabile», «Persone» e «Stato» («Completo», «Da sistemare», «Non attivo»). Il campo di ricerca "
+                      "cerca anche aree e persone; «Tutti», «Attivi», «Con il capo» e «Da sistemare» filtrano. Aprendo un "
+                      "reparto compaiono a destra «Reparto scelto» con i suoi dati e le «Pagine collegate»; a fianco «Da "
+                      "fare» (reparti da sistemare, persone senza capo, aree senza reparto) e «Capi delle persone». «Nuovo "
+                      "reparto» e «Nuova area» sono in alto."),
+                ("p", "Dentro il reparto aperto: «Ruolo responsabile», "
                       "«Capo», le aree con il «Responsabile» e gli avvisi («Scegli il ruolo responsabile», «Nessuno ha "
                       "la «Responsabilità del reparto»: vale l'organigramma dei ruoli», «Senza ruolo responsabile: segue "
                       "il reparto», persone senza capo). «Assegna la mansione a…» + «Assegna» cambia il capo, la × lo "

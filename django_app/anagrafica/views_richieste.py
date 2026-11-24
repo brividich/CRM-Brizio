@@ -75,11 +75,62 @@ def elenco(request):
         qs = qs.filter(stato=stato)
     else:
         stato = ""
+    righe = svc.righe(qs[:300])
+    _schede(request, righe)
+    # La richiesta scelta: quella nell'indirizzo se è nell'elenco, altrimenti la prima.
+    chiesta = _int(request.GET.get("richiesta"))
+    scelta = next((x for x in righe if x["richiesta"].pk == chiesta), righe[0] if righe else None)
+    dati = svc.da_fare(a)
+    url_da_fare = reverse("anagrafica:richieste_da_fare")
+    da_fare = [x for x in (
+        {"n": len(dati["da_approvare"]), "titolo": "Richieste da approvare", "sotto": "Tocca a te decidere",
+         "url": url_da_fare, "azione": "Decidi", "urgente": True},
+        {"n": len(dati["in_attesa"]), "titolo": "Le mie richieste in attesa di altri",
+         "sotto": "Aspettano l'approvazione o la sessione formativa", "url": url_da_fare, "azione": "Apri", "urgente": False},
+    ) if x["n"]]
     return render(request, "anagrafica/pages/richieste_elenco.html", {
-        "righe": svc.righe(qs[:300]), "stato": stato, "mansione": mansione,
+        "righe": righe, "stato": stato, "mansione": mansione, "scelta": scelta, "da_fare": da_fare,
+        "n_tutte": sum(conteggi.values()),
         "stati": [{"chiave": c, "nome": n, "n": conteggi[c]} for c, n in R.STATO_CHOICES],
         "puo_chiedere": bool(svc.tipi_ammessi(a)),
     })
+
+
+def _schede(request, righe) -> None:
+    """Per ogni riga: i dati etichettati della richiesta e le pagine collegate, già aperte su di lei."""
+    from django.utils import timezone
+
+    from .services import esplora_struttura
+    from .services.organizzazione_panoramica import _puo_aprire
+
+    if not righe:
+        return
+    # Il permesso è della rotta: si controlla una volta sola, poi decide comunque la pagina di arrivo.
+    vede_schede = _puo_aprire(request, reverse("anagrafica:dipendente_detail", args=[righe[0]["richiesta"].legacy_anagrafica_id]))
+    vede_esplora = _puo_aprire(request, reverse("anagrafica:esplora_struttura"))
+    for x in righe:
+        r = x["richiesta"]
+        campi = [("Richiesta", r.codice), ("Tipo di richiesta", r.get_tipo_display()), ("Persona", x["persona"])]
+        if r.mansione_id:
+            campi.append(("Mansione", r.mansione.nome))
+        if r.competenza_id:
+            campi.append(("Competenza", r.competenza.nome))
+        dopo = [("Richiesta da", f"{r.richiedente_nome} · {timezone.localtime(r.creata_il):%d/%m/%Y}"),
+                ("Tocca a", x["tocca_a"] or "Nessuno")]
+        if r.motivazione:
+            dopo.insert(1, ("Motivo", r.motivazione))
+        collegate = [{"nome": "Apri la richiesta", "spiega": "Passi, competenze che servono, storia",
+                      "url": reverse("anagrafica:richiesta", args=[r.pk])}]
+        if vede_schede:
+            collegate.append({"nome": f"Scheda di {x['persona']}", "spiega": "Mansioni e competenze della persona",
+                              "url": reverse("anagrafica:dipendente_detail", args=[r.legacy_anagrafica_id])})
+        if r.mansione_id:
+            if vede_esplora:
+                collegate.append({"nome": "Esplora la struttura", "spiega": "Aperta su questa mansione",
+                                  "url": esplora_struttura.url(mansione=r.mansione_id)})
+            collegate.append({"nome": "Richieste su questa mansione", "spiega": "Tutte quelle della stessa mansione",
+                              "url": f"{reverse('anagrafica:richieste')}?mansione={r.mansione_id}"})
+        x["scheda"] = {"campi": campi, "livello": esplora_semplice.livello(r.livello), "dopo": dopo, "collegate": collegate}
 
 
 def _contesto_nuova(a, dati: dict, errore: str = "") -> dict:

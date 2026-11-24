@@ -95,7 +95,7 @@ body.theme-dark .cc-fare > b { color:#7cc0f0; }
   <div class="cc-filtri">
     <input type="search" data-cc-cerca placeholder="Cerca un centro di costo o un reparto…" aria-label="Cerca un centro di costo o un reparto" autocomplete="off">
     <a class="cc-chip{% if not filtro %} is-scelto{% endif %}" href="{{ u_cc }}"{% if not filtro %} aria-current="true"{% endif %}>Tutti · {{ n_tutti }}</a>
-    <a class="cc-chip{% if filtro %} is-scelto{% endif %}" href="{{ u_cc }}?filtro=attivi"{% if filtro %} aria-current="true"{% endif %}>Attivi · {{ kpi.centri }}</a>
+    <a class="cc-chip{% if filtro %} is-scelto{% endif %}" href="{{ u_cc }}?filtro=attivi#centri"{% if filtro %} aria-current="true"{% endif %}>Attivi · {{ kpi.centri }}</a>
     <span class="cc-dx">
       <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-cc-tutti="1">Apri tutto</button>
       <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-cc-tutti="0">Chiudi tutto</button>
