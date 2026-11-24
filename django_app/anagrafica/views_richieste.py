@@ -209,6 +209,7 @@ def dettaglio(request, pk: int):
     sessione = SessioneFormativa.objects.filter(richiesta=richiesta).first()
     return render(request, "anagrafica/pages/richiesta_dettaglio.html", {
         "sessione": sessione, "persone_gruppo": persone_gruppo, "motivo_non_apre": "" if sessione else sessioni.motivo_non_apre(a, richiesta),
+        "avviso_apertura": "" if sessione or richiesta.senza_sessione else sessioni.avviso_apertura(richiesta),
         "r": richiesta, "persona": riga["persona"], "tocca_a": riga["tocca_a"], "passi": svc.passi(richiesta),
         "fabbisogno": fabbisogno, "da_formare": sum(1 for f in fabbisogno if not f["presente"]),
         "livello": esplora_semplice.livello(richiesta.livello), "legenda": esplora_semplice.LEGENDA,

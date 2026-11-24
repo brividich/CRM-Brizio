@@ -21,6 +21,15 @@
 .sf-attesa { color:#94a3b8; }
 .sf-evid { display:block; color:#64748b; font-size:11.5px; font-weight:500; margin-top:2px; }
 .sf-evid a { font-weight:600; }
+.sf-evid.sf-manca { color:#b45309; font-weight:600; }
+.sf-evid.sf-ok { color:#15803d; font-weight:600; }
+.sf-tetto { display:none; font-size:12.5px; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:9px; padding:8px 10px; margin-top:6px; }
+.sf-tetto.is-visibile { display:block; }
+.sf-azioni { display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+.sf-azioni form { margin:0; }
+.sf-azioni .rq-btn { white-space:nowrap; }
+body.theme-dark .sf-tetto { background:rgba(245,158,11,.12); border-color:rgba(245,158,11,.35); color:#fbbf24; }
+body.theme-dark .sf-evid.sf-manca { color:#fbbf24; }
 .sf-tab td { vertical-align:top; }
 /* Finestra centrale di valutazione */
 .sf-modal { position:fixed; inset:0; z-index:1000; display:none; align-items:center; justify-content:center; background:rgba(15,23,42,.45); padding:16px; }
@@ -86,6 +95,9 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
             {% elif g.modalita == "P" %}<span class="sf-evid">{{ g.descrizione|default:"Verifica da descrivere" }}{% if g.data_verifica %} · verificata il {{ g.data_verifica|date:"d/m/Y" }}{% endif %}</span>
             {% elif g.modalita == "A" %}<span class="sf-evid">Tutor: {{ g.tutor_nome|default:"da indicare" }}{% if g.ore %} · {{ g.ore }} ore{% endif %}{% if g.dal %} · dal {{ g.dal|date:"d/m/Y" }}{% endif %}{% if g.al %} al {{ g.al|date:"d/m/Y" }}{% endif %}{% if g.registro_mod040 %} · <a href="{% url 'anagrafica:sessione_file_riga' s.pk 'mod040' g.pk %}">registro MOD.040</a>{% else %} · registro MOD.040 da caricare{% endif %}</span>
             {% elif g.modalita == "C" %}<span class="sf-evid">{% if g.edizione %}Edizione {{ g.edizione.codice_sessione }} · {% endif %}{% if g.corso %}{{ g.corso.codice }} · {{ g.corso.titolo }}{% else %}{{ g.docente_ente|default:"Corso da indicare" }}{% endif %}{% if g.data_corso %} · {{ g.data_corso|date:"d/m/Y" }}{% endif %}{% if g.verifica %} · verifica: {{ g.get_verifica_display|lower }}{% endif %}</span>{% endif %}
+            {% if x.corso_richiesto and not g.fatta %}<span class="sf-evid{% if x.requisito.corso %} sf-manca{% endif %}">Corso richiesto: «{{ x.corso_richiesto.titolo }}» · {% if x.requisito.corso %}mancante{% else %}valido{% endif %}{% if x.iscrizione and x.requisito.corso %} · edizione {{ x.iscrizione.sessione.codice_sessione }}: {{ x.iscrizione.get_stato_display|lower }}{% endif %}</span>{% endif %}
+            {% if x.requisito and not x.requisito.corso or x.requisito and g.fatta %}<span class="sf-evid sf-manca">Requisito formale mancante: {{ x.requisito.testo }}{% if g.fatta %} · rivaluta a I o completa il requisito{% endif %}</span>{% endif %}
+            {% if x.pronta %}<span class="sf-evid sf-ok">Corso completato: pronta da valutare</span>{% endif %}
             {% if g.valutato_da_nome %}<span class="sf-evid">Valutata da {{ g.valutato_da_nome }} il {{ g.valutato_il|date:"d/m/Y" }}{% if g.nota %} · {{ g.nota }}{% endif %}</span>{% endif %}
           </td>
           <td>{% include "anagrafica/partials/_esplora_livello.html" with l=x.richiesto %}</td>
@@ -93,17 +105,24 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
           <td>{{ g.get_modalita_display|default:"—" }}</td>
           <td>{% if x.raggiunto %}{% include "anagrafica/partials/_esplora_livello.html" with l=x.raggiunto %}{% else %}<span class="sf-attesa">—</span>{% endif %}</td>
           <td><span class="es-s-stato {% if g.fatta %}es-s-stato-ok{% elif g.stato == 'in_acquisizione' %}es-s-stato-warning{% else %}es-s-stato-info{% endif %}">{{ g.get_stato_display }}</span></td>
-          <td>{% if not x.motivo_non_valuta %}<button type="button" class="rq-btn rq-btn-s" data-sf-valuta="{{ g.pk }}"
+          <td><div class="sf-azioni">{% if not x.motivo_non_valuta %}<button type="button" class="rq-btn rq-btn-s" data-sf-valuta="{{ g.pk }}"
                 data-nome="{{ g.competenza_nome }}" data-richiesto="{{ g.livello_richiesto }}" data-modo="{{ g.modalita }}"
                 data-livello="{{ g.livello_raggiunto }}" data-nota="{{ g.nota }}" data-descrizione="{{ g.descrizione }}"
                 data-verifica-il="{{ g.data_verifica|date:'Y-m-d' }}" data-tutor="{{ g.tutor_nome }}" data-dal="{{ g.dal|date:'Y-m-d' }}"
                 data-al="{{ g.al|date:'Y-m-d' }}" data-ore="{{ g.ore|default_if_none:'' }}" data-registro="{% if g.registro_mod040 %}1{% endif %}"
                 data-corso="{{ g.corso_id|default_if_none:'' }}" data-ente="{{ g.docente_ente }}" data-corso-il="{{ g.data_corso|date:'Y-m-d' }}"
-                data-verifica="{{ g.verifica }}" data-edizione="{{ g.edizione_id|default_if_none:'' }}">{% if g.modalita %}Modifica{% else %}Valuta{% endif %}</button>{% endif %}</td>
+                data-verifica="{{ g.verifica }}" data-edizione="{{ g.edizione_id|default_if_none:'' }}"
+                data-corso-richiesto="{{ x.corso_richiesto.pk|default_if_none:'' }}" data-edizione-proposta="{{ x.iscrizione.sessione_id|default_if_none:'' }}"
+                data-requisito="{{ x.requisito.testo|default:'' }}">{% if g.modalita %}Modifica{% else %}Valuta{% endif %}</button>{% endif %}
+            {% if puo_iscrivere and x.requisito.corso and not g.fatta and x.iscrizione.stato != "ISCRITTO" and x.iscrizione.stato != "IN_CORSO" %}
+            <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}">{% csrf_token %}
+              <input type="hidden" name="corso_id" value="{{ x.requisito.corso.pk }}"><input type="hidden" name="dipendenti_selezionati" value="{{ g.legacy_anagrafica_id }}"><input type="hidden" name="back" value="{{ request.path }}">
+              <button type="submit" class="rq-btn rq-btn-s" title="Scegli un'edizione già pianificata del corso «{{ x.requisito.corso.titolo }}» o creane una nuova. Quando il corso è completato, l'edizione entra da sola in questa riga.">Iscrivi a un'edizione</button>
+            </form>{% endif %}</div></td>
         </tr>{% endwith %}{% endfor %}</tbody>
       </table></div>
       <div class="es-s-legenda">{% for l in legenda %}<span><b>{{ l.codice }}</b> {{ l.parola }}</span>{% endfor %}</div>
-      {% else %}<p class="es-s-vuoto">La mansione non ha competenze caricate: la sessione serve solo per le firme.</p>{% endif %}
+      {% else %}<p class="es-s-vuoto">{% if avviso_senza_competenze %}{{ avviso_senza_competenze }} <a href="{% url 'anagrafica:mansionario_mansione' r.mansione_id %}#competenze">Apri le competenze richieste</a>{% else %}Nessuna competenza da valutare: la sessione serve solo per le firme.{% endif %}</p>{% endif %}
     </section></div>
 
     <div class="fx-blocco"><section class="es-s-card">
@@ -223,6 +242,7 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
       </div>
       <div><label class="sf-l">Livello raggiunto <span id="sf-richiesto"></span></label>
         <div class="rq-scelte"><label><input type="radio" name="livello" value="" checked> Non ancora</label>{% for l in livelli %}<label><input type="radio" name="livello" value="{{ l.codice }}"> {{ l.codice }} · {{ l.parola }}</label>{% endfor %}</div>
+        <div class="sf-tetto" id="sf-tetto"></div>
       </div>
       <div><label class="sf-l" for="sf-nota">Nota</label><input type="text" id="sf-nota" name="nota" maxlength="500"></div>
     </div>
@@ -258,6 +278,15 @@ body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea 
       campo('dal').value = d.dal || ''; campo('al').value = d.al || ''; campo('ore').value = (d.ore || '').replace(',', '.');
       if (campo('edizione')) campo('edizione').value = d.edizione || '';
       campo('corso').value = d.corso || ''; campo('docente_ente').value = d.ente || ''; campo('data_corso').value = d.corsoIl || '';
+      // Corso richiesto dalla competenza: «Corso» proposto con corso ed edizione già scelti (si può cambiare).
+      if (d.corsoRichiesto && (!d.modo || d.modo === 'C')) {
+        if (!d.modo) scegli('modalita', 'C');
+        if (!d.corso) campo('corso').value = d.corsoRichiesto;
+        if (campo('edizione') && !d.edizione && d.edizioneProposta) campo('edizione').value = d.edizioneProposta;
+      }
+      var tetto = document.getElementById('sf-tetto');
+      tetto.textContent = d.requisito ? 'Manca il requisito formale (' + d.requisito + '): la competenza resta al massimo a «I – in formazione».' : '';
+      tetto.classList.toggle('is-visibile', !!d.requisito);
       document.getElementById('sf-registro-ok').textContent = d.registro ? '· già caricato, puoi sostituirlo' : '';
       mostraGruppo();
       modal.classList.add('is-aperta');

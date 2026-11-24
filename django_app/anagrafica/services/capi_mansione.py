@@ -132,6 +132,14 @@ def e_mansione_capo(mansione_id) -> bool:
     ).exists()
 
 
+def assegna_responsabilita(mansione, legacy_anagrafica_id: int, *, user=None):
+    """Mette una persona sulla «Responsabilità» di un reparto o di un'area (si aggiunge a chi la ha già)."""
+    from . import mansionario_struttura
+
+    return mansionario_struttura.assegna(mansione, legacy_anagrafica_id=int(legacy_anagrafica_id),
+                                         livello=LIVELLO_PASSAGGIO, user=user)
+
+
 def aree_senza_ruolo() -> list:
     """Aree attive con un nome proprio e senza ruolo responsabile: seguono il reparto."""
     from ..models import AreaAziendale

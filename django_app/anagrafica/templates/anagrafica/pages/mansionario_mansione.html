@@ -97,7 +97,7 @@
             <tbody>
               {% for p in persone %}
               <tr>
-                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a>{% if p.fuori_forza %} <span class="fmd-badge fmd-b-red">non più in forza</span>{% endif %}</td>
+                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a>{% if p.fuori_forza %} <span class="fmd-badge fmd-b-red">non più in forza</span>{% endif %}{% for f in p.formazione_in_corso %}<div class="fmd-muted" style="font-size:11px;margin-top:2px;"><a class="fmd-data-link" href="{{ f.url }}">{{ f.testo }}</a></div>{% endfor %}</td>
                 <td data-sort-value="{{ p.livello }}">{% if puo_valutare and not competenze %}<form method="post" action="{% url 'anagrafica:mansionario_livello' mansione.pk p.abilitazione.pk %}" class="mns-lv-form">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}#persone"><select name="livello" class="fm-input fm-select mns-lv-sel" data-mns-auto aria-label="Livello di {{ p.nome }}" title="Cambia il livello: si salva subito e resta nello storico">{% for k, v in livelli_label %}<option value="{{ k }}"{% if k == p.livello %} selected{% endif %}>{{ k }} · {{ v }}</option>{% endfor %}</select><noscript><button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Salva</button></noscript></form>{% else %}<span class="mns-lv mns-lv-{{ p.livello }}"><b>{{ p.livello|default:"—" }}</b>{{ p.livello_label }}</span>{% endif %}</td>
                 <td>{% if p.sospesa %}<span class="fmd-badge fmd-b-red">sospesa</span>{% elif p.da_valutare %}<span class="fmd-badge fmd-b-grey" title="Esito calcolato: {{ p.valutazione.esito_label|lower }}">da valutare</span>{% elif p.valutazione.esito == 'abilitato' %}<span class="fmd-badge fmd-b-green">abilitato</span>{% elif p.valutazione.esito == 'non_abilitato' %}<span class="fmd-badge fmd-b-red">non abilitato</span>{% else %}<span class="fmd-badge fmd-b-orange">in addestramento</span>{% endif %}</td>
                 <td class="mns-manca">
@@ -243,6 +243,7 @@
                     {% if r.mancanti %}<span class="fmd-badge {% if r.obbligatorio %}fmd-b-red{% else %}fmd-b-amber{% endif %}" title="{{ r.nomi_mancanti|join:', ' }}">{{ r.mancanti|length }} da fare</span>{% endif %}
                     <span class="fmd-muted" style="font-size:12px;">{{ r.n_in_regola }}/{{ n_persone_lista }} in regola</span>
                   {% else %}<span class="fmd-muted">nessuno in lista</span>{% endif %}
+                  {% if r.in_sessione %}<div class="fmd-muted" style="font-size:11px;margin-top:2px;" title="{{ r.nomi_in_sessione|join:', ' }}">{{ r.in_sessione|length }} in sessione formativa, in attesa del corso</div>{% endif %}
                 </td>
                 <td class="fmd-r fmd-nowrap">
                   <span class="mns-actions">

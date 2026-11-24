@@ -237,8 +237,7 @@ def capo_assegna(request, mansione_id: int):
     if not raw.isdigit():
         messages.error(request, "Scegli la persona.")
         return _torna(ancora)
-    ab = mansionario_struttura.assegna(mansione, legacy_anagrafica_id=int(raw),
-                                       livello=capi_mansione.LIVELLO_PASSAGGIO, user=request.user)
+    ab = capi_mansione.assegna_responsabilita(mansione, int(raw), user=request.user)
     log_action(request, "update", MODULE, {"oggetto": "capo_mansione_assegna", "mansione": mansione.pk,
                                            "legacy_anagrafica_id": int(raw)}, oggetto=ab)
     messages.success(request, f"Assegnata «{mansione.nome}».")

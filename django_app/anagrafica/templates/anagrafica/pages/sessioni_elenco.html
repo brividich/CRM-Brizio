@@ -108,9 +108,9 @@ body.theme-dark .sf-fare small { color:var(--text-light); }
         <tbody>{% for x in da_aprire %}<tr>
           <td><b>{{ x.persona }}</b></td>
           <td>{{ x.richiesta.get_tipo_display }}</td>
-          <td>{{ x.richiesta.oggetto }}</td>
+          <td>{{ x.richiesta.oggetto }}{% if x.senza_competenze %}<small style="display:block;color:#b45309">senza competenze richieste</small>{% endif %}</td>
           <td>{{ x.richiesta.deciso_da_nome }} · {{ x.richiesta.decisa_il|date:"d/m/Y" }}</td>
-          <td><form method="post" action="{% url 'anagrafica:sessione_apri' x.richiesta.pk %}" style="margin:0">{% csrf_token %}<button type="submit" class="rq-btn rq-btn-p rq-btn-s">Apri la sessione</button></form></td>
+          <td><form method="post" action="{% url 'anagrafica:sessione_apri' x.richiesta.pk %}" style="margin:0"{% if x.senza_competenze %} data-hub-confirm="La mansione non ha competenze richieste: la sessione nascerebbe senza righe da valutare. Aprirla lo stesso?"{% endif %}>{% csrf_token %}<button type="submit" class="rq-btn rq-btn-p rq-btn-s">Apri la sessione</button></form></td>
         </tr>{% endfor %}</tbody>
       </table></div>
     </section></div>

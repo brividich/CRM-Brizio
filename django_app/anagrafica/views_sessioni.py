@@ -120,13 +120,22 @@ def dettaglio(request, pk: int):
     a, s = _sessione_visibile(request, pk)
     persona = svc.righe([s])[0]
     nomi = persona["nomi"]
+    from .views import _helpers
+
+    tutte = list(s.righe.select_related("corso", "area", "edizione", "voce__corso", "voce__qualifica", "voce__processo_mpq"))
+    requisiti = svc.requisiti_mancanti([g for g in tutte if not g.fatta or svc.oltre_tetto(g.livello_raggiunto)])
     righe = []
-    for riga in s.righe.select_related("corso", "area", "edizione"):
+    for riga in tutte:
+        corso = svc.corso_richiesto(riga)
+        proposta = svc.iscrizione_proposta(riga.legacy_anagrafica_id, corso.pk) if corso and not riga.fatta else None
         righe.append({"r": riga, "persona": nomi.get(riga.legacy_anagrafica_id, ""),
                       "richiesto": esplora_semplice.livello(riga.livello_richiesto),
                       "raggiunto": esplora_semplice.livello(riga.livello_raggiunto),
                       "oggi": esplora_semplice.livello(riga.livello_oggi),
-                      "motivo_non_valuta": svc.motivo_non_valuta(a, riga)})
+                      "motivo_non_valuta": svc.motivo_non_valuta(a, riga),
+                      "corso_richiesto": corso, "requisito": requisiti.get(riga.pk),
+                      "iscrizione": proposta,
+                      "pronta": bool(riga.edizione_id and not riga.fatta and riga.pk not in requisiti)})
     return render(request, "anagrafica/pages/sessione_dettaglio.html", {
         "s": s, "r": s.richiesta, "persona": persona["persona"], "tocca_a": persona["tocca_a"],
         "passi": svc.passi(s), "righe": righe, "fatte": persona["fatte"], "totale": persona["totale"],
@@ -141,6 +150,8 @@ def dettaglio(request, pk: int):
         "eventi": list(s.eventi.all()), "corsi": TrainingCourse.objects.filter(is_active=True).only("pk", "codice", "titolo").order_by("titolo"),
         "modi": Riga.MODO_CHOICES, "verifiche": Riga.VERIFICA_CHOICES, "livelli": esplora_semplice.LEGENDA,
         "oggi": timezone.localdate(), "edizioni": svc.edizioni_persona(s.richiesta.legacy_anagrafica_id),
+        "puo_iscrivere": s.aperta and _helpers._can_edit_formazione(request),
+        "avviso_senza_competenze": svc.avviso_apertura(s.richiesta) if not tutte else "",
     })
 
 

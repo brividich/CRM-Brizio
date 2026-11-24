@@ -7,7 +7,9 @@ in lista passano da ``scadenze.ricalcola_tutto``, che in coda riallinea i livell
 - competenze della mansione (aggiunta, livello minimo, bloccante, requisito, spenta):
   le persone in lista su quella mansione;
 - regola di calcolo e soglia del Mansionario: tutti;
-- qualifiche della persona (patentini): la persona, come per i corsi.
+- qualifiche della persona (patentini): la persona, come per i corsi;
+- iscrizione a un corso completata: l'edizione entra nelle righe delle sessioni formative
+  aperte che chiedono quel corso (``services.sessioni.collega_edizioni_completate``).
 """
 from __future__ import annotations
 
@@ -50,6 +52,26 @@ def _qualifica(sender, instance, raw=False, **kwargs):
         _dopo_commit(legacy_ids=[instance.legacy_anagrafica_id], motivo="qualifiche della persona cambiate")
 
 
+def _iscrizione(sender, instance, raw=False, **kwargs):
+    """Corso completato: l'edizione entra nelle righe delle sessioni formative aperte che chiedono quel corso."""
+    if raw or instance.stato != "COMPLETATO" or instance.idoneo is False:
+        return
+    pk = instance.pk
+
+    def esegui():
+        from anagrafica.models import TrainingEnrollment
+        from anagrafica.services.sessioni import collega_edizioni_completate
+
+        try:
+            iscrizione = TrainingEnrollment.objects.filter(pk=pk).first()
+            if iscrizione is not None:
+                collega_edizioni_completate(iscrizione)
+        except Exception:
+            logger.exception("edizione non collegata alle sessioni formative (iscrizione %s)", pk)
+
+    transaction.on_commit(esegui)
+
+
 def collega() -> None:
     """Registra i segnali (idempotente: dispatch_uid)."""
     for nome, handler in (("VoceMacchinaCatalogo", _voce), ("SkillMatrixConfig", _config),
@@ -57,3 +79,5 @@ def collega() -> None:
         m = apps.get_model("anagrafica", nome)
         post_save.connect(handler, sender=m, dispatch_uid=f"{_UID}save_{nome}")
         post_delete.connect(handler, sender=m, dispatch_uid=f"{_UID}del_{nome}")
+    post_save.connect(_iscrizione, sender=apps.get_model("anagrafica", "TrainingEnrollment"),
+                      dispatch_uid=f"{_UID}save_TrainingEnrollment_sessioni")

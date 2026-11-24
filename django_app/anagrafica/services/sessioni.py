@@ -71,6 +71,30 @@ def _basta(livello: str, richiesto: str) -> bool:
 # Aprire
 # ═══════════════════════════════════════════════════════════════════════════
 
+def mansioni_senza_competenze(richieste) -> set[int]:
+    """Pk delle richieste di assegnazione la cui mansione non ha competenze richieste attive.
+
+    Una sessione aperta su una di queste nasce senza righe da valutare: si chiude con le sole firme.
+    """
+    from ..models import VoceMacchinaCatalogo
+
+    assegnazioni = [r for r in richieste if r.tipo == R.TIPO_AGGIUNTA and r.mansione_id]
+    if not assegnazioni:
+        return set()
+    con = set(VoceMacchinaCatalogo.objects.filter(mansione_id__in={r.mansione_id for r in assegnazioni}, attiva=True)
+              .values_list("mansione_id", flat=True))
+    return {r.pk for r in assegnazioni if r.mansione_id not in con}
+
+
+def avviso_apertura(richiesta: R) -> str:
+    """Avviso prima di aprire la sessione; '' se la sessione avrà righe da valutare."""
+    if richiesta.pk not in mansioni_senza_competenze([richiesta]):
+        return ""
+    return (f"La mansione «{richiesta.mansione.nome}» non ha competenze richieste: la sessione nascerebbe senza "
+            "righe da valutare e si chiuderebbe con le sole firme. Aggiungile prima in Mansionario, "
+            "scheda «Competenze richieste».")
+
+
 def motivo_non_apre(a, richiesta: R) -> str:
     """Perché questo attore non può aprire la sessione; '' se può."""
     if richiesta.senza_sessione:
@@ -122,7 +146,7 @@ def apri(a, richiesta: R) -> S:
     for i, dati in enumerate(_righe_nuove(richiesta)):
         presente = _basta(dati["livello_oggi"], dati["livello_richiesto"])
         gia += presente
-        Riga.objects.create(
+        riga = Riga.objects.create(
             sessione=sessione, legacy_anagrafica_id=dati["persona"], ordine=i,
             voce=dati.get("voce"), catalogo_id=dati.get("catalogo_id"),
             competenza_nome=dati["competenza_nome"], area_id=dati.get("area_id"),
@@ -130,6 +154,9 @@ def apri(a, richiesta: R) -> S:
             stato=Riga.STATO_GIA_PRESENTE if presente else Riga.STATO_DA_ASSEGNARE,
             livello_raggiunto=dati["livello_oggi"] if presente else "",
         )
+        if not presente and riga.voce_id and riga.voce.corso_id:
+            # Corso richiesto già completato dalla persona: l'edizione entra subito nella riga.
+            _collega_edizione(riga, attore_nome=a.nome or "")
     _evento(sessione, a, "Sessione aperta", dopo=sessione.get_stato_display(),
             nota=f"Dalla richiesta {richiesta.codice}. Competenze già presenti: {gia}.")
     rq._evento(richiesta, a, "Sessione formativa aperta", dopo=sessione.codice)
@@ -175,6 +202,151 @@ def _da_edizione(riga: Riga, edizione_id) -> None:
         riga.docente_ente = (getattr(edizione, "erogatore_display", "") or "")[:200]
     if not riga.verifica and iscrizione.stato == "COMPLETATO" and iscrizione.idoneo is not False:
         riga.verifica = Riga.VERIFICA_ATTESTATO
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Corso richiesto e requisito formale (stesse regole della matrice del Mansionario)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Senza il requisito formale della competenza (corso, qualifica, processo qualificato MOD.128)
+# la persona non supera «I – in formazione»: vale nella matrice e quindi anche qui.
+LIVELLO_TETTO = LivelloSkm.IN_FORMAZIONE
+
+
+def corso_richiesto(riga: Riga):
+    """Il «Corso richiesto» della competenza della mansione (``VoceMacchinaCatalogo.corso``), se c'è."""
+    return riga.voce.corso if riga.voce_id and riga.voce.corso_id else None
+
+
+def _iscrizione_completata(persona_id: int, corso_id: int):
+    """L'iscrizione più recente della persona al corso, completata e non «non idoneo»."""
+    return (TrainingEnrollment.objects.filter(legacy_anagrafica_id=persona_id, sessione__corso_id=corso_id,
+                                              stato="COMPLETATO")
+            .exclude(idoneo=False).select_related("sessione")
+            .order_by("-data_completamento", "-sessione__data_inizio", "-pk").first())
+
+
+def iscrizione_proposta(persona_id: int, corso_id: int):
+    """Iscrizione da proporre nella riga: l'ultima edizione completata, altrimenti l'ultima a cui è iscritta."""
+    return _iscrizione_completata(persona_id, corso_id) or (
+        TrainingEnrollment.objects.filter(legacy_anagrafica_id=persona_id, sessione__corso_id=corso_id,
+                                          stato__in=("ISCRITTO", "IN_CORSO"))
+        .select_related("sessione").order_by("-sessione__data_inizio", "-pk").first())
+
+
+def _collega_edizione(riga: Riga, *, attore_nome: str = "", iscrizione=None) -> bool:
+    """Collega alla riga l'edizione completata del corso richiesto: corso, data, docente e verifica «Attestato».
+
+    Modalità e livello restano a chi valuta: la riga diventa solo pronta da valutare.
+    """
+    corso = corso_richiesto(riga)
+    s = riga.sessione
+    if (corso is None or riga.edizione_id or riga.fatta or riga.modalita not in ("", Riga.MODO_CORSO)
+            or not s.aperta or s.firma_approvatore_il):
+        return False
+    iscrizione = iscrizione or _iscrizione_completata(riga.legacy_anagrafica_id, corso.pk)
+    if iscrizione is None:
+        return False
+    _da_edizione(riga, iscrizione.sessione_id)
+    riga.save()
+    SessioneEvento.objects.create(
+        sessione=s, riga=riga, utente=None, utente_nome=(attore_nome or "Portale")[:160], azione="Edizione collegata",
+        dopo=(riga.edizione.codice_sessione if riga.edizione_id else "")[:160],
+        nota=f"{riga.competenza_nome}: corso richiesto «{corso.titolo}» completato. Pronta da valutare.")
+    return True
+
+
+def collega_edizioni_completate(iscrizione) -> int:
+    """Iscrizione completata: l'edizione entra nelle righe aperte che chiedono quel corso. Quante righe."""
+    if iscrizione.stato != "COMPLETATO" or iscrizione.idoneo is False:
+        return 0
+    corso_id = TrainingSession.objects.filter(pk=iscrizione.sessione_id).values_list("corso_id", flat=True).first()
+    if not corso_id:
+        return 0
+    righe = (Riga.objects.filter(legacy_anagrafica_id=iscrizione.legacy_anagrafica_id, voce__corso_id=corso_id,
+                                 edizione__isnull=True, sessione__stato__in=S.STATI_APERTI,
+                                 sessione__firma_approvatore_il__isnull=True)
+             .exclude(stato__in=Riga.STATI_FATTI).select_related("sessione", "voce__corso"))
+    return sum(_collega_edizione(r, iscrizione=iscrizione) for r in righe)
+
+
+def requisiti_mancanti(righe) -> dict[int, dict]:
+    """``riga.pk`` → requisito formale che manca alla persona su quella competenza.
+
+    ``{"testo": "corso «…»", "corso": TrainingCourse | None}``: ``corso`` c'è quando a mancare è il corso
+    richiesto (serve a «Iscrivi a un'edizione»). Stessa classe ``Requisiti`` della matrice, quindi lo stesso esito.
+    """
+    con_voce = [r for r in righe if r.voce_id]
+    if not con_voce:
+        return {}
+    req = mc.Requisiti({r.legacy_anagrafica_id for r in con_voce}, {r.voce for r in con_voce})
+    out = {}
+    for r in con_voce:
+        testo = req.mancante(r.voce, r.legacy_anagrafica_id)
+        if testo:
+            corso_manca = bool(r.voce.corso_id) and (r.legacy_anagrafica_id, r.voce.corso_id) not in req.corsi_ok
+            out[r.pk] = {"testo": testo, "corso": r.voce.corso if corso_manca else None}
+    return out
+
+
+def oltre_tetto(livello: str) -> bool:
+    return bool(livello) and ordinale_livello(livello) > ordinale_livello(LIVELLO_TETTO)
+
+
+def _testo_tetto(nome: str, requisito: str) -> str:
+    return (f"«{nome}»: manca il requisito formale ({requisito}). Senza, la competenza resta al massimo a "
+            "«I – in formazione»: scegli I oppure completa prima il requisito.")
+
+
+def righe_senza_requisito(sessione: S) -> list[tuple[Riga, str]]:
+    """Righe valutate positive oltre «I» a cui oggi manca il requisito formale (es. corso scaduto nel frattempo)."""
+    righe = [r for r in sessione.righe.filter(stato=Riga.STATO_POSITIVA, voce__isnull=False)
+             .select_related("voce__corso", "voce__qualifica", "voce__processo_mpq") if oltre_tetto(r.livello_raggiunto)]
+    manca = requisiti_mancanti(righe)
+    return [(r, manca[r.pk]["testo"]) for r in righe if r.pk in manca]
+
+
+def _motivo_requisiti(sessione: S) -> str:
+    bloccate = righe_senza_requisito(sessione)
+    if not bloccate:
+        return ""
+    riga, testo = bloccate[0]
+    altre = f" (e altre {len(bloccate) - 1})" if len(bloccate) > 1 else ""
+    return f"«{riga.competenza_nome}»{altre}: manca il requisito formale ({testo}). Rivaluta a I o completa il requisito."
+
+
+def in_corso_per_mansione(mansione_id: int) -> dict[int, list[dict]]:
+    """Persona → richieste di assegnazione aperte e sessioni formative in corso per questa mansione."""
+    from django.urls import reverse
+
+    out: dict[int, list[dict]] = {}
+    con_sessione = set()
+    for s in (S.objects.filter(richiesta__mansione_id=mansione_id, richiesta__tipo=R.TIPO_AGGIUNTA,
+                               stato__in=S.STATI_APERTI).select_related("richiesta").order_by("-aperta_il")):
+        con_sessione.add(s.richiesta_id)
+        out.setdefault(s.richiesta.legacy_anagrafica_id, []).append({
+            "testo": f"Sessione formativa {s.codice}: {s.get_stato_display().lower()}",
+            "url": reverse("anagrafica:sessione", args=[s.pk])})
+    for r in (R.objects.filter(mansione_id=mansione_id, tipo=R.TIPO_AGGIUNTA, stato__in=R.STATI_APERTI)
+              .exclude(pk__in=con_sessione).order_by("-pk")):
+        testo = (f"Richiesta {r.codice} in approvazione" if r.stato == R.STATO_IN_APPROVAZIONE
+                 else f"Richiesta {r.codice} approvata: sessione formativa da aprire")
+        out.setdefault(r.legacy_anagrafica_id, []).append({"testo": testo,
+                                                           "url": reverse("anagrafica:richiesta", args=[r.pk])})
+    return out
+
+
+def attese_corso_per_mansione(mansione_id: int) -> dict[int, list[int]]:
+    """``corso_id`` → persone con una sessione formativa aperta su questa mansione che aspettano quel corso richiesto."""
+    righe = list(Riga.objects.filter(sessione__richiesta__mansione_id=mansione_id, sessione__stato__in=S.STATI_APERTI,
+                                     voce__corso__isnull=False).exclude(stato__in=Riga.STATI_FATTI)
+                 .select_related("voce__corso", "voce__qualifica", "voce__processo_mpq"))
+    manca = requisiti_mancanti(righe)
+    out: dict[int, list[int]] = {}
+    for r in righe:
+        if (manca.get(r.pk) or {}).get("corso") is not None and r.legacy_anagrafica_id not in out.get(r.voce.corso_id, []):
+            out.setdefault(r.voce.corso_id, []).append(r.legacy_anagrafica_id)
+    return out
 
 
 def _data(valore) -> date | None:
@@ -250,6 +422,11 @@ def valuta(a, riga: Riga, *, modalita: str, livello: str = "", nota: str = "", c
         if livello and not ((riga.corso or riga.docente_ente) and riga.verifica):
             raise SessioneNonValida("Per il corso servono corso o docente/ente e una verifica: attestato, test o conferma.")
 
+    if oltre_tetto(livello) and riga.voce_id:
+        manca = requisiti_mancanti([riga]).get(riga.pk)
+        if manca:
+            raise SessioneNonValida(_testo_tetto(riga.competenza_nome, manca["testo"]))
+
     stato_prima = riga.get_stato_display()
     riga.modalita = modalita
     riga.nota = (nota or "").strip()
@@ -300,7 +477,7 @@ def motivo_non_firma_approvatore(a, sessione: S) -> str:
     mancanti = righe_mancanti(sessione)
     if mancanti:
         return f"Mancano {len(mancanti)} competenz{'a' if len(mancanti) == 1 else 'e'} da valutare."
-    return ""
+    return _motivo_requisiti(sessione)
 
 
 @transaction.atomic
@@ -380,6 +557,8 @@ def motivo_non_chiude(a, sessione: S) -> str:
     mancanti = righe_mancanti(sessione)
     if mancanti:
         return f"Mancano {len(mancanti)} competenz{'a' if len(mancanti) == 1 else 'e'} da valutare."
+    if (motivo := _motivo_requisiti(sessione)):
+        return motivo
     if not sessione.firma_approvatore_il:
         return f"Manca la firma di {sigla_firma(sessione)}."
     mancano = da_firmare(sessione)
@@ -599,6 +778,9 @@ def da_fare(a) -> dict:
         out["da_aprire"] = rq.righe(R.objects.select_related("mansione", "competenza")
                                     .filter(stato=R.STATO_APPROVATA, tipo__in=(R.TIPO_AGGIUNTA, R.TIPO_COMPETENZA),
                                             sessione__isnull=True).order_by("decisa_il"))
+        senza = mansioni_senza_competenze([x["richiesta"] for x in out["da_aprire"]])
+        for x in out["da_aprire"]:
+            x["senza_competenze"] = x["richiesta"].pk in senza
     aperte = list(S.objects.select_related("richiesta__mansione", "richiesta__competenza")
                   .prefetch_related("righe", "partecipanti").filter(stato__in=S.STATI_APERTI).order_by("aperta_il"))
     for s in aperte:

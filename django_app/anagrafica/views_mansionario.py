@@ -415,9 +415,19 @@ def mansionario_mansione(request, mansione_id: int):
                             if lid not in in_lista and p["ruoli"] & ruoli_mansione),
                            key=lambda c: c["nome"].casefold())
     formazione = _formazione_mansione(request, mansione, competenze, persone)
+    from .services import sessioni as sessioni_svc
+
+    in_corso = sessioni_svc.in_corso_per_mansione(mansione.pk)
     for p in persone:
         p["corsi_mancanti"] = [r["corso"] for r in formazione["corsi_mansione"]
                                if r["regola"] and r["obbligatorio"] and p["legacy_id"] in r["mancanti"]]
+        p["formazione_in_corso"] = in_corso.get(p["legacy_id"], [])
+    # Formazione: chi ha una sessione formativa aperta che aspetta il corso richiesto.
+    attese = sessioni_svc.attese_corso_per_mansione(mansione.pk)
+    nomi_lista = {p["legacy_id"]: p["nome"] for p in persone}
+    for r in formazione["corsi_mansione"]:
+        r["in_sessione"] = attese.get(r["corso"].pk, [])
+        r["nomi_in_sessione"] = [nomi_lista.get(lid, f"#{lid}") for lid in r["in_sessione"]]
     n_persone = len(persone)
     n_fuori_forza = sum(1 for p in persone if p["fuori_forza"])
     # KPI della testata → ?stato=<chiave>#persone: stessa casella di ``conta``

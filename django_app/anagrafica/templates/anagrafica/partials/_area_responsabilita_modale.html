@@ -1,0 +1,12 @@
+{# Riquadro «Responsabilità dell'area» del modale «Modifica area aziendale» (aree_list.html). #}
+{# Le × inviano i form «area-togli-<abilitazione>» fuori dal modale (attributo form=): niente form annidati. #}
+{% if not r %}
+  <p class="hub-help">Senza reparto: l'area non ha un responsabile finché non è in un reparto.</p>
+{% elif a.coincide %}
+  <p class="hub-help">È il reparto: vale la «{{ s.mansione.nome|default:"Responsabilità del reparto" }}»{% if s.capi %}, capo {{ s.capi.0.nome }}{% endif %}.</p>
+{% elif a.mansione %}
+  <p class="hub-help">Mansione <a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' a.mansione.pk %}">«{{ a.mansione.nome }}»</a>: chi la ha è il responsabile.</p>
+  <div class="rc-chips">{% for p in a.responsabili %}<span class="rc-chip{% if not p.abilitazione %} solo{% endif %}">{{ p.nome }}{% if p.abilitazione %}<button type="submit" form="area-togli-{{ p.abilitazione }}" class="rc-btn rc-btn-x" data-hub-confirm="Togliere a {{ p.nome }} la mansione «{{ a.mansione.nome }}»? Non sarà più responsabile di {{ a.area.nome }}." aria-label="Togli la mansione a {{ p.nome }}">×</button>{% endif %}</span>{% empty %}<span class="rc-none">nessuno ha la mansione: segue il reparto</span>{% endfor %}</div>
+{% else %}
+  <p class="hub-help">Senza ruolo responsabile: segue il reparto{% if s.capi %}, capo {{ s.capi.0.nome }} («{{ s.mansione.nome }}»){% else %}, che non ha ancora un capo{% endif %}.</p>
+{% endif %}
