@@ -83,7 +83,18 @@ def asset_qr_image(request: HttpRequest, id: int) -> HttpResponse:
 @require_GET
 def asset_qr_panel(request: HttpRequest, id: int) -> HttpResponse:
     asset = get_object_or_404(Asset, pk=id)
-    return render(request, "assets/partials/qr_panel.html", qr_context(request, asset))
+    context = qr_context(request, asset)
+    if context["qr_can_manage_public"]:
+        # Cosa mostra il link pubblico (audit P3): cartelle scelte e caricamento file.
+        from .views._helpers import _asset_document_folder_specs
+
+        cartelle, caricamento = asset_qr.contenuti_pubblici(asset)
+        context["qr_cartelle"] = [
+            {"code": spec["code"], "label": spec["label"], "pubblica": spec["code"] in cartelle}
+            for spec in _asset_document_folder_specs(asset)
+        ]
+        context["qr_caricamento_file"] = caricamento
+    return render(request, "assets/partials/qr_panel.html", context)
 
 
 @login_required
@@ -102,6 +113,17 @@ def asset_qr_public_link(request: HttpRequest, id: int) -> HttpResponse:
     elif azione == "rigenera":
         asset_qr.rigenera_link_pubblico(asset)
         changed = True
+    elif azione == "contenuti":
+        from .views._helpers import _asset_document_folder_specs
+
+        validi = {spec["code"] for spec in _asset_document_folder_specs(asset)}
+        cartelle = [c for c in request.POST.getlist("cartelle") if c in validi]
+        caricamento = request.POST.get("caricamento_file") == "1"
+        asset_qr.salva_contenuti_pubblici(asset, cartelle, caricamento)
+        log_action(request, "asset_qr_pubblico_contenuti", "assets",
+                   {"asset_tag": asset.asset_tag, "cartelle": sorted(cartelle), "caricamento_file": caricamento},
+                   oggetto=asset)
+        changed = False
     else:
         if _wants_json(request):
             return JsonResponse({"ok": False, "error": "Azione non valida."}, status=400)
