@@ -202,6 +202,16 @@ body.theme-dark .dp-ruoli-gruppo-h { color:var(--text-light); }
 .dp-qual-form-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; align-items:end; }
 .dp-qual-field { display:flex; flex-direction:column; gap:3px; }
 .dp-qual-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+/* Form «Registra visita»: 4 colonne, campi lunghi su due, spunta «A richiesta» alta come un campo. */
+.dp-visita-form { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px 14px; align-items:end; }
+.dp-visita-form .dp-vf-span2 { grid-column:span 2; }
+.dp-visita-form textarea { resize:vertical; min-height:64px; font-family:inherit; }
+.dp-vf-check { display:flex; align-items:center; gap:9px; padding:6px 12px; border:1px solid #e2e8f0; border-radius:.6rem; background:#f8fafc; cursor:pointer; font-size:13px; font-weight:700; color:#0f172a; }
+.dp-vf-check input { width:16px; height:16px; margin:0; flex:none; }
+.dp-vf-check small { display:block; font-size:11px; font-weight:500; color:#64748b; }
+/* Tendina ricercabile su un .dp-select: il bordo lo disegna solo il controllo interno, non due riquadri. */
+.ts-wrapper.dp-select { padding:0; border:0; background:transparent; }
+.ts-wrapper.dp-select .ts-control { border:1px solid #e2e8f0; border-radius:.6rem; padding:7px 12px; background:#f8fafc; font-size:13px; }
 
 /* Input campi anagrafica */
 .dp-input { width:100%; border:1px solid #e2e8f0; border-radius:.6rem; padding:7px 10px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; box-sizing:border-box; }
@@ -281,6 +291,7 @@ body.theme-dark .dp-onb-avvia > summary span { color:#93c5fd; }
   .dp-modal-footer { flex-direction:column-reverse; }
   .dp-modal-footer .dp-btn { width:100%; justify-content:center; }
   .dp-qual-form-grid { grid-template-columns:1fr; }
+  .dp-visita-form .dp-vf-span2 { grid-column:auto; }
   .dp-widget-grid { grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); }
   .dp-hero { flex-direction:column; align-items:flex-start; }
   .dp-hero-actions { justify-content:flex-start; }
@@ -338,6 +349,8 @@ body.theme-dark .dp-qual-name { color:var(--text); }
 body.theme-dark .dp-qual-cat { color:var(--text-light); }
 body.theme-dark .dp-qual-dates { color:var(--text-light); }
 body.theme-dark .dp-qual-label { color:var(--text-light); }
+body.theme-dark .dp-vf-check { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .ts-wrapper.dp-select .ts-control { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .dp-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .dp-form-label { color:var(--text-light); }
 body.theme-dark .dp-form-section-title { color:var(--text-light); }

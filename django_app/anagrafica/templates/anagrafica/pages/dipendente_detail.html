@@ -2202,8 +2202,8 @@
         <div id="visita-form-panel" style="display:none;margin-top:10px;">
         <form method="post" action="{% url 'anagrafica:dipendente_visita_add' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
-          <div class="dp-qual-form-grid">
-            <div class="dp-qual-field" style="grid-column:1/-1;">
+          <div class="dp-qual-form-grid dp-visita-form">
+            <div class="dp-qual-field dp-vf-span2">
               <label class="dp-qual-label">Tipo visita *</label>
               <select name="tipo" id="visita-add-tipo" class="dp-select" required style="width:100%;">
                 <option value="">— Seleziona —</option>
@@ -2224,28 +2224,28 @@
                 {% endfor %}
               </select>
             </div>
-            <div class="dp-qual-field">
+            <div class="dp-qual-field dp-vf-span2">
               <label class="dp-qual-label">Medico competente</label>
               <input type="text" name="medico_competente" class="dp-select" maxlength="200" style="width:100%;">
-            </div>
-            <div class="dp-qual-field">
-              <label class="dp-qual-label" title="Visita chiesta dal lavoratore o fuori periodicità: non ha scadenza e non sostituisce la visita periodica"><input type="checkbox" name="a_richiesta" value="1"> A richiesta (non è un rinnovo)</label>
             </div>
             <div class="dp-qual-field">
               <label class="dp-qual-label">Richiamo indicato dal medico</label>
               <input type="date" name="scadenza_medico" class="dp-select" style="width:100%;" title="Vuoto = scadenza calcolata dal tipo di visita">
             </div>
             <div class="dp-qual-field">
+              <label class="dp-vf-check" title="Visita chiesta dal lavoratore o fuori periodicità: non ha scadenza e non sostituisce la visita periodica"><input type="checkbox" name="a_richiesta" value="1"><span>A richiesta<small>non è un rinnovo, nessuna scadenza</small></span></label>
+            </div>
+            <div class="dp-qual-field dp-vf-span2">
+              <label class="dp-qual-label">Prescrizioni</label>
+              <textarea name="prescrizioni" class="dp-select" rows="3" style="width:100%;"></textarea>
+            </div>
+            <div class="dp-qual-field dp-vf-span2">
+              <label class="dp-qual-label">Note</label>
+              <textarea name="note" class="dp-select" rows="3" style="width:100%;" placeholder="Obbligatorie con limitazioni"></textarea>
+            </div>
+            <div class="dp-qual-field dp-vf-span2">
               <label class="dp-qual-label">Referto (PDF/immagine)</label>
               <input type="file" name="referto_file" class="dp-select" accept=".pdf,image/*" style="width:100%;">
-            </div>
-            <div class="dp-qual-field" style="grid-column:1/-1;">
-              <label class="dp-qual-label">Prescrizioni</label>
-              <textarea name="prescrizioni" class="dp-select" rows="2" style="width:100%;"></textarea>
-            </div>
-            <div class="dp-qual-field" style="grid-column:1/-1;">
-              <label class="dp-qual-label">Note</label>
-              <textarea name="note" class="dp-select" rows="2" style="width:100%;"></textarea>
             </div>
           </div>
           <div style="margin-top:10px;">
