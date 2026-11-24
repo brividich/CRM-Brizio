@@ -182,7 +182,7 @@ class OcrVeroTests(SimpleTestCase):
         self.assertTrue(righe[0]["fuori"])
 
 
-def _pdf_report_sintetico(seriale="SN00001", odl="OP/2026/0001") -> bytes:
+def _pdf_report_sintetico(seriale="SN00001", odl="OP/2026/0001", titolo_lungo=False) -> bytes:
     """PDF con la disposizione del report CALYPSO «Mod. 009 - CMM» (valori inventati)."""
     import fitz
 
@@ -216,6 +216,10 @@ def _pdf_report_sintetico(seriale="SN00001", odl="OP/2026/0001") -> bytes:
     scrivi(28, 300, "FORI LATO PIANO N")
     riga(322, "163,00 Dia F", "Diameter", "69,0751", "69,0000", "0,0300", "0,0000", "0,0751", ecc="0,0451")
     riga(345, "160,00", "Length", "59,9721", "60,0000", "0,2500", "-0,2500", "-0,0279")
+    if titolo_lungo:
+        # titolo che arriva fin sotto le colonne ID/Actual: prima restava la sezione di sopra
+        pagina.insert_text((28, 370), "ALETTE QUOTA INTERNA 184.291-184.342 LATO PIANO", fontsize=10)
+        riga(392, "016,00", "Length", "184,2335", "184,3160", "0,0420", "0,0000", "-0,0825")
     scrivi(28, 832, "Mod. 009 - CMM - Rev. 3"); scrivi(526, 832, "Page 1 of 1")
     dati = doc.tobytes()
     doc.close()
@@ -238,6 +242,12 @@ class LetturaPdfTests(SimpleTestCase):
         self.assertEqual(righe[3]["a"], "59.75")               # toll. negativa con segno
         self.assertEqual(righe[2]["eccedenza"], 0.0451)
         self.assertFalse(any(r["da_verificare"] for r in righe))
+
+    def test_titolo_di_sezione_lungo_non_resta_alla_sezione_sopra(self):
+        righe = rc.leggi_pdf(_pdf_report_sintetico(titolo_lungo=True))["righe"]
+        self.assertEqual(righe[3]["sezione"], "FORI LATO PIANO N")
+        self.assertEqual(righe[4]["caratteristica"], "016,00")
+        self.assertEqual(righe[4]["sezione"], "ALETTE QUOTA INTERNA 184.291-184.342 LATO PIANO")
 
     def test_file_non_pdf_o_vuoto(self):
         with self.assertRaises(rc.ErroreReport):
