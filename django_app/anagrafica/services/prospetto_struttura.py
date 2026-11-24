@@ -470,11 +470,12 @@ def _righe_persone(base: Base, modifiche, s_prima: Stato, s_dopo: Stato, prima: 
         mp, md = set(s_prima.abil.get(pid) or {}), set(s_dopo.abil.get(pid) or {})
         cap_p, cap_d = prima["capi"].get(pid), dopo["capi"].get(pid)
         # Mansioni del reparto nuovo previste dai suoi ruoli che non ha, e mansioni rimaste fuori dal reparto.
-        da_assegnare, fuori = [], []
+        da_assegnare, da_assegnare_ids, fuori = [], [], []
         if ad != ap and ad:
             for mid, area in s_dopo.area_mansione.items():
                 if area == ad and mid not in md and {r.pk for r in base.mansioni[mid].ruoli.all()} & rd:
                     da_assegnare.append(base.mansioni[mid].nome)
+                    da_assegnare_ids.append(mid)
             fuori = [base.mansioni[mid].nome for mid in md if s_dopo.area_mansione.get(mid) == ap and ap]
         c = base.costi.get(pid)
         avvisi = []
@@ -496,6 +497,8 @@ def _righe_persone(base: Base, modifiche, s_prima: Stato, s_dopo: Stato, prima: 
             "mansioni_prima": len(mp), "mansioni_dopo": len(md),
             "mansioni_tolte": sorted(base.mansioni[x].nome for x in mp - md), "mansioni_nuove": sorted(base.mansioni[x].nome for x in md - mp),
             "da_assegnare": sorted(da_assegnare), "fuori_reparto": sorted(fuori), "avvisi": avvisi,
+            "nuove_ids": sorted(md - mp, key=lambda x: base.mansioni[x].nome.casefold()),
+            "da_assegnare_ids": sorted(da_assegnare_ids, key=lambda x: base.mansioni[x].nome.casefold()),
             "costo_orario": _euro(c.costo_orario) if c else None, "rml": _euro(c.rml) if c else None,
             "requisiti": None,
         }
@@ -512,6 +515,96 @@ def _righe_persone(base: Base, modifiche, s_prima: Stato, s_dopo: Stato, prima: 
         righe.append(riga)
     righe.sort(key=lambda r: (not r["modificata"], r["nome"].casefold()))
     return righe
+
+
+FORM_ABILITATO, FORM_ADDESTRAMENTO, FORM_NON_ABILITATO, FORM_SENZA = "abilitato", "in_addestramento", "non_abilitato", "senza"
+FORM_LABEL = {FORM_ABILITATO: "Abilitato", FORM_ADDESTRAMENTO: "In addestramento",
+              FORM_NON_ABILITATO: "Non abilitato", FORM_SENZA: "Senza competenze definite"}
+
+
+def _formazione(base: Base, righe_persone: list[dict]) -> list[dict]:
+    """Per chi entra in una mansione (o se la vede prevista dal ruolo nel reparto nuovo):
+    competenze richieste, livello che la persona ha già, requisiti formali e richieste aperte.
+
+    «Già presente» con la regola delle sessioni formative: il livello sulla stessa competenza
+    della mansione, altrimenti il più alto valutato altrove sulla stessa voce del catalogo.
+    Un requisito formale mancante (corso, qualifica, MOD.128) rende la persona non abilitata.
+    """
+    from ..models import AbilitazioneMacchinaVoce, VoceMacchinaCatalogo
+    from ..models_richieste import RichiestaCompetenze
+    from .competenze_catalogo import livelli_noti
+    from .mansionario_competenze import Requisiti
+
+    coppie = [(r, mid, "entra") for r in righe_persone for mid in r.get("nuove_ids", [])]
+    coppie += [(r, mid, "da_assegnare") for r in righe_persone for mid in r.get("da_assegnare_ids", [])]
+    if not coppie:
+        return []
+    mids = {mid for _, mid, _ in coppie}
+    voci: dict[int, list] = defaultdict(list)
+    for v in (VoceMacchinaCatalogo.objects.filter(mansione_id__in=mids, attiva=True)
+              .select_related("corso", "qualifica", "processo_mpq").order_by("ordine", "pk")):
+        voci[v.mansione_id].append(v)
+    pids = {r["id"] for r, _, _ in coppie}
+    ids_di: dict[int, set] = {pid: {pid} for pid in pids}
+    for legacy, pid in base.alias.items():
+        if pid in pids:
+            ids_di[pid].add(legacy)
+    tutti_ids = {i for v in ids_di.values() for i in v}
+    propri: dict = defaultdict(dict)  # (persona, mansione) → {voce: livello}
+    for lid, mid, vid, lv in AbilitazioneMacchinaVoce.objects.filter(
+            abilitazione__legacy_anagrafica_id__in=tutti_ids, abilitazione__competenza_id__in=mids,
+    ).values_list("abilitazione__legacy_anagrafica_id", "abilitazione__competenza_id", "voce_id", "livello"):
+        propri[(base.alias.get(lid, lid), mid)][vid] = lv
+    aperte: dict = defaultdict(list)
+    for rq in (RichiestaCompetenze.objects.filter(legacy_anagrafica_id__in=tutti_ids, mansione_id__in=mids,
+                                                  stato__in=RichiestaCompetenze.STATI_APERTI)
+               .select_related("sessione")):
+        try:
+            sess = rq.sessione
+        except RichiestaCompetenze.sessione.RelatedObjectDoesNotExist:  # richiesta ancora senza sessione
+            sess = None
+        aperte[(base.alias.get(rq.legacy_anagrafica_id, rq.legacy_anagrafica_id), rq.mansione_id)].append(
+            {"codice": rq.codice, "stato": rq.get_stato_display(),
+             "sessione": sess.codice if sess is not None and sess.aperta else ""})
+    req = Requisiti(tutti_ids, [v for vs in voci.values() for v in vs])
+    noti: dict[int, dict] = {}
+    out = []
+    for r, mid, come in coppie:
+        pid = r["id"]
+        if pid not in noti:
+            noti[pid] = {}
+            for lid in ids_di[pid]:
+                for cat, x in livelli_noti(lid).items():
+                    if cat not in noti[pid] or ordinale_livello(x["livello"]) > ordinale_livello(noti[pid][cat]["livello"]):
+                        noti[pid][cat] = x
+        righe, mancano, bloccanti = [], 0, 0
+        for v in voci.get(mid, []):
+            oggi, altrove = propri[(pid, mid)].get(v.pk, ""), ""
+            if not oggi and v.catalogo_id and v.catalogo_id in noti[pid]:
+                oggi = noti[pid][v.catalogo_id]["livello"]
+                altrove = noti[pid][v.catalogo_id]["mansione"].nome
+            mancanti = [req.mancante(v, lid) for lid in ids_di[pid]]
+            requisito = "" if any(not m for m in mancanti) else mancanti[0]
+            presente = bool(oggi) and ordinale_livello(oggi) >= ordinale_livello(v.livello_minimo) and not requisito
+            stato = "presente" if presente else ("requisito" if requisito else ("bloccante" if v.bloccante else "manca"))
+            mancano += not presente
+            bloccanti += stato in ("requisito", "bloccante")
+            vincolo = (f"Corso {v.corso.codice}" if v.corso_id else f"Qualifica {v.qualifica.nome}" if v.qualifica_id
+                       else f"MOD.128 {v.processo_mpq.nome}" if v.processo_mpq_id else "")
+            righe.append({"nome": v.nome, "minimo": v.livello_minimo, "oggi": oggi, "altrove": altrove,
+                          "bloccante": v.bloccante, "vincolo": vincolo, "requisito": requisito, "stato": stato})
+        esito = (FORM_SENZA if not righe else FORM_NON_ABILITATO if bloccanti
+                 else FORM_ADDESTRAMENTO if mancano else FORM_ABILITATO)
+        mans = base.mansioni[mid]
+        richieste = aperte.get((pid, mid), [])
+        out.append({
+            "persona_id": pid, "persona": r["nome"], "mansione_id": mid, "mansione": mans.nome,
+            "reparto": base.nome_area(mans.area_id) if mans.area_id else "", "come": come,
+            "competenze": righe, "presenti": len(righe) - mancano, "mancano": mancano, "bloccanti": bloccanti,
+            "esito": esito, "esito_label": FORM_LABEL[esito], "richieste": richieste,
+            "sessione_da_aprire": bool(mancano) and not richieste,
+        })
+    return out
 
 
 def _avvisi(base: Base, modifiche, righe_reparti, s_prima: Stato, s_dopo: Stato, prima: dict, dopo: dict) -> list[dict]:
@@ -559,6 +652,8 @@ def costruisci(prospetto, *, altro=None, visite: bool = False, requisiti: bool =
         s_altro = simula(base, list(altro.modifiche.all()))
         mis_altro = misure(base, s_altro, capi=_mappa_capi(base, s_altro), **soglie)
     reparti = _righe_reparti(base, prima, dopo)
+    persone = _righe_persone(base, modifiche, base.stato, s_dopo, prima, dopo, requisiti=requisiti, visite=visite)
+    formazione = _formazione(base, persone)
     return {
         "base": base,
         "righe_modifiche": [{"m": m, "testo": descrivi(base, m), "problema": problema(base, m)} for m in modifiche],
@@ -567,7 +662,16 @@ def costruisci(prospetto, *, altro=None, visite: bool = False, requisiti: bool =
         "reparti": reparti,
         "mansioni": _righe_mansioni(base, base.stato, s_dopo, prima, dopo, tutte=False),
         "mansioni_critiche": _righe_mansioni(base, base.stato, s_dopo, prima, dopo, tutte=True),
-        "persone": _righe_persone(base, modifiche, base.stato, s_dopo, prima, dopo, requisiti=requisiti, visite=visite),
+        "persone": persone,
+        "formazione": formazione,
+        "formazione_totali": {
+            "da_acquisire": sum(f["mancano"] for f in formazione),
+            "presenti": sum(f["presenti"] for f in formazione),
+            "sessioni": sum(1 for f in formazione if f["sessione_da_aprire"]),
+            "gia_aperte": sum(1 for f in formazione if f["richieste"]),
+            "non_abilitati": sum(1 for f in formazione if f["esito"] == FORM_NON_ABILITATO),
+            "senza_competenze": sum(1 for f in formazione if f["esito"] == FORM_SENZA),
+        },
         "avvisi": _avvisi(base, modifiche, reparti, base.stato, s_dopo, prima, dopo),
         "persone_su_troppe": sorted(
             ({"id": pid, "nome": base.nome_persona(pid), "n": dopo["per_persona"][pid]["mansioni"]} for pid in dopo["troppe"]),

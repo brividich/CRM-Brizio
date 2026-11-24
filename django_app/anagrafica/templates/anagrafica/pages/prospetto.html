@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}{{ p.nome }} | Prospetto dei cambiamenti{% endblock %}
+{% block title %}{{ p.nome }} | Prova un cambiamento{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -9,65 +9,156 @@
 {% include "core/components/_hub_formkit.html" %}
 {% include "anagrafica/components/_rc_stili.html" %}
 <style>
-.pr-cambi { list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:5px; font-size:13px; }
-.pr-cambi li { display:flex; justify-content:space-between; gap:10px; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; padding:6px 10px; }
-.pr-prova { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap:10px; align-items:start; }
-.pr-prova details { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; }
-.pr-prova summary { font-size:13.5px; font-weight:700; color:#1e293b; cursor:pointer; }
-.pr-prova form { margin-top:10px; }
-.pr-filtro { width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; margin-bottom:6px; }
-.pr-persone { max-height:230px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:6px 10px; }
-.pr-gruppo { border:0; margin:0 0 6px; padding:0; }
-.pr-gruppo legend { font-size:12px; font-weight:700; color:#475569; padding:0; }
-.pr-persona { display:block; font-size:13px; padding:1px 0 1px 18px; cursor:pointer; }
-.pr-num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
-.pr-up { color:#b91c1c; font-weight:700; }
-.pr-giu { color:#15803d; font-weight:700; }
-.pr-neutro { color:#1f6fb0; font-weight:700; }
-.pr-t { width:100%; border-collapse:collapse; font-size:12.5px; }
-.pr-t th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; padding:6px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
-.pr-t th.pr-num { text-align:right; }
-.pr-t td { padding:6px; border-bottom:1px solid #f1f5f9; vertical-align:top; color:#334155; }
-.pr-t tr.is-cambia td { background:rgba(31,135,205,.06); }
-.pr-scroll { overflow-x:auto; }
-.pr-stato { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11.5px; font-weight:700; background:var(--hr-na-bg,#f1f5f9); color:var(--hr-na-fg,#475569); white-space:nowrap; }
-.pr-stato.is-male { background:#fee2e2; color:#b91c1c; }
-.pr-stato.is-attento { background:var(--hr-alert-bg,#ffedd5); color:#9a3412; }
-.pr-freccia { color:#94a3b8; }
-.pr-avvisi { display:flex; flex-direction:column; gap:5px; }
-.pr-info { font-size:12.5px; color:#475569; background:#f1f5f9; border-radius:8px; padding:5px 9px; }
-.pr-req { margin-top:4px; font-size:12px; }
-.pr-req summary { cursor:pointer; color:#1f6fb0; font-weight:600; }
-.pr-req ul { margin:4px 0 0; padding-left:16px; }
-.pr-nota { font-size:12px; color:#64748b; margin:8px 0 0; line-height:1.5; }
-.pr-sez { scroll-margin-top:80px; }
-.pr-solo-cambi .pr-fermo { display:none; }
-body.theme-dark .pr-cambi li, body.theme-dark .pr-prova details { background:var(--surface-alt,#0f1b2d); border-color:var(--border); }
-body.theme-dark .pr-prova summary { color:var(--text); }
-body.theme-dark .pr-filtro { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
-body.theme-dark .pr-persone { border-color:var(--border); }
-body.theme-dark .pr-gruppo legend, body.theme-dark .pr-t th, body.theme-dark .pr-nota { color:var(--text-light); }
-body.theme-dark .pr-t td, body.theme-dark .pr-persona { color:var(--text-mid); border-color:var(--border); }
-body.theme-dark .pr-t th { border-color:var(--border); }
-body.theme-dark .pr-t tr.is-cambia td { background:rgba(124,192,240,.10); }
-body.theme-dark .pr-up { color:#fca5a5; }
-body.theme-dark .pr-giu { color:#86efac; }
-body.theme-dark .pr-neutro, body.theme-dark .pr-req summary { color:#7cc0f0; }
-body.theme-dark .pr-stato.is-male { background:rgba(229,62,62,.2); color:#fca5a5; }
-body.theme-dark .pr-stato.is-attento { background:rgba(245,158,11,.16); color:#fdba74; }
-body.theme-dark .pr-info { background:var(--surface-alt,#0f1b2d); color:var(--text-mid); }
-</style>
-<style>
-.pr-passi { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin:0 0 14px; }
-.pr-passi a { display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; color:#475569; font-size:12.5px; text-decoration:none; }
-.pr-passi a:hover { border-color:#9cc6e6; }
-.pr-passi b { flex:0 0 26px; height:26px; border-radius:50%; background:#e8f3fb; color:#0c2545; display:flex; align-items:center; justify-content:center; }
-.pr-passi strong { display:block; color:#0f172a; font-size:13.5px; }
-body.theme-dark .pr-passi a { background:var(--surface,#13223a); border-color:var(--border); color:var(--text-light); }
-body.theme-dark .pr-passi strong { color:var(--text); }
-body.theme-dark .pr-passi b { background:#1e3a5f; color:#fff; }
-@media (max-width:640px) { .pr-passi { grid-template-columns:1fr; } }
-@media print { .pr-passi { display:none; } }
+.pp { --pp-navy:#0c2545; --pp-blu:#1f87cd; --pp-blu-fg:#1f6fb0; --pp-blu-bg:#eaf4fc; --pp-bordo:#e2e8f0; --pp-linea:#eef2f7; --pp-sup:#fff; --pp-sup2:#f8fafc;
+  --pp-testo:#22314f; --pp-forte:#0f172a; --pp-muto:#64748b; --pp-ok-bg:#dcfce7; --pp-ok:#166534; --pp-att-bg:#fef3c7; --pp-att:#92400e; --pp-ko-bg:#fee2e2; --pp-ko:#b91c1c;
+  display:flex; flex-direction:column; gap:16px; color:var(--pp-testo); }
+body.theme-dark .pp { --pp-navy:#0b1a30; --pp-blu-fg:#7cc0f0; --pp-blu-bg:rgba(124,192,240,.12); --pp-bordo:var(--border,#24344d); --pp-linea:var(--border,#24344d);
+  --pp-sup:var(--surface,#13223a); --pp-sup2:var(--surface-alt,#0f1b2d); --pp-testo:var(--text-mid,#cbd5e1); --pp-forte:var(--text,#f1f5f9); --pp-muto:var(--text-light,#94a3b8);
+  --pp-ok-bg:rgba(34,197,94,.16); --pp-ok:#86efac; --pp-att-bg:rgba(245,158,11,.16); --pp-att:#fcd34d; --pp-ko-bg:rgba(239,68,68,.18); --pp-ko:#fca5a5; }
+.pp-hero { background:linear-gradient(120deg,#0c2545 0%,#123a66 100%); color:#fff; border-radius:18px; padding:20px 24px; display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between; }
+.pp-hero-kicker { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#9fc3e6; }
+.pp-hero h1 { margin:2px 0 4px; font-size:24px; font-weight:700; color:#fff; }
+.pp-hero-sub { font-size:13px; color:#c9dcf0; max-width:720px; line-height:1.5; }
+.pp-hero-azioni { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.pp-hero-azioni .rc-btn-ghost { background:transparent; color:#dbe7f3; border-color:#2f5480; }
+.pp-hero-azioni .rc-btn-ghost:hover { background:rgba(255,255,255,.08); color:#fff; }
+.pp-hero-azioni .fmd-btn { background:transparent !important; color:#dbe7f3 !important; border:1px solid #2f5480 !important; box-shadow:none !important; }
+.pp-hero-azioni .fmd-btn:hover { background:rgba(255,255,255,.08) !important; color:#fff !important; }
+.pp-hero-azioni .fmd-btn .fmd-ico { color:inherit; }
+[data-pp-per][hidden] { display:none !important; }
+.pp-chi span strong { display:inline; font-size:inherit; }
+.pp-btn-add { background:#1f87cd; color:#fff; border:0; border-radius:10px; padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
+.pp-btn-add:hover { background:#1a74b1; }
+.pp-passi { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.pp-passi a { display:flex; gap:10px; align-items:center; padding:10px 14px; background:var(--pp-sup); border:1px solid var(--pp-bordo); border-radius:12px; text-decoration:none; color:var(--pp-muto); font-size:12.5px; }
+.pp-passi a:hover { border-color:#9cc6e6; }
+.pp-passi b { flex:0 0 26px; height:26px; border-radius:50%; background:var(--pp-blu-bg); color:var(--pp-blu-fg); display:flex; align-items:center; justify-content:center; font-size:13px; }
+.pp-passi strong { display:block; color:var(--pp-forte); font-size:13.5px; }
+.pp-pan { background:var(--pp-sup); border:1px solid var(--pp-bordo); border-radius:16px; padding:18px 20px; scroll-margin-top:80px; }
+.pp-pan > h2 { margin:0 0 12px; font-size:17px; color:var(--pp-forte); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.pp-conta { font-size:12px; font-weight:700; color:var(--pp-blu-fg); background:var(--pp-blu-bg); border-radius:999px; padding:1px 9px; }
+.pp-cambi { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr)); gap:10px; }
+.pp-cambio { display:grid; grid-template-columns:36px minmax(0,1fr) auto; gap:10px; align-items:start; padding:12px; border:1px solid var(--pp-bordo); border-radius:12px; background:var(--pp-sup2); }
+.pp-cambio.is-ko { border-color:#fecaca; background:var(--pp-ko-bg); }
+.pp-ico { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--pp-blu-bg); color:var(--pp-blu-fg); }
+.pp-ico svg { width:18px; height:18px; }
+.pp-tipo { font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--pp-muto); }
+.pp-cambio-testo { font-size:13px; color:var(--pp-forte); line-height:1.45; overflow-wrap:anywhere; }
+.pp-ko-testo { font-size:12px; font-weight:600; color:var(--pp-ko); margin-top:3px; }
+.pp-x { border:0; background:transparent; color:var(--pp-muto); width:28px; height:28px; border-radius:8px; font-size:17px; cursor:pointer; }
+.pp-x:hover { background:var(--pp-linea); color:var(--pp-forte); }
+.pp-vuoto { display:flex; gap:14px; align-items:center; justify-content:space-between; flex-wrap:wrap; padding:16px; border:1px dashed var(--pp-bordo); border-radius:12px; color:var(--pp-muto); font-size:13px; }
+.pp-kpi { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr)); gap:10px; }
+.pp-tile { border:1px solid var(--pp-bordo); border-radius:14px; padding:12px 14px; background:var(--pp-sup); display:flex; flex-direction:column; gap:6px; min-height:84px; }
+.pp-tile.is-peggio { border-color:#fecaca; background:var(--pp-ko-bg); }
+.pp-tile.is-meglio { border-color:#bbf7d0; background:var(--pp-ok-bg); }
+.pp-tile-voce { font-size:12px; color:var(--pp-muto); line-height:1.3; }
+.pp-tile-val { display:flex; align-items:baseline; gap:8px; font-variant-numeric:tabular-nums; }
+.pp-tile-oggi { font-size:14px; color:var(--pp-muto); }
+.pp-tile-dopo { font-size:26px; font-weight:700; color:var(--pp-forte); line-height:1; }
+.pp-tile.is-peggio .pp-tile-dopo { color:var(--pp-ko); }
+.pp-tile.is-meglio .pp-tile-dopo { color:var(--pp-ok); }
+.pp-tile-altro { font-size:11.5px; color:var(--pp-muto); }
+.pp-freccia { color:#94a3b8; }
+.pp-sezione-kpi { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--pp-muto); margin:14px 0 8px; }
+.pp-avvisi { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.pp-avviso { font-size:12.5px; padding:6px 12px; border-radius:999px; background:var(--pp-att-bg); color:var(--pp-att); line-height:1.4; }
+.pp-avviso.is-info { background:var(--pp-sup2); color:var(--pp-muto); border:1px solid var(--pp-bordo); }
+.pp-confronta { display:flex; gap:8px; align-items:center; margin-left:auto; font-size:12.5px; color:var(--pp-muto); font-weight:400; }
+.pp-confronta select { height:32px; border:1px solid var(--pp-bordo); border-radius:8px; background:var(--pp-sup); color:var(--pp-testo); font:inherit; font-size:12.5px; padding:0 8px; }
+.pp-form-card { border:1px solid var(--pp-bordo); border-radius:14px; overflow:hidden; margin-bottom:10px; }
+.pp-form-testa { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 16px; background:var(--pp-sup2); border-bottom:1px solid var(--pp-bordo); }
+.pp-form-testa.is-ko { background:var(--pp-ko-bg); }
+.pp-form-testa.is-att { background:var(--pp-att-bg); }
+.pp-chi { display:flex; gap:12px; align-items:center; }
+.pp-avatar { width:36px; height:36px; border-radius:50%; background:var(--pp-navy); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex:0 0 36px; }
+.pp-chi strong { display:block; color:var(--pp-forte); font-size:13.5px; }
+.pp-chi span { font-size:12.5px; color:var(--pp-muto); }
+.pp-pill { display:inline-block; font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; white-space:nowrap; background:var(--pp-sup2); color:var(--pp-muto); border:1px solid var(--pp-bordo); }
+.pp-pill.is-ok { background:var(--pp-ok-bg); color:var(--pp-ok); border-color:transparent; }
+.pp-pill.is-att { background:var(--pp-att-bg); color:var(--pp-att); border-color:transparent; }
+.pp-pill.is-ko { background:var(--pp-ko-bg); color:var(--pp-ko); border-color:transparent; }
+.pp-pill.is-blu { background:var(--pp-blu-bg); color:var(--pp-blu-fg); border-color:transparent; }
+.pp-t { width:100%; border-collapse:collapse; font-size:12.8px; }
+.pp-t th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--pp-muto); padding:8px 10px; border-bottom:1px solid var(--pp-bordo); white-space:nowrap; font-weight:700; }
+.pp-t td { padding:9px 10px; border-bottom:1px solid var(--pp-linea); vertical-align:top; color:var(--pp-testo); }
+.pp-t tr:last-child td { border-bottom:0; }
+.pp-num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.pp-t th.pp-num { text-align:right; }
+.pp-scroll { overflow-x:auto; }
+.pp-senza { padding:12px 16px; font-size:13px; color:var(--pp-muto); display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; }
+.pp-persone { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr)); gap:12px; }
+.pp-persona-card { border:1px solid var(--pp-bordo); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; background:var(--pp-sup); }
+.pp-persona-card.is-conseguenza { background:var(--pp-sup2); }
+.pp-campi { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 14px; }
+.pp-campo { display:flex; flex-direction:column; gap:2px; font-size:13px; min-width:0; }
+.pp-campo > span:first-child { font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--pp-muto); }
+.pp-campo strong { color:var(--pp-forte); }
+.pp-cambia { color:var(--pp-blu-fg); font-weight:700; }
+.pp-righe { display:flex; flex-direction:column; gap:3px; font-size:12.5px; line-height:1.45; }
+.pp-righe .is-ko { color:var(--pp-ko); }
+.pp-righe .is-ok { color:var(--pp-ok); }
+.pp-righe .is-att { color:var(--pp-att); }
+.pp-req { border-top:1px solid var(--pp-linea); padding-top:8px; font-size:12.5px; }
+.pp-req summary { cursor:pointer; color:var(--pp-blu-fg); font-weight:600; }
+.pp-req ul { margin:6px 0 0; padding-left:18px; }
+.pp-due { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr)); gap:16px; align-items:start; }
+.pp-elenco { list-style:none; margin:0; padding:0; font-size:13px; }
+.pp-elenco li { display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--pp-linea); }
+.pp-elenco li:last-child { border-bottom:0; }
+.pp-nota { font-size:12px; color:var(--pp-muto); margin:10px 0 0; line-height:1.55; }
+.pp-solo-cambi .pp-fermo { display:none; }
+.pp-applica { border-color:#fed7aa; }
+.pp-applica-griglia { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:16px; align-items:start; }
+.pp-check { display:flex; flex-direction:column; gap:8px; font-size:13px; }
+.pp-check div { display:flex; justify-content:space-between; gap:10px; }
+.pp-btn-applica { height:44px; border:0; border-radius:12px; background:#ff8a1f; color:#0c2545; font-weight:700; font-size:14px; cursor:pointer; width:100%; }
+.pp-btn-applica:hover { background:#f07b0f; }
+.pp-stato { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11.5px; font-weight:700; background:var(--pp-sup2); color:var(--pp-muto); white-space:nowrap; }
+.pp-stato.is-male { background:var(--pp-ko-bg); color:var(--pp-ko); }
+.pp-stato.is-attento { background:var(--pp-att-bg); color:var(--pp-att); }
+.pp-cassetto-velo { position:fixed; inset:0; background:rgba(8,20,45,.42); z-index:1200; }
+.pp-cassetto { position:fixed; top:0; right:0; bottom:0; width:min(520px,100vw); background:var(--pp-sup); z-index:1201; box-shadow:-14px 0 40px rgba(8,20,45,.25); display:flex; flex-direction:column; }
+.pp-cassetto[hidden], .pp-cassetto-velo[hidden] { display:none; }
+.pp-cassetto-testa { display:flex; justify-content:space-between; align-items:center; padding:18px 22px 12px; border-bottom:1px solid var(--pp-linea); }
+.pp-cassetto-testa strong { font-size:19px; color:var(--pp-forte); }
+.pp-cassetto-corpo { flex:1; overflow-y:auto; padding:16px 22px; display:flex; flex-direction:column; gap:18px; }
+.pp-cassetto-piede { padding:14px 22px; border-top:1px solid var(--pp-linea); display:flex; justify-content:space-between; gap:10px; align-items:center; }
+.pp-passo { font-size:12px; font-weight:700; color:var(--pp-muto); margin-bottom:8px; display:block; }
+.pp-tipi { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.pp-tipi label { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--pp-bordo); border-radius:12px; cursor:pointer; background:var(--pp-sup); }
+.pp-tipi label:has(input:checked) { border:2px solid var(--pp-blu); padding:9px 11px; background:var(--pp-blu-bg); }
+.pp-tipi input { margin:3px 0 0; accent-color:var(--pp-blu); }
+.pp-tipi strong { display:block; font-size:13px; color:var(--pp-forte); }
+.pp-tipi span span { font-size:11.5px; color:var(--pp-muto); }
+.pp-lab { font-size:12px; font-weight:700; color:var(--pp-muto); }
+.pp-input, .pp-cassetto select { width:100%; box-sizing:border-box; height:40px; border:1px solid var(--pp-bordo); border-radius:10px; padding:0 12px; font:inherit; font-size:13px; background:var(--pp-sup); color:var(--pp-testo); }
+.pp-campo-form { display:flex; flex-direction:column; gap:6px; }
+.pp-scelte { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.pp-scelte label { display:flex; gap:8px; align-items:flex-start; padding:10px 12px; border:1px solid var(--pp-bordo); border-radius:10px; cursor:pointer; font-size:13px; }
+.pp-scelte label:has(input:checked) { border:2px solid var(--pp-blu); padding:9px 11px; background:var(--pp-blu-bg); }
+.pp-scelte input { margin:2px 0 0; accent-color:var(--pp-blu); }
+.pp-scelte small { display:block; font-size:11.5px; color:var(--pp-muto); }
+.pp-pick { display:flex; flex-direction:column; gap:8px; }
+.pp-pick-top { display:flex; justify-content:space-between; align-items:center; }
+.pp-pick-n { font-size:12px; font-weight:700; color:var(--pp-blu-fg); }
+.pp-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.pp-chips:empty { display:none; }
+.pp-chip { border:0; display:inline-flex; gap:6px; align-items:center; background:var(--pp-navy); color:#fff; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:600; cursor:pointer; }
+.pp-lista { border:1px solid var(--pp-bordo); border-radius:12px; max-height:340px; overflow-y:auto; }
+.pp-gruppo-testa { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--pp-sup2); border-bottom:1px solid var(--pp-linea); position:sticky; top:0; z-index:1; }
+.pp-gruppo-nome { border:0; background:none; padding:0; font:inherit; font-size:12.5px; font-weight:700; color:var(--pp-forte); cursor:pointer; display:flex; gap:6px; align-items:center; }
+.pp-gruppo[data-aperto] .pp-freccina { transform:rotate(90deg); }
+.pp-freccina { display:inline-block; transition:transform .15s; color:var(--pp-muto); }
+.pp-link { border:0; background:none; padding:0; font:inherit; font-size:12px; font-weight:600; color:var(--pp-blu-fg); cursor:pointer; }
+.pp-persona { display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--pp-linea); cursor:pointer; font-size:13px; }
+.pp-persona input { width:16px; height:16px; margin:0; accent-color:var(--pp-blu); }
+.pp-persona:has(input:checked) { background:var(--pp-blu-bg); }
+.pp-persona:has(input:checked) .pp-persona-nome { font-weight:700; color:var(--pp-forte); }
+.pp-muto { color:var(--pp-muto); font-size:11.5px; font-weight:500; }
+.pp-riassunto { font-size:12.5px; color:var(--pp-testo); background:var(--pp-blu-bg); border-radius:10px; padding:10px 12px; line-height:1.5; }
+@media (max-width:900px) { .pp-passi { grid-template-columns:repeat(2,minmax(0,1fr)); } .pp-applica-griglia { grid-template-columns:1fr; } .pp-campi { grid-template-columns:1fr; } }
+@media print { .pp-passi, .pp-cassetto, .pp-cassetto-velo, .pp-hero-azioni { display:none !important; } }
 </style>
 {% endblock %}
 
@@ -75,289 +166,445 @@ body.theme-dark .pr-passi b { background:#1e3a5f; color:#fff; }
 
 {% block content %}
 {% include "anagrafica/components/_fm_icons.html" %}
-<div class="rc-page">
+<div class="rc-page pp">
   {% include "anagrafica/components/flash_messages.html" %}
 
-  <div class="rc-top">
+  <header class="pp-hero">
     <div>
-      <div class="rc-title">{{ p.nome }}</div>
-      <div class="rc-sub">Prova in preparazione: confronta <strong>Oggi</strong> e <strong>Dopo</strong>. Finché non applichi non cambia niente.{% if totali.mese %} Costi dell'ultimo mese con i cedolini: {{ totali.mese|date:"m/Y" }}.{% endif %}</div>
+      <div class="pp-hero-kicker">Prova in preparazione</div>
+      <h1>{{ p.nome }}</h1>
+      <div class="pp-hero-sub">Confronta <strong>Oggi</strong> e <strong>Dopo</strong>: finché non applichi non cambia niente.{% if totali.mese %} Costi dell'ultimo mese con i cedolini: {{ totali.mese|date:"m/Y" }}.{% endif %}</div>
     </div>
-    <div class="rc-actions">
+    <div class="pp-hero-azioni">
       {% include "anagrafica/partials/_guida_persone_link.html" with ancora="prospetto" %}
       <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:prospetti' %}?prova={{ p.pk }}">Tutte le prove</a>
       <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:export' 'prospetto' %}?format=xlsx&amp;scope=filtered&amp;id={{ p.pk }}">Excel</a>
       <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:export' 'prospetto' %}?format=pdf&amp;scope=filtered&amp;id={{ p.pk }}">PDF</a>
+      {% if is_admin %}<button type="button" class="pp-btn-add" data-pp-apri-cassetto>+ Aggiungi cambiamento</button>{% endif %}
     </div>
-  </div>
+  </header>
 
-  <nav class="pr-passi" aria-label="Passi della prova">
+  <nav class="pp-passi" aria-label="Sezioni della prova">
     <a href="#aggiungi"><b>1</b><span><strong>Che cosa cambia</strong>{{ righe_modifiche|length }} cambiament{{ righe_modifiche|length|pluralize:"o,i" }}</span></a>
-    <a href="#confronto"><b>2</b><span><strong>Confronto</strong>Oggi e dopo</span></a>
-    <a href="#applica"><b>3</b><span><strong>Conferma</strong>Applica o archivia</span></a>
+    <a href="#confronto"><b>2</b><span><strong>Confronto</strong>{{ avvisi|length }} avvis{{ avvisi|length|pluralize:"o,i" }}</span></a>
+    <a href="#formazione"><b>3</b><span><strong>Competenze e formazione</strong>{{ formazione_totali.sessioni }} session{{ formazione_totali.sessioni|pluralize:"e,i" }} da aprire</span></a>
+    <a href="#applica"><b>4</b><span><strong>Conferma</strong>Applica o archivia</span></a>
   </nav>
 
-  <section class="rc-panel pr-sez" id="aggiungi">
-    <h2>Cambiamenti da provare ({{ righe_modifiche|length }})</h2>
+  <section class="pp-pan" id="aggiungi">
+    <h2>Cambiamenti in prova <span class="pp-conta">{{ righe_modifiche|length }}</span></h2>
     {% if righe_modifiche %}
-    <ul class="pr-cambi">
+    <div class="pp-cambi">
       {% for r in righe_modifiche %}
-      <li>
-        <span>{{ r.testo }}{% if r.problema %}<div class="rc-avviso" style="margin-top:3px;">Non vale: {{ r.problema }}</div>{% endif %}</span>
-        {% if is_admin %}<form method="post" action="{% url 'anagrafica:prospetto_togli' p.pk r.m.pk %}">{% csrf_token %}<button type="submit" class="rc-btn rc-btn-x" aria-label="Togli questo cambiamento">×</button></form>{% endif %}
-      </li>
+      <div class="pp-cambio{% if r.problema %} is-ko{% endif %}">
+        <span class="pp-ico" aria-hidden="true">
+          {% if r.m.tipo == "PERSONA_REPARTO" %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          {% elif r.m.tipo == "PERSONA_MANSIONE" %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>
+          {% elif r.m.tipo == "PERSONA_RUOLO" %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg>
+          {% elif r.m.tipo == "REPARTO_CENTRO" %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+          {% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>{% endif %}
+        </span>
+        <div>
+          <div class="pp-tipo">{{ r.m.get_tipo_display }}</div>
+          <div class="pp-cambio-testo">{{ r.testo }}</div>
+          {% if r.problema %}<div class="pp-ko-testo">Non vale: {{ r.problema }}</div>{% endif %}
+        </div>
+        {% if is_admin %}<form method="post" action="{% url 'anagrafica:prospetto_togli' p.pk r.m.pk %}">{% csrf_token %}<button type="submit" class="pp-x" aria-label="Togli questo cambiamento">×</button></form>{% endif %}
+      </div>
       {% endfor %}
-    </ul>
+    </div>
     {% else %}
-    <p>Ancora nessun cambiamento: sotto vedi la situazione di oggi. Aggiungine uno per vedere il confronto.</p>
-    {% endif %}
-
-    {% if is_admin %}
-    <div class="pr-prova">
-      <details {% if not righe_modifiche %}open{% endif %}>
-        <summary>Persone in un altro reparto</summary>
-        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
-          {% csrf_token %}<input type="hidden" name="tipo" value="PERSONA_REPARTO">
-          <div class="hub-form-stack">
-            {% include "anagrafica/partials/_prospetto_persone.html" %}
-            <div class="hub-field"><label>Vanno nel reparto</label><select name="area" required><option value="">Scegli…</option>{% for a in scelte.aree %}<option value="{{ a.pk }}">{{ a.nome }}{% if not a.reparto_id %} (senza reparto del portale){% endif %}</option>{% endfor %}</select></div>
-            <div class="hub-field"><label>Le mansioni del reparto di prima</label><select name="mansioni"><option value="lascia">Le lasciano</option><option value="tiene">Le tengono</option></select></div>
-            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
-          </div>
-        </form>
-      </details>
-      <details>
-        <summary>Persone su una mansione</summary>
-        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
-          {% csrf_token %}<input type="hidden" name="tipo" value="PERSONA_MANSIONE">
-          <div class="hub-form-stack">
-            {% include "anagrafica/partials/_prospetto_persone.html" %}
-            <div class="hub-field"><label>Mansione</label><select name="mansione" required><option value="">Scegli…</option>{% for m in scelte.mansioni %}<option value="{{ m.pk }}">{{ m.nome }}</option>{% endfor %}</select></div>
-            <div class="hub-field"><label>Che cosa succede</label><select name="modo"><option value="entra">Entrano</option><option value="togli">Escono</option></select></div>
-            <div class="hub-field"><label>Livello, per chi entra</label><select name="livello">{% for l in scelte.livelli %}<option value="{{ l }}"{% if l == "U" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
-            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
-          </div>
-        </form>
-      </details>
-      <details>
-        <summary>Ruolo delle persone</summary>
-        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
-          {% csrf_token %}<input type="hidden" name="tipo" value="PERSONA_RUOLO">
-          <div class="hub-form-stack">
-            {% include "anagrafica/partials/_prospetto_persone.html" %}
-            <div class="hub-field"><label>Ruolo</label><select name="ruolo" required><option value="">Scegli…</option>{% for r in scelte.ruoli %}<option value="{{ r.pk }}">{% if r.sigla %}{{ r.sigla }} · {% endif %}{{ r.nome }}</option>{% endfor %}</select></div>
-            <div class="hub-field"><label>Che cosa fare</label><select name="modo">{% for k, v in scelte.modi_ruolo %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
-            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
-          </div>
-        </form>
-      </details>
-      <details>
-        <summary>Reparto in un altro centro di costo</summary>
-        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
-          {% csrf_token %}<input type="hidden" name="tipo" value="REPARTO_CENTRO">
-          <div class="hub-form-stack">
-            <div class="hub-field"><label>Reparto</label><select name="area" required><option value="">Scegli…</option>{% for a in scelte.aree %}<option value="{{ a.pk }}">{{ a.nome }}</option>{% endfor %}</select></div>
-            <div class="hub-field"><label>Centro di costo</label><select name="centro"><option value="">Senza centro di costo</option>{% for c in scelte.centri %}<option value="{{ c.pk }}">{{ c.nome }}</option>{% endfor %}</select></div>
-            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
-          </div>
-        </form>
-      </details>
-      <details>
-        <summary>Mansione in un altro reparto</summary>
-        <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}">
-          {% csrf_token %}<input type="hidden" name="tipo" value="MANSIONE_REPARTO">
-          <div class="hub-form-stack">
-            <div class="hub-field"><label>Mansione</label><select name="mansione" required><option value="">Scegli…</option>{% for m in scelte.mansioni_spostabili %}<option value="{{ m.pk }}">{{ m.nome }}</option>{% endfor %}</select></div>
-            <div class="hub-field"><label>Reparto</label><select name="area" required><option value="">Scegli…</option>{% for a in scelte.aree %}<option value="{{ a.pk }}">{{ a.nome }}</option>{% endfor %}</select></div>
-            <div><button type="submit" class="rc-btn rc-btn-primary">Prova</button></div>
-          </div>
-        </form>
-      </details>
-    </div>
+    <div class="pp-vuoto"><span>Ancora nessun cambiamento: sotto vedi la situazione di oggi. Aggiungine uno per vedere il confronto.</span>{% if is_admin %}<button type="button" class="pp-btn-add" data-pp-apri-cassetto>+ Aggiungi cambiamento</button>{% endif %}</div>
     {% endif %}
   </section>
 
-  <section class="rc-panel pr-sez" id="confronto">
-    <h2>Riepilogo</h2>
-    {% if altri_prospetti %}
-    <form method="get" class="rc-assegna" style="margin-bottom:10px;">
-      <select name="con" aria-label="Confronta con un altro prospetto"><option value="">Confronta con un altro prospetto…</option>{% for x in altri_prospetti %}<option value="{{ x.pk }}"{% if altro and altro.pk == x.pk %} selected{% endif %}>{{ x.nome }}</option>{% endfor %}</select>
-      <button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Confronta</button>
-    </form>
-    {% endif %}
-    <div class="pr-scroll">
-    <table class="pr-t" data-fm-table-skip="1">
-      <thead><tr><th>Voce</th><th class="pr-num">Oggi</th><th class="pr-num">Dopo</th><th class="pr-num">Differenza</th>{% if altro %}<th class="pr-num">{{ altro.nome }}</th>{% endif %}</tr></thead>
-      <tbody>
-        {% for r in kpi %}<tr class="{% if r.delta %}is-cambia{% endif %}"><td>{{ r.voce }}</td><td class="pr-num">{{ r.prima }}</td><td class="pr-num">{{ r.dopo }}</td><td class="pr-num {% if r.peggiora %}pr-up{% elif r.migliora %}pr-giu{% endif %}">{% if r.delta > 0 %}+{% endif %}{% if r.delta %}{{ r.delta }}{% else %}—{% endif %}</td>{% if altro %}<td class="pr-num">{{ r.altro }}</td>{% endif %}</tr>{% endfor %}
-      </tbody>
-    </table>
+  <section class="pp-pan" id="confronto">
+    <h2>Confronto
+      {% if altri_prospetti %}
+      <form method="get" class="pp-confronta">
+        <label for="pp-con">Confronta con</label>
+        <select id="pp-con" name="con" onchange="this.form.submit()"><option value="">nessuna altra prova</option>{% for x in altri_prospetti %}<option value="{{ x.pk }}"{% if altro and altro.pk == x.pk %} selected{% endif %}>{{ x.nome }}</option>{% endfor %}</select>
+        <noscript><button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Confronta</button></noscript>
+      </form>
+      {% endif %}
+    </h2>
+    <div class="pp-kpi">
+      {% for r in kpi %}
+      <div class="pp-tile{% if r.peggiora %} is-peggio{% elif r.migliora %} is-meglio{% endif %}">
+        <span class="pp-tile-voce">{{ r.voce }}</span>
+        <span class="pp-tile-val"><span class="pp-tile-oggi">{{ r.prima }}</span><span class="pp-freccia">→</span><span class="pp-tile-dopo">{{ r.dopo }}</span></span>
+        {% if altro %}<span class="pp-tile-altro">{{ altro.nome }}: {{ r.altro }}</span>{% endif %}
+      </div>
+      {% endfor %}
     </div>
-    <p class="pr-nota">{{ totali.persone }} persone in forza{% if puo_costi %}; {{ totali.con_costo }} con il costo di {{ totali.mese|date:"m/Y"|default:"—" }}, RML totale € {{ totali.rml|floatformat:"2g"|default:"—" }}, costo orario medio € {{ totali.costo_medio|floatformat:"2g"|default:"—" }}/h{% endif %}. Rosso = peggiora, verde = migliora.</p>
+    <div class="pp-sezione-kpi">Competenze e formazione</div>
+    <div class="pp-kpi">
+      <div class="pp-tile"><span class="pp-tile-voce">Competenze da acquisire</span><span class="pp-tile-val"><span class="pp-tile-dopo">{{ formazione_totali.da_acquisire }}</span></span><span class="pp-tile-altro">{{ formazione_totali.presenti }} già presenti</span></div>
+      <div class="pp-tile{% if formazione_totali.sessioni %} is-peggio{% endif %}"><span class="pp-tile-voce">Sessioni formative da aprire</span><span class="pp-tile-val"><span class="pp-tile-dopo">{{ formazione_totali.sessioni }}</span></span><span class="pp-tile-altro">{{ formazione_totali.gia_aperte }} con una richiesta già aperta</span></div>
+      <div class="pp-tile{% if formazione_totali.non_abilitati %} is-peggio{% endif %}"><span class="pp-tile-voce">Non abilitati dopo</span><span class="pp-tile-val"><span class="pp-tile-dopo">{{ formazione_totali.non_abilitati }}</span></span><span class="pp-tile-altro">requisito o competenza bloccante</span></div>
+      <div class="pp-tile"><span class="pp-tile-voce">Mansioni senza competenze definite</span><span class="pp-tile-val"><span class="pp-tile-dopo">{{ formazione_totali.senza_competenze }}</span></span><span class="pp-tile-altro">il livello resta quello scritto</span></div>
+    </div>
+    <p class="pp-nota">{{ totali.persone }} persone in forza{% if puo_costi %}; {{ totali.con_costo }} con il costo di {{ totali.mese|date:"m/Y"|default:"—" }}, RML totale € {{ totali.rml|floatformat:"2g"|default:"—" }}, costo orario medio € {{ totali.costo_medio|floatformat:"2g"|default:"—" }}/h{% endif %}. Rosso = peggiora, verde = migliora.</p>
     {% if avvisi %}
-    <div class="pr-avvisi" style="margin-top:10px;">{% for a in avvisi %}<div class="{% if a.livello == 'warn' %}rc-avviso{% else %}pr-info{% endif %}">{{ a.testo }}</div>{% endfor %}</div>
+    <div class="pp-avvisi">{% for a in avvisi %}<span class="pp-avviso{% if a.livello != 'warn' %} is-info{% endif %}">{% if a.livello == 'warn' %}⚠ {% endif %}{{ a.testo }}</span>{% endfor %}</div>
     {% endif %}
   </section>
 
-  <section class="rc-panel pr-sez" id="centri">
-    <h2>Centri di costo</h2>
-    <div class="pr-scroll">
-    <table class="pr-t {% if ha_modifiche and not altro %}pr-solo-cambi{% endif %}" id="pr-centri" data-fm-table-skip="1">
-      <thead><tr><th>Centro di costo</th><th class="pr-num">Reparti</th><th class="pr-num">Persone oggi</th><th class="pr-num">Dopo</th><th class="pr-num">Diff.</th>{% if puo_costi %}<th class="pr-num">RML oggi</th><th class="pr-num">RML dopo</th><th class="pr-num">Diff. €</th><th class="pr-num">€/h medio oggi</th><th class="pr-num">Dopo</th>{% endif %}{% if altro %}<th class="pr-num">{{ altro.nome }}: persone</th>{% if puo_costi %}<th class="pr-num">RML</th>{% endif %}{% endif %}</tr></thead>
-      <tbody>
-        {% for r in centri %}
-        <tr class="{% if r.cambia %}is-cambia{% else %}pr-fermo{% endif %}">
-          <td>{% if r.senza %}<em>{{ r.voce }}</em>{% else %}{{ r.voce }}{% endif %}</td>
-          <td class="pr-num">{{ r.reparti_prima }}{% if r.reparti_prima != r.reparti_dopo %} <span class="pr-freccia">→</span> {{ r.reparti_dopo }}{% endif %}</td>
-          <td class="pr-num">{{ r.persone_prima }}</td><td class="pr-num">{{ r.persone_dopo }}</td>
-          <td class="pr-num pr-neutro">{% if r.delta %}{% if r.delta > 0 %}+{% endif %}{{ r.delta }}{% endif %}</td>
-          {% if puo_costi %}
-          <td class="pr-num">{{ r.rml_prima|floatformat:"2g" }}</td><td class="pr-num">{{ r.rml_dopo|floatformat:"2g" }}</td>
-          <td class="pr-num pr-neutro">{% if r.rml_delta %}{% if r.rml_delta > 0 %}+{% endif %}{{ r.rml_delta|floatformat:"2g" }}{% endif %}</td>
-          <td class="pr-num">{{ r.medio_prima|floatformat:"2g"|default:"—" }}</td><td class="pr-num">{{ r.medio_dopo|floatformat:"2g"|default:"—" }}</td>
-          {% endif %}
-          {% if altro %}<td class="pr-num">{{ r.persone_altro }}</td>{% if puo_costi %}<td class="pr-num">{{ r.rml_altro|floatformat:"2g" }}</td>{% endif %}{% endif %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <section class="pp-pan" id="formazione">
+    <h2>Competenze e formazione <span class="pp-conta">{{ formazione|length }}</span></h2>
+    {% for f in formazione %}
+    <div class="pp-form-card">
+      <div class="pp-form-testa{% if f.esito == 'non_abilitato' %} is-ko{% elif f.esito == 'in_addestramento' %} is-att{% endif %}">
+        <div class="pp-chi">
+          <span class="pp-avatar" aria-hidden="true">{{ f.persona|slice:":2" }}</span>
+          <div><strong>{{ f.persona }}</strong><span>{% if f.come == "entra" %}entra in{% else %}prevista dal ruolo nel reparto nuovo:{% endif %} <strong>{{ f.mansione }}</strong>{% if f.reparto %} · {{ f.reparto }}{% endif %}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <span class="pp-pill {% if f.esito == 'abilitato' %}is-ok{% elif f.esito == 'non_abilitato' %}is-ko{% elif f.esito == 'in_addestramento' %}is-att{% endif %}">{{ f.esito_label }}</span>
+          {% for rq in f.richieste %}<span class="pp-pill is-blu">{% if rq.sessione %}Sessione {{ rq.sessione }}{% else %}Richiesta {{ rq.codice }} · {{ rq.stato }}{% endif %}</span>{% endfor %}
+          {% if f.sessione_da_aprire %}<span class="pp-pill is-att">Sessione da aprire</span>{% endif %}
+        </div>
+      </div>
+      {% if f.competenze %}
+      <div class="pp-scroll">
+        <table class="pp-t" data-fm-table-skip="1">
+          <thead><tr><th>Competenza</th><th>Ha oggi</th><th>Minimo</th><th>Requisito formale</th><th>Esito</th></tr></thead>
+          <tbody>
+            {% for c in f.competenze %}
+            <tr>
+              <td><strong>{{ c.nome }}</strong>{% if c.bloccante %} <span class="pp-pill is-ko" style="font-size:10.5px;padding:1px 6px;">bloccante</span>{% endif %}{% if c.altrove %}<div class="pp-muto">valutata in {{ c.altrove }}</div>{% endif %}</td>
+              <td>{{ c.oggi|default:"—" }}</td>
+              <td><strong>{{ c.minimo }}</strong></td>
+              <td>{% if c.vincolo %}{{ c.vincolo }}{% if c.requisito %}<div style="color:var(--pp-ko);font-weight:600;">manca</div>{% else %}<div style="color:var(--pp-ok);font-weight:600;">valido</div>{% endif %}{% else %}<span class="pp-muto">—</span>{% endif %}</td>
+              <td><span class="pp-pill {% if c.stato == 'presente' %}is-ok{% elif c.stato == 'manca' %}is-att{% else %}is-ko{% endif %}">{% if c.stato == 'presente' %}già presente{% elif c.stato == 'manca' %}da acquisire{% elif c.stato == 'requisito' %}manca il requisito{% else %}bloccante sotto il minimo{% endif %}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="pp-senza"><span>La mansione non ha competenze definite: il livello resta quello scritto e non c'è niente da valutare in una sessione formativa.</span><a class="rc-btn rc-btn-ghost rc-btn-sm" href="{% url 'anagrafica:mansionario_mansione' f.mansione_id %}#competenze">Definisci le competenze</a></div>
+      {% endif %}
     </div>
-    {% if ha_modifiche and not altro %}<button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" id="pr-mostra-centri" style="margin-top:8px;">Mostra anche i centri che non cambiano</button>{% endif %}
-    {% if puo_costi %}<p class="pr-nota">RML e costo seguono la persona: spostarla cambia dove finisce il costo, non quanto vale. Il totale resta lo stesso. Il costo medio è sulle persone con il costo del mese, senza pesi.</p>{% endif %}
-  </section>
-
-  {% if reparti %}
-  <section class="rc-panel pr-sez" id="reparti">
-    <h2>Reparti toccati ({{ reparti|length }})</h2>
-    <div class="pr-scroll">
-    <table class="pr-t" data-fm-table-skip="1">
-      <thead><tr><th>Reparto</th><th class="pr-num">Oggi</th><th class="pr-num">Dopo</th><th>Entrano</th><th>Escono</th>{% if puo_costi %}<th class="pr-num">RML oggi</th><th class="pr-num">Dopo</th><th class="pr-num">€/h oggi</th><th class="pr-num">Dopo</th>{% endif %}</tr></thead>
-      <tbody>
-        {% for r in reparti %}<tr><td><strong>{{ r.voce }}</strong>{% if r.resta_vuoto %}<div class="rc-avviso" style="margin-top:3px;">Resta vuoto</div>{% endif %}</td><td class="pr-num">{{ r.persone_prima }}</td><td class="pr-num">{{ r.persone_dopo }}</td><td>{{ r.entrano|join:", "|default:"—" }}</td><td>{{ r.escono|join:", "|default:"—" }}</td>{% if puo_costi %}<td class="pr-num">{{ r.rml_prima|floatformat:"2g" }}</td><td class="pr-num">{{ r.rml_dopo|floatformat:"2g" }}</td><td class="pr-num">{{ r.medio_prima|floatformat:"2g"|default:"—" }}</td><td class="pr-num">{{ r.medio_dopo|floatformat:"2g"|default:"—" }}</td>{% endif %}</tr>{% endfor %}
-      </tbody>
-    </table>
-    </div>
-  </section>
-  {% endif %}
-
-  <section class="rc-panel pr-sez" id="mansioni">
-    <h2>Mansioni toccate ({{ mansioni|length }})</h2>
-    {% if mansioni %}{% include "anagrafica/partials/_prospetto_mansioni.html" with righe=mansioni %}{% else %}<span class="rc-none">Nessuna mansione cambia.</span>{% endif %}
-    <details style="margin-top:10px;">
-      <summary class="pr-neutro" style="cursor:pointer;font-size:13px;">Tutte le mansioni da guardare, dopo i cambiamenti ({{ mansioni_critiche|length }})</summary>
-      <div style="margin-top:8px;">{% include "anagrafica/partials/_prospetto_mansioni.html" with righe=mansioni_critiche %}</div>
-    </details>
-    <p class="pr-nota"><strong>Operativi</strong>: in lista al livello di soglia o sopra, solo persone in forza. <strong>Teste equivalenti</strong>: somma dei coefficienti delle persone. <strong>Carico</strong>: quanta parte del loro tempo, in media, gli operativi danno a questa mansione (dai coefficienti dei soli operativi). È un segnale dai coefficienti, non una misura di ore: il portale non conosce le ore richieste da una mansione. <strong>Uomo solo</strong>: meno di {{ totali.uomo_solo }} operativi.</p>
-    <p class="pr-nota" id="soglie">Soglie in uso: carico concentrato da {{ totali.soglia_concentrazione }}%, troppe mansioni oltre {{ totali.soglia_mansioni }}, uomo solo sotto {{ totali.uomo_solo }} operativi.{% if puo_soglie %} <a class="fmd-data-link" href="{% url 'anagrafica:skm_impostazioni' %}#sovraccarico">Cambiale nelle impostazioni</a>{% endif %}</p>
-  </section>
-
-  <section class="rc-panel pr-sez" id="persone-carico">
-    <h2>Persone: carico dopo i cambiamenti</h2>
-    <details>
-      <summary class="pr-neutro" style="cursor:pointer;font-size:13px;">Su troppe mansioni ({{ persone_su_troppe|length }})</summary>
-      <ul class="rc-list" style="margin-top:6px;">{% for x in persone_su_troppe %}<li><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' x.id %}">{{ x.nome }}</a>: {{ x.n }} mansioni</li>{% empty %}<li>Nessuna</li>{% endfor %}</ul>
-    </details>
-    <details style="margin-top:6px;">
-      <summary class="pr-neutro" style="cursor:pointer;font-size:13px;">Persone chiave: unico operativo su una mansione ({{ persone_chiave|length }})</summary>
-      <ul class="rc-list" style="margin-top:6px;">{% for x in persone_chiave %}<li><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' x.id %}">{{ x.nome }}</a>: {{ x.mansioni|join:", " }}</li>{% empty %}<li>Nessuna</li>{% endfor %}</ul>
-    </details>
+    {% empty %}
+    <span class="rc-none">Nessuno entra in una mansione nuova con questi cambiamenti.</span>
+    {% endfor %}
+    <p class="pp-nota"><strong>Già presente</strong>: la persona ha già il livello minimo su quella competenza, nella mansione o valutata altrove sulla stessa voce del catalogo (la regola delle sessioni formative). Un corso, una qualifica o un processo MOD.128 mancante rende la persona non abilitata finché non c'è.</p>
   </section>
 
   {% if persone %}
-  <section class="rc-panel pr-sez" id="persone">
-    <h2>Persone toccate ({{ persone|length }})</h2>
-    <div class="pr-scroll">
-    <table class="pr-t" data-fm-table-skip="1">
-      <thead><tr><th>Persona</th><th>Reparto</th><th>Centro di costo</th><th>Ruoli</th><th>Capo</th><th>Mansioni</th>{% if puo_costi %}<th class="pr-num">€/h</th><th class="pr-num">RML</th>{% endif %}</tr></thead>
-      <tbody>
-        {% for r in persone %}
-        <tr>
-          <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' r.id %}"><strong>{{ r.nome }}</strong></a>{% if not r.modificata %}<div class="rc-old">cambia di conseguenza</div>{% endif %}</td>
-          <td>{{ r.reparto_prima }}{% if r.cambia_reparto %} <span class="pr-freccia">→</span> <strong>{{ r.reparto_dopo }}</strong>{% endif %}</td>
-          <td>{{ r.centro_prima }}{% if r.centro_prima != r.centro_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.centro_dopo }}</strong>{% endif %}</td>
-          <td>{{ r.ruoli_prima }}{% if r.cambia_ruoli %} <span class="pr-freccia">→</span> <strong>{{ r.ruoli_dopo }}</strong>{% endif %}</td>
-          <td>{{ r.capo_prima }}{% if r.cambia_capo %} <span class="pr-freccia">→</span> <strong>{{ r.capo_dopo }}</strong>{% endif %}</td>
-          <td>
-            {{ r.mansioni_prima }}{% if r.mansioni_prima != r.mansioni_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.mansioni_dopo }}</strong>{% endif %}
-            {% if r.mansioni_nuove %}<div class="rc-old">Nuove: {{ r.mansioni_nuove|join:", " }}</div>{% endif %}
-            {% if r.mansioni_tolte %}<div class="rc-old">Tolte: {{ r.mansioni_tolte|join:", " }}</div>{% endif %}
-            {% if r.fuori_reparto %}<div class="rc-old">Restano sul reparto di prima: {{ r.fuori_reparto|join:", " }}</div>{% endif %}
-            {% if r.da_assegnare %}<div class="rc-old">Previste dal suo ruolo nel reparto nuovo, da assegnare: {{ r.da_assegnare|join:", " }}</div>{% endif %}
-            {% for a in r.avvisi %}<div class="rc-avviso" style="margin-top:3px;">{{ a }}</div>{% endfor %}
-            {% if r.requisiti_nota %}<div class="rc-old">{{ r.requisiti_nota }}</div>{% endif %}
-            {% if r.requisiti %}
-            <details class="pr-req">
-              <summary>{% if r.requisiti.cambia_qualcosa %}Requisiti che cambiano{% else %}I requisiti non cambiano{% endif %}</summary>
-              {% if r.requisiti.cambia_qualcosa %}
-              <ul>
-                {% for x in r.requisiti.rischi_acquisiti %}<li>Rischio in più: {{ x }}</li>{% endfor %}
-                {% for x in r.requisiti.rischi_persi %}<li>Rischio in meno: {{ x }}</li>{% endfor %}
-                {% for x in r.requisiti.corsi_nuovi %}<li>Corso: {{ x }}</li>{% endfor %}
-                {% for x in r.requisiti.corsi_non_piu_dovuti %}<li>Corso non più dovuto: {{ x }}</li>{% endfor %}
-                {% for x in r.requisiti.visite_nuove %}<li>Visita: {{ x }}</li>{% endfor %}
-                {% for x in r.requisiti.visite_non_piu_dovute %}<li>Visita non più dovuta: {{ x }}</li>{% endfor %}
-                {% for x in r.requisiti.dpi_nuovi %}<li>DPI: {{ x }}</li>{% endfor %}
-                {% for x in r.requisiti.dpi_non_piu_dovuti %}<li>DPI non più dovuto: {{ x }}</li>{% endfor %}
-                {% for x in r.requisiti.sds_da_leggere %}<li>Scheda di sicurezza da leggere: {{ x }}</li>{% endfor %}
-              </ul>
-              {% endif %}
-            </details>
-            {% endif %}
-          </td>
-          {% if puo_costi %}<td class="pr-num">{{ r.costo_orario|floatformat:"2g"|default:"—" }}</td><td class="pr-num">{{ r.rml|floatformat:"2g"|default:"—" }}</td>{% endif %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <section class="pp-pan" id="persone">
+    <h2>Persone toccate <span class="pp-conta">{{ persone|length }}</span></h2>
+    <div class="pp-persone">
+      {% for r in persone %}
+      <article class="pp-persona-card{% if not r.modificata %} is-conseguenza{% endif %}">
+        <div class="pp-chi">
+          <span class="pp-avatar" aria-hidden="true">{{ r.nome|slice:":2" }}</span>
+          <div><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' r.id %}"><strong>{{ r.nome }}</strong></a><span>{% if r.modificata %}cambiata nella prova{% else %}cambia di conseguenza{% endif %}</span></div>
+          {% if puo_costi %}<span class="pp-muto" style="margin-left:auto;text-align:right;">€ {{ r.costo_orario|floatformat:"2g"|default:"—" }}/h<br>RML {{ r.rml|floatformat:"2g"|default:"—" }}</span>{% endif %}
+        </div>
+        <div class="pp-campi">
+          <div class="pp-campo"><span>Reparto</span><span>{{ r.reparto_prima }}{% if r.cambia_reparto %} <span class="pp-freccia">→</span> <span class="pp-cambia">{{ r.reparto_dopo }}</span>{% endif %}</span></div>
+          <div class="pp-campo"><span>Centro di costo</span><span>{{ r.centro_prima }}{% if r.centro_prima != r.centro_dopo %} <span class="pp-freccia">→</span> <span class="pp-cambia">{{ r.centro_dopo }}</span>{% endif %}</span></div>
+          <div class="pp-campo"><span>Ruoli</span><span>{{ r.ruoli_prima }}{% if r.cambia_ruoli %} <span class="pp-freccia">→</span> <span class="pp-cambia">{{ r.ruoli_dopo }}</span>{% endif %}</span></div>
+          <div class="pp-campo"><span>Capo</span><span>{{ r.capo_prima }}{% if r.cambia_capo %} <span class="pp-freccia">→</span> <span class="pp-cambia">{{ r.capo_dopo }}</span>{% endif %}</span></div>
+        </div>
+        <div class="pp-righe">
+          <span><strong>Mansioni {{ r.mansioni_prima }}{% if r.mansioni_prima != r.mansioni_dopo %} → {{ r.mansioni_dopo }}{% endif %}</strong></span>
+          {% if r.mansioni_nuove %}<span class="is-ok">Nuove: {{ r.mansioni_nuove|join:", " }}</span>{% endif %}
+          {% if r.mansioni_tolte %}<span class="is-ko">Tolte: {{ r.mansioni_tolte|join:", " }}</span>{% endif %}
+          {% if r.fuori_reparto %}<span class="is-att">Restano sul reparto di prima: {{ r.fuori_reparto|join:", " }}</span>{% endif %}
+          {% if r.da_assegnare %}<span class="is-att">Previste dal suo ruolo nel reparto nuovo, da assegnare: {{ r.da_assegnare|join:", " }}</span>{% endif %}
+          {% for a in r.avvisi %}<span class="is-ko">⚠ {{ a }}</span>{% endfor %}
+          {% if r.requisiti_nota %}<span class="pp-muto">{{ r.requisiti_nota }}</span>{% endif %}
+        </div>
+        {% if r.requisiti %}
+        <details class="pp-req"{% if r.requisiti.cambia_qualcosa %} open{% endif %}>
+          <summary>{% if r.requisiti.cambia_qualcosa %}Sicurezza: requisiti che cambiano{% else %}Sicurezza: i requisiti non cambiano{% endif %}</summary>
+          {% if r.requisiti.cambia_qualcosa %}
+          <ul>
+            {% for x in r.requisiti.rischi_acquisiti %}<li>Rischio in più: {{ x }}</li>{% endfor %}
+            {% for x in r.requisiti.rischi_persi %}<li>Rischio in meno: {{ x }}</li>{% endfor %}
+            {% for x in r.requisiti.corsi_nuovi %}<li>Corso: {{ x }}</li>{% endfor %}
+            {% for x in r.requisiti.corsi_non_piu_dovuti %}<li>Corso non più dovuto: {{ x }}</li>{% endfor %}
+            {% for x in r.requisiti.visite_nuove %}<li>Visita: {{ x }}</li>{% endfor %}
+            {% for x in r.requisiti.visite_non_piu_dovute %}<li>Visita non più dovuta: {{ x }}</li>{% endfor %}
+            {% for x in r.requisiti.dpi_nuovi %}<li>DPI: {{ x }}</li>{% endfor %}
+            {% for x in r.requisiti.dpi_non_piu_dovuti %}<li>DPI non più dovuto: {{ x }}</li>{% endfor %}
+            {% for x in r.requisiti.sds_da_leggere %}<li>Scheda di sicurezza da leggere: {{ x }}</li>{% endfor %}
+          </ul>
+          {% endif %}
+        </details>
+        {% endif %}
+      </article>
+      {% endfor %}
     </div>
   </section>
   {% endif %}
 
-  {% if is_admin and righe_modifiche %}
-  <section class="rc-panel rc-panel-warn pr-sez" id="applica">
-    <h2>Applica i cambiamenti</h2>
-    <p>Ogni riga passa dal percorso normale (spostamento organizzativo, ruoli in blocco, Mansionario) e il suo esito resta qui. La decorrenza vale per spostamenti e ruoli; centri di costo e mansioni cambiano subito. Una riga che non riesce non ferma le altre.{% if ha_ostacoli %} Le righe segnate «Non vale» non verranno applicate.{% endif %}</p>
-    <form method="post" action="{% url 'anagrafica:prospetto_applica' p.pk %}" class="rc-assegna" style="align-items:center;" data-hub-confirm="Applicare davvero {{ righe_modifiche|length }} cambiamenti?">
-      {% csrf_token %}
-      <label style="font-size:13px;">Decorrenza <input type="date" name="decorrenza" value="{{ oggi|date:'Y-m-d' }}" required></label>
-      <label style="font-size:13px;display:flex;gap:6px;align-items:center;"><input type="checkbox" name="conferma" value="1" required> Ho controllato il confronto</label>
-      <button type="submit" class="rc-btn rc-btn-primary">Applica</button>
-    </form>
-    <form method="post" action="{% url 'anagrafica:prospetto_annulla' p.pk %}" style="margin-top:8px;" data-hub-confirm="Archiviare il prospetto senza cambiare niente?">
-      {% csrf_token %}<button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Archivia senza applicare</button>
-    </form>
+  <section class="pp-pan" id="mansioni">
+    <h2>Mansioni toccate <span class="pp-conta">{{ mansioni|length }}</span></h2>
+    {% if mansioni %}{% include "anagrafica/partials/_prospetto_mansioni.html" with righe=mansioni %}{% else %}<span class="rc-none">Nessuna mansione cambia.</span>{% endif %}
+    <details style="margin-top:10px;">
+      <summary class="pp-link" style="font-size:13px;">Tutte le mansioni da guardare, dopo i cambiamenti ({{ mansioni_critiche|length }})</summary>
+      <div style="margin-top:8px;">{% include "anagrafica/partials/_prospetto_mansioni.html" with righe=mansioni_critiche %}</div>
+    </details>
+    <p class="pp-nota"><strong>Operativi</strong>: in lista al livello di soglia o sopra, solo persone in forza. <strong>Teste equivalenti</strong>: somma dei coefficienti delle persone. <strong>Carico</strong>: quanta parte del loro tempo, in media, gli operativi danno a questa mansione. È un segnale dai coefficienti, non una misura di ore. <strong>Uomo solo</strong>: meno di {{ totali.uomo_solo }} operativi.</p>
+    <p class="pp-nota" id="soglie">Soglie in uso: carico concentrato da {{ totali.soglia_concentrazione }}%, troppe mansioni oltre {{ totali.soglia_mansioni }}, uomo solo sotto {{ totali.uomo_solo }} operativi.{% if puo_soglie %} <a class="fmd-data-link" href="{% url 'anagrafica:skm_impostazioni' %}#sovraccarico">Cambiale nelle impostazioni</a>{% endif %}</p>
   </section>
+
+  <div class="pp-due">
+    {% if reparti %}
+    <section class="pp-pan" id="reparti">
+      <h2>Reparti toccati <span class="pp-conta">{{ reparti|length }}</span></h2>
+      <div class="pp-scroll">
+      <table class="pp-t" data-fm-table-skip="1">
+        <thead><tr><th>Reparto</th><th class="pp-num">Persone</th><th>Entrano</th><th>Escono</th>{% if puo_costi %}<th class="pp-num">RML oggi</th><th class="pp-num">Dopo</th>{% endif %}</tr></thead>
+        <tbody>
+          {% for r in reparti %}<tr><td><strong>{{ r.voce }}</strong>{% if r.resta_vuoto %}<div><span class="pp-pill is-ko">resta vuoto</span></div>{% endif %}</td><td class="pp-num">{{ r.persone_prima }} <span class="pp-freccia">→</span> <strong>{{ r.persone_dopo }}</strong></td><td>{{ r.entrano|join:", "|default:"—" }}</td><td>{{ r.escono|join:", "|default:"—" }}</td>{% if puo_costi %}<td class="pp-num">{{ r.rml_prima|floatformat:"2g" }}</td><td class="pp-num">{{ r.rml_dopo|floatformat:"2g" }}</td>{% endif %}</tr>{% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="pp-pan" id="centri">
+      <h2>Centri di costo</h2>
+      <div class="pp-scroll">
+      <table class="pp-t {% if ha_modifiche and not altro %}pp-solo-cambi{% endif %}" id="pp-centri" data-fm-table-skip="1">
+        <thead><tr><th>Centro di costo</th><th class="pp-num">Reparti</th><th class="pp-num">Persone</th>{% if puo_costi %}<th class="pp-num">RML oggi</th><th class="pp-num">RML dopo</th><th class="pp-num">€/h medio</th>{% endif %}{% if altro %}<th class="pp-num">{{ altro.nome }}</th>{% endif %}</tr></thead>
+        <tbody>
+          {% for r in centri %}
+          <tr class="{% if not r.cambia %}pp-fermo{% endif %}">
+            <td>{% if r.senza %}<em>{{ r.voce }}</em>{% else %}<strong>{{ r.voce }}</strong>{% endif %}</td>
+            <td class="pp-num">{{ r.reparti_prima }}{% if r.reparti_prima != r.reparti_dopo %} <span class="pp-freccia">→</span> {{ r.reparti_dopo }}{% endif %}</td>
+            <td class="pp-num">{{ r.persone_prima }}{% if r.delta %} <span class="pp-freccia">→</span> <strong class="pp-cambia">{{ r.persone_dopo }}</strong>{% endif %}</td>
+            {% if puo_costi %}
+            <td class="pp-num">{{ r.rml_prima|floatformat:"2g" }}</td><td class="pp-num">{{ r.rml_dopo|floatformat:"2g" }}{% if r.rml_delta %} <span class="pp-cambia">({% if r.rml_delta > 0 %}+{% endif %}{{ r.rml_delta|floatformat:"2g" }})</span>{% endif %}</td>
+            <td class="pp-num">{{ r.medio_prima|floatformat:"2g"|default:"—" }}{% if r.medio_prima != r.medio_dopo %} <span class="pp-freccia">→</span> {{ r.medio_dopo|floatformat:"2g"|default:"—" }}{% endif %}</td>
+            {% endif %}
+            {% if altro %}<td class="pp-num">{{ r.persone_altro }}{% if puo_costi %} · {{ r.rml_altro|floatformat:"2g" }}{% endif %}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% if ha_modifiche and not altro %}<button type="button" class="pp-link" id="pp-mostra-centri" style="margin-top:8px;">Mostra anche i centri che non cambiano</button>{% endif %}
+      {% if puo_costi %}<p class="pp-nota">RML e costo seguono la persona: spostarla cambia dove finisce il costo, non quanto vale. Il totale resta lo stesso.</p>{% endif %}
+    </section>
+  </div>
+
+  <div class="pp-due" id="persone-carico">
+    <section class="pp-pan">
+      <h2>Persone chiave dopo <span class="pp-conta">{{ persone_chiave|length }}</span></h2>
+      <ul class="pp-elenco">{% for x in persone_chiave %}<li><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' x.id %}">{{ x.nome }}</a><span>{{ x.mansioni|join:", " }}</span></li>{% empty %}<li>Nessuna</li>{% endfor %}</ul>
+      <p class="pp-nota">Unico operativo su una mansione.</p>
+    </section>
+    <section class="pp-pan">
+      <h2>Su troppe mansioni <span class="pp-conta">{{ persone_su_troppe|length }}</span></h2>
+      <ul class="pp-elenco">{% for x in persone_su_troppe %}<li><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' x.id %}">{{ x.nome }}</a><span>{{ x.n }} mansioni</span></li>{% empty %}<li>Nessuna</li>{% endfor %}</ul>
+      <p class="pp-nota">Oltre {{ totali.soglia_mansioni }} mansioni a testa.</p>
+    </section>
+  </div>
+
+  {% if is_admin and righe_modifiche %}
+  <section class="pp-pan pp-applica" id="applica">
+    <h2>Conferma</h2>
+    <div class="pp-applica-griglia">
+      <div>
+        <p style="margin:0 0 10px;font-size:13px;line-height:1.55;">Ogni riga passa dal percorso normale (spostamento organizzativo, ruoli in blocco, Mansionario) e il suo esito resta nella prova. La decorrenza vale per spostamenti e ruoli; centri di costo e mansioni cambiano subito. Una riga che non riesce non ferma le altre.{% if ha_ostacoli %} Le righe segnate «Non vale» non verranno applicate.{% endif %}</p>
+        <div class="pp-check">
+          <div><span>Cambiamenti</span><strong>{{ righe_modifiche|length }}</strong></div>
+          <div><span>Avvisi da guardare</span><a class="fmd-data-link" href="#confronto">{{ avvisi|length }}</a></div>
+          <div><span>Non abilitati dopo</span><a class="fmd-data-link" href="#formazione">{{ formazione_totali.non_abilitati }}</a></div>
+          <div><span>Sessioni formative da aprire, dalle richieste di assegnazione</span><a class="fmd-data-link" href="#formazione">{{ formazione_totali.sessioni }}</a></div>
+        </div>
+      </div>
+      <div>
+        <form method="post" action="{% url 'anagrafica:prospetto_applica' p.pk %}" class="hub-form-stack" data-hub-confirm="Applicare davvero {{ righe_modifiche|length }} cambiamenti?">
+          {% csrf_token %}
+          <div class="hub-field"><label for="pp-dec">Decorrenza</label><input type="date" id="pp-dec" name="decorrenza" value="{{ oggi|date:'Y-m-d' }}" required></div>
+          <label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" name="conferma" value="1" required> Ho controllato il confronto</label>
+          <button type="submit" class="pp-btn-applica">Applica {{ righe_modifiche|length }} cambiament{{ righe_modifiche|length|pluralize:"o,i" }}</button>
+        </form>
+        <form method="post" action="{% url 'anagrafica:prospetto_annulla' p.pk %}" style="margin-top:8px;" data-hub-confirm="Archiviare la prova senza cambiare niente?">
+          {% csrf_token %}<button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm" style="width:100%;">Archivia senza applicare</button>
+        </form>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if is_admin %}
+  <div class="pp-cassetto-velo" data-pp-velo hidden></div>
+  <aside class="pp-cassetto" id="pp-cassetto" aria-label="Aggiungi un cambiamento" hidden>
+    <form method="post" action="{% url 'anagrafica:prospetto_aggiungi' p.pk %}" style="display:contents;" data-pp-form>
+      {% csrf_token %}
+      <div class="pp-cassetto-testa"><strong>Aggiungi un cambiamento</strong><button type="button" class="pp-x" data-pp-chiudi aria-label="Chiudi">×</button></div>
+      <div class="pp-cassetto-corpo">
+        <div>
+          <span class="pp-passo">1 · Che cosa</span>
+          <div class="pp-tipi">
+            <label><input type="radio" name="tipo" value="PERSONA_REPARTO" checked><span><strong>Persone → reparto</strong><span>Spostamento organizzativo</span></span></label>
+            <label><input type="radio" name="tipo" value="PERSONA_MANSIONE"><span><strong>Persone → mansione</strong><span>Entrano o escono</span></span></label>
+            <label><input type="radio" name="tipo" value="PERSONA_RUOLO"><span><strong>Ruolo</strong><span>Aggiungi, sostituisci, chiudi</span></span></label>
+            <label><input type="radio" name="tipo" value="REPARTO_CENTRO"><span><strong>Reparto → centro di costo</strong><span>Dove finisce il costo</span></span></label>
+            <label><input type="radio" name="tipo" value="MANSIONE_REPARTO"><span><strong>Mansione → reparto</strong><span>Sposta la mansione</span></span></label>
+          </div>
+        </div>
+
+        <div data-pp-per="PERSONA_REPARTO PERSONA_MANSIONE PERSONA_RUOLO">
+          <span class="pp-passo">2 · Chi</span>
+          {% include "anagrafica/partials/_prospetto_persone.html" %}
+        </div>
+
+        <div data-pp-per="PERSONA_REPARTO" class="pp-campo-form">
+          <span class="pp-passo">3 · Dove vanno</span>
+          <label class="pp-lab" for="pp-area1">Reparto</label>
+          <select id="pp-area1" name="area" required><option value="">Scegli…</option>{% for a in scelte.aree %}<option value="{{ a.pk }}">{{ a.nome }}{% if not a.reparto_id %} (senza reparto del portale){% endif %}</option>{% endfor %}</select>
+          <span class="pp-lab" style="margin-top:6px;">Le mansioni del reparto di prima</span>
+          <div class="pp-scelte">
+            <label><input type="radio" name="mansioni" value="lascia" checked><span>Le lasciano<small>Escono dalle liste</small></span></label>
+            <label><input type="radio" name="mansioni" value="tiene"><span>Le tengono<small>Restano anche lì</small></span></label>
+          </div>
+        </div>
+
+        <div data-pp-per="PERSONA_MANSIONE" class="pp-campo-form">
+          <span class="pp-passo">3 · Quale mansione</span>
+          <input type="search" class="pp-input" data-pp-filtra="pp-mans1" placeholder="Filtra le mansioni…" aria-label="Filtra le mansioni">
+          <select id="pp-mans1" name="mansione" required size="6" style="height:auto;padding:4px;"><option value="">Scegli…</option>{% for m in scelte.mansioni %}<option value="{{ m.pk }}">{{ m.nome }}</option>{% endfor %}</select>
+          <div class="pp-scelte">
+            <label><input type="radio" name="modo" value="entra" checked><span>Entrano<small>Vanno in lista</small></span></label>
+            <label><input type="radio" name="modo" value="togli"><span>Escono<small>Tolti dalla lista</small></span></label>
+          </div>
+          <label class="pp-lab" for="pp-liv">Livello, per chi entra</label>
+          <select id="pp-liv" name="livello">{% for l in scelte.livelli %}<option value="{{ l }}"{% if l == "U" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        </div>
+
+        <div data-pp-per="PERSONA_RUOLO" class="pp-campo-form">
+          <span class="pp-passo">3 · Quale ruolo</span>
+          <select name="ruolo" required aria-label="Ruolo"><option value="">Scegli…</option>{% for r in scelte.ruoli %}<option value="{{ r.pk }}">{% if r.sigla %}{{ r.sigla }} · {% endif %}{{ r.nome }}</option>{% endfor %}</select>
+          <label class="pp-lab" for="pp-modo-r">Che cosa fare</label>
+          <select id="pp-modo-r" name="modo">{% for k, v in scelte.modi_ruolo %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+        </div>
+
+        <div data-pp-per="REPARTO_CENTRO" class="pp-campo-form">
+          <span class="pp-passo">2 · Reparto e centro di costo</span>
+          <select name="area" required aria-label="Reparto"><option value="">Reparto…</option>{% for a in scelte.aree %}<option value="{{ a.pk }}">{{ a.nome }}</option>{% endfor %}</select>
+          <select name="centro" aria-label="Centro di costo"><option value="">Senza centro di costo</option>{% for c in scelte.centri %}<option value="{{ c.pk }}">{{ c.nome }}</option>{% endfor %}</select>
+        </div>
+
+        <div data-pp-per="MANSIONE_REPARTO" class="pp-campo-form">
+          <span class="pp-passo">2 · Mansione e reparto</span>
+          <input type="search" class="pp-input" data-pp-filtra="pp-mans2" placeholder="Filtra le mansioni…" aria-label="Filtra le mansioni">
+          <select id="pp-mans2" name="mansione" required size="6" style="height:auto;padding:4px;"><option value="">Scegli…</option>{% for m in scelte.mansioni_spostabili %}<option value="{{ m.pk }}">{{ m.nome }}</option>{% endfor %}</select>
+          <select name="area" required aria-label="Reparto di destinazione"><option value="">Nel reparto…</option>{% for a in scelte.aree %}<option value="{{ a.pk }}">{{ a.nome }}</option>{% endfor %}</select>
+        </div>
+
+        <div class="pp-riassunto" data-pp-riassunto>Scegli che cosa provare.</div>
+      </div>
+      <div class="pp-cassetto-piede">
+        <button type="button" class="rc-btn rc-btn-ghost" data-pp-chiudi>Annulla</button>
+        <button type="submit" class="rc-btn rc-btn-primary">Aggiungi alla prova</button>
+      </div>
+    </form>
+  </aside>
   {% endif %}
 </div>
 <script>
 (function () {
-  var mostra = document.getElementById('pr-mostra-centri');
+  var mostra = document.getElementById('pp-mostra-centri');
   if (mostra) mostra.addEventListener('click', function () {
-    var tolta = document.getElementById('pr-centri').classList.toggle('pr-solo-cambi');
-    mostra.textContent = tolta ? 'Mostra anche i centri che non cambiano' : 'Mostra solo i centri che cambiano';
+    var solo = document.getElementById('pp-centri').classList.toggle('pp-solo-cambi');
+    mostra.textContent = solo ? 'Mostra anche i centri che non cambiano' : 'Mostra solo i centri che cambiano';
   });
-  document.querySelectorAll('.pr-filtro').forEach(function (campo) {
-    var box = campo.parentNode.querySelector('.pr-persone');
+  var cassetto = document.getElementById('pp-cassetto');
+  if (!cassetto) return;
+  var velo = document.querySelector('[data-pp-velo]');
+  var form = cassetto.querySelector('[data-pp-form]');
+  function apri() { cassetto.hidden = false; velo.hidden = false; document.body.style.overflow = 'hidden'; }
+  function chiudi() { cassetto.hidden = true; velo.hidden = true; document.body.style.overflow = ''; }
+  document.querySelectorAll('[data-pp-apri-cassetto]').forEach(function (b) { b.addEventListener('click', apri); });
+  cassetto.querySelectorAll('[data-pp-chiudi]').forEach(function (b) { b.addEventListener('click', chiudi); });
+  velo.addEventListener('click', chiudi);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !cassetto.hidden) chiudi(); });
+
+  var gruppi = cassetto.querySelectorAll('[data-pp-per]');
+  function tipo() { var t = form.querySelector('input[name=tipo]:checked'); return t ? t.value : ''; }
+  function riassunto() {
+    var t = tipo(), n = cassetto.querySelectorAll('input[name=persone]:checked').length, testo = '';
+    function scelta(sel) { var s = cassetto.querySelector('[data-pp-per~="' + t + '"] ' + sel); return s && s.value ? s.options[s.selectedIndex].text : ''; }
+    if (t === 'PERSONA_REPARTO') testo = (n ? n + (n === 1 ? ' persona' : ' persone') : 'Nessuna persona') + (scelta('select[name=area]') ? ' → ' + scelta('select[name=area]') : ', scegli il reparto');
+    else if (t === 'PERSONA_MANSIONE') testo = (n ? n + (n === 1 ? ' persona' : ' persone') : 'Nessuna persona') + (scelta('select[name=mansione]') ? ' · ' + scelta('select[name=mansione]') : ', scegli la mansione');
+    else if (t === 'PERSONA_RUOLO') testo = (n ? n + (n === 1 ? ' persona' : ' persone') : 'Nessuna persona') + (scelta('select[name=ruolo]') ? ' · ' + scelta('select[name=ruolo]') : ', scegli il ruolo');
+    else if (t === 'REPARTO_CENTRO') testo = (scelta('select[name=area]') || 'Scegli il reparto') + ' → ' + (scelta('select[name=centro]') || 'senza centro di costo');
+    else testo = (scelta('select[name=mansione]') || 'Scegli la mansione') + ' → ' + (scelta('select[name=area]') || 'scegli il reparto');
+    cassetto.querySelector('[data-pp-riassunto]').textContent = testo + '. Il confronto si aggiorna appena la aggiungi.';
+  }
+  function mostraTipo() {
+    var t = tipo();
+    gruppi.forEach(function (g) {
+      var on = g.getAttribute('data-pp-per').split(' ').indexOf(t) !== -1;
+      g.hidden = !on;
+      g.querySelectorAll('input, select').forEach(function (el) { if (el.type !== 'search') el.disabled = !on; });
+    });
+    riassunto();
+  }
+  form.querySelectorAll('input[name=tipo]').forEach(function (r) { r.addEventListener('change', mostraTipo); });
+  form.addEventListener('change', riassunto);
+
+  cassetto.querySelectorAll('[data-pp-filtra]').forEach(function (campo) {
+    var sel = document.getElementById(campo.getAttribute('data-pp-filtra'));
     campo.addEventListener('input', function () {
-      var t = campo.value.trim().toLowerCase();
-      box.querySelectorAll('.pr-gruppo').forEach(function (g) {
-        var nome = g.querySelector('legend').textContent.toLowerCase(), visibili = 0;
-        g.querySelectorAll('.pr-persona').forEach(function (p) {
-          var ok = !t || nome.indexOf(t) !== -1 || p.textContent.toLowerCase().indexOf(t) !== -1;
+      var q = campo.value.trim().toLowerCase();
+      Array.prototype.forEach.call(sel.options, function (o) { if (o.value) o.hidden = q && o.text.toLowerCase().indexOf(q) === -1; });
+    });
+  });
+
+  var pick = cassetto.querySelector('[data-pp-pick]');
+  if (pick) {
+    var chips = pick.querySelector('[data-pp-chips]'), conta = pick.querySelector('[data-pp-n]');
+    function apriGruppo(g, si) { g.toggleAttribute('data-aperto', si); g.querySelector('.pp-gruppo-corpo').hidden = !si; g.querySelector('[data-pp-apri]').setAttribute('aria-expanded', si ? 'true' : 'false'); }
+    function aggiorna() {
+      var scelte = pick.querySelectorAll('input[name=persone]:checked');
+      conta.textContent = scelte.length ? scelte.length + (scelte.length === 1 ? ' scelta' : ' scelte') : 'Nessuna scelta';
+      chips.innerHTML = '';
+      scelte.forEach(function (c) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'pp-chip'; b.textContent = c.getAttribute('data-nome') + ' ×';
+        b.setAttribute('aria-label', 'Togli ' + c.getAttribute('data-nome'));
+        b.addEventListener('click', function () { c.checked = false; aggiorna(); riassunto(); });
+        chips.appendChild(b);
+      });
+    }
+    pick.querySelectorAll('[data-pp-gruppo]').forEach(function (g) {
+      g.querySelector('[data-pp-apri]').addEventListener('click', function () { apriGruppo(g, !g.hasAttribute('data-aperto')); });
+      g.querySelector('[data-pp-tutti]').addEventListener('click', function () {
+        apriGruppo(g, true);
+        var visibili = Array.prototype.filter.call(g.querySelectorAll('.pp-persona'), function (p) { return p.style.display !== 'none'; });
+        var tutte = visibili.every(function (p) { return p.querySelector('input').checked; });
+        visibili.forEach(function (p) { p.querySelector('input').checked = !tutte; });
+        aggiorna(); riassunto();
+      });
+    });
+    pick.addEventListener('change', aggiorna);
+    pick.querySelector('[data-pp-cerca]').addEventListener('input', function (e) {
+      var q = e.target.value.trim().toLowerCase();
+      pick.querySelectorAll('[data-pp-gruppo]').forEach(function (g) {
+        var nomeGruppo = g.querySelector('.pp-gruppo-nome').textContent.toLowerCase(), visibili = 0;
+        g.querySelectorAll('.pp-persona').forEach(function (p) {
+          var ok = !q || nomeGruppo.indexOf(q) !== -1 || p.textContent.toLowerCase().indexOf(q) !== -1;
           p.style.display = ok ? '' : 'none';
           if (ok) visibili++;
         });
         g.style.display = visibili ? '' : 'none';
+        apriGruppo(g, !!q && visibili > 0);
       });
     });
-  });
-  document.querySelectorAll('.pr-tutti').forEach(function (tutti) {
-    tutti.addEventListener('change', function () {
-      tutti.closest('.pr-gruppo').querySelectorAll('.pr-persona').forEach(function (p) {
-        if (p.style.display !== 'none') p.querySelector('input').checked = tutti.checked;
-      });
-    });
-  });
+    aggiorna();
+  }
+  mostraTipo();
+  if (location.hash === '#aggiungi' && {{ righe_modifiche|length }} === 0) apri();
 })();
 </script>
 {% endblock %}

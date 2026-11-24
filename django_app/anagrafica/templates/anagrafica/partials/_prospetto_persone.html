@@ -1,12 +1,23 @@
-<div class="hub-field">
-  <label>Persone</label>
-  <input type="search" class="pr-filtro" placeholder="Filtra per nome o reparto…" aria-label="Filtra le persone">
-  <div class="pr-persone">
+<div class="pp-pick" data-pp-pick>
+  <div class="pp-pick-top">
+    <label class="pp-lab" for="pp-cerca">Persone</label>
+    <span class="pp-pick-n" data-pp-n>Nessuna scelta</span>
+  </div>
+  <input type="search" id="pp-cerca" class="pp-input" data-pp-cerca placeholder="Cerca per nome, reparto o ruolo…" autocomplete="off">
+  <div class="pp-chips" data-pp-chips></div>
+  <div class="pp-lista">
     {% for g in scelte.persone_gruppi %}
-    <fieldset class="pr-gruppo">
-      <legend><label><input type="checkbox" class="pr-tutti"> {{ g.nome }} ({{ g.persone|length }})</label></legend>
-      {% for x in g.persone %}<label class="pr-persona"><input type="checkbox" name="persone" value="{{ x.id }}"> {{ x.nome }}</label>{% endfor %}
-    </fieldset>
+    <div class="pp-gruppo" data-pp-gruppo>
+      <div class="pp-gruppo-testa">
+        <button type="button" class="pp-gruppo-nome" data-pp-apri aria-expanded="false"><span class="pp-freccina" aria-hidden="true">▸</span>{{ g.nome }} <span class="pp-muto">{{ g.persone|length }}</span></button>
+        <button type="button" class="pp-link" data-pp-tutti>Tutto il reparto</button>
+      </div>
+      <div class="pp-gruppo-corpo" hidden>
+        {% for x in g.persone %}
+        <label class="pp-persona"><input type="checkbox" name="persone" value="{{ x.id }}" data-nome="{{ x.nome }}"><span class="pp-persona-nome">{{ x.nome }}</span><span class="pp-muto">{{ x.info }}</span></label>
+        {% endfor %}
+      </div>
+    </div>
     {% endfor %}
   </div>
 </div>

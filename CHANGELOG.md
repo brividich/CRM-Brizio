@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: «Prova un cambiamento» in una pagina sola, con competenze e formazione
+
+- `anagrafica/templates/anagrafica/pages/prospetto.html`, `partials/_prospetto_persone.html`, `partials/_prospetto_mansioni.html`: pagina unica ridisegnata (testata, quattro passi, cambiamenti a schede, indicatori «oggi → dopo» a riquadri, persone a schede, mansioni, reparti e centri affiancati, persone chiave e su troppe mansioni, conferma). Il modulo dei cinque riquadri diventa il pannello laterale «Aggiungi cambiamento» (che cosa, chi, dove): caselle allineate al nome, reparti richiudibili, «Tutto il reparto», persone scelte come chip, ruoli e numero di mansioni accanto al nome, mansioni filtrabili, riassunto della scelta. Righe dei cambiamenti non più tagliate.
+- `anagrafica/services/prospetto_struttura.py`: nuova sezione «Competenze e formazione» (`_formazione`): per chi entra in una mansione o se la vede prevista dal ruolo nel reparto nuovo, competenze con livello di oggi, minimo, requisito formale (corso, qualifica, MOD.128) ed esito; «già presente» con la regola delle sessioni formative (anche il livello valutato altrove sulla stessa voce del catalogo); richieste e sessioni già aperte; totali (da acquisire, sessioni da aprire, non abilitati, mansioni senza competenze).
+- `anagrafica/views_prospetto.py`: nel selettore delle persone ruoli e numero di mansioni.
+- `core/guide_moduli/contenuti/anagrafica.py`: guida del Prospetto aggiornata. `anagrafica/tests_prospetto.py`: test della sezione formazione.
+
 ### Assistente AI: «Il tuo brief di oggi» pronto all'alba
 
 - **Brief preparato alle 6:10 dal cluster** per chi lo ha aperto negli ultimi 14 giorni (`ai_assistant/daily_brief_notturno.py`, task `ai_assistant.tasks.run_daily_brief_notturno`, schedule `ai_daily_brief_notturno`). Prima si generava alla prima apertura della home: 20-25 s di Ollama a persona, ogni mattina. Usa gli stessi dati e permessi della persona e va nella stessa cache della pagina. Chi non è in elenco lo genera come prima; ↻ lo rigenera con i dati di adesso.
