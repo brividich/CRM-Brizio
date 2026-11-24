@@ -319,6 +319,17 @@ def costruisci(sigla: str, *, oggi=None, con_personale: bool = True, ordine=None
             aperta("Processo senza macchine", p.nome, "nessuna macchina collegata", apri(p, "#attrezzature"))
         if con_personale and not any(ab.processo_id == p.pk and ab.stato == ab.STATO_ATTIVA for ab in abilitazioni):
             aperta("Processo senza persone abilitate", p.nome, "nessuna abilitazione attiva", apri(p))
+    def _nuove_revisioni():
+        from anagrafica.services.mpq_sgi import stato_riferimenti
+        from procedure_refresh.models import ProcedureDocument
+
+        catalogo = list(ProcedureDocument.objects.filter(is_active=True).prefetch_related("revisions"))
+        return [(p, r) for p in elenco for r in stato_riferimenti(p, catalogo=catalogo) if r["nuova_revisione"]]
+
+    for p, r in _sicuro(avvisi, "Revisioni dei documenti SGI", _nuove_revisioni, []):
+        aperta("Nuova revisione di un documento", r["rif"].codice,
+               f"rev. {r['corrente']} (verificata {r['rif'].revisione_vista}): ricontrolla persone e Technical Plan"
+               + (f" · {p.nome}" if len(elenco) > 1 else ""), apri(p, "#riferimenti"))
     for p, r in righe_macchine:
         a, st = r["asset"], r["stato"]
         rif = f"{a.asset_tag} — {a.name}"

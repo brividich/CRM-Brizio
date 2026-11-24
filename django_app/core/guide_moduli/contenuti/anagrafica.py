@@ -731,6 +731,20 @@ GUIDA = {
                     ("Esporta", "menu «Esporta» (Excel o PDF, filtrati o tutto) nel registro processi del "
                                 "cruscotto, nella matrice persone × processi, nell'elenco qualificati e nelle parti "
                                 "lavorate di un registro MOD.176."),
+                    ("Riferimenti e registro SGI", "nel campo «Nuovo codice» scrivi parte del codice o del titolo "
+                                                   "e scegli il documento dal registro SGI (con la revisione). "
+                                                   "Accanto a ogni riferimento c'è la revisione in vigore, oppure «non "
+                                                   "nel registro SGI» (va bene per un'approvazione del cliente). "
+                                                   "«Citati nei documenti di riferimento» propone con un clic i moduli "
+                                                   "citati nel testo, per esempio MOD.161 e MOD.176 citati dalla MT CN 69."),
+                    ("Nuova revisione", "se un documento di riferimento passa a una revisione nuova, accanto al "
+                                        "codice compare «nuova rev. … (verificata …)», la sezione dedicata lo mette "
+                                        "in «Da sistemare» e la mail settimanale MOD.128 alla Qualità lo elenca. "
+                                        "Ricontrollati persone e Technical Plan, premi «Verificata»."),
+                    ("Procedure in alto", "sulle pagine dei processi qualificati e delle sezioni dedicate in Asset "
+                                          "compaiono le procedure SGI collegate al modulo «Processi qualificati "
+                                          "(MOD.128)»: si collegano in Procedure › «Collegamenti ai moduli», dove i "
+                                          "documenti usati come riferimento di un processo sono già proposti."),
                     ("MOD.176 in officina", "voce in Competenze › Qualifiche: i registri utensili aperti a schede "
                                             "grandi, adatte al tablet. Cerca il kit, l'utensile o il P/N, scrivi P/N, "
                                             "quantità, OP e matricola e premi «Registra». Con il TCP raggiunto la "

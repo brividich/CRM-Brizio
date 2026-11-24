@@ -390,3 +390,87 @@ class ConfigurazioneProcessoTests(TestCase):
         req.user = self.admin
         self.assertEqual(EXPORT_SPECS["mpq_processi"].dataset(req, "filtered"), [])
         self.assertContains(self.client.get(reverse("anagrafica:mpq_cruscotto")), 'anagrafica/esporta/mpq_processi/')
+
+
+def _doc_sgi(code, title, rev="A"):
+    from datetime import date
+
+    from procedure_refresh.models import DocumentType, ProcedureDocument, ProcedureRevision, SourceType
+
+    doc = ProcedureDocument.objects.create(code=code, title=title, document_type=DocumentType.ALTRO)
+    ProcedureRevision.objects.create(
+        document=doc, revision_code=rev, revision_date=date(2026, 1, 1), effective_date=date(2026, 1, 1),
+        source_type=SourceType.FILESERVER, source_path="", file_name=f"{code}.pdf", file_hash="h", is_current=True)
+    return doc
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RiferimentiSgiTests(TestCase):
+    """Riferimenti MOD.128 ↔ registro SGI: ricerca, suggeriti, nuova revisione, procedure sulle pagine."""
+
+    setUp = SezioneProcessoTests.setUp
+
+    def _nuova_revisione(self, doc, codice):
+        from datetime import date
+
+        from procedure_refresh.models import ProcedureRevision, SourceType
+
+        doc.revisions.update(is_current=False)
+        ProcedureRevision.objects.create(
+            document=doc, revision_code=codice, revision_date=date(2026, 6, 1), effective_date=date(2026, 6, 1),
+            source_type=SourceType.FILESERVER, source_path="", file_name=f"{doc.code}-{codice}.pdf", file_hash="h2",
+            is_current=True)
+
+    def test_aggiunta_dal_registro_e_nuova_revisione(self):
+        doc = _doc_sgi("MT CN 69", "Foratura su particolari critici sintetica", rev="A")
+        url = reverse("anagrafica:mpq_riferimento_add", args=[self.processo.pk])
+        self.client.post(url, {"codice": "MT CN 69", "tipo": "SPECIFICA"})
+        rif = self.processo.riferimenti.get(codice="MT CN 69")
+        self.assertEqual(rif.revisione_vista, "A")
+        risposta = self.client.post(url, {"codice": "COP-SYN-1", "tipo": "APPROVAZIONE"}, follow=True)
+        self.assertContains(risposta, "non è nel registro SGI")
+        self._nuova_revisione(doc, "B")
+        dettaglio = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.processo.pk]))
+        self.assertContains(dettaglio, "nuova rev. B (verificata A)")
+        sezione = sezione_processo.costruisci("P11TF12")
+        aperte = next(s for s in sezione["sezioni"] if s.codice == "aperte")
+        self.assertIn("Nuova revisione di un documento", [r[1] for r in aperte.righe])
+        from anagrafica.services.mpq_scadenze import documenti_da_verificare
+
+        self.assertEqual([r["rif"].codice for r in documenti_da_verificare()], ["MT CN 69"])
+        self.client.post(reverse("anagrafica:mpq_riferimento_verificato", args=[rif.pk]))
+        rif.refresh_from_db()
+        self.assertEqual(rif.revisione_vista, "B")
+        self.assertEqual(documenti_da_verificare(), [])
+
+    def test_suggeriti_dal_grafo_e_ricerca(self):
+        from procedure_refresh.models import SgiRiferimento
+
+        mt = _doc_sgi("MT CN 69", "Istruzione sintetica")
+        mod = _doc_sgi("MOD.161", "Verifica macchina sintetica")
+        SgiRiferimento.objects.create(da_revisione=mt.revisions.get(), codice_citato="MOD.161", a_documento=mod,
+                                      risolto=True)
+        self.processo.riferimenti.create(codice="MT CN 69", tipo="SPECIFICA", revisione_vista="A")
+        dettaglio = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.processo.pk]))
+        self.assertContains(dettaglio, "+ MOD.161")
+        self.processo.riferimenti.create(codice="MOD. 161", tipo="SPECIFICA")
+        dettaglio = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.processo.pk]))
+        self.assertNotContains(dettaglio, "+ MOD.161")
+        trovati = self.client.get(reverse("anagrafica:mpq_sgi_cerca"), {"q": "mod.16"}).json()["risultati"]
+        self.assertEqual([d["codice"] for d in trovati], ["MOD.161"])
+        self.client.force_login(_utente("sgi.nessuno"))
+        with patch("anagrafica.views_mpq._check_mpq_permission", return_value=False), \
+             patch("core.middleware.acl_allows_path", return_value=True):
+            negato = self.client.get(reverse("anagrafica:mpq_sgi_cerca"), {"q": "mod"})
+        self.assertEqual(negato.status_code, 403)
+
+    def test_procedure_sulle_pagine_mod128(self):
+        from procedure_refresh import collegamenti as col
+
+        self.assertEqual(col.modulo_del_percorso("/anagrafica/mod128/12/").chiave, "processi_qualificati")
+        self.assertEqual(col.modulo_del_percorso("/assets/processi/P11TF12/").chiave, "processi_qualificati")
+        self.assertEqual(col.modulo_del_percorso("/anagrafica/persone/").chiave, "anagrafica")
+        doc = _doc_sgi("MT CN 69", "Istruzione sintetica")
+        self.processo.riferimenti.create(codice="MT CN 69", tipo="SPECIFICA")
+        proposte = [p for p in col.proposte([doc]) if p["modulo"].chiave == "processi_qualificati"]
+        self.assertEqual(len(proposte), 1)
