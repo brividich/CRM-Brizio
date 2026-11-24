@@ -376,10 +376,12 @@ class SchedaUnicaTests(LavorazioneBase):
         pagina = self.client.get(reverse("tickets:gestione_detail", args=[ticket.pk]))
         self.assertNotContains(pagina, "tkt-tab-btn")
         for atteso in ('data-panel="overview"', 'data-panel="activity"', 'data-panel="interventi"',
-                       'id="ag-save"', 'id="an-save"', 'id="commento-interna"', "Ricambio ordinato", 'id="tkt-barra"'):
+                       'id="ag-save"', 'id="ag-clear"', 'id="stato-dialog"', 'id="commento-interna"', "Ricambio ordinato", 'id="tkt-barra"'):
             with self.subTest(atteso=atteso):
                 self.assertContains(pagina, atteso)
         self.assertNotContains(pagina, "Cabina di regia")
+        # I dati di chiusura si compilano in «Risolvi»: il riquadro a parte compare solo dopo.
+        self.assertNotContains(pagina, 'id="an-save"')
 
     def test_commento_interno_dalla_scheda(self):
         ticket = self._ticket()

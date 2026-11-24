@@ -1238,6 +1238,11 @@ def ticket_dashboard(request, sezione: str = "miei"):
         "sezione":       sezione,
         "is_admin":      is_admin,
         "is_gestore":    is_gestore,
+        # Tipi che la persona gestisce: solo quelli aprono la pagina di gestione.
+        # Un gestore della sola manutenzione apre i propri ticket IT nella scheda
+        # del richiedente (la gestione IT gli risponderebbe 403).
+        "tipi_gestiti":  [t for t in (TipoTicket.IT, TipoTicket.MAN)
+                          if is_admin or _can_manage_tickets(request, t)],
         "can_open_it":   can_open_it,
         "can_open_man":  can_open_man,
         "stati":         StatoTicket.choices,
@@ -2942,7 +2947,7 @@ def api_asset(request):
         "asset_id":   asset_obj.pk if asset_obj else None,
         "asset_name": asset_obj.name if asset_obj else "",
         "asset_tag":  asset_obj.asset_tag if asset_obj else "",
-        "asset_url":  f"/assets/{asset_obj.pk}/" if asset_obj else "",
+        "asset_url":  reverse("assets:asset_view", args=[asset_obj.pk]) if asset_obj else "",
         "asset_lib":  ticket.asset_descrizione_libera,
     })
 

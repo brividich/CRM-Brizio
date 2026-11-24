@@ -9,11 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
-### Audit 22/11, proposte P15 e P3: assistente AI e QR pubblico (blocco 8c)
+### Ticket: pagina di gestione riordinata, ticket IT dei gestori manutenzione, «Rimuovi» asset (24/11)
 
-- **Assistente AI (P15):** il limite di richieste contemporanee (`OLLAMA_MAX_CONCURRENT_REQUESTS`, 3) vale per tutto il portale e non per processo: con 4 processi Ollama non riceve più fino a 12 richieste insieme. File: `ai_assistant/services.py`, `ai_assistant/tests_limite_condiviso.py`.
-- **QR pubblico degli asset (P3):** dal pannello QR si sceglie quali cartelle di documenti si vedono senza login (di base solo «Manuali») e se chi inquadra il QR può caricare file sui ticket (di base no). Anche il download a token rispetta la scelta. «Rigenera link» c'era già. File: `assets/models.py`, `assets/migrations/0173_qr_pubblico_contenuti.py`, `assets/services/asset_qr.py`, `assets/views/qr_labels.py`, `assets/views/documents.py`, `assets/views_asset_qr.py`, `assets/templates/assets/partials/qr_panel.html`, `assets/templates/assets/partials/qr_dialog.html`, `assets/templates/assets/pages/guida.html`; test `assets/tests_security.py`, `tickets/tests_allegati_validazione.py`. **Migrazione `assets 0173`.** Dopo il deploy i link pubblici già attivi mostrano solo i Manuali e non accettano caricamenti finché non si spunta nel pannello.
-- Guide: Centro guide Asset, guida Asset; `docs/moduli/assets.md`, `docs/moduli/ai_assistant.md`.
+- **Gestione ticket, una sola barra azioni:** «Prendo io/Risolvi», «Metti in attesa», «Chiudi ticket», «Assegnato a: …» (tecnico e fornitore in un menu a comparsa) e «⋯» con «Annulla ticket…». I cambi di stato chiedono nota, data prevista o motivo (obbligatorio per l'annullamento) in una finestra al centro. Tolto il riquadro «Aggiorna stato / Assegna».
+- **Dati senza doppioni:** componente, fermo, causa e ricorrente si compilano in «Risolvi». Il riquadro «Dati di chiusura» (ex «Dati tecnici per KPI») compare solo da Risolto in poi, per correggerli. Nel modulo intervento componente, procedura, costi e rapportino stanno in un blocco richiudibile.
+- **Testata e lato senza ripetizioni:** la testata mostra richiedente (con link all'anagrafica) e data di apertura con «Correggi». Il riquadro «Dettagli» tiene solo ciò che manca altrove. Via l'etichetta «Registro manutenzione». La manutenzione straordinaria con OdL passa a destra sotto l'asset; il Copilota compare solo sui ticket aperti e non assegnati. «Non ancora» diventa «Chiudi pannello»; sotto «Segna risolto» c'è cosa succede dopo. CSS in testa alla pagina.
+- **«Rimuovi» asset:** accanto all'asset collegato, sempre disponibile e aggiornato senza ricaricare. Corretto il link all'asset restituito dopo il salvataggio (`/assets/view/<id>/`).
+- **Lista ticket:** chi gestisce un solo tipo (es. manutenzione) apriva i propri ticket IT nella pagina di gestione IT, che rispondeva «Accesso negato». Ora la gestione si apre solo per i tipi gestiti, gli altri nella scheda del richiedente.
+- File: `tickets/templates/tickets/pages/gestione_detail.html`, `tickets/templates/tickets/pages/dashboard.html`, `tickets/static/tickets/css/pagine/gestione_detail-2.css`, `tickets/views.py`, Centro guide `core/guide_moduli/contenuti/tickets.py`, test `tickets/tests_gestione_riordino.py`, `tickets/tests_lavorazione.py`.
 
 ### Prestazioni: pagine lente corrette (misurate sui dati di produzione)
 
