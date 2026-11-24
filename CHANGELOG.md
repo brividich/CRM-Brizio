@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: «Prova un cambiamento» in una pagina sola, con competenze e formazione
+
+- `anagrafica/templates/anagrafica/pages/prospetto.html`, `partials/_prospetto_persone.html`, `partials/_prospetto_mansioni.html`: pagina unica ridisegnata (testata, quattro passi, cambiamenti a schede, indicatori «oggi → dopo» a riquadri, persone a schede, mansioni, reparti e centri affiancati, persone chiave e su troppe mansioni, conferma). Il modulo dei cinque riquadri diventa il pannello laterale «Aggiungi cambiamento» (che cosa, chi, dove): caselle allineate al nome, reparti richiudibili, «Tutto il reparto», persone scelte come chip, ruoli e numero di mansioni accanto al nome, mansioni filtrabili, riassunto della scelta. Righe dei cambiamenti non più tagliate.
+- `anagrafica/services/prospetto_struttura.py`: nuova sezione «Competenze e formazione» (`_formazione`): per chi entra in una mansione o se la vede prevista dal ruolo nel reparto nuovo, competenze con livello di oggi, minimo, requisito formale (corso, qualifica, MOD.128) ed esito; «già presente» con la regola delle sessioni formative (anche il livello valutato altrove sulla stessa voce del catalogo); richieste e sessioni già aperte; totali (da acquisire, sessioni da aprire, non abilitati, mansioni senza competenze).
+- `anagrafica/views_prospetto.py`: nel selettore delle persone ruoli e numero di mansioni.
+- `core/guide_moduli/contenuti/anagrafica.py`: guida del Prospetto aggiornata. `anagrafica/tests_prospetto.py`: test della sezione formazione.
+
+
 ### Anomalie: lettore del report CMM in PDF rivisto sui report veri
 
 Verificato su 2861 report CMM della cartella Collaudo (198.515 righe): l'esito del portale ora coincide con l'eccedenza («+/-») scritta dal report in 198.514 righe (prima 111 righe non coincidevano).
