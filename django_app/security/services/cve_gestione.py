@@ -18,6 +18,8 @@ from django.utils import timezone
 from security.models import SecurityCveImpact, SecurityCveRecord, SecurityCveRisoluzione
 from security.services import cve_sla
 
+from core.memo_richiesta import per_richiesta
+
 logger = logging.getLogger(__name__)
 
 # Campi della CVE che servono a classe, termine e pagine. Le configurazioni NVD (JSON grande) e la
@@ -92,6 +94,7 @@ def esposti_oggi(cve_ids) -> set:
     }
 
 
+@per_richiesta  # ricalcolato più volte nella stessa pagina (core/memo_richiesta.py)
 def correzioni_valide(dal, al=None) -> list:
     """PC corretti fra ``dal`` e ``al`` (datetime aware): ultima uscita del periodo per CVE + PC, programma
     aggiornato o disinstallato, PC oggi non di nuovo esposto alla stessa CVE."""

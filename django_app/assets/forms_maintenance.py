@@ -825,9 +825,10 @@ class OccurrenceFilterForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["plan"].queryset = MaintenanceInterventionTemplate.objects.filter(is_active=True).order_by(
-            "sort_order", "label"
-        )
+        # select_related: ogni voce mostra «categoria - piano» (prima 53 query per la tendina).
+        self.fields["plan"].queryset = MaintenanceInterventionTemplate.objects.filter(is_active=True).select_related(
+            "asset_category"
+        ).order_by("sort_order", "label")
         groups = AssetGroup.objects.filter(is_active=True).order_by("sort_order", "label")
         if groups.exists():
             self.fields["group"].queryset = groups

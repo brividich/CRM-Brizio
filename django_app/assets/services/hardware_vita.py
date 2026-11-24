@@ -50,12 +50,19 @@ def _intune(asset_ids):
     return out
 
 
-def valuta(asset, oggi=None, *, guasti=None, intune=None) -> dict:
-    """Giudizio e motivi di un asset. ``guasti`` e ``intune`` si passano dall'elenco per non rifare le query."""
+_DA_LEGGERE = object()
+
+
+def valuta(asset, oggi=None, *, guasti=None, intune=_DA_LEGGERE) -> dict:
+    """Giudizio e motivi di un asset. ``guasti`` e ``intune`` si passano dall'elenco per non rifare le query.
+
+    ``intune=None`` vuol dire «letto: non c'è» (PC senza Intune); prima veniva riletto per
+    ognuno (una query per PC nell'elenco della riconciliazione).
+    """
     oggi = oggi or timezone.localdate()
     if guasti is None:
         guasti = _guasti([asset.pk], oggi).get(asset.pk, 0)
-    if intune is None:
+    if intune is _DA_LEGGERE:
         intune = _intune([asset.pk]).get(asset.pk)
     data = asset.purchase_date or asset.production_date
     eta = round((oggi - data).days / 365.25, 1) if data else None

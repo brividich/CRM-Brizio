@@ -152,16 +152,35 @@ def _deadline_completion_rows(
     cutoff_date: "date | None" = None,
     limit: int = 10,
 ) -> list[dict[str, object]]:
+    return _deadline_completion_rows_batch([deadline_id], cutoff_date=cutoff_date, limit=limit).get(int(deadline_id), [])
+
+
+def _deadline_completion_rows_batch(
+    deadline_ids,
+    *,
+    cutoff_date: "date | None" = None,
+    limit: int = 10,
+) -> dict[int, list[dict[str, object]]]:
+    """Ultimi ``limit`` completamenti di più scadenze con una sola lettura.
+
+    L'elenco delle scadenze lo chiedeva per ogni riga (94 query per pagina).
+    """
+    ids = sorted({int(i) for i in deadline_ids if i})
+    out: dict[int, list[dict[str, object]]] = {i: [] for i in ids}
+    if not ids:
+        return out
     qs = (
         AssetAdministrativeDeadlineCompletion.objects.select_related("completed_by")
         .prefetch_related("attachments")
-        .filter(deadline_id=int(deadline_id))
+        .filter(deadline_id__in=ids)
     )
     if cutoff_date is not None:
         qs = qs.filter(completed_on__gte=cutoff_date)
-    qs = qs.order_by("-completed_on", "-id")[: max(1, int(limit))]
-    rows: list[dict[str, object]] = []
-    for completion in qs:
+    massimo = max(1, int(limit))
+    for completion in qs.order_by("deadline_id", "-completed_on", "-id"):
+        rows = out.setdefault(int(completion.deadline_id), [])
+        if len(rows) >= massimo:
+            continue
         attachment_rows: list[dict[str, object]] = []
         for attachment in completion.attachments.all():
             attachment_rows.append(
@@ -188,7 +207,7 @@ def _deadline_completion_rows(
                 "attachment_rows": attachment_rows,
             }
         )
-    return rows
+    return out
 
 
 def _deadline_list_redirect_from_request(request: HttpRequest) -> str:
@@ -923,15 +942,14 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     deadline_completion_cutoff = _periodic_execution_window_cutoff(
         PERIODIC_EXECUTION_WINDOW_DEFAULT, today=today
     )
+    completamenti = _deadline_completion_rows_batch(
+        [row["deadline"].id for row in deadline_rows], cutoff_date=deadline_completion_cutoff, limit=10
+    )
     for row in deadline_rows:
         deadline = row["deadline"]
         row["calendar_event_rows"] = list(calendar_event_map.get(deadline.id, []))
         row["default_calendar_user_id"] = _asset_calendar_default_user_id(deadline.asset, calendar_user_details)
-        row["completion_rows"] = _deadline_completion_rows(
-            deadline_id=deadline.id,
-            cutoff_date=deadline_completion_cutoff,
-            limit=10,
-        )
+        row["completion_rows"] = completamenti.get(deadline.id, [])
         row["completion_count"] = len(row["completion_rows"])
         row["last_completion"] = row["completion_rows"][0] if row["completion_rows"] else None
         row["tone"] = {"overdue": "tone-red", "warning": "tone-amber", "upcoming": "tone-blue"}.get(

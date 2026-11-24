@@ -40,8 +40,6 @@ def _et(ruolo) -> str:
 def fotografia() -> dict:
     from sistema_gestione.models import Processo
 
-    from .mansionario_competenze import competenze
-
     processi = [{
         "id": p.pk, "nome": p.nome, "codice": p.codice, "tipo": p.get_tipo_display() if p.tipo else "",
         "owner": _et(p.ruolo_owner), "attivo": p.attivo,
@@ -61,9 +59,18 @@ def fotografia() -> dict:
         "organigramma": r.ambito_label, "riporta_a": r.riporta_a.nome if r.riporta_a_id else "",
     } for r in RuoloOperativo.objects.filter(is_active=True).select_related("ambito", "riporta_a").order_by("nome")]
     mansioni = []
-    for m in (CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True)
-              .select_related("area", "reparto", "processo_sgi", "asset")
-              .prefetch_related("ruoli", "mansioni_rischio").order_by("display", "competenza_key")):
+    elenco = list(CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True)
+                  .select_related("area", "reparto", "processo_sgi", "asset")
+                  .prefetch_related("ruoli", "mansioni_rischio").order_by("display", "competenza_key"))
+    # Competenze di tutte le mansioni in una lettura, nello stesso ordine di ``competenze(m)``:
+    # prima una query per mansione (oltre 250 per pagina).
+    from ..models import VoceMacchinaCatalogo
+
+    voci_per_mansione: dict = {}
+    for v in (VoceMacchinaCatalogo.objects.filter(mansione__in=elenco, attiva=True)
+              .select_related("corso", "qualifica", "processo_mpq").order_by("ordine", "pk")):
+        voci_per_mansione.setdefault(v.mansione_id, []).append(v)
+    for m in elenco:
         mansioni.append({
             "chiave": m.competenza_key, "nome": m.nome, "tipo": m.get_tipo_display(),
             "area": m.area.nome if m.area_id else "", "reparto": m.reparto_effettivo,
@@ -74,7 +81,7 @@ def fotografia() -> dict:
             "competenze": [{
                 "nome": v.nome, "livello_minimo": v.livello_minimo, "bloccante": v.bloccante,
                 "corso": str(v.corso) if v.corso_id else "", "qualifica": str(v.qualifica) if v.qualifica_id else "",
-            } for v in competenze(m)],
+            } for v in voci_per_mansione.get(m.pk, [])],
         })
     return {"processi": processi, "reparti": reparti, "aree": aree, "ruoli": ruoli, "mansioni": mansioni}
 

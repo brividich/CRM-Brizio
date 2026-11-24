@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from django.urls import reverse
 
+from core.memo_richiesta import per_richiesta
+
 FILTRI = [
     ("tutti", "Tutti"),
     ("da_collegare", "Senza asset"),
@@ -37,6 +39,7 @@ def _riga(nome):
             "soc": [], "cve": None, "proposta": None, "motivo": "", "sistema": None}
 
 
+@per_richiesta  # ricalcolato più volte nella stessa pagina (core/memo_richiesta.py)
 def righe(proposte=True):
     """Una riga per dispositivo visto da almeno una fonte (Intune, inventario, backup, report SOC)."""
     from assets.models import DispositivoIntune

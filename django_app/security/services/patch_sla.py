@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, time, timedelta
+from functools import lru_cache
 from statistics import median
 
 from django.db.models import Q
@@ -84,8 +85,14 @@ def classe(p: WatchGuardPatch, kev: set) -> str:
 
 def _giorno(valore) -> date:
     if isinstance(valore, datetime):
-        return timezone.localtime(valore).date() if timezone.is_aware(valore) else valore.date()
+        return _giorno_locale(valore) if timezone.is_aware(valore) else valore.date()
     return valore
+
+
+@lru_cache(maxsize=65536)
+def _giorno_locale(valore: datetime) -> date:
+    """Giorno locale di un istante: puro, in cache (le pagine SLA lo chiedevano decine di migliaia di volte)."""
+    return timezone.localtime(valore).date()
 
 
 def scadenza(p: WatchGuardPatch, cls: str, termini: dict) -> date | None:
