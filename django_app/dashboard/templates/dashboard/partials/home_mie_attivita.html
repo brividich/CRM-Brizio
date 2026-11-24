@@ -1,0 +1,6 @@
+{% comment %}
+Blocco «Le mie attività» della home, caricato dopo la pagina (views_home_portale.mie_attivita_blocco).
+Il secondo elemento aggiorna il numero sulla linguetta «Oggi» (swap fuori banda di HTMX).
+{% endcomment %}
+{% include "dashboard/components/mie_attivita_blocco.html" %}
+<span id="hs-tab-oggi-n" hx-swap-oob="true">{% if cose_da_gestire_total %}<sup>{{ cose_da_gestire_total }}</sup>{% endif %}</span>

@@ -1034,15 +1034,57 @@ BACHECA_PREVIEW_PER_CATEGORY = 4
 _KIND_LABEL = {HubLink.KIND_FILE: "File", HubLink.KIND_URL: "Link", HubLink.KIND_INTERNAL: "Interna"}
 
 
+BACHECA_VERSIONE_KEY = "home:bacheca:versione"
+
+
+def bacheca_cache_invalida(**_kwargs) -> None:
+    """Nuova versione della cache della bacheca (al salvataggio di documenti e categorie).
+
+    La versione sta nella cache condivisa: vale per tutti i processi IIS."""
+    from django.core.cache import cache
+
+    try:
+        cache.set(BACHECA_VERSIONE_KEY, int(cache.get(BACHECA_VERSIONE_KEY) or 0) + 1, None)
+    except Exception:
+        logger.warning("Bacheca: versione della cache non aggiornata", exc_info=True)
+
+
 def _documenti_collegamenti(request, preview: bool = True, sezione: str | None = None) -> list[dict]:
     """Sezione Documenti & Collegamenti per la home / pagina bacheca.
 
     ``sezione`` restringe alle categorie di quella sezione (la home passa
     «documenti»: le categorie self-help hanno il loro scaffale).
+
+    Il risultato dipende solo da ruolo e amministratore: in cache
+    ``HOME_BACHECA_CACHE_SECONDS`` (default 300), svuotata a ogni modifica di
+    documenti e categorie (``bacheca_cache_invalida``).
     """
+    from django.core.cache import cache
+
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
     role_id = getattr(legacy_user, "ruolo_id", None)
+    durata = int(getattr(settings, "HOME_BACHECA_CACHE_SECONDS", 300) or 0)
+    if durata <= 0:
+        return _documenti_collegamenti_calcola(role_id, is_admin, preview, sezione)
+    try:
+        versione = int(cache.get(BACHECA_VERSIONE_KEY) or 0)
+        chiave = f"home:bacheca:v{versione}:{role_id}:{int(bool(is_admin))}:{int(bool(preview))}:{sezione or ''}"
+        trovato = cache.get(chiave)
+    except Exception:
+        chiave, trovato = None, None
+    if isinstance(trovato, list):
+        return trovato
+    valore = _documenti_collegamenti_calcola(role_id, is_admin, preview, sezione)
+    if chiave:
+        try:
+            cache.set(chiave, valore, durata)
+        except Exception:
+            logger.warning("Bacheca: elenco non salvato in cache", exc_info=True)
+    return valore
+
+
+def _documenti_collegamenti_calcola(role_id, is_admin: bool, preview: bool, sezione: str | None) -> list[dict]:
     limit = BACHECA_PREVIEW_PER_CATEGORY if preview else None
     groups = visible_bacheca(role_id, is_admin=is_admin, preview_limit=limit, sezione=sezione)
     out: list[dict] = []
@@ -1317,7 +1359,13 @@ def home_portale(request: HttpRequest) -> HttpResponse:
 
     # "Cose da gestire": aggregato cross-modulo delle azioni che spettano all'utente.
     from dashboard.views_mie_attivita import build_cose_da_gestire, contesto_mie_attivita
-    cose_da_gestire = build_cose_da_gestire(request)
+    # Con HOME_MIE_ATTIVITA_DIFFERITA il blocco arriva subito dopo la pagina
+    # (``mie_attivita_blocco``): 17 fonti e ~40% del tempo della home non la trattengono.
+    differita = bool(getattr(settings, "HOME_MIE_ATTIVITA_DIFFERITA", True))
+    if differita:
+        cose_da_gestire = {"sections": [], "total": None, "overdue": 0, "soon": 0}
+    else:
+        cose_da_gestire = build_cose_da_gestire(request)
 
     from core.models import HubLinkCategory
 
@@ -1388,6 +1436,7 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "ma_titolo":              "Le mie attività",
         "cose_da_gestire":        cose_da_gestire["sections"],
         "cose_da_gestire_total":  cose_da_gestire["total"],
+        "cose_da_gestire_differita": differita,
         "bacheca_groups":     bacheca_groups,
         "self_help_groups":   self_help,
         "self_help_total":    sum(len(g["items"]) for g in self_help) + len(sapere_cataloghi),
@@ -1432,3 +1481,22 @@ def toggle_locked(request: HttpRequest) -> HttpResponse:
 def activity_recent(request: HttpRequest) -> HttpResponse:
     items = _activity_items(request)
     return render(request, "core/partials/_home_activity.html", {"items": items})
+
+
+@login_required
+@require_GET
+def mie_attivita_blocco(request: HttpRequest) -> HttpResponse:
+    """Blocco «Le mie attività» della home, chiesto dalla pagina appena caricata.
+
+    Stesso contenuto della pagina ``mie_attivita`` (condivisa con chiunque ha fatto
+    l'accesso: sono le azioni della persona stessa). Aggiorna anche il numero sulla
+    linguetta «Oggi» con uno swap fuori banda.
+    """
+    from dashboard.views_mie_attivita import build_cose_da_gestire, contesto_mie_attivita
+
+    dati = build_cose_da_gestire(request)
+    return render(request, "dashboard/partials/home_mie_attivita.html", {
+        **contesto_mie_attivita(dati),
+        "ma_titolo": "Le mie attività",
+        "cose_da_gestire_total": dati["total"],
+    })

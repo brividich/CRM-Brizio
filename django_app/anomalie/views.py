@@ -1633,9 +1633,26 @@ def _current_user_identity(request) -> dict[str, str]:
 
 
 def _current_user_name_norms(request) -> set[str]:
-    """Ritorna i nomi normalizzati dell'utente corrente da tabelle utenti/anagrafica."""
-    names: set[str] = set()
+    """Ritorna i nomi normalizzati dell'utente corrente da tabelle utenti/anagrafica.
+
+    Memorizzati sulla richiesta: chi controlla molte righe (le NC aperte di «Le mie
+    attività», fino a 200) la chiamava per ognuna, con una lettura dell'anagrafica a volta.
+    """
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    memo = getattr(request, "_hub_name_norms", None)
+    chiave = getattr(legacy_user, "id", None)
+    if memo is not None and memo[0] == chiave:
+        return set(memo[1])
+    names = _calcola_user_name_norms(legacy_user)
+    try:
+        request._hub_name_norms = (chiave, frozenset(names))
+    except Exception:
+        pass
+    return names
+
+
+def _calcola_user_name_norms(legacy_user) -> set[str]:
+    names: set[str] = set()
 
     if legacy_user and legacy_user.nome:
         names.add(_normalize_identity_text(legacy_user.nome))
