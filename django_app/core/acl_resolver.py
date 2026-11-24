@@ -98,6 +98,34 @@ def _serialize_group_grant(grant: GroupPermissionGrant) -> dict:
     }
 
 
+# ── Memoria per i controlli in blocco (menu) ─────────────────────────────────
+# Un sottomenu controlla 50-90 link: senza memoria ogni controllo rilegge binding,
+# permessi della persona, gruppi e permessi dei gruppi (~6 query a link, ~500 per
+# pagina per chi non è amministratore). Dentro ``memo_permessi()`` si leggono una
+# volta e servono tutti i controlli. Solo per letture in blocco: fuori dal blocco
+# (es. salvo un permesso e ricontrollo subito) tutto resta come prima.
+import contextvars as _contextvars
+from contextlib import contextmanager as _contextmanager
+
+_MEMO_PERMESSI: _contextvars.ContextVar = _contextvars.ContextVar("hub_memo_permessi", default=None)
+
+
+@_contextmanager
+def memo_permessi():
+    if _MEMO_PERMESSI.get() is not None:
+        yield
+        return
+    token = _MEMO_PERMESSI.set({})
+    try:
+        yield
+    finally:
+        _MEMO_PERMESSI.reset(token)
+
+
+def memo_attiva() -> dict | None:
+    return _MEMO_PERMESSI.get()
+
+
 def _sistema_ruoli_attivo() -> bool:
     from core.permessi.motore import sistema_ruoli_attivo
 
@@ -113,6 +141,16 @@ def user_group_ids(legacy_user_id: int | None) -> list[int]:
     """
     if not legacy_user_id:
         return []
+    memo = memo_attiva()
+    if memo is not None:
+        chiave = ("gruppi", int(legacy_user_id))
+        if chiave not in memo:
+            memo[chiave] = _user_group_ids(legacy_user_id)
+        return list(memo[chiave])
+    return _user_group_ids(legacy_user_id)
+
+
+def _user_group_ids(legacy_user_id: int) -> list[int]:
     from core.permessi.scadenze import q_appartenenze_valide
 
     try:
@@ -161,12 +199,22 @@ def resolve_group_grant(*, permission_code: str, legacy_user_id: int | None) -> 
         return None, []
 
     try:
-        grants = list(
-            GroupPermissionGrant.objects.filter(
-                group_id__in=group_ids,
-                permission_id=permission_code,
-            ).select_related("group")
-        )
+        memo = memo_attiva()
+        if memo is not None:
+            chiave = ("grant_gruppi", tuple(sorted(group_ids)))
+            if chiave not in memo:
+                per_codice: dict = {}
+                for g in GroupPermissionGrant.objects.filter(group_id__in=group_ids).select_related("group"):
+                    per_codice.setdefault(g.permission_id, []).append(g)
+                memo[chiave] = per_codice
+            grants = list(memo[chiave].get(permission_code, []))
+        else:
+            grants = list(
+                GroupPermissionGrant.objects.filter(
+                    group_id__in=group_ids,
+                    permission_id=permission_code,
+                ).select_related("group")
+            )
     except DatabaseError:
         return None, []
 
@@ -242,14 +290,24 @@ def resolve_permission_decision(
     user_grant = None
     if legacy_user_id:
         try:
-            user_grant = (
-                UserPermissionGrant.objects.filter(
-                    legacy_user_id=int(legacy_user_id),
-                    permission_id=permission.code,
+            memo = memo_attiva()
+            if memo is not None:
+                chiave = ("grant_utente", int(legacy_user_id))
+                if chiave not in memo:
+                    ultimi: dict = {}
+                    for g in UserPermissionGrant.objects.filter(legacy_user_id=int(legacy_user_id)).order_by("-id"):
+                        ultimi.setdefault(g.permission_id, g)  # il più recente per codice
+                    memo[chiave] = ultimi
+                user_grant = memo[chiave].get(permission.code)
+            else:
+                user_grant = (
+                    UserPermissionGrant.objects.filter(
+                        legacy_user_id=int(legacy_user_id),
+                        permission_id=permission.code,
+                    )
+                    .order_by("-id")
+                    .first()
                 )
-                .order_by("-id")
-                .first()
-            )
         except DatabaseError as exc:
             decision.error = str(exc)
     if user_grant is not None:
@@ -301,14 +359,24 @@ def resolve_permission_decision(
     role_grant = None
     if legacy_role_id:
         try:
-            role_grant = (
-                RolePermissionGrant.objects.filter(
-                    legacy_role_id=int(legacy_role_id),
-                    permission_id=permission.code,
+            memo = memo_attiva()
+            if memo is not None:
+                chiave = ("grant_ruolo", int(legacy_role_id))
+                if chiave not in memo:
+                    ultimi_ruolo: dict = {}
+                    for g in RolePermissionGrant.objects.filter(legacy_role_id=int(legacy_role_id)).order_by("-id"):
+                        ultimi_ruolo.setdefault(g.permission_id, g)
+                    memo[chiave] = ultimi_ruolo
+                role_grant = memo[chiave].get(permission.code)
+            else:
+                role_grant = (
+                    RolePermissionGrant.objects.filter(
+                        legacy_role_id=int(legacy_role_id),
+                        permission_id=permission.code,
+                    )
+                    .order_by("-id")
+                    .first()
                 )
-                .order_by("-id")
-                .first()
-            )
         except DatabaseError as exc:
             decision.error = str(exc)
     if role_grant is not None:

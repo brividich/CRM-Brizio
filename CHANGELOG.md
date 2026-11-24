@@ -9,6 +9,22 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: permessi letti una volta per richiesta (chi non è amministratore)
+
+- **Memoria dei permessi per i controlli in blocco** (`core/acl_resolver.py` `memo_permessi`, `core/acl_v2.py`): dentro il blocco si leggono una volta i binding delle rotte, i permessi personali, i gruppi della persona e i loro permessi, e i permessi del ruolo. Prima un sottomenu di anagrafica faceva circa 6 query per ognuno degli 80 link, circa 500 query per pagina per chi non è amministratore.
+- **Dove si applica:**
+  - sottomenu di anagrafica e di salute e sicurezza (`anagrafica/templatetags/anagrafica_extras.py`);
+  - tutte le richieste GET/HEAD tramite `ACLMiddleware` (`core/middleware.py`).
+  Le richieste che salvano (POST…) restano senza memoria.
+- **Misurato sui dati di prod con un utente normale:**
+  - elenco dipendenti: da 3,8 s e 514 query a 0,7 s e 49;
+  - anagrafica home: da 3,3 s e 473 query a 0,6 s e 50;
+  - scadenzario qualifiche: da 6,8 s e 454 query a 0,7 s;
+  - «Il mio team»: da 4,9 a 1,4 s.
+  I controlli ripetuti spariscono anche dalle pagine Asset.
+- **Soglia di ritardo degli OdL in memoria per 30 s** (`assets/maintenance.py`, `assets/apps.py`): la dashboard asset la rileggeva per ogni OdL, 66 volte per pagina. Si azzera al salvataggio della configurazione; `ASSETS_SOGLIA_RITARDO_CACHE_SECONDS`, 0 nei test.
+- Test: `core/test_acl_memo.py` (nuovo).
+
 ### Ticket: pagina di gestione riordinata, ticket IT dei gestori manutenzione, «Rimuovi» asset (24/11)
 
 - **Gestione ticket, una sola barra azioni:** «Prendo io/Risolvi», «Metti in attesa», «Chiudi ticket», «Assegnato a: …» (tecnico e fornitore in un menu a comparsa) e «⋯» con «Annulla ticket…». I cambi di stato chiedono nota, data prevista o motivo (obbligatorio per l'annullamento) in una finestra al centro. Tolto il riquadro «Aggiorna stato / Assegna».

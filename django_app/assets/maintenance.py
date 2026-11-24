@@ -49,8 +49,32 @@ WORKORDER_SOURCE_LABELS = {
 WORKORDER_OVERDUE_DAYS_DEFAULT = 21
 
 
+_SOGLIA_RITARDO_MEMO: dict = {"valore": None, "letto": 0.0}
+_SOGLIA_RITARDO_SECONDI = 30
+
+
 def get_workorder_overdue_days() -> int:
-    """Giorni oltre i quali un OdL aperto è in ritardo (SiteConfig 'assets_wo_overdue_days')."""
+    """Giorni oltre i quali un OdL aperto è in ritardo (SiteConfig 'assets_wo_overdue_days').
+
+    Tenuto 30 secondi per processo: la dashboard lo chiedeva per ogni OdL (66 letture
+    della stessa riga di configurazione per pagina).
+    """
+    import time
+
+    from django.conf import settings
+
+    durata = int(getattr(settings, "ASSETS_SOGLIA_RITARDO_CACHE_SECONDS", _SOGLIA_RITARDO_SECONDI) or 0)
+    if durata <= 0:
+        return _leggi_workorder_overdue_days()
+    memo = _SOGLIA_RITARDO_MEMO
+    if memo["valore"] is not None and time.monotonic() - memo["letto"] < durata:
+        return memo["valore"]
+    valore = _leggi_workorder_overdue_days()
+    memo.update({"valore": valore, "letto": time.monotonic()})
+    return valore
+
+
+def _leggi_workorder_overdue_days() -> int:
     from core.models import SiteConfig
 
     try:
