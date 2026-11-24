@@ -26,7 +26,16 @@
         dropdownParent: "body",
         // Cerca su testo e value; ordina per pertinenza poi alfabetico.
         searchField: ["text"],
+        // Le voci che la pagina nasconde (option.hidden, es. il ruolo stesso in «Riporta a»)
+        // non si mostrano nella ricerca: sono anche disattivate, quindi non si scelgono.
+        render: {
+          option: function (data, escape) {
+            var nascosta = data.$option && data.$option.hidden;
+            return "<div" + (nascosta ? ' style="display:none"' : "") + ">" + escape(data.text) + "</div>";
+          },
+        },
       });
+      collega(el, ts);
       // Scelta singola: mentre si digita il valore già scelto (es. «Io stesso»)
       // resterebbe accanto al testo cercato e si sovrapporrebbe: si nasconde
       // finché c'è testo nella ricerca (CSS .ts-digita in components.css).
@@ -59,15 +68,69 @@
     }
   }
 
+  // Il <select> nativo resta la fonte del valore inviato col modulo: quando una pagina lo
+  // cambia da script (sel.value = …, selectedIndex, nuove opzioni, disabled, hidden) la
+  // tendina ricercabile si riallinea. Senza, la finestra «Modifica» mostrava il valore di
+  // prima o il segnaposto mentre il modulo ne inviava un altro (24/11/2026).
+  var NATIVO = {
+    value: Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value"),
+    selectedIndex: Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedIndex"),
+  };
+
+  function collega(el, ts) {
+    var inSync = false;
+    function nascoste() {
+      Array.prototype.forEach.call(el.options, function (o) {
+        if (o.hidden && !o.disabled) { o.disabled = true; o.dataset.tsNascosta = "1"; }
+        else if (!o.hidden && o.dataset.tsNascosta === "1") { o.disabled = false; delete o.dataset.tsNascosta; }
+      });
+    }
+    function riallinea() {
+      if (inSync) return;
+      inSync = true;
+      try {
+        nascoste();
+        if (typeof ts.sync === "function") ts.sync();
+        else ts.setValue(NATIVO.value.get.call(el), true);
+        if (el.disabled) ts.disable(); else ts.enable();
+        var nascosto = el.hidden || el.style.display === "none";
+        ts.wrapper.style.display = nascosto ? "none" : "";
+      } catch (e) { /* resta il select nativo come fonte */ }
+      osservatore.takeRecords();
+      inSync = false;
+    }
+    ["value", "selectedIndex"].forEach(function (nome) {
+      Object.defineProperty(el, nome, {
+        configurable: true,
+        get: function () { return NATIVO[nome].get.call(el); },
+        set: function (v) { NATIVO[nome].set.call(el, v); riallinea(); },
+      });
+    });
+    var attesa = null;
+    var osservatore = new MutationObserver(function () {
+      if (inSync) return;
+      clearTimeout(attesa);
+      attesa = setTimeout(riallinea, 0);
+    });
+    osservatore.observe(el, { childList: true, subtree: true, attributes: true,
+                              attributeFilter: ["disabled", "hidden", "style", "label"] });
+    el.tsRiallinea = riallinea;
+    nascoste();
+    if (Array.prototype.some.call(el.options, function (o) { return o.hidden; })) riallinea();
+  }
+
   // Oltre all'opt-in (.js-searchable), ogni tendina lunga diventa ricercabile da
   // sola: con più di AUTO_MIN opzioni cercare a occhio non funziona più
   // (corsi, persone, mansioni, asset). Si esclude con data-no-search, oppure
   // quando è una lista a più righe (size) — lì la ricerca la fa già la pagina.
-  var AUTO_MIN = 10;
+  // Nel modulo Anagrafica tutte le tendine si cercano scrivendo, anche le corte (richiesta del 24/11/2026).
+  var AUTO_MIN = (location.pathname.indexOf("/anagrafica/") === 0 || window.HUB_TENDINE_TUTTE_RICERCABILI) ? 1 : 10;
   function autoCandidata(el) {
     if (el.hasAttribute("data-no-search") || el.hasAttribute("data-picker")) return false;
     if (el.size && el.size > 1) return false;
     if (el.closest("[data-no-search]")) return false;
+    // Il mese del calendario (flatpickr) fa parte del calendario: resta com'è.
+    if (el.closest(".flatpickr-calendar")) return false;
     return el.options.length > AUTO_MIN || el.multiple;
   }
 
@@ -84,6 +147,19 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     initAll(document);
+    // Tendine create dopo il caricamento da altri script (filtri di colonna e «Ordina per…»
+    // delle tabelle, righe aggiunte nei moduli): diventano ricercabili appena compaiono.
+    var attesa = null;
+    new MutationObserver(function (mutazioni) {
+      var nuove = mutazioni.some(function (m) {
+        return Array.prototype.some.call(m.addedNodes, function (n) {
+          return n.nodeType === 1 && (n.tagName === "SELECT" || (n.querySelector && n.querySelector("select")));
+        });
+      });
+      if (!nuove) return;
+      clearTimeout(attesa);
+      attesa = setTimeout(function () { initAll(document); }, 0);
+    }).observe(document.body, { childList: true, subtree: true });
   });
   // I select caricati via HTMX (gli eventi bubblano fino a document). Si aspetta
   // la fine del settle: con un elemento che mantiene lo stesso id, HTMX rimette

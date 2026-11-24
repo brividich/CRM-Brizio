@@ -190,3 +190,6 @@ a.kpi-link * { cursor: pointer; }
 /* Tom Select a scelta singola: mentre si digita la ricerca il valore già scelto
    si nasconde, altrimenti il testo cercato gli si accoda e si sovrappone. */
 .ts-wrapper.single.ts-digita .ts-control > .item { position: absolute; visibility: hidden; pointer-events: none; }
+/* La lista dei risultati si appende al body: deve stare sopra finestre e pannelli laterali (z-index fino a 10000),
+   altrimenti dentro una finestra la ricerca sembra non trovare niente (24/11/2026). */
+body .ts-dropdown.ts-dropdown { z-index: 100000; }
