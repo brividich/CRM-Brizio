@@ -151,6 +151,46 @@ GUIDA = {
             ],
         },
         {
+            "id": "sessioni-formative",
+            "titolo": "Sessioni formative: dalla richiesta approvata al nuovo livello",
+            "blocchi": [
+                ("p", "Organizzazione → Richieste → «Sessioni formative» (la stessa pagina è anche in Competenze → "
+                      "Formazione). Una richiesta approvata di assegnazione di mansione o di acquisizione di competenza "
+                      "diventa una sessione formativa (SF-anno-numero): le competenze da acquisire, come, chi le "
+                      "valuta e le firme di chiusura. I livelli nella skill matrix cambiano solo quando la sessione si "
+                      "chiude."),
+                ("def", [
+                    ("Aprire", "la Qualità o HR, con «Apri la sessione formativa» nella richiesta approvata (o "
+                               "dall'elenco «Richieste approvate senza sessione»). Nasce una riga per ogni competenza "
+                               "della mansione con il suo livello minimo; quelle che la persona ha già a quel livello "
+                               "entrano «Già presente» e non vanno rivalutate."),
+                    ("Valutare", "il responsabile della persona, la Qualità o HR: «Valuta» sulla riga, scegli la "
+                                 "modalità e il livello raggiunto. «Non ancora» lascia la riga «In acquisizione»."),
+                    ("P · Pregressa", "esperienza già maturata: descrizione della verifica e data."),
+                    ("A · Affiancamento", "tutor, periodo, ore e il registro MOD.040 firmato (PDF o foto) caricato."),
+                    ("C · Corso", "corso a catalogo oppure docente/ente, e una verifica: attestato, test o conferma "
+                                  "del responsabile."),
+                    ("Cambio di modalità", "una volta scelta, la modalità cambia solo verso «Corso», con la conferma: "
+                                           "il cambio resta nella storia."),
+                    ("Firme", "quando ogni riga è valutata firma chi ha il ruolo che ha approvato: RDD per le "
+                              "mansioni, MSO per le competenze. Con righe in affiancamento conferma di aver visto i "
+                              "registri MOD.040. Poi firma la persona dal portale («Firmo: ho ricevuto questa "
+                              "formazione»); se ha firmato su carta, la Qualità o HR registrano data e foglio."),
+                    ("Chiudere", "la Qualità o HR. In un solo passo: livelli delle competenze, livello della mansione "
+                                 "(da I al livello chiesto), richiesta «Evasa», storia."),
+                    ("Chiusa negativa", "con il motivo obbligatorio (per esempio contratto non confermato). La skill "
+                                        "matrix non cambia: una mansione in formazione resta I finché una richiesta di "
+                                        "rimozione non la toglie."),
+                ]),
+                ("p", "«Da fare» e la Dashboard mostrano a ognuno il suo passo: sessioni da aprire (Qualità, HR), "
+                      "competenze da valutare (responsabile), sessioni da firmare (RDD, MSO), la propria formazione da "
+                      "firmare (la persona), sessioni da chiudere (Qualità, HR)."),
+                ("nota", "La matrice C→M della specifica non è ancora decisa: per ora il livello richiesto di ogni "
+                         "competenza è il suo livello minimo e il livello della mansione alla chiusura è quello "
+                         "chiesto nella richiesta. Il registro della sessione è di sola aggiunta."),
+            ],
+        },
+        {
             "id": "richieste-competenze",
             "titolo": "Richieste su mansioni e competenze",
             "blocchi": [

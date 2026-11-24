@@ -1,0 +1,1 @@
+<span class="es-s-stato {% if s.stato == 'aperta' %}es-s-stato-info{% elif s.stato == 'in_corso' %}es-s-stato-warning{% elif s.stato == 'negativa' %}es-s-stato-danger{% else %}es-s-stato-ok{% endif %}">{{ s.get_stato_display }}</span>

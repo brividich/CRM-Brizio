@@ -309,6 +309,13 @@ def tocca_a(richiesta: R) -> str:
     if richiesta.stato == R.STATO_IN_APPROVAZIONE:
         return f"{sigla_approva(richiesta)}: approvare"
     if richiesta.stato == R.STATO_APPROVATA:
+        from ..models_sessioni import SessioneFormativa
+
+        sessione = SessioneFormativa.objects.filter(richiesta=richiesta).first()
+        if sessione is not None:
+            from . import sessioni
+
+            return sessioni.tocca_a(sessione) or ""
         return "Qualità o HR: aprire la sessione formativa"
     return ""
 
