@@ -931,8 +931,16 @@ GUIDA = {
                       "prima di cambiare la struttura. Finché non premi «Applica» non cambia niente."),
                 ("p", "L'elenco «Prove» mostra «Stato» («In preparazione», «Applicato», «Archiviato»), «Cambiamenti», "
                       "«Preparata da» e «Aggiornata». Clicca una riga: a destra compaiono «Prova scelta» con «Apri la "
-                      "prova» e «Vai al confronto». «Nuova prova» apre una finestra con il nome. Nella prova, i tre passi "
-                      "in cima («Che cosa cambia», «Confronto», «Conferma») portano alle tre parti della pagina."),
+                      "prova» e «Vai al confronto». «Nuova prova» apre una finestra con il nome. La prova è una pagina "
+                      "sola; i quattro passi in cima («Che cosa cambia», «Confronto», «Competenze e formazione», "
+                      "«Conferma») portano alle sue parti. «+ Aggiungi cambiamento» apre il pannello a destra: scegli "
+                      "che cosa, chi (cerca, «Tutto il reparto», le persone scelte restano in alto) e dove."),
+                ("p", "«Competenze e formazione»: per chi entra in una mansione, o se la vede prevista dal ruolo nel "
+                      "reparto nuovo, ogni competenza con il livello che ha oggi, il minimo, il requisito formale "
+                      "(corso, qualifica, MOD.128) e l'esito: «già presente», «da acquisire», «manca il requisito», "
+                      "«bloccante sotto il minimo». «Già presente» segue la regola delle sessioni formative: conta anche "
+                      "il livello valutato su un'altra mansione con la stessa competenza. In cima i totali: competenze da "
+                      "acquisire, sessioni formative da aprire, non abilitati dopo, mansioni senza competenze definite."),
                 ("def", [
                     ("Si prova", "reparto in un altro centro di costo; persona in un altro reparto (lascia o tiene le "
                                  "mansioni); ruolo di una persona; persona su una mansione; mansione in un altro reparto."),
