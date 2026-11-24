@@ -226,7 +226,8 @@ body.theme-dark .rp-fare > b { color:#7cc0f0; }
                 <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm"
                         data-edit-area-id="{{ a.area.pk }}" data-edit-area-nome="{{ a.area.nome }}" data-edit-area-desc="{{ a.area.descrizione }}"
                         data-edit-area-reparto="{{ r.pk }}" data-edit-area-ruolo="{{ a.area.ruolo_responsabile_id|default_if_none:'' }}" data-edit-area-centro="{{ a.area.centro_di_costo_id|default_if_none:'' }}"
-                        data-edit-area-active="{{ a.area.is_active|yesno:'1,0' }}">Modifica</button>
+                        data-edit-area-active="{{ a.area.is_active|yesno:'1,0' }}" data-edit-area-coincide="{{ a.coincide|yesno:'1,0' }}">Modifica</button>
+                <template id="area-resp-{{ a.area.pk }}">{% include "anagrafica/partials/_area_responsabilita_modale.html" with a=a s=s r=r %}</template>
               </td>
               {% endif %}
             </tr>
@@ -271,7 +272,7 @@ body.theme-dark .rp-fare > b { color:#7cc0f0; }
     <div class="fx-blocco fx-largo"><section class="es-s-card" id="senza-reparto">
       <h2 class="es-s-h">Aree senza reparto ({{ aree_senza_reparto|length }})</h2>
       <div class="rp-pad"><p class="rc-old" style="margin:0 0 8px">Queste aree non hanno un capo: assegnale a un reparto.</p>
-      <ul class="rc-list">{% for a in aree_senza_reparto %}<li>{{ a.nome }}{% if is_admin %} <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-edit-area-id="{{ a.pk }}" data-edit-area-nome="{{ a.nome }}" data-edit-area-desc="{{ a.descrizione }}" data-edit-area-reparto="" data-edit-area-ruolo="{{ a.ruolo_responsabile_id|default_if_none:'' }}" data-edit-area-centro="{{ a.centro_di_costo_id|default_if_none:'' }}" data-edit-area-active="{{ a.is_active|yesno:'1,0' }}">Modifica</button>{% endif %}</li>{% endfor %}</ul>
+      <ul class="rc-list">{% for a in aree_senza_reparto %}<li>{{ a.nome }}{% if is_admin %} <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-edit-area-id="{{ a.pk }}" data-edit-area-nome="{{ a.nome }}" data-edit-area-desc="{{ a.descrizione }}" data-edit-area-reparto="" data-edit-area-ruolo="{{ a.ruolo_responsabile_id|default_if_none:'' }}" data-edit-area-centro="{{ a.centro_di_costo_id|default_if_none:'' }}" data-edit-area-active="{{ a.is_active|yesno:'1,0' }}" data-edit-area-coincide="0">Modifica</button><template id="area-resp-{{ a.pk }}">{% include "anagrafica/partials/_area_responsabilita_modale.html" with a=None s=None r=None %}</template>{% endif %}</li>{% endfor %}</ul>
       </div>
     </section></div>
     {% endif %}
@@ -310,7 +311,13 @@ body.theme-dark .rp-fare > b { color:#7cc0f0; }
           <div class="hub-field"><label>Reparto</label><select name="reparto_id"><option value="">— Nessuno —</option>{% for rep in reparti_opts %}<option value="{{ rep.pk }}">{{ rep.nome }}</option>{% endfor %}</select></div>
           <div class="hub-field">
             <label>Ruolo responsabile</label>
-            <select name="ruolo_responsabile"><option value="">Segue il capo del reparto</option>{% for ro in ruoli_opts %}<option value="{{ ro.pk }}">{{ ro.nome }}</option>{% endfor %}</select>
+            <select name="ruolo_responsabile" id="nuova-area-ruolo"><option value="">Segue il capo del reparto</option>{% for ro in ruoli_opts %}<option value="{{ ro.pk }}">{{ ro.nome }}</option>{% endfor %}</select>
+            <p class="hub-help">Genera la «Responsabilità dell'area». Un'area con lo stesso nome del reparto usa quella del reparto.</p>
+          </div>
+          <div class="hub-field">
+            <label for="nuova-area-assegna">Assegna la Responsabilità dell'area a</label>
+            <select name="assegna_responsabilita" id="nuova-area-assegna" disabled><option value="">— Nessuno —</option>{% for d in dipendenti_picker %}<option value="{{ d.id }}">{{ d.label }}</option>{% endfor %}</select>
+            <p class="hub-help">Serve un ruolo responsabile: la persona riceve la mansione appena l'area è creata.</p>
           </div>
           <div class="hub-field"><label>Centro di costo</label><select name="centro_di_costo"><option value="">— Nessuno —</option>{% for cc in centri_opts %}<option value="{{ cc.pk }}">{{ cc.nome }}</option>{% endfor %}</select></div>
           <div style="display:flex;gap:8px;"><button type="submit" class="rc-btn rc-btn-primary">Crea area</button><button type="button" class="rc-btn rc-btn-ghost" data-rc-chiudi>Annulla</button></div>
@@ -340,6 +347,10 @@ body.theme-dark .rp-fare > b { color:#7cc0f0; }
   </div>
 </div>
 
+{# Form delle × del riquadro «Responsabilità dell'area» nel modale: fuori dal form di modifica. #}
+{% for s in schede %}{% for a in s.aree %}{% for p in a.responsabili %}{% if p.abilitazione %}
+<form method="post" action="{% url 'anagrafica:capo_togli' p.abilitazione %}" id="area-togli-{{ p.abilitazione }}" hidden>{% csrf_token %}<input type="hidden" name="ancora" value="area-{{ a.area.pk }}"></form>
+{% endif %}{% endfor %}{% endfor %}{% endfor %}
 <div id="edit-area-modal" class="rc-modal">
   <div class="rc-modal-box" role="dialog" aria-modal="true" aria-labelledby="edit-area-title">
     <div class="rc-modal-title" id="edit-area-title">Modifica area aziendale</div>
@@ -353,6 +364,15 @@ body.theme-dark .rp-fare > b { color:#7cc0f0; }
           <label>Ruolo responsabile</label>
           <select name="ruolo_responsabile" id="edit-area-ruolo"><option value="">Segue il capo del reparto</option>{% for ro in ruoli_opts %}<option value="{{ ro.pk }}">{{ ro.nome }}</option>{% endfor %}</select>
           <p class="hub-help">Genera la «Responsabilità dell'area» (es. HSE → ESM, IT → ITM, aree di produzione → CAR). Un'area con lo stesso nome del reparto usa quella del reparto.</p>
+        </div>
+        <div class="hub-field">
+          <label>Responsabilità dell'area</label>
+          <div id="edit-area-resp"></div>
+        </div>
+        <div class="hub-field">
+          <label for="edit-area-assegna">Assegna la Responsabilità dell'area a</label>
+          <select name="assegna_responsabilita" id="edit-area-assegna"><option value="">— Nessuno —</option>{% for d in dipendenti_picker %}<option value="{{ d.id }}">{{ d.label }}</option>{% endfor %}</select>
+          <p class="hub-help" id="edit-area-assegna-help">Si aggiunge a chi la ha già e vale dopo «Salva». Serve un ruolo responsabile.</p>
         </div>
         <div class="hub-field">
           <label>Centro di costo</label>
@@ -411,8 +431,35 @@ body.theme-dark .rp-fare > b { color:#7cc0f0; }
       document.getElementById('edit-area-ruolo').value = b.dataset.editAreaRuolo || '';
       document.getElementById('edit-area-centro').value = b.dataset.editAreaCentro || '';
       document.getElementById('edit-area-active').checked = b.dataset.editAreaActive === '1';
+      var resp = document.getElementById('edit-area-resp'), modello = document.getElementById('area-resp-' + b.dataset.editAreaId);
+      resp.innerHTML = '';
+      if (modello) resp.appendChild(modello.content.cloneNode(true));
+      areaCoincide = b.dataset.editAreaCoincide === '1';
+      document.getElementById('edit-area-assegna').value = '';
+      aggiornaAssegna();
       apri('edit-area-modal');
     });
+  });
+  // «Assegna la Responsabilità dell'area a»: solo con un ruolo responsabile e un reparto, e se l'area
+  // non porta il nome del reparto (lì vale la «Responsabilità del reparto»).
+  var areaCoincide = false;
+  function aggiornaAssegna() {
+    var sel = document.getElementById('edit-area-assegna'), help = document.getElementById('edit-area-assegna-help');
+    var ruolo = document.getElementById('edit-area-ruolo').value, reparto = document.getElementById('edit-area-reparto').value;
+    var motivo = areaCoincide ? 'È il reparto: si assegna la «Responsabilità del reparto» dalla scheda del reparto.'
+      : !reparto ? 'Scegli prima il reparto.' : !ruolo ? 'Scegli prima il ruolo responsabile: senza, non c\'è la mansione.' : '';
+    sel.disabled = !!motivo;
+    if (motivo) sel.value = '';
+    help.textContent = motivo || 'Si aggiunge a chi la ha già e vale dopo «Salva».';
+  }
+  ['edit-area-ruolo', 'edit-area-reparto'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', aggiornaAssegna);
+  });
+  var nuovaRuolo = document.getElementById('nuova-area-ruolo');
+  nuovaRuolo.addEventListener('change', function () {
+    var sel = document.getElementById('nuova-area-assegna');
+    sel.disabled = !nuovaRuolo.value;
+    if (!nuovaRuolo.value) sel.value = '';
   });
 })();
 </script>

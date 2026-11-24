@@ -9,6 +9,23 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Visite «a richiesta»: il pulsante passa nella Giornata visite
+
+- **Segnalazione:** il pulsante «Segna come a richiesta» stava in una tabella della dashboard (caselle nella colonna Azioni), non dove si lavorano le visite scadute.
+- Tolte caselle e pulsante dalla dashboard Visite mediche (`templates/anagrafica/pages/visite_mediche_dashboard.html`, vista `visite_mediche_segna_a_richiesta` e URL `visite-mediche/a-richiesta/` rimossi).
+- «Giornata visite»: pulsante «Segna come a richiesta (N)» accanto a «Registra giornata», con conferma; l'ultima visita di ogni riga spuntata diventa a richiesta, nessuna visita nuova, si torna sullo stesso tipo (`views/visite.py` `_giornata_segna_a_richiesta`, `services/visite.py` `segna_a_richiesta`, `visite_mediche_nuova_sessione.html`). Lo Scadenzario non ha selezione per le visite: invariato.
+- Guida «Visite a richiesta» e scheda modulo aggiornate; test `tests_visite_a_richiesta.py`.
+
+### Sessioni formative ↔ «Corso richiesto» della mansione; responsabile dell'area dal modale (24/11)
+
+- **Corso richiesto nella sessione formativa:** la riga mostra il «Corso richiesto» della competenza della mansione («valido» o «mancante») e «Valuta» propone «C · Corso» con quel corso e l'edizione della persona. Se il corso è già completato, all'apertura l'edizione entra nella riga; se è completato dopo, entra da sola e la riga dice «Corso completato: pronta da valutare» (`anagrafica/services/sessioni.py`: `corso_richiesto`, `iscrizione_proposta`, `collega_edizioni_completate`; segnale su `TrainingEnrollment` in `anagrafica/segnali_competenze.py`; `views_sessioni.py`, `templates/anagrafica/pages/sessione_dettaglio.html`).
+- **Stessa regola della matrice:** senza il requisito formale della competenza (corso, qualifica, processo qualificato MOD.128) la riga non va oltre «I – in formazione», con qualsiasi modalità. Se il requisito scade dopo la valutazione, firma e chiusura si fermano (`requisiti_mancanti` usa `mansionario_competenze.Requisiti`; `righe_senza_requisito`).
+- **«Iscrivi a un'edizione»** sulla riga col corso mancante: riusa «↻ Iscrivi» della formazione e poi torna alla sessione.
+- **Mansione senza competenze richieste:** la richiesta lo dice prima di aprire la sessione, con il link alle competenze, e «Apri la sessione» chiede conferma, anche negli elenchi (`avviso_apertura`, `mansioni_senza_competenze`; `views_richieste.py`, `richiesta_dettaglio.html`, `sessioni_elenco.html`, `richieste_da_fare.html`).
+- **Scheda della mansione:** nella scheda Persone, sotto il nome, la sessione formativa in corso o la richiesta di assegnazione aperta; nella scheda Formazione, quante persone in sessione formativa aspettano il corso (`views_mansionario.py`, `mansionario_mansione.html`).
+- **«Modifica area aziendale»:** riquadro «Responsabilità dell'area» con la mansione, chi la ha e la × per toglierla (o quale capo vale se l'area segue il reparto) e campo «Assegna la Responsabilità dell'area a», anche in «Nuova area» (`views/struttura.py`, `services/capi_mansione.py` `assegna_responsabilita`, `views_capi_reparti.py`, `templates/anagrafica/pages/aree_list.html`, nuovo `partials/_area_responsabilita_modale.html`).
+- Nessuna migrazione. Guide: Centro guide Anagrafica (sezioni «Sessioni formative», «Capo e team», Mansionario), `guida_persone_account.html`; scheda `docs/moduli/anagrafica.md`. Test `anagrafica/tests_sessioni_corso_richiesto.py`, `tests_capi_mansione.py`.
+
 ### Assistente AI: «Il tuo brief di oggi» pronto all'alba
 
 - **Brief preparato alle 6:10 dal cluster** per chi lo ha aperto negli ultimi 14 giorni (`ai_assistant/daily_brief_notturno.py`, task `ai_assistant.tasks.run_daily_brief_notturno`, schedule `ai_daily_brief_notturno`). Prima si generava alla prima apertura della home: 20-25 s di Ollama a persona, ogni mattina. Usa gli stessi dati e permessi della persona e va nella stessa cache della pagina. Chi non è in elenco lo genera come prima; ↻ lo rigenera con i dati di adesso.

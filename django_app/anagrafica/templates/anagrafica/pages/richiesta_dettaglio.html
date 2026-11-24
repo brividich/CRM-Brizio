@@ -43,7 +43,8 @@
     <a class="rq-btn rq-btn-p" style="margin-left:auto" href="{% url 'anagrafica:sessione' sessione.pk %}">Apri la sessione</a></div>
   {% elif r.stato == "approvata" %}
   <div class="rq-tocca"><div><b>Tocca alla Qualità o a HR: aprire la sessione formativa.</b><p>{% if not motivo_non_apre %}La sessione parte con una riga per ogni competenza{% if r.tipo == "aggiunta" %} della mansione; quelle che la persona ha già al livello richiesto entrano già valutate{% endif %}.{% else %}Il livello cambia nella skill matrix solo alla chiusura della sessione, con le firme.{% endif %}</p></div>
-    {% if not motivo_non_apre %}<form method="post" action="{% url 'anagrafica:sessione_apri' r.pk %}">{% csrf_token %}<button type="submit" class="rq-btn rq-btn-p">Apri la sessione formativa</button></form>{% endif %}</div>
+    {% if not motivo_non_apre %}<form method="post" action="{% url 'anagrafica:sessione_apri' r.pk %}"{% if avviso_apertura %} data-hub-confirm="La mansione non ha competenze richieste: la sessione nascerebbe senza righe da valutare. Aprirla lo stesso?"{% endif %}>{% csrf_token %}<button type="submit" class="rq-btn rq-btn-p">Apri la sessione formativa</button></form>{% endif %}</div>
+  {% if avviso_apertura %}<div class="rq-tocca"><div><b>Prima di aprire la sessione formativa</b><p>{{ avviso_apertura }} <a href="{% url 'anagrafica:mansionario_mansione' r.mansione_id %}#competenze">Apri le competenze richieste</a></p></div></div>{% endif %}
   {% elif r.stato == "evasa" and sessione %}
   <div class="rq-tocca"><div><b>Evasa con la sessione {{ sessione.codice }} ({{ sessione.get_stato_display|lower }}).</b></div>
     <a class="rq-btn" style="margin-left:auto" href="{% url 'anagrafica:sessione' sessione.pk %}">Apri la sessione</a></div>
