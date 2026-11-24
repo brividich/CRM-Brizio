@@ -44,7 +44,8 @@
         </select>
         <label style="font-size:13px;"><input type="checkbox" name="solo" value="problemi"{% if solo_problemi %} checked{% endif %}> Solo chi ha qualcosa da sistemare</label>
         <button type="submit" class="fmd-btn fmd-btn-sm">Filtra</button>
-        <a class="fmd-btn fmd-btn-sm fmd-btn-ghost" href="?{% if cliente_id %}cliente={{ cliente_id }}&amp;{% endif %}{% if solo_problemi %}solo=problemi&amp;{% endif %}export=csv">↓ Excel (CSV)</a>
+        <a class="fmd-btn fmd-btn-sm fmd-btn-ghost" href="?{% if cliente_id %}cliente={{ cliente_id }}&amp;{% endif %}{% if solo_problemi %}solo=problemi&amp;{% endif %}export=csv">↓ CSV</a>
+        {% include "anagrafica/components/_export_menu.html" with export_key="mpq_matrice" %}
       </form>
       <div class="mpqm-legend fmd-muted" style="font-size:12px;margin-bottom:8px;">
         <span><span class="mpqm-c mpqm-ok">✓</span> Qualificata</span>

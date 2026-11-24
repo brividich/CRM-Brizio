@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Processi qualificati (MOD.128): lista «Configurazione», avviso doppioni, export, guida PDF, MOD.176 in officina
+- **Configurazione:** in cima alla pagina del processo ✓/✗ su processo attivo, riferimenti, persone, requisiti persona, macchine con verifica MOD.161 e utensili/Technical Plan approvati (le ultime due solo se il processo li usa), con il link dove si sistema; sparisce a lavoro finito. Nelle sezioni dedicate (Qualifiche e Asset) «Da completare». Tolto l'avviso «senza riferimenti», ripetuto dalla lista.
+- **Nuovo processo:** con un processo dallo stesso nome (o simile per lo stesso cliente) o la stessa sigla di sezione non salva e mostra il link; «Salva comunque».
+- **Export:** «Scarica PDF / Excel» del dossier del processo (pagina del processo e Utensili e Technical Plan); menu «Esporta» su registro processi, matrice, elenco qualificati e parti lavorate MOD.176.
+- **Guida PDF** passo passo generata dal portale (cruscotto, riquadro Configurazione, sezioni dedicate).
+- **MOD.176 in officina:** pagina per tablet con i registri aperti, ricerca per kit/utensile/P/N e «Registra»; voce di menu in Competenze › Qualifiche.
+- Deploy: `migrate` (anagrafica 0240), «Sincronizza permessi» (ACL v21).
+- File: `anagrafica/services/mpq_configurazione.py`, `anagrafica/guida_mpq_configurazione.py`, `anagrafica/exports_mpq.py`, `anagrafica/exports.py`, `anagrafica/views_mpq.py`, `anagrafica/views_mpq_utensili.py`, `anagrafica/views_mpq_qualifiche.py`, `anagrafica/urls.py`, `anagrafica/acl_bootstrap.py`, `anagrafica/migrations/0240_mpq_officina_menu.py`, template `mpq_processo_detail`, `mpq_processo_form`, `mpq_sezione`, `mpq_cruscotto`, `mpq_matrice`, `mpq_elenco`, `mpq_registro`, `mpq_utensili`, `mpq_officina` (nuovo), `partials/_mpq_configurazione.html` (nuovo), `components/_export_menu.html`, `assets/services/sezione_processo.py`, `assets/templates/assets/pages/sezione_processo.html`, `assets/tests_sezione_processo.py`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`.
+
 ### Anagrafica: sessioni formative (dalla richiesta approvata al nuovo livello)
 
 - **Che cos'è:** la richiesta approvata di assegnazione di mansione o di acquisizione di competenza diventa una sessione formativa `SF-AAAA-NNNN` (specifica della Qualità v1.0): una riga per competenza con livello richiesto, modalità P (pregressa: descrizione e data della verifica), A (affiancamento: tutor, periodo, ore, registro MOD.040 caricato) o C (corso: corso a catalogo o docente/ente e verifica attestato/test/conferma), livello raggiunto e chi ha valutato. Le competenze già al livello richiesto entrano «Già presente».

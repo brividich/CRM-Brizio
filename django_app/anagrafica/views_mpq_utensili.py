@@ -271,4 +271,69 @@ def mpq_registro(request, reg_id: int):
         "percentuale": min(100, round(usato * 100 / limite)) if limite else None,
         "form": form if can and reg.stato == RegistroUtensile.STATO_IN_USO else None, "can_manage": can,
         "processo": reg.passo.revisione.plan.processo, "tp": reg.passo.revisione.plan,
+        "export_query": f"registro={reg.pk}",
+    })
+
+
+@login_required
+def mpq_officina(request):
+    """MOD.176 in officina: i registri utensili aperti, da tablet. Cerca il kit o il P/N e registra le parti.
+
+    Vedere: permesso visualizza MOD.128; registrare: gestisci (come la pagina del registro).
+    """
+    if not _check_mpq_permission(request):
+        return _mpq_denied(request)
+    from django.db.models import Q
+
+    from .forms_mpq import RegistroRigaForm
+
+    can = _check_manage(request)
+    cerca = (request.GET.get("q") or request.POST.get("q") or "").strip()
+    errore_reg, form_errato = None, None
+    if request.method == "POST":
+        if not can:
+            return _mpq_denied(request)
+        reg = get_object_or_404(RegistroUtensile.objects.select_related("passo", "passo__revisione__plan__processo"),
+                                pk=request.POST.get("registro") or 0)
+        form = RegistroRigaForm(request.POST)
+        if form.is_valid():
+            try:
+                esito = servizio_utensili.registra_riga(reg, **form.cleaned_data)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                _mpq_log(request, processo=reg.passo.revisione.plan.processo, evento="MOD.176 parti lavorate",
+                         dettaglio=f"{reg.identificativo}: {form.cleaned_data['quantita']} × {form.cleaned_data['part_number']}")
+                if esito["oltre"]:
+                    messages.warning(request, f"{reg.identificativo}: TCP superato di {esito['oltre']} "
+                                              f"{reg.passo.get_tcp_unita_display()}: cambia l'utensile e segnala a Qualità.")
+                elif esito["tcp_raggiunto"]:
+                    messages.warning(request, f"{reg.identificativo}: TCP raggiunto: cambia l'utensile e chiudi il registro.")
+                else:
+                    messages.success(request, f"{reg.identificativo}: registrate {form.cleaned_data['quantita']} parti.")
+                url = reverse("anagrafica:mpq_officina")
+                from urllib.parse import urlencode
+
+                return redirect(f"{url}?{urlencode({'q': cerca})}" if cerca else url)
+        else:
+            errore_reg, form_errato = reg.pk, form
+
+    registri = (RegistroUtensile.objects.exclude(stato=RegistroUtensile.STATO_CHIUSO)
+                .select_related("passo", "passo__utensile", "passo__revisione__plan", "passo__revisione__plan__processo")
+                .prefetch_related("righe").order_by("stato", "identificativo"))
+    if cerca:
+        registri = registri.filter(Q(identificativo__icontains=cerca) | Q(passo__revisione__plan__part_number__icontains=cerca)
+                                   | Q(passo__utensile__codice__icontains=cerca)
+                                   | Q(passo__revisione__plan__processo__sezione_sigla__icontains=cerca))
+    oggi = timezone.localdate()
+    schede = []
+    for reg in registri[:60]:
+        limite = reg.passo.tcp_limite
+        usato = reg.utilizzo
+        form = form_errato if reg.pk == errore_reg else RegistroRigaForm(
+            initial={"data": oggi, "part_number": reg.passo.revisione.plan.part_number})
+        schede.append({"reg": reg, "usato": usato, "limite": limite, "residuo": reg.residuo,
+                       "percentuale": min(100, round(usato * 100 / limite)) if limite else None, "form": form})
+    return render(request, "anagrafica/pages/mpq_officina.html", {
+        "schede": schede, "cerca": cerca, "can_manage": can, "oggi": oggi,
     })

@@ -30,6 +30,16 @@
       {% if form.non_field_errors %}
       <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
+      {% if simili %}
+      <div class="fmd-form-sec mpq-simili" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;margin:12px;padding:12px 16px;color:#78350f;">
+        <strong>Esiste già un processo simile: non è stato salvato niente.</strong>
+        <ul style="margin:6px 0 8px 18px;">
+          {% for s in simili %}<li><a href="{% url 'anagrafica:mpq_processo_detail' s.processo.pk %}">{{ s.processo.nome }}</a>{% if s.processo.cliente_id %} · {{ s.processo.cliente.nome }}{% endif %}{% if s.stessa_sigla %} — ha già la sezione {{ s.processo.sezione_sigla }}: con la stessa sigla i due processi finiscono nella stessa pagina{% endif %}</li>{% endfor %}
+        </ul>
+        Apri quello esistente e premi «Modifica», oppure, se è davvero un processo diverso,
+        <button type="submit" name="salva_comunque" value="1" class="fmd-btn fmd-btn-ghost" style="margin-left:6px;">Salva comunque</button>
+      </div>
+      {% endif %}
 
       {% include "anagrafica/partials/_fmd_section.html" with title="Processo" icon="i-cap" desc="Chi lo riconosce, come si chiama e il regime. «Rientra nel perimetro Part 145» lo porta nel Dossier PART 145." griglia=1 fields=form|section_fields:"cliente,nome,regime,perimetro_part145,livello" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Certificazione" icon="i-check" desc="Ente che certifica il processo e tipo qualifica collegato." griglia=1 chiusa=1 fields=form|section_fields:"ente_certificatore,tipo_qualifica" %}
