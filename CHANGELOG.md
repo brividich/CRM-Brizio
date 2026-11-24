@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: Organigramma con il reparto scelto
+
+- **Organigramma, vista Elenco** (`/anagrafica/organigramma/`): il riquadro di un reparto si clicca e a destra compaiono «Reparto scelto» (responsabile, ruolo responsabile, a chi riporta, persone, aree), la scheda del responsabile e le «Pagine collegate» (`?scelto=`); ricerca per reparto, area o persona; «Da fare» al posto delle tessere con i numeri; riquadri che si dispongono da soli. In stampa solo i riquadri. «Capo di ogni persona» e «Dashboard» passano da testata a «Pagine collegate»; il filtro `?reparto=` resta.
+- File: `anagrafica/services/organigramma_vista.py` (nuovo), `anagrafica/views/struttura.py`, `pages/organigramma.html`, `anagrafica/tests.py` (OrganigrammaTests), Centro guide.
+
 ### Anagrafica: «Mansioni» in vista semplice
 
 - **Mansionario** (`/anagrafica/mansionario/`) si apre in vista semplice: elenco «Mansione / Reparto / Ruolo / Competenze / Persone / Stato», mansione scelta a destra con «Apri la mansione», «Competenze richieste» col livello in un riquadro ad altezza fissa (verificato con 60 competenze: 300 px) e «Pagine collegate». Filtri «Senza competenze», «Senza persone», «Da guardare» con il numero; ricerca per mansione, reparto o ruolo; `?mansione=` ricorda la scelta. La pagina di prima resta come «Vista completa» (`?vista=completa`, scelta in sessione) con «Torna alla vista semplice».

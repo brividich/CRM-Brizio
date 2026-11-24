@@ -222,6 +222,12 @@ GUIDA = {
                     ("Rischi", "i gruppi omogenei del DVR per mansione di rischio."),
                 ]),
                 ("p", "Il selettore in alto passa da una vista all'altra; i collegamenti salvati continuano a funzionare."),
+                ("p", "Nella vista «Elenco» clicca il riquadro di un reparto: a destra compaiono «Reparto scelto» "
+                      "(«Responsabile», «Ruolo responsabile», «Riporta a», «Persone», «Aree»), il pulsante per la scheda "
+                      "del responsabile e le «Pagine collegate». Il riquadro scelto ha il bordo arancione. Il campo di "
+                      "ricerca tiene i reparti che contengono il testo, anche nel nome di una persona; «Da fare» conta "
+                      "i reparti senza responsabile e le persone con un reparto non a catalogo. In stampa escono solo i "
+                      "riquadri dei reparti."),
             ],
         },
         {

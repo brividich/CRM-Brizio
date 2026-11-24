@@ -3173,6 +3173,23 @@ class OrganigrammaTests(TestCase):
         content = resp.content.decode()
         self.assertIn("PROD", content)
 
+    def test_riquadro_scelto_e_da_fare(self):
+        resp = self.client.get(reverse("anagrafica:organigramma"))
+        self.assertIsNone(resp.context["scelta"])
+        self.assertContains(resp, "<template data-sc-modello>", count=len(resp.context["blocchi"]))
+        for testo in ("data-sc-cerca", 'data-sc-param="scelto"', 'class="fx-flusso"', "Clicca un riquadro"):
+            self.assertContains(resp, testo)
+        self.assertNotContains(resp, "{#")
+        titoli = [x["titolo"] for x in resp.context["da_fare"]]
+        self.assertIn("Persone con reparto non a catalogo", titoli)
+        prod = next(b for b in resp.context["blocchi"] if b["reparto"].nome == "PROD")
+        resp = self.client.get(reverse("anagrafica:organigramma"), {"scelto": prod["reparto"].pk})
+        campi = dict(resp.context["scelta"]["scheda"]["campi"])
+        self.assertEqual((campi["Reparto"], campi["Persone"]), ("PROD", str(prod["n_totale"])))
+        for x in resp.context["scelta"]["scheda"]["collegate"] + resp.context["scelta"]["scheda"]["azioni"]:
+            self.assertEqual(self.client.get(x["url"]).status_code, 200, x["nome"])
+        self.assertIsNone(self.client.get(reverse("anagrafica:organigramma"), {"scelto": "abc"}).context["scelta"])
+
 
 # ---------------------------------------------------------------------------
 # H2 — fascicolo conformità "idoneità alla mansione"
