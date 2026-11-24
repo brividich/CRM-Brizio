@@ -248,7 +248,7 @@ body.theme-dark .tkt-kpi-blue .tkt-kpi-val{color:#93c5fd}
         {% for t in tickets %}
         <tr>
           <td>
-            {% if is_gestore or is_admin %}
+            {% if t.tipo in tipi_gestiti %}
             <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a>
             {% else %}
             <a href="{% url 'tickets:detail' t.pk %}">{{ t.numero_ticket }}</a>
@@ -256,7 +256,7 @@ body.theme-dark .tkt-kpi-blue .tkt-kpi-val{color:#93c5fd}
           </td>
           <td><span class="tkt-tipo tkt-tipo-{{ t.tipo }}">{{ t.label_tipo }}</span></td>
           <td>
-            {% if is_gestore or is_admin %}
+            {% if t.tipo in tipi_gestiti %}
             <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:60 }}</a>
             {% else %}
             <a href="{% url 'tickets:detail' t.pk %}">{{ t.titolo|truncatechars:60 }}</a>
