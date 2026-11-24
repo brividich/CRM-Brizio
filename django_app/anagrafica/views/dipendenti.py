@@ -451,6 +451,23 @@ def _righe_richieste(request) -> list[dict]:
     if dati["in_attesa"]:
         righe.append({"icona": "⏳", "titolo": "Le mie richieste in attesa di altri", "count": len(dati["in_attesa"]),
                       "urgente": False, "url": url})
+    try:
+        from ..services import sessioni
+
+        sf = sessioni.da_fare(richieste.attore(request))
+    except Exception:
+        logger.exception("Dashboard: sessioni formative da fare non calcolabili")
+        return righe
+    # Stessi gruppi della pagina «Da fare», a cui la riga porta.
+    for chiave, icona, titolo, urgente in (
+        ("da_aprire", "📂", "Sessioni formative da aprire", False),
+        ("da_valutare", "📝", "Competenze da valutare", True),
+        ("da_firmare", "✍️", "Sessioni formative da firmare", True),
+        ("da_firmare_io", "✍️", "La tua formazione da firmare", True),
+        ("da_chiudere", "✅", "Sessioni formative da chiudere", False),
+    ):
+        if sf[chiave]:
+            righe.append({"icona": icona, "titolo": titolo, "count": len(sf[chiave]), "urgente": urgente, "url": url})
     return righe
 
 

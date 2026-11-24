@@ -51,11 +51,21 @@ def _notifica(ids, messaggio: str, url: str) -> None:
 
 @login_required
 def da_fare(request):
+    from .services import sessioni
+
     a = svc.attore(request)
     dati = svc.da_fare(a)
+    sf = sessioni.da_fare(a)
+    gruppi_sessioni = [g for g in (
+        {"titolo": "Sessioni da aprire", "richieste": sf["da_aprire"], "vuoto": ""},
+        {"titolo": "Competenze da valutare", "sessioni": sf["da_valutare"]},
+        {"titolo": "Sessioni da firmare", "sessioni": sf["da_firmare"]},
+        {"titolo": "La tua formazione da firmare", "sessioni": sf["da_firmare_io"]},
+        {"titolo": "Sessioni da chiudere", "sessioni": sf["da_chiudere"]},
+    ) if g.get("richieste") or g.get("sessioni")]
     return render(request, "anagrafica/pages/richieste_da_fare.html", {
         "da_approvare": dati["da_approvare"], "in_attesa": dati["in_attesa"],
-        "puo_chiedere": bool(svc.tipi_ammessi(a)),
+        "puo_chiedere": bool(svc.tipi_ammessi(a)), "gruppi_sessioni": gruppi_sessioni,
     })
 
 
@@ -184,9 +194,14 @@ def dettaglio(request, pk: int):
     richiesta = get_object_or_404(R.objects.select_related("mansione", "competenza"), pk=pk)
     if not svc.puo_vedere(a, richiesta):
         raise Http404
+    from .models_sessioni import SessioneFormativa
+    from .services import sessioni
+
     riga = svc.righe([richiesta])[0]
     fabbisogno = svc.fabbisogno(richiesta)
+    sessione = SessioneFormativa.objects.filter(richiesta=richiesta).first()
     return render(request, "anagrafica/pages/richiesta_dettaglio.html", {
+        "sessione": sessione, "motivo_non_apre": "" if sessione else sessioni.motivo_non_apre(a, richiesta),
         "r": richiesta, "persona": riga["persona"], "tocca_a": riga["tocca_a"], "passi": svc.passi(richiesta),
         "fabbisogno": fabbisogno, "da_formare": sum(1 for f in fabbisogno if not f["presente"]),
         "livello": esplora_semplice.livello(richiesta.livello), "legenda": esplora_semplice.LEGENDA,

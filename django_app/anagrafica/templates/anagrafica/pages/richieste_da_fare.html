@@ -29,6 +29,23 @@
     {% if in_attesa %}{% include "anagrafica/partials/_richieste_righe.html" with righe=in_attesa azione="Apri" %}
     {% else %}<p class="es-s-vuoto">Nessuna tua richiesta è in attesa.</p>{% endif %}
   </section>
-  <p class="es-s-cambia"><a href="{% url 'anagrafica:richieste' %}">Tutte le richieste</a></p>
+  {% if gruppi_sessioni %}
+  <section class="es-s-card" style="margin-top:14px">
+    <h2 class="es-s-h">Sessioni formative</h2>
+    {% for g in gruppi_sessioni %}
+    <div class="rq-gruppo">{{ g.titolo }} · {% if g.richieste %}{{ g.richieste|length }}{% else %}{{ g.sessioni|length }}{% endif %}</div>
+    <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+      <thead><tr><th>Persona</th><th>Mansione o competenza</th><th>{% if g.richieste %}Richiesta{% else %}Sessione{% endif %}</th><th>{% if g.richieste %}Approvata{% else %}Competenze{% endif %}</th><th></th></tr></thead>
+      <tbody>
+      {% for x in g.richieste %}<tr><td><b>{{ x.persona }}</b></td><td>{{ x.richiesta.oggetto }}</td><td>{{ x.richiesta.codice }}</td><td>{{ x.richiesta.decisa_il|date:"d/m/Y" }}</td>
+        <td><form method="post" action="{% url 'anagrafica:sessione_apri' x.richiesta.pk %}" style="margin:0">{% csrf_token %}<button type="submit" class="rq-btn rq-btn-p rq-btn-s">Apri la sessione</button></form></td></tr>{% endfor %}
+      {% for x in g.sessioni %}<tr><td><b>{{ x.persona }}</b></td><td>{{ x.sessione.richiesta.oggetto }}</td><td>{{ x.sessione.codice }}</td><td>{{ x.fatte }} di {{ x.totale }}</td>
+        <td><a class="rq-btn rq-btn-s" href="{% url 'anagrafica:sessione' x.sessione.pk %}">Apri</a></td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    {% endfor %}
+  </section>
+  {% endif %}
+  <p class="es-s-cambia"><a href="{% url 'anagrafica:richieste' %}">Tutte le richieste</a> · <a href="{% url 'anagrafica:sessioni' %}">Tutte le sessioni formative</a></p>
 </div>
 {% endblock %}

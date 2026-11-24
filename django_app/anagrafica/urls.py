@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views
 from . import views_coefficienti
+from . import views_sessioni
 from . import views_mpq
 from . import views_mpq_qualifiche as views_mpq_q
 from . import views_mpq_utensili as views_mpq_u
@@ -433,6 +434,16 @@ urlpatterns = [
     path("competenze/richieste/nuova/", views_richieste.nuova, name="richiesta_nuova"),
     path("competenze/richieste/<int:pk>/", views_richieste.dettaglio, name="richiesta"),
     path("competenze/richieste/<int:pk>/decidi/", views_richieste.decidi, name="richiesta_decidi"),
+    # Sessioni formative: la richiesta approvata diventa formazione, competenza per competenza.
+    path("competenze/sessioni/", views_sessioni.elenco, name="sessioni"),
+    path("competenze/sessioni/<int:pk>/", views_sessioni.dettaglio, name="sessione"),
+    path("competenze/richieste/<int:richiesta_pk>/apri-sessione/", views_sessioni.apri, name="sessione_apri"),
+    path("competenze/sessioni/riga/<int:riga_pk>/valuta/", views_sessioni.valuta, name="sessione_valuta"),
+    path("competenze/sessioni/<int:pk>/firma/", views_sessioni.firma_approvatore, name="sessione_firma"),
+    path("competenze/sessioni/<int:pk>/firma-persona/", views_sessioni.firma_persona, name="sessione_firma_persona"),
+    path("competenze/sessioni/<int:pk>/chiudi/", views_sessioni.chiudi, name="sessione_chiudi"),
+    path("competenze/sessioni/<int:pk>/file/<str:cosa>/", views_sessioni.scarica, name="sessione_file"),
+    path("competenze/sessioni/<int:pk>/file/<str:cosa>/<int:riga_pk>/", views_sessioni.scarica, name="sessione_file_riga"),
     path("la-mia-scheda/", views_mia_scheda.mia_scheda, name="mia_scheda"),
     path("la-mia-scheda/attestato/<int:record_id>/", views_mia_scheda.mio_attestato, name="mio_attestato"),
     path("la-mia-scheda/miei-dati.zip", views_mia_scheda.miei_dati_zip, name="miei_dati_zip"),

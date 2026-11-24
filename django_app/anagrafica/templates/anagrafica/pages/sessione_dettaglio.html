@@ -1,0 +1,264 @@
+{% extends "core/base.html" %}
+
+{% block title %}Sessione {{ s.codice }} | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_rc_stili.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_richieste_stili.html" %}
+{% include "anagrafica/components/_flusso_dinamico.html" %}
+<style>
+.sf-passo-firme { padding:12px 16px; border-bottom:1px solid #f1f5f9; font-size:13px; color:#475569; }
+.sf-passo-firme:last-child { border-bottom:0; }
+.sf-passo-firme strong { display:block; color:#0f172a; font-size:13.5px; margin-bottom:4px; }
+.sf-passo-firme form { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; }
+.sf-passo-firme input[type=date], .sf-passo-firme input[type=file], .sf-passo-firme textarea { padding:7px 9px; border:1px solid #d7e0ea; border-radius:9px; font:inherit; font-size:13px; }
+.sf-passo-firme textarea { width:100%; min-height:60px; }
+.sf-ok { color:#15803d; font-weight:600; }
+.sf-attesa { color:#94a3b8; }
+.sf-evid { display:block; color:#64748b; font-size:11.5px; font-weight:500; margin-top:2px; }
+.sf-evid a { font-weight:600; }
+.sf-tab td { vertical-align:top; }
+/* Finestra centrale di valutazione */
+.sf-modal { position:fixed; inset:0; z-index:1000; display:none; align-items:center; justify-content:center; background:rgba(15,23,42,.45); padding:16px; }
+.sf-modal.is-aperta { display:flex; }
+.sf-box { background:#fff; border-radius:14px; width:min(640px, 100%); max-height:calc(100vh - 32px); overflow:auto; box-shadow:0 20px 50px rgba(15,23,42,.25); }
+.sf-box h2 { margin:0; padding:14px 18px; font-size:16px; border-bottom:1px solid #e2e8f0; color:#0f172a; }
+.sf-box h2 small { display:block; font-size:12.5px; font-weight:500; color:#64748b; margin-top:2px; }
+.sf-campi { padding:14px 18px; display:grid; gap:12px; }
+.sf-campi label.sf-l { display:block; font-size:12.5px; color:#64748b; margin:0 0 4px; }
+.sf-campi input[type=text], .sf-campi input[type=date], .sf-campi input[type=number], .sf-campi select, .sf-campi textarea { width:100%; padding:8px 10px; border:1px solid #d7e0ea; border-radius:9px; font:inherit; font-size:13.5px; background:#fff; color:#0f172a; box-sizing:border-box; }
+.sf-due { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.sf-tre { display:grid; grid-template-columns:1fr 1fr 110px; gap:10px; }
+.sf-gruppo { display:none; gap:12px; padding:12px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; }
+.sf-gruppo.is-visibile { display:grid; }
+.sf-piede { display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid #e2e8f0; }
+.sf-cambio { display:none; font-size:12.5px; color:#9a3412; background:#fff7ed; border:1px solid #fed7aa; border-radius:9px; padding:8px 10px; }
+.sf-cambio.is-visibile { display:block; }
+body.theme-dark .sf-passo-firme { border-color:var(--border); color:var(--text-light); }
+body.theme-dark .sf-passo-firme strong, body.theme-dark .sf-box h2 { color:var(--text); }
+body.theme-dark .sf-box { background:var(--surface,#13223a); }
+body.theme-dark .sf-gruppo { background:var(--surface-alt,#0f1b2d); border-color:var(--border); }
+body.theme-dark .sf-campi input, body.theme-dark .sf-campi select, body.theme-dark .sf-campi textarea,
+body.theme-dark .sf-passo-firme input, body.theme-dark .sf-passo-firme textarea { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
+@media (max-width:560px) { .sf-due, .sf-tre { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="rq-testa">
+    <h1>Sessione {{ s.codice }}</h1>
+    {% include "anagrafica/partials/_sessione_stato.html" %}
+    <div class="rq-azioni">
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="rq-btn" href="{{ guida_url }}#sessioni-formative">? Guida</a>
+      <a class="rq-btn" href="{% url 'anagrafica:sessioni' %}?sessione={{ s.pk }}">Tutte le sessioni</a>
+      <a class="rq-btn" href="{% url 'anagrafica:richiesta' r.pk %}">Richiesta {{ r.codice }}</a>
+    </div>
+  </div>
+
+  <div class="rq-passi">
+    {% for p in passi %}<div class="rq-passo{% if p.stato %} is-{{ p.stato }}{% endif %}"><b>{{ p.nome }}</b>{{ p.sotto }}</div>{% endfor %}
+  </div>
+
+  {% if s.aperta %}
+  <div class="rq-tocca"><div><b>Tocca a: {{ tocca_a }}.</b><p>I livelli cambiano nella skill matrix solo alla chiusura, quando ogni competenza è valutata e ci sono le firme di {{ sigla }} e della persona.</p></div></div>
+  {% elif s.stato == "negativa" %}
+  <div class="rq-tocca"><div><b>Chiusa negativa il {{ s.chiusa_il|date:"d/m/Y" }} da {{ s.chiusa_da_nome }}.</b><p>Motivo: {{ s.motivo_negativo }}. La skill matrix non è cambiata{% if r.tipo == "aggiunta" %}: la mansione resta in formazione (I); per toglierla serve una richiesta di rimozione{% endif %}.</p></div></div>
+  {% endif %}
+
+  <div class="fx-flusso">
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">Competenze <span>{{ fatte }} di {{ totale }} valutate</span></h2>
+      {% if righe %}
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab sf-tab">
+        <thead><tr><th>Competenza</th><th>Richiesto</th><th>Oggi</th><th>Modalità</th><th>Raggiunto</th><th>Stato</th><th></th></tr></thead>
+        <tbody>{% for x in righe %}{% with g=x.r %}<tr>
+          <td><b>{{ g.competenza_nome }}</b>
+            {% if g.stato == "gia_presente" %}<span class="sf-evid">Già nel profilo della persona: non va rivalutata.</span>
+            {% elif g.modalita == "P" %}<span class="sf-evid">{{ g.descrizione|default:"Verifica da descrivere" }}{% if g.data_verifica %} · verificata il {{ g.data_verifica|date:"d/m/Y" }}{% endif %}</span>
+            {% elif g.modalita == "A" %}<span class="sf-evid">Tutor: {{ g.tutor_nome|default:"da indicare" }}{% if g.ore %} · {{ g.ore }} ore{% endif %}{% if g.dal %} · dal {{ g.dal|date:"d/m/Y" }}{% endif %}{% if g.al %} al {{ g.al|date:"d/m/Y" }}{% endif %}{% if g.registro_mod040 %} · <a href="{% url 'anagrafica:sessione_file_riga' s.pk 'mod040' g.pk %}">registro MOD.040</a>{% else %} · registro MOD.040 da caricare{% endif %}</span>
+            {% elif g.modalita == "C" %}<span class="sf-evid">{% if g.corso %}{{ g.corso.codice }} · {{ g.corso.titolo }}{% else %}{{ g.docente_ente|default:"Corso da indicare" }}{% endif %}{% if g.data_corso %} · {{ g.data_corso|date:"d/m/Y" }}{% endif %}{% if g.verifica %} · verifica: {{ g.get_verifica_display|lower }}{% endif %}</span>{% endif %}
+            {% if g.valutato_da_nome %}<span class="sf-evid">Valutata da {{ g.valutato_da_nome }} il {{ g.valutato_il|date:"d/m/Y" }}{% if g.nota %} · {{ g.nota }}{% endif %}</span>{% endif %}
+          </td>
+          <td>{% include "anagrafica/partials/_esplora_livello.html" with l=x.richiesto %}</td>
+          <td>{% if x.oggi %}{% include "anagrafica/partials/_esplora_livello.html" with l=x.oggi %}{% else %}<span class="sf-attesa">—</span>{% endif %}</td>
+          <td>{{ g.get_modalita_display|default:"—" }}</td>
+          <td>{% if x.raggiunto %}{% include "anagrafica/partials/_esplora_livello.html" with l=x.raggiunto %}{% else %}<span class="sf-attesa">—</span>{% endif %}</td>
+          <td><span class="es-s-stato {% if g.fatta %}es-s-stato-ok{% elif g.stato == 'in_acquisizione' %}es-s-stato-warning{% else %}es-s-stato-info{% endif %}">{{ g.get_stato_display }}</span></td>
+          <td>{% if not x.motivo_non_valuta %}<button type="button" class="rq-btn rq-btn-s" data-sf-valuta="{{ g.pk }}"
+                data-nome="{{ g.competenza_nome }}" data-richiesto="{{ g.livello_richiesto }}" data-modo="{{ g.modalita }}"
+                data-livello="{{ g.livello_raggiunto }}" data-nota="{{ g.nota }}" data-descrizione="{{ g.descrizione }}"
+                data-verifica-il="{{ g.data_verifica|date:'Y-m-d' }}" data-tutor="{{ g.tutor_nome }}" data-dal="{{ g.dal|date:'Y-m-d' }}"
+                data-al="{{ g.al|date:'Y-m-d' }}" data-ore="{{ g.ore|default_if_none:'' }}" data-registro="{% if g.registro_mod040 %}1{% endif %}"
+                data-corso="{{ g.corso_id|default_if_none:'' }}" data-ente="{{ g.docente_ente }}" data-corso-il="{{ g.data_corso|date:'Y-m-d' }}"
+                data-verifica="{{ g.verifica }}">{% if g.modalita %}Modifica{% else %}Valuta{% endif %}</button>{% endif %}</td>
+        </tr>{% endwith %}{% endfor %}</tbody>
+      </table></div>
+      <div class="es-s-legenda">{% for l in legenda %}<span><b>{{ l.codice }}</b> {{ l.parola }}</span>{% endfor %}</div>
+      {% else %}<p class="es-s-vuoto">La mansione non ha competenze caricate: la sessione serve solo per le firme.</p>{% endif %}
+    </section></div>
+
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Che cosa si forma</h2>
+      <div class="es-s-testa"><dl class="es-s-campi es-s-campi-1">
+        <div class="es-s-campo"><dt>Persona:</dt><dd>{{ persona }}</dd></div>
+        <div class="es-s-campo"><dt>Richiesta:</dt><dd>{{ r.codice }} · {{ r.get_tipo_display }}</dd></div>
+        {% if r.mansione_id %}<div class="es-s-campo"><dt>Mansione:</dt><dd>{{ r.mansione.nome }}</dd></div>{% endif %}
+        {% if r.competenza_id %}<div class="es-s-campo"><dt>Competenza:</dt><dd>{{ r.competenza.nome }}</dd></div>{% endif %}
+        {% if livello %}<div class="es-s-campo"><dt>Livello da raggiungere:</dt><dd>{% include "anagrafica/partials/_esplora_livello.html" with l=livello %}</dd></div>{% endif %}
+        <div class="es-s-campo"><dt>Approvata da:</dt><dd>{{ r.deciso_da_nome }} · {{ r.decisa_il|date:"d/m/Y" }}</dd></div>
+        <div class="es-s-campo"><dt>Aperta da:</dt><dd>{{ s.aperta_da_nome }} · {{ s.aperta_il|date:"d/m/Y" }}</dd></div>
+        {% if s.chiusa_il %}<div class="es-s-campo"><dt>Chiusa da:</dt><dd>{{ s.chiusa_da_nome }} · {{ s.chiusa_il|date:"d/m/Y" }}</dd></div>{% endif %}
+      </dl></div>
+    </section></div>
+
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Firme e chiusura</h2>
+      <div class="sf-passo-firme">
+        <strong>Firma {{ sigla }}</strong>
+        {% if s.firma_approvatore_il %}<span class="sf-ok">Firmata da {{ s.firma_approvatore_nome }} il {{ s.firma_approvatore_il|date:"d/m/Y" }}</span>{% if s.benestare_mod040 %} · visti i registri MOD.040{% endif %}
+        {% elif not motivo_non_firma_approvatore %}
+          <form method="post" action="{% url 'anagrafica:sessione_firma' s.pk %}">{% csrf_token %}
+            {% if ha_affiancamento %}<label><input type="checkbox" name="visto_mod040" value="1" required> Ho visto i registri MOD.040 delle righe in affiancamento</label>{% endif %}
+            <button type="submit" class="rq-btn rq-btn-p rq-btn-s">Firma come {{ sigla }}</button>
+          </form>
+        {% else %}<span class="sf-attesa">{{ motivo_non_firma_approvatore }}</span>{% endif %}
+      </div>
+      <div class="sf-passo-firme">
+        <strong>Firma della persona</strong>
+        {% if s.firma_persona_modo %}<span class="sf-ok">{{ s.get_firma_persona_modo_display }}, il {{ s.firma_persona_il|date:"d/m/Y" }}</span>{% if s.firma_persona_modo == "carta" %} · registrata da {{ s.firma_persona_registrata_da }}{% endif %}{% if s.firma_persona_file %} · <a href="{% url 'anagrafica:sessione_file' s.pk 'firma' %}">foglio firmato</a>{% endif %}
+        {% else %}
+          {% if not motivo_non_firma_persona %}
+          <form method="post" action="{% url 'anagrafica:sessione_firma_persona' s.pk %}">{% csrf_token %}
+            <input type="hidden" name="modo" value="portale">
+            <button type="submit" class="rq-btn rq-btn-p rq-btn-s">Firmo: ho ricevuto questa formazione</button>
+          </form>
+          {% endif %}
+          {% if not motivo_non_firma_carta %}
+          <form method="post" action="{% url 'anagrafica:sessione_firma_persona' s.pk %}" enctype="multipart/form-data">{% csrf_token %}
+            <input type="hidden" name="modo" value="carta">
+            <label>Firmata su carta il <input type="date" name="data_firma" value="{{ oggi|date:'Y-m-d' }}" max="{{ oggi|date:'Y-m-d' }}" required></label>
+            <input type="file" name="foglio" accept=".pdf,.jpg,.jpeg,.png" aria-label="Foglio firmato (facoltativo)">
+            <button type="submit" class="rq-btn rq-btn-s">Registra la firma su carta</button>
+          </form>
+          {% endif %}
+          {% if motivo_non_firma_persona and motivo_non_firma_carta %}<span class="sf-attesa">{% if not s.firma_approvatore_il %}Prima firma {{ sigla }}.{% else %}La persona firma dal portale; se ha firmato su carta la registrano la Qualità o HR.{% endif %}</span>{% endif %}
+        {% endif %}
+      </div>
+      <div class="sf-passo-firme">
+        <strong>Chiusura</strong>
+        {% if not s.aperta %}<span class="sf-ok">{{ s.get_stato_display }} il {{ s.chiusa_il|date:"d/m/Y" }}</span>
+        {% elif not motivo_non_chiude %}
+          <form method="post" action="{% url 'anagrafica:sessione_chiudi' s.pk %}">{% csrf_token %}
+            <button type="submit" class="rq-btn rq-btn-p rq-btn-s">Chiudi la sessione e aggiorna i livelli</button>
+          </form>
+        {% else %}<span class="sf-attesa">{{ motivo_non_chiude }}</span>{% endif %}
+        {% if puo_chiudere_negativa %}
+        <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:#9a3412">Chiudi come negativa</summary>
+          <form method="post" action="{% url 'anagrafica:sessione_chiudi' s.pk %}">{% csrf_token %}
+            <input type="hidden" name="esito" value="negativa">
+            <textarea name="motivo" required maxlength="1000" placeholder="Motivo (obbligatorio), es. contratto non confermato" aria-label="Motivo della chiusura negativa"></textarea>
+            <button type="submit" class="rq-btn rq-btn-s">Chiudi come negativa</button>
+          </form>
+        </details>
+        {% endif %}
+      </div>
+    </section></div>
+
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">Storia <span>{{ eventi|length }}</span></h2>
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+        <thead><tr><th>Quando</th><th>Chi</th><th>Che cosa</th></tr></thead>
+        <tbody>{% for e in eventi %}<tr>
+          <td>{{ e.quando|date:"d/m/Y H:i" }}</td>
+          <td>{{ e.utente_nome|default:"Portale" }}</td>
+          <td><b>{{ e.azione }}</b>{% if e.prima or e.dopo %}<small>Prima: {{ e.prima|default:"niente" }} · Dopo: {{ e.dopo|default:"niente" }}</small>{% endif %}{% if e.nota %}<small>{{ e.nota|linebreaksbr }}</small>{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+    </section></div>
+  </div>
+</div>
+
+<div class="sf-modal" id="sf-modal" role="dialog" aria-modal="true" aria-labelledby="sf-titolo">
+  <form class="sf-box" method="post" enctype="multipart/form-data" id="sf-form" data-base="{% url 'anagrafica:sessione_valuta' 0 %}">
+    {% csrf_token %}
+    <h2 id="sf-titolo">Valuta la competenza<small id="sf-sotto"></small></h2>
+    <div class="sf-campi">
+      <div><label class="sf-l">Modalità: come è stata acquisita</label>
+        <div class="rq-scelte">{% for c, n in modi %}<label><input type="radio" name="modalita" value="{{ c }}" required> {{ c }} · {{ n }}</label>{% endfor %}</div>
+      </div>
+      <div class="sf-cambio" id="sf-cambio"><label><input type="checkbox" name="conferma_cambio" value="1"> Confermo il passaggio a «Corso»: resta scritto nella storia.</label></div>
+      <div class="sf-gruppo" data-gruppo="P">
+        <div><label class="sf-l" for="sf-descrizione">Esperienza e come è stata verificata</label><textarea id="sf-descrizione" name="descrizione" rows="3" placeholder="Es. prova pratica sul tornio, colloquio tecnico"></textarea></div>
+        <div><label class="sf-l" for="sf-verifica-il">Data della verifica</label><input type="date" id="sf-verifica-il" name="data_verifica"></div>
+      </div>
+      <div class="sf-gruppo" data-gruppo="A">
+        <div><label class="sf-l" for="sf-tutor">Tutor</label><input type="text" id="sf-tutor" name="tutor_nome" maxlength="160"></div>
+        <div class="sf-tre">
+          <div><label class="sf-l" for="sf-dal">Dal</label><input type="date" id="sf-dal" name="dal"></div>
+          <div><label class="sf-l" for="sf-al">Al</label><input type="date" id="sf-al" name="al"></div>
+          <div><label class="sf-l" for="sf-ore">Ore</label><input type="number" id="sf-ore" name="ore" min="0.5" step="0.5"></div>
+        </div>
+        <div><label class="sf-l" for="sf-registro">Registro MOD.040 firmato (PDF o foto) <span id="sf-registro-ok" class="sf-ok"></span></label><input type="file" id="sf-registro" name="registro_mod040" accept=".pdf,.jpg,.jpeg,.png"></div>
+      </div>
+      <div class="sf-gruppo" data-gruppo="C">
+        <div><label class="sf-l" for="sf-corso">Corso a catalogo</label><select id="sf-corso" name="corso"><option value="">Nessuno: indico docente o ente</option>{% for c in corsi %}<option value="{{ c.pk }}">{{ c.codice }} · {{ c.titolo }}</option>{% endfor %}</select></div>
+        <div class="sf-due">
+          <div><label class="sf-l" for="sf-ente">Docente o ente</label><input type="text" id="sf-ente" name="docente_ente" maxlength="200"></div>
+          <div><label class="sf-l" for="sf-corso-il">Data del corso</label><input type="date" id="sf-corso-il" name="data_corso"></div>
+        </div>
+        <div><label class="sf-l">Verifica</label><div class="rq-scelte">{% for c, n in verifiche %}<label><input type="radio" name="verifica" value="{{ c }}"> {{ n }}</label>{% endfor %}</div></div>
+      </div>
+      <div><label class="sf-l">Livello raggiunto <span id="sf-richiesto"></span></label>
+        <div class="rq-scelte"><label><input type="radio" name="livello" value="" checked> Non ancora</label>{% for l in livelli %}<label><input type="radio" name="livello" value="{{ l.codice }}"> {{ l.codice }} · {{ l.parola }}</label>{% endfor %}</div>
+      </div>
+      <div><label class="sf-l" for="sf-nota">Nota</label><input type="text" id="sf-nota" name="nota" maxlength="500"></div>
+    </div>
+    <div class="sf-piede"><button type="button" class="rq-btn" data-sf-chiudi>Annulla</button><button type="submit" class="rq-btn rq-btn-p">Salva</button></div>
+  </form>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var modal = document.getElementById('sf-modal'), form = document.getElementById('sf-form');
+  var modoAttuale = '';
+  function campo(n) { return form.elements[n]; }
+  function scegli(nome, valore) {
+    Array.prototype.forEach.call(form.querySelectorAll('input[name="' + nome + '"]'), function (r) { r.checked = r.value === (valore || ''); });
+  }
+  function mostraGruppo() {
+    var m = (form.querySelector('input[name="modalita"]:checked') || {}).value || '';
+    form.querySelectorAll('.sf-gruppo').forEach(function (g) { g.classList.toggle('is-visibile', g.dataset.gruppo === m); });
+    document.getElementById('sf-cambio').classList.toggle('is-visibile', !!modoAttuale && !!m && m !== modoAttuale);
+  }
+  form.addEventListener('change', function (e) { if (e.target.name === 'modalita') mostraGruppo(); });
+  document.querySelectorAll('[data-sf-valuta]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var d = b.dataset;
+      form.reset();
+      form.action = form.dataset.base.replace('/0/', '/' + d.sfValuta + '/');
+      document.getElementById('sf-sotto').textContent = d.nome;
+      document.getElementById('sf-richiesto').textContent = '(richiesto: ' + d.richiesto + ')';
+      modoAttuale = d.modo || '';
+      scegli('modalita', d.modo); scegli('livello', d.livello); scegli('verifica', d.verifica);
+      campo('nota').value = d.nota || ''; campo('descrizione').value = d.descrizione || '';
+      campo('data_verifica').value = d.verificaIl || ''; campo('tutor_nome').value = d.tutor || '';
+      campo('dal').value = d.dal || ''; campo('al').value = d.al || ''; campo('ore').value = (d.ore || '').replace(',', '.');
+      campo('corso').value = d.corso || ''; campo('docente_ente').value = d.ente || ''; campo('data_corso').value = d.corsoIl || '';
+      document.getElementById('sf-registro-ok').textContent = d.registro ? '· già caricato, puoi sostituirlo' : '';
+      mostraGruppo();
+      modal.classList.add('is-aperta');
+      var primo = form.querySelector('input[name="modalita"]'); if (primo) primo.focus();
+    });
+  });
+  function chiudi() { modal.classList.remove('is-aperta'); }
+  modal.addEventListener('click', function (e) { if (e.target === modal || e.target.hasAttribute('data-sf-chiudi')) chiudi(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') chiudi(); });
+})();
+</script>
+{% endblock %}

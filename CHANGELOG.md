@@ -9,6 +9,17 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: sessioni formative (dalla richiesta approvata al nuovo livello)
+
+- **Che cos'è:** la richiesta approvata di assegnazione di mansione o di acquisizione di competenza diventa una sessione formativa `SF-AAAA-NNNN` (specifica della Qualità v1.0): una riga per competenza con livello richiesto, modalità P (pregressa: descrizione e data della verifica), A (affiancamento: tutor, periodo, ore, registro MOD.040 caricato) o C (corso: corso a catalogo o docente/ente e verifica attestato/test/conferma), livello raggiunto e chi ha valutato. Le competenze già al livello richiesto entrano «Già presente».
+- **Chi fa che cosa:** apre e chiude la Qualità o HR; valuta il responsabile della persona (o Qualità/HR); firma chi ha il ruolo che ha approvato (RDD mansioni, MSO competenze; conferma dei MOD.040 con righe in affiancamento) e poi la persona, dal portale o su carta registrata da Qualità/HR. La modalità di una riga cambia solo verso «Corso», con conferma scritta nella storia.
+- **Alla chiusura**, in una transazione: livelli delle competenze (`AbilitazioneMacchinaVoce` + storico valutazioni), livello della mansione da I al livello chiesto (`AbilitazioneMacchina` + storico), richiesta «Evasa», registro. Chiusa negativa: motivo obbligatorio, skill matrix invariata. Registro della sessione di sola aggiunta.
+- **Pagine:** `/anagrafica/competenze/sessioni/` (elenco con la sessione scelta a destra, «Da fare», richieste approvate senza sessione con «Apri la sessione») e `/anagrafica/competenze/sessioni/<id>/` (passi, competenze, finestra «Valuta», firme e chiusura, storia). Nella richiesta: «Apri la sessione formativa» e, dopo, il collegamento alla sessione con il suo «tocca a». «Da fare» e la Dashboard («Cose da gestire») mostrano i passi delle sessioni. I file (MOD.040, foglio firmato) si scaricano solo dopo il controllo di chi può vedere la sessione.
+- **Menu:** «Sessioni formative» in Organizzazione → Richieste e in Competenze → Formazione (dopo «Sessioni», le edizioni dei corsi).
+- **Migrazioni:** anagrafica `0238_sessioni_formative` (tre tabelle) e `0239_sessioni_formative_acl_menu` (permessi copiati da «Il mio team», voci di menu). Non provate su SQL Server.
+- **Non ancora:** onboarding con cartella e matricola, rivalutazione annuale, mansioni potenziali, livelli discordanti tra reparti, RAC su più persone, matrice C→M (vale il livello minimo di ogni competenza).
+- File: `anagrafica/models_sessioni.py`, `services/sessioni.py`, `views_sessioni.py`, `urls.py`, `pages/sessioni_elenco.html`, `pages/sessione_dettaglio.html`, `partials/_sessione_stato.html`, `services/richieste.py` (tocca a), `views_richieste.py`, `pages/richiesta_dettaglio.html`, `pages/richieste_da_fare.html`, `views/dipendenti.py` (Cose da gestire), `tests_sessioni.py`, `tests_richieste.py`, Centro guide, `hub_tools/schema_db.py`, `docs/moduli/anagrafica.md`.
+
 ### Asset: cartelle documento della categoria scelte per singolo asset (24/11)
 
 - **«Togli da questo asset»** su una cartella di categoria vuota: sparisce solo da quella scheda. «Cartelle della categoria non usate qui» → «Aggiungi a questo asset» la rimette. Il pulsante per tutta la categoria ora si chiama «Disattiva per tutta la categoria».
