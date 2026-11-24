@@ -232,6 +232,10 @@ class ExcelTests(_Base):
         r = self.client.post(url, {"azione": "applica", "sha": "x"})
         self.assertEqual(r.status_code, 302)
 
+    def test_import_ricaricato_torna_alla_pagina(self):
+        r = self.client.get(reverse("anagrafica:mansionario_struttura_import"))
+        self.assertRedirects(r, reverse("anagrafica:mansionario_struttura") + "#importa", fetch_redirect_response=False)
+
     def test_export_view(self):
         r = self.client.get(reverse("anagrafica:mansionario_struttura_export"))
         self.assertEqual(r.status_code, 200)

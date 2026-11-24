@@ -20,7 +20,6 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
@@ -333,8 +332,11 @@ def struttura_export(request):
 
 
 @login_required
-@require_POST
 def struttura_import(request):
+    if request.method != "POST":
+        # Pagina dell'anteprima ricaricata, «Indietro» o link: si torna all'import
+        # invece di un 405 del browser (la prova non salva niente, va rifatta).
+        return redirect(reverse("anagrafica:mansionario_struttura") + "#importa")
     if not _is_admin(request):
         return _nega(request, "Non hai i permessi per importare la struttura.")
     from .services import struttura_excel
@@ -519,9 +521,10 @@ def assegnazioni_export(request):
 
 
 @login_required
-@require_POST
 def assegnazioni_import(request):
     """Prova (sempre) e conferma dell'import Excel di ruoli e mansioni delle persone."""
+    if request.method != "POST":  # anteprima ricaricata: si torna all'import, non un 405
+        return redirect(reverse("anagrafica:ruoli_in_blocco") + "#da-excel")
     if not _is_admin(request):
         return _nega(request, "L'import delle assegnazioni è dell'amministrazione dell'anagrafica.")
     from .services import assegnazioni_excel
