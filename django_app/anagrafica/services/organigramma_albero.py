@@ -64,7 +64,7 @@ def cessati_legacy_ids() -> set[int]:
     }
 
 
-def build_ruolo_albero(ambito_id: int | None = None) -> list[dict]:
+def build_ruolo_albero(ambito_id: int | None = None, *, includi_senza: bool = False) -> list[dict]:
     """Albero dei ruoli: lista di nodi radice.
 
     Nodo: ``{"ruolo": RuoloOperativo, "titolari": [{"legacy_id", "nome"}],
@@ -72,10 +72,19 @@ def build_ruolo_albero(ambito_id: int | None = None) -> list[dict]:
 
     ``ambito_id`` restringe l'albero a un solo ambito (organigramma della
     sicurezza, delle informazioni, …); ``0`` seleziona i ruoli **senza ambito**.
+    ``includi_senza`` aggiunge all'ambito scelto i ruoli senza ambito: è il caso
+    dell'ambito della scheda, a cui i ruoli non classificati appartengono.
     """
+    from django.db.models import Q
+
     qs = RuoloOperativo.objects.filter(is_active=True).select_related("ambito")
     if ambito_id is not None:
-        qs = qs.filter(ambito_id=None) if ambito_id == 0 else qs.filter(ambito_id=ambito_id)
+        if ambito_id == 0:
+            qs = qs.filter(ambito_id=None)
+        elif includi_senza:
+            qs = qs.filter(Q(ambito_id=ambito_id) | Q(ambito_id=None))
+        else:
+            qs = qs.filter(ambito_id=ambito_id)
     ruoli = list(qs.order_by("nome"))
 
     presenti = {r.id for r in ruoli}
@@ -197,7 +206,7 @@ def _ids_con_foto(legacy_ids) -> dict[int, str]:
     }
 
 
-def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
+def build_posizioni_albero(ambito_id: int | None = None, *, includi_senza: bool = False) -> list[dict]:
     """Albero delle POSIZIONI: un riquadro per posizione (ruolo + persona).
 
     Deriva da :func:`build_ruolo_albero` espandendo i titolari, con questa
@@ -216,8 +225,11 @@ def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
     restano in ``figli``, che il template disegna affiancati sotto il genitore
     (albero dall'alto verso il basso).
     ``ambito_id`` disegna il solo organigramma di quell'ambito.
+
+    ``chiave_persona`` è la persona per le tessere nate da un ruolo con più
+    titolari (0 altrimenti): con il ruolo identifica la tessera nella pagina.
     """
-    albero = build_ruolo_albero(ambito_id)
+    albero = build_ruolo_albero(ambito_id, includi_senza=includi_senza)
 
     tutti_ids = []
 
@@ -235,12 +247,13 @@ def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
         for figlio in nodo["figli"]:
             figli.extend(_espandi(figlio))
 
-        def _nodo(tipo: str, titolari: list[dict], figli_nodo: list[dict]) -> dict:
+        def _nodo(tipo: str, titolari: list[dict], figli_nodo: list[dict], chiave_persona: int = 0) -> dict:
             return {
                 "ruolo": nodo["ruolo"],
                 "tipo": tipo,
                 "titolari": titolari,
                 "figli": figli_nodo,
+                "chiave_persona": chiave_persona,
             }
 
         titolari = sorted(nodo["titolari"], key=lambda t: (t["nome"] or "", t["legacy_id"]))
@@ -253,7 +266,7 @@ def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
         if len(titolari) == 1:
             return [_nodo("posizione", titolari, figli)]
         if not figli:
-            return [_nodo("posizione", [t], []) for t in titolari]
+            return [_nodo("posizione", [t], [], chiave_persona=t["legacy_id"]) for t in titolari]
         return [_nodo("condiviso", titolari, figli)]
 
     posizioni: list[dict] = []

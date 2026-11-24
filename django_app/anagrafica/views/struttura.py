@@ -1318,6 +1318,29 @@ def organigramma_albero(request):
     })
 
 
+_SESSIONE_AMBITO_DIAGRAMMA = "anagrafica_diagramma_ambito"
+
+
+def _ambito_diagramma(request) -> tuple[AmbitoRuolo | None, list[AmbitoRuolo]]:
+    """Ambito da disegnare nel diagramma: non esiste più «tutti gli ambiti».
+
+    Ordine: ``?ambito=<id>`` → l'ultimo scelto in questa sessione → l'ambito
+    della scheda (``alimenta_scheda``) → il primo per ordine. ``None`` solo se
+    non esiste alcun ambito: allora si disegnano tutti i ruoli.
+    """
+    ambiti = list(AmbitoRuolo.objects.filter(is_active=True).order_by("ordine", "nome"))
+    per_id = {a.pk: a for a in ambiti}
+    raw = (request.GET.get("ambito") or "").strip()
+    if not (raw.isdigit() and len(raw) < 10 and int(raw) in per_id):
+        raw = str(request.session.get(_SESSIONE_AMBITO_DIAGRAMMA) or "")
+    scelto = per_id.get(int(raw)) if raw.isdigit() and len(raw) < 10 else None
+    if scelto is None and ambiti:
+        scelto = next((a for a in ambiti if a.alimenta_scheda), ambiti[0])
+    if scelto is not None:
+        request.session[_SESSIONE_AMBITO_DIAGRAMMA] = scelto.pk
+    return scelto, ambiti
+
+
 @login_required
 def organigramma_diagramma(request):
     """Organigramma a diagramma: un riquadro per POSIZIONE (ruolo + persona).
@@ -1327,11 +1350,16 @@ def organigramma_diagramma(request):
     riporti si affiancano sotto, agganciati alla traversa. I ruoli con più
     titolari diventano riquadri fratelli; vedi
     :func:`anagrafica.services.organigramma_albero.build_posizioni_albero`.
+
+    Un ambito alla volta; quello della scheda comprende i ruoli senza ambito.
     """
     from anagrafica.services.organigramma_albero import build_posizioni_albero
 
-    ambito_id = _parse_ambito_filtro(request)
-    albero = build_posizioni_albero(ambito_id)
+    ambito, ambiti = _ambito_diagramma(request)
+    if ambito is None:
+        albero = build_posizioni_albero(None)
+    else:
+        albero = build_posizioni_albero(ambito.pk, includi_senza=bool(ambito.alimenta_scheda))
 
     def _conta(nodi):
         tot = 0
@@ -1342,5 +1370,6 @@ def organigramma_diagramma(request):
     return render(request, "anagrafica/pages/organigramma_diagramma.html", {
         "albero": albero,
         "n_posizioni": _conta(albero),
-        **_ambito_filtro_context(ambito_id),
+        "ambiti_filtro": ambiti,
+        "ambito_sel": str(ambito.pk) if ambito else "",
     })

@@ -312,6 +312,13 @@ GUIDA = {
                       "ricerca tiene i reparti che contengono il testo, anche nel nome di una persona; «Da fare» conta "
                       "i reparti senza responsabile e le persone con un reparto non a catalogo. In stampa escono solo i "
                       "riquadri dei reparti."),
+                ("p", "Il «Diagramma» disegna un organigramma alla volta: il menu a sinistra della barra sceglie l'ambito "
+                      "(Produttivo, ISO 45001, …). Si apre sull'ambito della scheda, che comprende anche i ruoli senza "
+                      "ambito, e poi ricorda l'ultimo scelto. Zoom, rami chiusi e posizione della tela restano come li "
+                      "lasci, per ogni ambito."),
+                ("p", "«Cerca persona o ruolo…» evidenzia le tessere che contengono il testo (bastano 2 lettere): Invio o "
+                      "› va alla successiva, apre i rami chiusi e centra la tela; Maiusc+Invio o ‹ torna indietro, Esc "
+                      "svuota la ricerca."),
             ],
         },
         {

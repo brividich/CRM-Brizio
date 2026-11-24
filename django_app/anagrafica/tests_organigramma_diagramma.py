@@ -183,3 +183,45 @@ class OrganigrammaDiagrammaViewTests(TestCase):
         self.assertIn('id="ogdPrint"', body)
         self.assertIn('data-url-popup', body)
         self.assertIn('data-persona=', body)
+        # ricerca e vista ricordata
+        self.assertIn('id="ogdCercaInput"', body)
+        self.assertIn('data-cerca=', body)
+        self.assertIn('data-nodo=', body)
+
+
+class DiagrammaAmbitoDefaultTests(TestCase):
+    """Niente più «Tutti gli ambiti»: si apre l'ambito della scheda, con i ruoli senza ambito."""
+
+    def setUp(self):
+        from anagrafica.models import AmbitoRuolo
+
+        self.su = User.objects.create_superuser("su-amb", "su-amb@test.local", "x")
+        self.prod = AmbitoRuolo.objects.create(nome="ProduttivoT", alimenta_scheda=True, ordine=20)
+        self.iso = AmbitoRuolo.objects.create(nome="Iso45001T", ordine=10)
+        RuoloOperativo.objects.create(nome="RuoloProdT", ambito=self.prod)
+        RuoloOperativo.objects.create(nome="RuoloSenzaT")
+        RuoloOperativo.objects.create(nome="RuoloIsoT", ambito=self.iso)
+
+    def _get(self, qs="", session=None):
+        from anagrafica.views import organigramma_diagramma
+
+        request = RequestFactory().get("/anagrafica/organigramma/diagramma/" + qs)
+        request.user = self.su
+        request.session = session if session is not None else SessionStore()
+        return organigramma_diagramma(request).content.decode(), request.session
+
+    def test_default_ambito_scheda_con_ruoli_senza_ambito(self):
+        body, _ = self._get()
+        self.assertNotIn("Tutti gli ambiti", body)
+        self.assertNotIn("Ruoli senza ambito", body)
+        self.assertIn("RuoloProdT", body)
+        self.assertIn("RuoloSenzaT", body)
+        self.assertNotIn("RuoloIsoT", body)
+
+    def test_altro_ambito_solo_i_suoi_ruoli_e_resta_ricordato(self):
+        body, sessione = self._get(f"?ambito={self.iso.pk}")
+        self.assertIn("RuoloIsoT", body)
+        self.assertNotIn("RuoloSenzaT", body)
+        body, _ = self._get(session=sessione)
+        self.assertIn("RuoloIsoT", body)
+        self.assertNotIn("RuoloProdT", body)
