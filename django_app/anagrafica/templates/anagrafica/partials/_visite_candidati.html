@@ -20,13 +20,13 @@
       {% else %}<span style="padding:2px 9px;background:#f1f5f9;color:#64748b;border-radius:999px;font-size:11px;font-weight:700;">Mai effettuata</span>{% endif %}
     </td>
     <td style="padding:8px 10px;">
-      <select name="esito_{{ r.legacy_id }}_{{ r.tipo.pk }}" style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;">
+      <select name="esito_{{ r.legacy_id }}_{{ r.tipo.pk }}" style="width:100%;max-width:190px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;">
         {% for val, label in esiti %}<option value="{{ val }}"{% if val == esito_default %} selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
     </td>
-    <td style="padding:8px 10px;"><input type="text" name="prescrizioni_{{ r.legacy_id }}_{{ r.tipo.pk }}" placeholder="prescrizioni" style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;box-sizing:border-box;"></td>
-    <td style="padding:8px 10px;"><input type="text" name="note_{{ r.legacy_id }}_{{ r.tipo.pk }}" placeholder="note" style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;box-sizing:border-box;"></td>
-    <td style="padding:8px 10px;"><input type="file" name="referto_{{ r.legacy_id }}_{{ r.tipo.pk }}" accept=".pdf,image/*" style="width:150px;font-size:11px;color:#475569;"></td>
+    <td style="padding:8px 10px;"><input type="text" name="prescrizioni_{{ r.legacy_id }}_{{ r.tipo.pk }}" placeholder="Prescrizioni" style="width:100%;min-width:160px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;box-sizing:border-box;"></td>
+    <td style="padding:8px 10px;"><input type="text" name="note_{{ r.legacy_id }}_{{ r.tipo.pk }}" placeholder="Note (obbligatorie con limitazioni)" style="width:100%;min-width:160px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;box-sizing:border-box;"></td>
+    <td style="padding:8px 10px;"><input type="file" name="referto_{{ r.legacy_id }}_{{ r.tipo.pk }}" accept=".pdf,image/*" style="width:160px;font-size:11px;color:#475569;"></td>
   </tr>
   {% empty %}
   <tr><td colspan="9" style="padding:16px;text-align:center;color:#94a3b8;font-size:13px;">Scegli un tipo (o «Tutti») per vedere i dipendenti da rinnovare.</td></tr>
