@@ -157,6 +157,13 @@ def permission_code_naming_warning(code: str) -> str:
 
 
 def normalize_binding_path_pattern(raw_value: str, *, for_regex: bool = False) -> str:
+    return _normalize_binding_path_pattern(str(raw_value or ""), bool(for_regex))
+
+
+@lru_cache(maxsize=8192)
+def _normalize_binding_path_pattern(raw_value: str, for_regex: bool) -> str:
+    """Funzione pura sulla stringa del pattern: in cache per processo. L'indice delle
+    capacità la chiamava ~470.000 volte (ogni rotta × ogni binding con percorso)."""
     value = str(raw_value or "").strip()
     if not value:
         return ""
@@ -403,6 +410,38 @@ def _binding_path_sort_key(binding: RoutePermissionBinding) -> tuple[int, int, i
     )
 
 
+_INDICE_BINDINGS: dict = {"lista": None, "n": -1, "indice": None}
+
+
+def _indice_bindings(bindings: list) -> tuple[dict, list]:
+    """(rotta in minuscolo -> binding scelto, binding attivi con percorso) della lista.
+
+    Chi risolve molte rotte passa sempre la stessa lista: l'indice si costruisce una
+    volta invece di scorrere tutti i binding a ogni rotta (l'indice delle capacità
+    faceva ~3.400 rotte × tutti i binding). Si riusa solo per lo stesso oggetto lista
+    con la stessa lunghezza.
+    """
+    memo = _INDICE_BINDINGS
+    if memo["lista"] is bindings and memo["n"] == len(bindings):
+        return memo["indice"]
+    per_rotta: dict = {}
+    con_percorso: list = []
+    for binding in bindings:
+        if not getattr(binding, "is_active", True):
+            continue
+        nome = str(binding.route_name or "").lower()
+        if nome:
+            chiave = (int(getattr(binding, "priority", 0) or 0), int(getattr(binding, "id", 0) or 0))
+            attuale = per_rotta.get(nome)
+            if attuale is None or chiave < attuale[0]:
+                per_rotta[nome] = (chiave, binding)
+        if str(binding.path_pattern or "").strip():
+            con_percorso.append(binding)
+    indice = ({nome: b for nome, (_k, b) in per_rotta.items()}, con_percorso)
+    memo.update({"lista": bindings, "n": len(bindings), "indice": indice})
+    return indice
+
+
 def _find_canonical_binding(
     *,
     route_name: str,
@@ -446,31 +485,14 @@ def _find_canonical_binding(
         return None, ""
 
     # Ramo in-memory: stessa semantica del ramo DB, ma sul set pre-caricato.
+    per_rotta, con_percorso = _indice_bindings(bindings)
     route_name_lower = str(route_name or "").lower()
     if route_name_lower:
-        route_matches = [
-            binding
-            for binding in bindings
-            if getattr(binding, "is_active", True)
-            and str(binding.route_name or "").lower() == route_name_lower
-        ]
-        if route_matches:
-            by_route = min(
-                route_matches,
-                key=lambda binding: (
-                    int(getattr(binding, "priority", 0) or 0),
-                    int(getattr(binding, "id", 0) or 0),
-                ),
-            )
+        by_route = per_rotta.get(route_name_lower)
+        if by_route is not None:
             return by_route, "route_name"
 
-    path_matches = [
-        binding
-        for binding in bindings
-        if getattr(binding, "is_active", True)
-        and str(binding.path_pattern or "").strip()
-        and _binding_matches_path(binding, path_norm)
-    ]
+    path_matches = [binding for binding in con_percorso if _binding_matches_path(binding, path_norm)]
     if path_matches:
         return min(path_matches, key=_binding_path_sort_key), "path_pattern"
     return None, ""

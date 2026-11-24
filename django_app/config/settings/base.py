@@ -359,6 +359,8 @@ AI_PREWARM_ON_PAGE_OPEN = env_bool("AI_PREWARM_ON_PAGE_OPEN", True)
 
 # Home: secondi di cache per persona dei contatori dei riquadri (0 = spenta).
 HOME_KPI_CACHE_SECONDS = int(env("HOME_KPI_CACHE_SECONDS", "90") or "90")
+# Home anagrafica: secondi di cache del cruscotto HR e del carico mansioni (0 = spenta).
+ANAGRAFICA_CRUSCOTTO_CACHE_SECONDS = int(env("ANAGRAFICA_CRUSCOTTO_CACHE_SECONDS", "120") or "120")
 
 OLLAMA_RAG_CHUNK_CHARS = int(env("OLLAMA_RAG_CHUNK_CHARS", "900") or "900")
 OLLAMA_RAG_MAX_FILES = int(env("OLLAMA_RAG_MAX_FILES", "80") or "80")

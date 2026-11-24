@@ -369,9 +369,13 @@ def imposta_eccezioni_pagina(ruolo, valori: dict[str, str], *, per_modulo=None) 
 
     per_modulo = per_modulo if per_modulo is not None else codici_per_modulo()
     ammessi = {c for codes in per_modulo.values() for c in codes}
+    # Tutti i grant del ruolo (poche centinaia) e filtro in Python: un IN con migliaia
+    # di codici costava a SQL Server diversi secondi (la matrice arrivava a 19 s).
+    cercati = set(valori) & ammessi
     esistenti = {
         g.permission_id: g
-        for g in GroupPermissionGrant.objects.filter(group=ruolo, permission_id__in=set(valori) & ammessi)
+        for g in GroupPermissionGrant.objects.filter(group=ruolo)
+        if g.permission_id in cercati
     }
     modifiche = []
     with transaction.atomic():
@@ -404,9 +408,12 @@ def sincronizza_ruolo(ruolo, *, capacita=None, per_modulo=None, dry_run: bool = 
     esito = EsitoSync(ruolo=ruolo.label)
     desiderati, governati = codici_desiderati(ruolo, capacita=capacita, per_modulo=per_modulo)
     esito.governati = len(governati)
+    # Come sopra: niente IN con 1.300 codici (8,7 s in prod), si filtra in Python.
+    cercati = governati | desiderati
     esistenti = {
         g.permission_id: g
-        for g in GroupPermissionGrant.objects.filter(group=ruolo, permission_id__in=governati | desiderati)
+        for g in GroupPermissionGrant.objects.filter(group=ruolo)
+        if g.permission_id in cercati
     }
     with transaction.atomic():
         for code in sorted(desiderati):
