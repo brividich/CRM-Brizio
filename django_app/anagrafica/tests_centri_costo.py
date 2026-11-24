@@ -127,6 +127,65 @@ class PaginaTests(TestCase):
         self.assertContains(r, "Reparti senza centro di costo (1)")
         self.assertNotContains(r, "{#")
 
+    def _mansione_in_it(self):
+        from .models_skillmatrix import AbilitazioneMacchina, CompetenzaSkm
+
+        self.area.ruoli_reparto.add(self.ruolo)
+        m = CompetenzaSkm.objects.create(competenza_key="gestione_rete", display="Gestione della rete",
+                                         tipo=CompetenzaSkm.TIPO_PROCESSO, area=self.area)
+        m.ruoli.add(self.ruolo)
+        AbilitazioneMacchina.objects.create(legacy_anagrafica_id=987001, competenza=m, livello="U")
+        return m
+
+    def test_ogni_centro_ha_il_suo_albero_reparto_ruolo_mansione(self):
+        m = self._mansione_in_it()
+        r = self.client.get(reverse("anagrafica:centri_costo"))
+        scheda = next(s for s in r.context["schede"] if s["centro"].pk == self.centro.pk)
+        reparto = scheda["albero"][0]
+        self.assertEqual((reparto["nome"], reparto["persone"]), ("IT", "0 persone"))
+        ruolo = reparto["ruoli"][0]
+        self.assertIn("Information Technology Manager", ruolo["nome"])
+        self.assertEqual([x["nome"] for x in ruolo["mansioni"]], ["Gestione della rete"])
+        # Chi non è in forza non conta: stesso criterio di «Esplora la struttura».
+        self.assertEqual(ruolo["mansioni"][0]["persone"], "0 persone")
+        self.assertIn(f"mansione={m.pk}", ruolo["mansioni"][0]["url"])
+        vuoto = next(s for s in r.context["schede"] if s["centro"].pk == self.altro.pk)
+        self.assertEqual(vuoto["albero"], [])
+        for testo in ("<em>Reparto:</em>", "<em>Ruolo:</em>", "<em>Mansione:</em>", "Gestione della rete",
+                      "Nessun reparto in questo centro.", "Apri tutto", "Chiudi tutto", 'class="fx-flusso"'):
+            self.assertContains(r, testo)
+        self.assertEqual(self.client.get(ruolo["mansioni"][0]["url"]).status_code, 200)
+
+    def test_il_centro_nell_indirizzo_si_apre_con_la_sua_scheda(self):
+        r = self.client.get(reverse("anagrafica:centri_costo"))
+        self.assertIsNone(r.context["scelta"])
+        self.assertContains(r, "Apri un centro di costo: qui compaiono i suoi dati")
+        # Ogni centro porta con sé la sua scheda: aprendolo compare a destra senza ricaricare.
+        self.assertContains(r, "<template data-cc-modello>", count=2)
+        r = self.client.get(reverse("anagrafica:centri_costo"), {"centro": self.centro.pk})
+        scelta = r.context["scelta"]
+        self.assertEqual(scelta["centro"], self.centro)
+        campi = dict(scelta["scheda"]["campi"])
+        self.assertEqual((campi["Centro di costo"], campi["Stato"], campi["Reparti"], campi["Persone"]),
+                         ("STRUTTURA", "Attivo", "IT", "0"))
+        self.assertEqual([x["nome"] for x in scelta["scheda"]["collegate"]][:2], ["Esplora la struttura", "Persone del centro"])
+        self.assertContains(r, f'id="cc-{self.centro.pk}" data-cc-centro="{self.centro.pk}"')
+        self.assertContains(r, " open>")
+        self.assertIsNone(self.client.get(reverse("anagrafica:centri_costo"), {"centro": "abc"}).context["scelta"])
+        for x in scelta["scheda"]["collegate"]:
+            self.assertEqual(self.client.get(x["url"]).status_code, 200, x["nome"])
+
+    def test_da_fare_e_comandi_di_modifica(self):
+        r = self.client.get(reverse("anagrafica:centri_costo"))
+        self.assertEqual([(x["titolo"], x["n"]) for x in r.context["da_fare"]], [("Reparti senza centro di costo", 1)])
+        self.assertContains(r, "data-cc-nuovo")
+        self.assertContains(r, "data-cc-id")
+        self._utente_normale()
+        r = self.client.get(reverse("anagrafica:centri_costo"), follow=True)
+        if r.status_code == 200 and "schede" in (r.context or {}):
+            self.assertNotContains(r, "data-cc-nuovo")
+            self.assertNotContains(r, "data-cc-id")
+
     def test_voce_di_menu(self):
         self.assertTrue(SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:centri_costo").exists())
 

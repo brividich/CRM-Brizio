@@ -1,13 +1,30 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Revisioni della struttura | Anagrafica HR{% endblock %}
+{% block title %}Struttura e revisioni | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=10">
 <link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=5">
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_flusso_dinamico.html" %}
+<style>
+.sr-testa { margin:0 0 16px; }
+.sr-testa .es-s-campi { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px 24px; width:100%; }
+.sr-fare { display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid #f1f5f9; }
+.sr-fare:last-child { border-bottom:0; }
+.sr-fare > b { flex:0 0 40px; font-size:19px; text-align:center; color:#c2410c; }
+.sr-fare strong { flex:1; font-size:13px; color:#0f172a; }
+.sr-pad { padding:4px 16px 14px; }
+.sr-tab td.sr-small { font-size:12px; color:#64748b; }
+body.theme-dark .sr-fare { border-color:var(--border); }
+body.theme-dark .sr-fare strong { color:var(--text); }
+body.theme-dark .sr-tab td.sr-small { color:var(--text-light); }
+@media (max-width:900px) { .sr-testa .es-s-campi { grid-template-columns:1fr 1fr; } }
+@media (max-width:560px) { .sr-testa .es-s-campi { grid-template-columns:1fr; } }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -22,60 +39,83 @@
     <div class="fmd-pagehead">
       <div>
         <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa</a><span class="fmd-sep"> / </span><span class="fmd-cur">Revisioni</span></template>
-        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-clipboard"/></svg>Revisioni della struttura</h1>
-        <p class="fmd-ph-sub">Ogni revisione è la fotografia non modificabile della struttura approvata dalla Qualità: processi, reparti, aree, ruoli, mansioni con competenze richieste e mansioni di rischio. Nessun nominativo. La emette solo l'MSM.</p>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-clipboard"/></svg>Struttura e revisioni</h1>
+        <p class="fmd-ph-sub">La struttura approvata dalla Qualità e ciò che è cambiato dall'ultima emissione. Una revisione è una fotografia che non si modifica: processi, reparti, aree, ruoli, mansioni con competenze e rischi, senza nominativi.</p>
       </div>
       <div class="fmd-pagehead-actions">
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}?vista=admin#struttura-revisioni" title="Come funziona questa pagina">? Guida</a>
+        {% if puo_emettere and modifiche %}<a class="fmd-btn fmd-btn-navy" href="#emetti">Emetti la revisione</a>{% endif %}
       </div>
     </div>
 
-    <section class="fmd-panel fmd-block" aria-label="Modifiche non ancora emesse">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-edit"/></svg>{% if ultima %}Bozza rispetto alla Rev. {{ ultima.numero }}{% else %}Bozza (nessuna revisione emessa){% endif %}</div>
-      </div>
-      {% for s in modifiche %}
-        {% include "anagrafica/partials/_struttura_diff.html" with s=s %}
-      {% empty %}
-        <p class="sto-ok">Nessuna modifica: la bozza coincide con la revisione in vigore.</p>
-      {% endfor %}
-      {% if puo_emettere %}
-        {% if modifiche %}
-        <form method="post" class="sto-emetti">
-          {% csrf_token %}
-          <label>Motivo della revisione
-            <input type="text" name="motivo" required maxlength="500" placeholder="Es. recepita la MEGA SKILL MATRIX v8">
-          </label>
-          <button type="submit" class="fmd-btn fmd-btn-navy">Emetti la Rev. {% if ultima %}{{ ultima.numero|add:1 }}{% else %}1{% endif %}</button>
-        </form>
-        {% endif %}
-      {% else %}
-        <p class="sto-nota">La revisione la emette chi ricopre il ruolo MSM (Management System Manager).</p>
-      {% endif %}
+    <section class="es-s-card sr-testa">
+      <div class="es-s-testa"><dl class="es-s-campi">
+        {% for etichetta, valore in campi %}<div class="es-s-campo"><dt>{{ etichetta }}:</dt><dd>{{ valore }}</dd></div>{% endfor %}
+        <div class="es-s-campo"><dt>Stato:</dt><dd><span class="es-s-stato es-s-stato-{{ stato.tono }}">{{ stato.nome }}</span></dd></div>
+      </dl></div>
     </section>
 
-    <section class="fmd-panel fmd-block" aria-label="Revisioni emesse">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-doc"/></svg>Revisioni emesse</div>
-      </div>
-      <table class="fmd-table">
-        <thead><tr><th>Rev.</th><th>Data</th><th>Emessa da</th><th>Motivo</th><th>Contenuto</th><th></th></tr></thead>
-        <tbody>
-        {% for r in revisioni %}
-          <tr>
-            <td><a class="fmd-data-link" href="{% url 'anagrafica:struttura_revisione' r.numero %}"><strong>{{ r.numero }}</strong></a></td>
-            <td>{{ r.emessa_il|date:"d/m/Y H:i" }}</td>
-            <td>{{ r.emessa_da_nome|default:"—" }}</td>
-            <td>{{ r.motivo }}</td>
-            <td class="sto-small">{{ r.riepilogo.processi }} processi · {{ r.riepilogo.reparti }} reparti · {{ r.riepilogo.aree }} aree · {{ r.riepilogo.ruoli }} ruoli · {{ r.riepilogo.mansioni }} mansioni · {{ r.riepilogo.competenze }} competenze</td>
-            <td><a class="sto-link" href="{% url 'anagrafica:struttura_revisione_pdf' r.numero %}">PDF</a></td>
-          </tr>
+    <div class="fx-flusso">
+      <div class="fx-blocco fx-largo"><section class="es-s-card" aria-label="Modifiche non ancora emesse">
+        <h2 class="es-s-h">Modifiche non ancora emesse <span>{{ n_modifiche }}{% if ultima %} rispetto alla Rev. {{ ultima.numero }}{% endif %}</span></h2>
+        <div class="sr-pad">
+        {% for s in modifiche %}
+          {% include "anagrafica/partials/_struttura_diff.html" with s=s %}
         {% empty %}
-          <tr><td colspan="6" class="mst-vuoto">Nessuna revisione emessa.</td></tr>
+          <p class="sto-ok">Nessuna modifica: la bozza coincide con la revisione in vigore.</p>
         {% endfor %}
-        </tbody>
-      </table>
-    </section>
+        {% if puo_emettere %}
+          {% if modifiche %}
+          <form method="post" class="sto-emetti" id="emetti">
+            {% csrf_token %}
+            <label>Motivo della revisione
+              <input type="text" name="motivo" required maxlength="500" placeholder="Es. recepita la MEGA SKILL MATRIX v8">
+            </label>
+            <button type="submit" class="fmd-btn fmd-btn-navy">Emetti la Rev. {% if ultima %}{{ ultima.numero|add:1 }}{% else %}1{% endif %}</button>
+          </form>
+          {% endif %}
+        {% else %}
+          <p class="sto-nota">La revisione la emette chi ricopre il ruolo MSM (Management System Manager).</p>
+        {% endif %}
+        </div>
+      </section></div>
+
+      {% if da_completare %}
+      <div class="fx-blocco"><section class="es-s-card">
+        <h2 class="es-s-h">Da completare prima di emettere</h2>
+        {% for x in da_completare %}<div class="sr-fare"><b>{{ x.n }}</b><strong>{{ x.titolo }}</strong><a class="fmd-btn fmd-btn-ghost" href="{{ x.url }}">Apri</a></div>{% endfor %}
+      </section></div>
+      {% endif %}
+
+      <div class="fx-blocco"><section class="es-s-card">
+        <h2 class="es-s-h">Pagine collegate <span>{{ collegate|length }}</span></h2>
+        <div class="es-s-collegate">
+          {% for x in collegate %}<a href="{{ x.url }}"><span><b>{{ x.nome }}</b><small>{{ x.spiega }}</small></span><span class="es-s-freccia" aria-hidden="true">→</span></a>{% endfor %}
+        </div>
+      </section></div>
+
+      <div class="fx-blocco fx-largo"><section class="es-s-card" aria-label="Revisioni emesse">
+        <h2 class="es-s-h">Revisioni emesse <span>{{ revisioni|length }}</span></h2>
+        <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab sr-tab">
+          <thead><tr><th>Revisione</th><th>Emessa il</th><th>Da</th><th>Motivo</th><th>Contenuto</th><th></th></tr></thead>
+          <tbody>
+          {% for r in revisioni %}
+            <tr>
+              <td><a href="{% url 'anagrafica:struttura_revisione' r.numero %}"><b>Rev. {{ r.numero }}</b></a></td>
+              <td>{{ r.emessa_il|date:"d/m/Y H:i" }}</td>
+              <td>{{ r.emessa_da_nome|default:"—" }}</td>
+              <td>{{ r.motivo }}</td>
+              <td class="sr-small">{{ r.riepilogo.processi }} processi · {{ r.riepilogo.reparti }} reparti · {{ r.riepilogo.aree }} aree · {{ r.riepilogo.ruoli }} ruoli · {{ r.riepilogo.mansioni }} mansioni · {{ r.riepilogo.competenze }} competenze</td>
+              <td><a href="{% url 'anagrafica:struttura_revisione_pdf' r.numero %}">PDF</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="es-s-vuoto">Nessuna revisione emessa.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+        <p class="es-s-cambia" style="padding:0 16px 12px">Una revisione emessa non si modifica: per cambiare si emette la successiva.</p>
+      </section></div>
+    </div>
 
   </div>
 </div>

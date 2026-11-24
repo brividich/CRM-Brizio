@@ -71,8 +71,9 @@ class CaricoTests(_Base):
     def test_pagina_centri_costi_solo_a_chi_puo(self):
         pagina = self.client.get(reverse("anagrafica:centri_costo"))
         self.assertContains(pagina, "Mansioni da guardare")
-        self.assertContains(pagina, "cc-misure")
-        self.assertContains(pagina, "costo medio")
+        self.assertContains(pagina, "Centro scelto")
+        self.assertContains(pagina, "Costo orario medio")
+        self.assertContains(pagina, "RML del mese")
         self.assertContains(pagina, reverse("anagrafica:prospetti"))
 
     def test_pagina_centri_senza_permesso_costi(self):
@@ -81,7 +82,9 @@ class CaricoTests(_Base):
         with mock.patch("anagrafica.views_centri_costo._helpers._check_hr_permission", return_value=False):
             pagina = self.client.get(reverse("anagrafica:centri_costo"))
         self.assertContains(pagina, "Mansioni da guardare")
-        self.assertNotContains(pagina, "costo medio")
+        self.assertNotContains(pagina, "Costo orario medio")
+        self.assertNotContains(pagina, "RML del mese")
+        self.assertNotContains(pagina, reverse("anagrafica:costo_orario"))
 
     def test_pagina_centri_regge_senza_carico(self):
         from unittest import mock
@@ -92,7 +95,7 @@ class CaricoTests(_Base):
         self.assertNotContains(pagina, "Mansioni da guardare")
 
     def test_esplora_mostra_i_segnali(self):
-        pagina = self.client.get(reverse("anagrafica:esplora_struttura"), {"mansione": self.m1.pk})
+        pagina = self.client.get(reverse("anagrafica:esplora_struttura"), {"mansione": self.m1.pk, "vista": "completa"})
         self.assertContains(pagina, "Carico")
         self.assertContains(pagina, "Stato")
         pagina = self.client.get(reverse("anagrafica:esplora_struttura"), {"area": self.m1.area_id})

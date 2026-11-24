@@ -1,0 +1,39 @@
+{# Riga scelta → scheda a destra, senza ricaricare (24/11/2026). Ogni riga [data-sc-riga="<id>"] porta un <template data-sc-modello> con la sua scheda; cliccandola la scheda va nel contenitore [data-sc-scelta], la riga prende «is-scelta» e l'indirizzo ricorda la scelta nel parametro indicato da data-sc-param sul contenitore. Un clic su un link o un pulsante della riga fa il suo mestiere e non sceglie. [data-sc-cerca] filtra le righe per testo (data-sc-testo sulla riga). #}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  if (window.scSceltaPronta) return;
+  window.scSceltaPronta = true;
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0) return;
+    if (e.target.closest('a, button, input, select, textarea, label, summary')) return;
+    var riga = e.target.closest('[data-sc-riga]');
+    if (!riga) return;
+    var scelta = document.querySelector('[data-sc-scelta]');
+    var modello = riga.querySelector('template[data-sc-modello]');
+    if (!scelta || !modello) return;
+    scelta.innerHTML = modello.innerHTML;
+    document.querySelectorAll('[data-sc-riga].is-scelta').forEach(function (x) { x.classList.remove('is-scelta'); });
+    riga.classList.add('is-scelta');
+    var parametro = scelta.getAttribute('data-sc-param');
+    if (parametro && window.history.replaceState) {
+      var u = new URL(location.href);
+      u.searchParams.set(parametro, riga.getAttribute('data-sc-riga'));
+      history.replaceState(null, '', u.pathname + u.search);
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var riga = e.target.matches && e.target.matches('[data-sc-riga]') ? e.target : null;
+    if (!riga) return;
+    e.preventDefault();
+    riga.click();
+  });
+  document.addEventListener('input', function (e) {
+    if (!e.target.matches || !e.target.matches('[data-sc-cerca]')) return;
+    var t = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('[data-sc-riga]').forEach(function (r) {
+      r.hidden = !!t && (r.getAttribute('data-sc-testo') || r.textContent).toLowerCase().indexOf(t) < 0;
+    });
+  });
+})();
+</script>

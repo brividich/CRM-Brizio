@@ -341,6 +341,24 @@ class PagineTests(_Base):
         self.assertContains(r, "Sdoppio")
         self.assertNotContains(r, "{#")
 
+    def test_elenco_con_la_prova_scelta_e_passi(self):
+        P.objects.create(nome="Senza autore")  # creato_da vuoto: la pagina non deve cadere
+        r = self.client.get(reverse("anagrafica:prospetti"))
+        self.assertContains(r, "Senza autore")
+        self.assertEqual(r.context["scelta"]["p"], r.context["righe"][0]["p"])
+        self.assertContains(r, "<template data-sc-modello>", count=len(r.context["righe"]))
+        for testo in ("Prova un cambiamento", "Come funziona", "data-pv-nuova", 'data-sc-param="prova"'):
+            self.assertContains(r, testo)
+        r = self.client.get(reverse("anagrafica:prospetti"), {"prova": self.p.pk})
+        campi = dict(r.context["scelta"]["scheda"]["campi"])
+        self.assertEqual((campi["Prova"], campi["Stato"]), (self.p.nome, "In preparazione"))
+        for x in r.context["scelta"]["scheda"]["azioni"] + r.context["scelta"]["scheda"]["collegate"]:
+            self.assertEqual(self.client.get(x["url"].split("#")[0]).status_code, 200, x["nome"])
+        dettaglio = self.client.get(self.url())
+        for testo in ('href="#aggiungi"', 'href="#confronto"', 'href="#applica"', "Tutte le prove"):
+            self.assertContains(dettaglio, testo)
+        self.assertNotContains(dettaglio, "{#")
+
     def test_aggiungere_in_blocco_e_rifare_sostituisce(self):
         u = reverse("anagrafica:prospetto_aggiungi", args=[self.p.pk])
         self.client.post(u, {"tipo": M.PERSONA_REPARTO, "persone": [self.rossi, self.bianchi], "area": self.sa1.pk, "mansioni": "lascia"})

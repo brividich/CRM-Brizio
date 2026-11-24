@@ -90,6 +90,32 @@ body.theme-dark .org-capo-badge{color:#93c5fd}
 body.theme-dark .org-membri li a:hover{color:#93c5fd}
 body.theme-dark .org-nm-link:hover{color:#93c5fd}
 </style>
+{% include "anagrafica/components/_rc_stili.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_flusso_dinamico.html" %}
+{% include "anagrafica/components/_scelta_riga.html" %}
+<style>
+.og-filtri { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.og-filtri input[type=search] { width:320px; max-width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; }
+.og-elenco .org-grid { grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); }
+.org-rep[data-sc-riga] { cursor:pointer; transition:box-shadow .15s; }
+.org-rep[data-sc-riga]:hover { box-shadow:0 2px 10px rgba(15,23,42,.08); }
+.org-rep.is-scelta { outline:2px solid #ea580c; outline-offset:1px; }
+.org-rep[data-sc-riga]:focus-visible { outline:2px solid #1f87cd; outline-offset:1px; }
+.og-fare { display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid #f1f5f9; }
+.og-fare:last-child { border-bottom:0; }
+.og-fare > b { flex:0 0 40px; font-size:20px; text-align:center; color:#0c2545; }
+.og-fare div { flex:1; min-width:0; }
+.og-fare strong { display:block; font-size:13.5px; color:#0f172a; }
+.og-fare small { display:block; font-size:12px; color:#64748b; }
+.og-nota { margin:12px 16px 14px; font-size:12.5px; color:#64748b; }
+body.theme-dark .og-filtri input[type=search] { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
+body.theme-dark .og-fare { border-color:var(--border); }
+body.theme-dark .og-fare strong { color:var(--text); }
+body.theme-dark .og-fare small, body.theme-dark .og-nota { color:var(--text-light); }
+body.theme-dark .og-fare > b { color:#7cc0f0; }
+@media print { .og-lato, .og-filtri { display:none !important; } .fx-flusso { display:block !important; } .fx-blocco { grid-row-end:auto !important; } }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -105,50 +131,28 @@ body.theme-dark .org-nm-link:hover{color:#93c5fd}
     <div>
       <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
       <h1 class="hr-pagehead-title">Organigramma</h1>
-      <p class="hr-pagehead-desc">Reparti, aree aziendali, capireparto e dipendenti in forza.</p>
+      <p class="hr-pagehead-desc">Chi guida ogni reparto e chi ci lavora. Clicca un riquadro per vedere il reparto.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="hr-btn hr-btn-outline" href="{{ guida_url }}#organigramma-viste">? Guida</a>
       {% include "anagrafica/partials/_export_buttons.html" with export_key="organigramma" %}
-      {% include "anagrafica/components/organigramma_viste.html" with attiva="elenco" %}
-      {% if is_anagrafica_admin %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:coerenza_capi' %}">⚖ Capo di ogni persona</a>{% endif %}
       <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa</button>
-      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
+      {% include "anagrafica/components/organigramma_viste.html" with attiva="elenco" %}
     </div>
   </div>
 
-  <!-- KPI -->
-  <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Organigramma in sintesi">
-    {% url 'anagrafica:dipendenti_list' as u_dip %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_dipendenti label="Dipendenti attivi" sub="in forza" url=u_dip|add:"?stato=attivi&vf=0#elenco" title="Apri l'elenco filtrato: dipendenti attivi nell'organico" %}
-    {% url 'anagrafica:aree_list' as u_aree %}
-    {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-building" valore=n_reparti label="Reparti" sub="attivi a catalogo" url=u_aree|add:"?filtro=attivi#schede" title="Apri l'elenco filtrato: reparti attivi a catalogo" %}
-    {% url 'anagrafica:organigramma' as u_org %}
-    {% if n_non_mappati %}{% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=n_non_mappati label="Non mappati" sub="reparto legacy non a catalogo" url=u_org|add:"#non-mappati" title="Vai ai dipendenti con reparto non a catalogo" %}{% else %}{% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-alert-cir" valore=n_non_mappati label="Non mappati" sub="reparto legacy non a catalogo" %}{% endif %}
-  </section>
-
-  <!-- Filtro reparto -->
-  {% if nomi_reparti %}
-  <div class="hr-card org-filters">
-    <form method="get" action="" style="display:flex;gap:12px;align-items:flex-end;padding:14px 16px;flex-wrap:wrap;">
-      <div style="display:flex;flex-direction:column;gap:4px;min-width:200px;">
-        <label for="org-reparto" class="org-filter-label">Reparto</label>
-        <select id="org-reparto" name="reparto" class="sc-select org-select" onchange="this.form.submit()">
-          <option value="" {% if not filtro_reparto %}selected{% endif %}>Tutti</option>
-          {% for nome in nomi_reparti %}
-          <option value="{{ nome }}" {% if nome == filtro_reparto %}selected{% endif %}>{{ nome }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <a href="{% url 'anagrafica:organigramma' %}" class="hr-btn hr-btn-outline hr-btn-sm">Azzera</a>
-    </form>
+  <div class="og-filtri">
+    <input type="search" data-sc-cerca placeholder="Cerca un reparto, un'area o una persona…" aria-label="Cerca un reparto, un'area o una persona" autocomplete="off">
+    {% if filtro_reparto %}<span class="og-nota" style="margin:0">Reparto: <b>{{ filtro_reparto }}</b> · <a href="{% url 'anagrafica:organigramma' %}">mostra tutti</a></span>{% endif %}
   </div>
-  {% endif %}
 
-  <!-- Albero organigramma -->
-  <div class="hr-card" style="padding:18px 20px;">
-    <div class="org-grid">
+  <div class="fx-flusso">
+  <div class="fx-blocco fx-largo"><section class="es-s-card og-elenco">
+    <h2 class="es-s-h">Reparti <span>{{ blocchi|length }} repart{{ blocchi|length|pluralize:"o,i" }} · {{ n_dipendenti }} person{{ n_dipendenti|pluralize:"a,e" }} in forza</span></h2>
+    <div class="org-grid" style="padding:14px 16px 16px;">
       {% for b in blocchi %}
-      <div class="org-rep" style="--org-color:{{ b.reparto.colore }};">
+      <div class="org-rep{% if scelta.reparto.pk == b.reparto.pk %} is-scelta{% endif %}" style="--org-color:{{ b.reparto.colore }};" data-sc-riga="{{ b.reparto.pk }}" data-sc-testo="{{ b.testo }}" tabindex="0">
+        <template data-sc-modello>{% include "anagrafica/partials/_scheda_scelta.html" with titolo="Reparto scelto" scheda=b.scheda %}</template>
         <div class="org-rep-head">
           <div class="org-rep-name">{{ b.reparto.nome }}</div>
           <div class="org-rep-count">{{ b.n_totale }} person{{ b.n_totale|pluralize:"a,e" }}</div>
@@ -191,11 +195,23 @@ body.theme-dark .org-nm-link:hover{color:#93c5fd}
       </div>
       {% endfor %}
     </div>
-  </div>
+  </section></div>
+
+  <div class="fx-blocco og-lato"><div data-sc-scelta data-sc-param="scelto">
+    {% if scelta %}{% include "anagrafica/partials/_scheda_scelta.html" with titolo="Reparto scelto" scheda=scelta.scheda %}
+    {% else %}<section class="es-s-card"><h2 class="es-s-h">Reparto scelto</h2><p class="es-s-vuoto">Clicca un riquadro: qui compaiono il responsabile, a chi riporta e le pagine collegate.</p></section>{% endif %}
+  </div></div>
+
+  {% if da_fare %}
+  <div class="fx-blocco og-lato"><section class="es-s-card">
+    <h2 class="es-s-h">Da fare</h2>
+    {% for x in da_fare %}<div class="og-fare"><b>{{ x.n }}</b><div><strong>{{ x.titolo }}</strong><small>{{ x.sotto }}</small></div><a class="hr-btn hr-btn-outline hr-btn-sm" href="{{ x.url }}">{{ x.azione }}</a></div>{% endfor %}
+  </section></div>
+  {% endif %}
 
   <!-- Bucket non mappati: visibile di proposito, fa emergere i disallineamenti -->
   {% if non_mappati and not filtro_reparto %}
-  <div class="hr-card" id="non-mappati">
+  <div class="fx-blocco fx-largo"><div class="hr-card" id="non-mappati">
     <div class="hr-card-head">
       <div class="hr-card-title">🧩 Dipendenti con reparto non a catalogo</div>
       <div class="org-nm-hint">Il reparto legacy non corrisponde a nessun reparto censito nelle impostazioni.</div>
@@ -208,8 +224,9 @@ body.theme-dark .org-nm-link:hover{color:#93c5fd}
       </li>
       {% endfor %}
     </ul>
-  </div>
+  </div></div>
   {% endif %}
+  </div>
 
 </div>
 {% endblock %}

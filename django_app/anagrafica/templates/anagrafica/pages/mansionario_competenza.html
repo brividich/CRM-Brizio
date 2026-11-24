@@ -34,7 +34,7 @@
     <nav class="mns-filo" aria-label="Da dove viene la competenza">
       <div class="mns-filo-step">
         <span class="mns-filo-l">Ruoli</span>
-        <span class="mns-filo-v">{% for r in ruoli %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}#ruolo-{{ r.ruolo.pk }}" title="Il ruolo nel Mansionario: le sue mansioni e chi lo ricopre">{{ r.ruolo.nome }}</a>{% empty %}<span class="mns-warn-txt">nessuno: le mansioni non hanno un ruolo</span>{% endfor %}</span>
+        <span class="mns-filo-v">{% for r in ruoli %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}?ruolo={{ r.ruolo.pk }}#ruolo-{{ r.ruolo.pk }}" title="Il ruolo nel Mansionario: le sue mansioni e chi lo ricopre">{{ r.ruolo.nome }}</a>{% empty %}<span class="mns-warn-txt">nessuno: le mansioni non hanno un ruolo</span>{% endfor %}</span>
       </div>
       <span class="mns-filo-arr" aria-hidden="true">→</span>
       <div class="mns-filo-step">
@@ -129,7 +129,7 @@
               {% for m in mansioni %}
               <tr>
                 <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}#competenze"><b>{{ m.mansione.nome }}</b></a><div class="fmd-muted" style="font-size:11.5px;">{{ m.mansione.get_tipo_display }}{% if m.mansione.reparto_effettivo %} · {{ m.mansione.reparto_effettivo }}{% endif %}</div></td>
-                <td>{% for r in m.mansione.ruoli.all %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}#ruolo-{{ r.pk }}">{{ r.nome }}</a> {% empty %}<span class="mns-warn-txt">nessun ruolo</span>{% endfor %}</td>
+                <td>{% for r in m.mansione.ruoli.all %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}?ruolo={{ r.pk }}#ruolo-{{ r.pk }}">{{ r.nome }}</a> {% empty %}<span class="mns-warn-txt">nessun ruolo</span>{% endfor %}</td>
                 <td><span class="mns-lv mns-lv-{{ m.voce.livello_minimo }}"><b>{{ m.voce.livello_minimo }}</b></span>{% if m.voce.bloccante %} <span class="fmd-badge fmd-b-red">bloccante</span>{% endif %}</td>
                 <td>{% if m.voce.corso %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' m.voce.corso.pk %}">Corso «{{ m.voce.corso.titolo }}»</a>{% endif %}{% if m.voce.qualifica %}{% if m.voce.corso %} · {% endif %}Qualifica «{{ m.voce.qualifica.nome }}»{% endif %}{% if m.voce.processo_mpq %}{% if m.voce.corso or m.voce.qualifica %} · {% endif %}Processo qualificato «{{ m.voce.processo_mpq.nome }}»{% endif %}{% if not m.voce.corso and not m.voce.qualifica and not m.voce.processo_mpq %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
                 <td><b>{{ m.ok }}</b> <span class="fmd-muted">su {{ m.in_lista }}</span></td>

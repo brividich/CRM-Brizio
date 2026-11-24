@@ -8,21 +8,67 @@
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% include "core/components/_hub_formkit.html" %}
 {% include "anagrafica/components/_rc_stili.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_flusso_dinamico.html" %}
 <style>
-.cc-nota { margin:0 0 12px; }
+.cc-nota { margin:12px 0 0; }
 @media (max-width:640px) { .rc-aree .cc-guarda { display:none; } }
-.cc-misure { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; font-size:12px; color:#475569; }
-.cc-misure b { color:#0f172a; }
-.cc-misure .is-grave, .cc-misure .is-grave b { color:#b91c1c; }
-.cc-misure .is-attento, .cc-misure .is-attento b { color:#b45309; }
-body.theme-dark .cc-misure { color:#cbd5e1; }
-body.theme-dark .cc-misure b { color:#f1f5f9; }
-body.theme-dark .cc-misure .is-grave, body.theme-dark .cc-misure .is-grave b { color:#fca5a5; }
-body.theme-dark .cc-misure .is-attento, body.theme-dark .cc-misure .is-attento b { color:#fcd34d; }
-.cc-vai { margin-top:5px; gap:10px; font-size:12px; font-weight:600; }
-.cc-vai a, .cc-link { color:#1f6fb0; text-decoration:none; }
-.cc-vai a:hover, .cc-link:hover { text-decoration:underline; }
-body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
+.cc-link { color:#1f6fb0; text-decoration:none; }
+.cc-link:hover { text-decoration:underline; }
+.cc-filtri { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 12px; }
+.cc-filtri input[type=search] { width:320px; max-width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; }
+.cc-chip { padding:6px 12px; border-radius:999px; border:1px solid #d7e0ea; background:#fff; font-size:12.5px; font-weight:600; color:#475569; text-decoration:none; }
+.cc-chip.is-scelto { background:#e8f3fb; border-color:#9cc6e6; color:#0c2545; }
+.cc-filtri .cc-dx { margin-left:auto; display:flex; gap:8px; }
+/* Albero: centro → reparto → ruolo → mansione. Ogni riga si apre e si chiude da sola. */
+.cc-centro, .cc-ramo { border-bottom:1px solid #f1f5f9; }
+.cc-centro:last-of-type { border-bottom:0; }
+.cc-centro > summary, .cc-ramo > summary { display:flex; align-items:center; gap:10px; list-style:none; cursor:pointer; }
+.cc-centro > summary::-webkit-details-marker, .cc-ramo > summary::-webkit-details-marker { display:none; }
+.cc-centro > summary { padding:11px 16px; font-size:13.5px; }
+.cc-centro > summary b { font-size:14px; color:#0f172a; }
+.cc-centro[open] > summary, .cc-centro.is-scelto > summary { background:#e8f3fb; }
+.cc-centro.is-off > summary b { color:#64748b; }
+.cc-meta { color:#64748b; font-size:12.5px; }
+.cc-fr { flex:none; width:14px; color:#6b8db3; font-size:12px; }
+.cc-fr::before { content:"▸"; }
+details[open] > summary > .cc-fr::before { content:"▾"; }
+.cc-centro > summary .rc-btn, .cc-ramo > summary .rc-btn { margin-left:auto; flex:none; }
+.cc-albero { background:#fbfdff; padding:4px 0 6px; border-top:1px solid #f1f5f9; }
+.cc-ramo { border-bottom:0; }
+.cc-ramo > summary, .cc-foglia { padding:6px 16px; font-size:13px; }
+.cc-l1 > summary { padding-left:40px; }
+.cc-l2 > summary { padding-left:66px; }
+.cc-foglia { display:flex; align-items:center; gap:8px; padding-left:106px; }
+.cc-l1 > .cc-foglia { padding-left:80px; }
+.cc-albero > .cc-foglia { padding-left:54px; }
+.cc-ramo em, .cc-foglia em { font-style:normal; color:#64748b; }
+.cc-ramo a, .cc-foglia a { color:#0f172a; text-decoration:none; }
+.cc-ramo a:hover, .cc-foglia a:hover { color:#1f6fb0; text-decoration:underline; }
+.cc-q { margin-left:auto; color:#64748b; font-size:12.5px; white-space:nowrap; }
+.cc-q + .rc-btn { margin-left:10px !important; }
+.cc-vuota { color:#94a3b8; font-style:italic; }
+.cc-sotto { margin-top:14px; }
+.cc-fare { display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid #f1f5f9; }
+.cc-fare:last-child { border-bottom:0; }
+.cc-fare > b { flex:0 0 40px; font-size:20px; text-align:center; color:#0c2545; }
+.cc-fare div { flex:1; min-width:0; }
+.cc-fare strong { display:block; font-size:13.5px; color:#0f172a; }
+.cc-fare small { display:block; font-size:12px; color:#64748b; }
+#senza-centro .rc-aree { margin:0 16px 14px; width:calc(100% - 32px); }
+body.theme-dark .cc-link { color:#7cc0f0; }
+body.theme-dark .cc-filtri input[type=search], body.theme-dark .cc-chip { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
+body.theme-dark .cc-chip.is-scelto, body.theme-dark .cc-centro[open] > summary, body.theme-dark .cc-centro.is-scelto > summary { background:#1e3a5f; border-color:#2563a8; color:#fff; }
+body.theme-dark .cc-centro, body.theme-dark .cc-albero, body.theme-dark .cc-fare { border-color:var(--border); }
+body.theme-dark .cc-albero { background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .cc-centro > summary b, body.theme-dark .cc-ramo a, body.theme-dark .cc-foglia a, body.theme-dark .cc-fare strong { color:var(--text); }
+body.theme-dark .cc-meta, body.theme-dark .cc-q, body.theme-dark .cc-ramo em, body.theme-dark .cc-foglia em, body.theme-dark .cc-fare small { color:var(--text-light); }
+body.theme-dark .cc-fare > b { color:#7cc0f0; }
+@media (max-width:640px) {
+  .cc-l1 > summary { padding-left:28px; } .cc-l2 > summary { padding-left:42px; }
+  .cc-foglia { padding-left:60px; } .cc-l1 > .cc-foglia { padding-left:46px; }
+  .cc-q { white-space:normal; text-align:right; }
+}
 </style>
 {% endblock %}
 
@@ -36,94 +82,91 @@ body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
   <div class="rc-top">
     <div>
       <div class="rc-title">Centri di costo</div>
-      <div class="rc-sub">Un <strong>centro di costo</strong> raggruppa più reparti; un reparto sta in <strong>un solo</strong> centro. Qui «reparto» è l'unità in cui lavorano le persone, cioè l'<strong>area aziendale</strong> del portale.</div>
+      <div class="rc-sub">Quali reparti stanno in quale centro di costo. Apri un centro per vedere il suo albero: reparto, ruolo, mansione.</div>
     </div>
     <div class="rc-actions">
       {% include "anagrafica/partials/_guida_persone_link.html" with ancora="centri-costo" %}
-      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:esplora_struttura' %}">Esplora la struttura</a>
-      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:prospetti' %}">Prova un cambiamento</a>
-      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:reportistica_index' %}">Report</a>
-      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:aree_list' %}">Reparti, aree e capi</a>
       {% include "anagrafica/partials/_export_buttons.html" with export_key="centri_costo" %}
+      {% if is_admin %}<button type="button" class="rc-btn rc-btn-primary" data-cc-nuovo>+ Nuovo centro di costo</button>{% endif %}
     </div>
   </div>
 
   {% url 'anagrafica:centri_costo' as u_cc %}
-  <div class="rc-kpis">
-    {% if kpi.da_guardare is not None %}{% if is_admin or puo_costi %}<a class="rc-kpi kpi-link {% if kpi.da_guardare %}rc-kpi-warn{% endif %}" href="{% url 'anagrafica:mansionario' %}?flag=da-guardare" title="Apri il mansionario filtrato: mansioni scoperte, a uomo solo o a carico concentrato"><div class="rc-kpi-n">{{ kpi.da_guardare }}</div><div class="rc-kpi-l">Mansioni da guardare</div></a>{% else %}<div class="rc-kpi {% if kpi.da_guardare %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.da_guardare }}</div><div class="rc-kpi-l">Mansioni da guardare</div></div>{% endif %}{% endif %}
-    <a class="rc-kpi kpi-link" href="{{ u_cc }}?filtro=attivi#centri" title="Apri l'elenco filtrato: centri di costo attivi"><div class="rc-kpi-n">{{ kpi.centri }}</div><div class="rc-kpi-l">Centri di costo attivi</div></a>
-    <a class="rc-kpi kpi-link" href="{{ u_cc }}#centri" title="Vai ai centri di costo con i reparti collegati"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti collegati</div></a>
-    <a class="rc-kpi kpi-link" href="{{ u_cc }}#centri" title="Vai ai centri di costo con le persone per reparto"><div class="rc-kpi-n">{{ kpi.persone }}</div><div class="rc-kpi-l">Persone nei reparti collegati</div></a>
-    {% if kpi.senza_centro %}<a class="rc-kpi kpi-link rc-kpi-warn" href="{{ u_cc }}#senza-centro" title="Vai ai reparti senza centro di costo"><div class="rc-kpi-n">{{ kpi.senza_centro }}</div><div class="rc-kpi-l">Reparti senza centro ({{ kpi.persone_senza_centro }} persone)</div></a>{% else %}<div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.senza_centro }}</div><div class="rc-kpi-l">Reparti senza centro ({{ kpi.persone_senza_centro }} persone)</div></div>{% endif %}
+  <div class="cc-filtri">
+    <input type="search" data-cc-cerca placeholder="Cerca un centro di costo o un reparto…" aria-label="Cerca un centro di costo o un reparto" autocomplete="off">
+    <a class="cc-chip{% if not filtro %} is-scelto{% endif %}" href="{{ u_cc }}"{% if not filtro %} aria-current="true"{% endif %}>Tutti · {{ n_tutti }}</a>
+    <a class="cc-chip{% if filtro %} is-scelto{% endif %}" href="{{ u_cc }}?filtro=attivi#centri"{% if filtro %} aria-current="true"{% endif %}>Attivi · {{ kpi.centri }}</a>
+    <span class="cc-dx">
+      <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-cc-tutti="1">Apri tutto</button>
+      <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-cc-tutti="0">Chiudi tutto</button>
+    </span>
+  </div>
+
+  <div class="fx-flusso">
+    <div class="fx-blocco fx-largo"><section class="es-s-card" id="centri">
+      <h2 class="es-s-h">Elenco <span>{{ schede|length }} centr{{ schede|length|pluralize:"o,i" }} di costo</span></h2>
+      {% for s in schede %}
+      <details class="cc-centro{% if not s.centro.is_active %} is-off{% endif %}{% if s.aperto %} is-scelto{% endif %}" id="cc-{{ s.centro.pk }}" data-cc-centro="{{ s.centro.pk }}" data-cc-testo="{{ s.centro.nome|lower }}{% for rep in s.albero %} {{ rep.nome|lower }}{% endfor %}"{% if s.aperto %} open{% endif %}>
+        <summary><span class="cc-fr" aria-hidden="true"></span><b>{{ s.centro.nome }}</b><span class="cc-meta">{{ s.albero|length }} repart{{ s.albero|length|pluralize:"o,i" }} · {{ s.persone }} person{{ s.persone|pluralize:"a,e" }}{% if not s.centro.is_active %} · non attivo{% endif %}</span>{% if is_admin %}<button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-cc-id="{{ s.centro.pk }}" data-cc-nome="{{ s.centro.nome }}" data-cc-desc="{{ s.centro.descrizione }}" data-cc-attivo="{{ s.centro.is_active|yesno:'1,0' }}">Modifica</button>{% endif %}</summary>
+        <div class="cc-albero">
+          {% for rep in s.albero %}
+          <details class="cc-ramo cc-l1">
+            <summary><span class="cc-fr" aria-hidden="true"></span><em>Reparto:</em> <a href="{{ rep.url }}"><b>{{ rep.nome }}</b></a><span class="cc-q">{% if rep.responsabile %}Responsabile: {{ rep.responsabile }} · {% endif %}{{ rep.persone }}</span>{% if is_admin and rep.riga %}<button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-rep-id="{{ rep.area.pk }}" data-rep-nome="{{ rep.nome }}" data-rep-centro="{{ rep.area.centro_di_costo_id|default_if_none:'' }}" data-rep-ruoli="{% for ro in rep.riga.ruoli %}{{ ro.pk }}{% if not forloop.last %},{% endif %}{% endfor %}">Modifica</button>{% endif %}</summary>
+            {% for ru in rep.ruoli %}
+            <details class="cc-ramo cc-l2">
+              <summary><span class="cc-fr" aria-hidden="true"></span><em>Ruolo:</em> <a href="{{ ru.url }}"><b>{{ ru.nome }}</b></a><span class="cc-q">{{ ru.persone }}</span></summary>
+              {% for m in ru.mansioni %}<div class="cc-foglia"><em>Mansione:</em> <a href="{{ m.url }}"><b>{{ m.nome }}</b></a><span class="cc-q">{{ m.persone }}</span></div>{% empty %}<div class="cc-foglia cc-vuota">Nessuna mansione per questo ruolo.</div>{% endfor %}
+            </details>
+            {% empty %}<div class="cc-foglia cc-vuota">Nessun ruolo in questo reparto.</div>{% endfor %}
+          </details>
+          {% empty %}<div class="cc-foglia cc-vuota">Nessun reparto in questo centro.</div>{% endfor %}
+        </div>
+        <template data-cc-modello>{% include "anagrafica/partials/_centro_costo_scheda.html" with s=s %}</template>
+      </details>
+      {% empty %}
+      <p class="es-s-vuoto">Nessun centro di costo.{% if is_admin %} Creane uno con «Nuovo centro di costo».{% endif %}</p>
+      {% endfor %}
+    </section></div>
+
+    <div class="fx-blocco"><div id="cc-scelto">
+      {% if scelta %}{% include "anagrafica/partials/_centro_costo_scheda.html" with s=scelta %}
+      {% else %}<section class="es-s-card"><h2 class="es-s-h">Centro scelto</h2><p class="es-s-vuoto">Apri un centro di costo: qui compaiono i suoi dati e le pagine collegate.</p></section>{% endif %}
+    </div></div>
+
+    {% if da_fare %}
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Da fare</h2>
+      {% for r in da_fare %}<div class="cc-fare"><b>{{ r.n }}</b><div><strong>{{ r.titolo }}</strong><small>{{ r.sotto }}</small></div><a class="rc-btn rc-btn-ghost rc-btn-sm" href="{{ r.url }}">{{ r.azione }}</a></div>{% endfor %}
+    </section></div>
+    {% endif %}
+
+    {% if senza_centro %}
+    <div class="fx-blocco fx-largo"><section class="es-s-card" id="senza-centro">
+      <h2 class="es-s-h">Reparti senza centro di costo ({{ senza_centro|length }})</h2>
+      <p class="es-s-vuoto">Scegli il centro con «Modifica». Se un reparto non ne ha uno, come la Direzione, può restare qui.</p>
+      {% include "anagrafica/partials/_centri_costo_righe.html" with righe=senza_centro %}
+    </section></div>
+    {% endif %}
   </div>
 
   {% if carico %}<p class="rc-old cc-nota">Mansioni da guardare: scoperte, con meno di {{ carico.config.soglia_uomo_solo }} operativi o con carico concentrato da {{ carico.config.soglia_concentrazione }}%. Sono segnali dai coefficienti, solo persone in forza.{% if mese_costi %} RML e costo orario: {{ mese_costi|date:"F Y" }}.{% endif %}</p>{% endif %}
-
-  {% if senza_centro %}
-  <section class="rc-panel rc-panel-warn" id="senza-centro">
-    <h2>Reparti senza centro di costo ({{ senza_centro|length }})</h2>
-    <p>Scegli il centro con «Modifica». Se un reparto non ne ha uno, come la Direzione, può restare qui.</p>
-    {% include "anagrafica/partials/_centri_costo_righe.html" with righe=senza_centro %}
-  </section>
-  {% endif %}
-
-  {% if filtro %}<div class="rc-filtro">Filtro: <strong>Centri di costo attivi</strong> · {{ schede|length }} · <a href="{{ u_cc }}">Mostra tutti</a></div>{% endif %}
-  <div class="rc-grid" id="centri">
-    {% for s in schede %}
-    <article class="rc-card {% if not s.centro.is_active %}is-off{% endif %}" id="cc-{{ s.centro.pk }}">
-      <div class="rc-card-head">
-        <div>
-          <div class="rc-card-name">{{ s.centro.nome }}</div>
-          <div class="rc-card-meta">{{ s.righe|length }} repart{{ s.righe|length|pluralize:"o,i" }} · {{ s.persone }} person{{ s.persone|pluralize:"a,e" }}{% if not s.centro.is_active %} · non attivo{% endif %}</div>
-          {% if s.centro.descrizione %}<div class="rc-old">{{ s.centro.descrizione }}</div>{% endif %}
-          {% if s.segnali.mansioni or s.costi %}<div class="cc-misure">
-            {% if s.costi %}<span title="Ultimo mese caricato"><b>{{ s.costi.rml|floatformat:"2g" }} €</b> RML</span><span><b>{{ s.costi.costo_medio|floatformat:"2g" }} €/h</b> costo medio</span>{% endif %}
-            {% if s.segnali.mansioni %}<span><b>{{ s.segnali.mansioni }}</b> mansioni</span>
-            {% if s.segnali.scoperte %}<span class="is-grave"><b>{{ s.segnali.scoperte }}</b> scopert{{ s.segnali.scoperte|pluralize:"a,e" }}</span>{% endif %}
-            {% if s.segnali.uomo_solo %}<span class="is-attento"><b>{{ s.segnali.uomo_solo }}</b> uomo solo</span>{% endif %}
-            {% if s.segnali.concentrate %}<span class="is-attento"><b>{{ s.segnali.concentrate }}</b> carico concentrato</span>{% endif %}{% endif %}
-          </div>{% endif %}
-          <div class="rc-chips cc-vai">
-            <a href="{% url 'anagrafica:esplora_struttura' %}?centro={{ s.centro.pk }}">Esplora</a>
-            <a href="{% url 'anagrafica:dipendenti_report' %}?centro_costo={{ s.centro.nome|urlencode:'' }}">Persone</a>
-            {% if puo_costi %}<a href="{% url 'anagrafica:costo_orario' %}?centro_costo={{ s.centro.nome|urlencode:'' }}">Costo orario</a>{% endif %}
-          </div>
-        </div>
-        {% if is_admin %}
-        <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-cc-id="{{ s.centro.pk }}" data-cc-nome="{{ s.centro.nome }}" data-cc-desc="{{ s.centro.descrizione }}" data-cc-attivo="{{ s.centro.is_active|yesno:'1,0' }}">Modifica</button>
-        {% endif %}
-      </div>
-      <div class="rc-card-body">
-        {% if s.righe %}
-          {% include "anagrafica/partials/_centri_costo_righe.html" with righe=s.righe %}
-        {% else %}
-          <span class="rc-none">Nessun reparto in questo centro.</span>
-        {% endif %}
-      </div>
-    </article>
-    {% empty %}
-      <div class="rc-panel">Nessun centro di costo. Creane uno qui sotto.</div>
-    {% endfor %}
-  </div>
-
-  {% if is_admin %}
-  <div class="rc-add">
-    <details {% if not schede %}open{% endif %}>
-      <summary>+ Nuovo centro di costo</summary>
-      <form method="post" action="{% url 'anagrafica:centro_costo_crea' %}">
-        {% csrf_token %}
-        <div class="hub-form-stack">
-          <div class="hub-field"><label>Nome <span class="hub-req">*</span></label><input type="text" name="nome" maxlength="100" required></div>
-          <div class="hub-field"><label>Descrizione</label><input type="text" name="descrizione"></div>
-          <div><button type="submit" class="rc-btn rc-btn-primary">Crea centro di costo</button></div>
-        </div>
-      </form>
-    </details>
-  </div>
-  {% endif %}
 </div>
 
 {% if is_admin %}
+<div id="cc-nuovo-modal" class="rc-modal">
+  <div class="rc-modal-box" role="dialog" aria-modal="true" aria-labelledby="cc-nuovo-title">
+    <div class="rc-modal-title" id="cc-nuovo-title">Nuovo centro di costo</div>
+    <form method="post" action="{% url 'anagrafica:centro_costo_crea' %}">
+      {% csrf_token %}
+      <div class="hub-form-stack">
+        <div class="hub-field"><label for="cc-nuovo-nome">Nome <span class="hub-req">*</span></label><input type="text" name="nome" id="cc-nuovo-nome" maxlength="100" required></div>
+        <div class="hub-field"><label for="cc-nuovo-desc">Descrizione</label><input type="text" name="descrizione" id="cc-nuovo-desc"></div>
+        <div style="display:flex;gap:8px;"><button type="submit" class="rc-btn rc-btn-primary">Crea centro di costo</button><button type="button" class="rc-btn rc-btn-ghost" data-rc-chiudi>Annulla</button></div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="cc-modal" class="rc-modal">
   <div class="rc-modal-box" role="dialog" aria-modal="true" aria-labelledby="cc-modal-title">
     <div class="rc-modal-title" id="cc-modal-title">Modifica centro di costo</div>
@@ -164,10 +207,43 @@ body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
     </form>
   </div>
 </div>
+{% endif %}
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
-  function apri(id) { document.getElementById(id).style.display = 'flex'; }
+  // Albero: aprire un centro mostra a destra i suoi dati; l'indirizzo lo ricorda, così il link si può mandare.
+  var scelto = document.getElementById('cc-scelto');
+  var centri = Array.prototype.slice.call(document.querySelectorAll('.cc-centro')), inBlocco = false;
+  centri.forEach(function (c) {
+    c.addEventListener('toggle', function () {
+      if (!c.open || inBlocco) return;   // «Apri tutto» non cambia il centro scelto
+      var modello = c.querySelector('template[data-cc-modello]');
+      if (modello && scelto) scelto.innerHTML = modello.innerHTML;
+      centri.forEach(function (x) { x.classList.toggle('is-scelto', x === c); });
+      if (window.history.replaceState) {
+        var u = new URL(location.href);
+        u.searchParams.set('centro', c.getAttribute('data-cc-centro'));
+        history.replaceState(null, '', u.pathname + u.search + '#' + c.id);
+      }
+    });
+  });
+  document.querySelectorAll('[data-cc-tutti]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var apri = b.getAttribute('data-cc-tutti') === '1';
+      inBlocco = true;
+      document.querySelectorAll('#centri details').forEach(function (d) { if (!d.hidden) d.open = apri; });
+      // L'evento di apertura arriva dopo: il blocco si toglie al giro successivo.
+      setTimeout(function () { inBlocco = false; }, 0);
+    });
+  });
+  var cerca = document.querySelector('[data-cc-cerca]');
+  if (cerca) cerca.addEventListener('input', function () {
+    var t = cerca.value.trim().toLowerCase();
+    centri.forEach(function (c) { c.hidden = !!t && (c.getAttribute('data-cc-testo') || '').indexOf(t) < 0; });
+  });
+
+  // Finestre di modifica (solo per chi amministra l'anagrafica).
+  function apri(id) { var m = document.getElementById(id); if (m) m.style.display = 'flex'; }
   function chiudi(m) { m.style.display = 'none'; }
   document.querySelectorAll('.rc-modal').forEach(function (m) {
     m.addEventListener('click', function (e) { if (e.target === m || e.target.hasAttribute('data-rc-chiudi')) chiudi(m); });
@@ -175,10 +251,14 @@ body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') document.querySelectorAll('.rc-modal').forEach(chiudi);
   });
+  document.querySelectorAll('[data-cc-nuovo]').forEach(function (b) {
+    b.addEventListener('click', function () { apri('cc-nuovo-modal'); var n = document.getElementById('cc-nuovo-nome'); if (n) n.focus(); });
+  });
   var modBase = "{% url 'anagrafica:centro_costo_modifica' 0 %}";
   var delBase = "{% url 'anagrafica:centro_costo_elimina' 0 %}";
   document.querySelectorAll('[data-cc-id]').forEach(function (b) {
-    b.addEventListener('click', function () {
+    b.addEventListener('click', function (e) {
+      e.preventDefault();
       document.getElementById('cc-form').action = modBase.replace('/0/', '/' + b.dataset.ccId + '/');
       document.getElementById('cc-elimina-form').action = delBase.replace('/0/', '/' + b.dataset.ccId + '/');
       document.getElementById('cc-nome').value = b.dataset.ccNome || '';
@@ -189,7 +269,8 @@ body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
   });
   var repBase = "{% url 'anagrafica:centro_costo_reparto_salva' 0 %}";
   document.querySelectorAll('[data-rep-id]').forEach(function (b) {
-    b.addEventListener('click', function () {
+    b.addEventListener('click', function (e) {
+      e.preventDefault();
       var form = document.getElementById('cc-rep-form');
       form.action = repBase.replace(/\/0$/, '/' + b.dataset.repId);
       document.getElementById('cc-rep-title').textContent = 'Reparto ' + (b.dataset.repNome || '');
@@ -201,5 +282,4 @@ body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
   });
 })();
 </script>
-{% endif %}
 {% endblock %}

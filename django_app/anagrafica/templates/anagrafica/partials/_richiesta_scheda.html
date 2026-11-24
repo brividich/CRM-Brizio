@@ -1,0 +1,16 @@
+{# Scheda di una richiesta nell'elenco: dati etichettati e pagine collegate (views_richieste._schede). Parametro: x. #}
+<section class="es-s-card">
+  <h2 class="es-s-h">Richiesta scelta</h2>
+  <div class="es-s-testa"><dl class="es-s-campi es-s-campi-1">
+    {% for etichetta, valore in x.scheda.campi %}<div class="es-s-campo"><dt>{{ etichetta }}:</dt><dd>{{ valore }}</dd></div>{% endfor %}
+    {% if x.scheda.livello %}<div class="es-s-campo"><dt>Livello da raggiungere:</dt><dd>{% include "anagrafica/partials/_esplora_livello.html" with l=x.scheda.livello %}</dd></div>{% endif %}
+    <div class="es-s-campo"><dt>Stato:</dt><dd>{% include "anagrafica/partials/_richiesta_stato.html" with r=x.richiesta %}</dd></div>
+    {% for etichetta, valore in x.scheda.dopo %}<div class="es-s-campo"><dt>{{ etichetta }}:</dt><dd>{{ valore }}</dd></div>{% endfor %}
+  </dl></div>
+</section>
+<section class="es-s-card rq-sotto">
+  <h2 class="es-s-h">Pagine collegate <span>{{ x.scheda.collegate|length }}</span></h2>
+  <div class="es-s-collegate">
+    {% for c in x.scheda.collegate %}<a href="{{ c.url }}"><span><b>{{ c.nome }}</b><small>{{ c.spiega }}</small></span><span class="es-s-freccia" aria-hidden="true">→</span></a>{% endfor %}
+  </div>
+</section>

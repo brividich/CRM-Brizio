@@ -373,6 +373,28 @@ class PagineStrutturaTests(_Base):
         pdf = self.client.get(reverse("anagrafica:struttura_revisione_pdf", args=[1]))
         self.assertEqual(pdf["Content-Type"], "application/pdf")
 
+    def test_pagina_struttura_e_revisioni(self):
+        from django.urls import reverse
+
+        r = self.client.get(reverse("anagrafica:struttura_revisioni"))
+        campi = dict(r.context["campi"])
+        self.assertEqual((campi["Revisione in vigore"], campi["Chi può emettere"]), ("Nessuna", "Solo chi ha il ruolo MSM"))
+        self.assertEqual(r.context["stato"]["nome"], "Nessuna revisione emessa")
+        self.assertEqual(int(campi["Modifiche non emesse"]), r.context["n_modifiche"])
+        for testo in ("Struttura e revisioni", "Modifiche non ancora emesse", "Pagine collegate", 'class="fx-flusso"'):
+            self.assertContains(r, testo)
+        self.assertNotContains(r, "Emetti la revisione")  # l'amministratore non è MSM
+        self.assertNotContains(r, "{#")
+        for x in r.context["collegate"]:
+            self.assertEqual(self.client.get(x["url"]).status_code, 200, x["nome"])
+        with mock.patch("core.operational_roles.get_roles_for_user",
+                        return_value=RuoloOperativo.objects.filter(sigla="MSM")):
+            self.assertContains(self.client.get(reverse("anagrafica:struttura_revisioni")), 'href="#emetti"')
+            self.client.post(reverse("anagrafica:struttura_revisioni"), {"motivo": "Recepita la v8"})
+        r = self.client.get(reverse("anagrafica:struttura_revisioni"))
+        self.assertEqual(dict(r.context["campi"])["Revisione in vigore"], "Rev. 1")
+        self.assertIn("Scarica la Rev. 1", [x["nome"] for x in r.context["collegate"]])
+
     def test_conferma_rischio_e_reparto(self):
         from django.urls import reverse
 

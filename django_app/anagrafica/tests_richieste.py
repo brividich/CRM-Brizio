@@ -263,3 +263,39 @@ class FiltroMansioneTests(_Scenario):
         self.assertContains(r, "mostra tutte le richieste")
         self.assertEqual({x["richiesta"] for x in tutte.context["righe"]}, {sua, altra})
         self.assertEqual(len(ignoto.context["righe"]), 2)
+
+    def _elenco(self, attore, **parametri):
+        self.client.force_login(attore.user)
+        with mock.patch("anagrafica.views_richieste.svc.attore", return_value=attore):
+            return self.client.get(reverse("anagrafica:richieste"), parametri)
+
+    def test_la_richiesta_scelta_ha_la_sua_scheda(self):
+        prima = self._ram()
+        seconda = self._ram(mansione_id=self.fresa.pk, livello="O")
+        r = self._elenco(self.hr)
+        # Senza scelta nell'indirizzo si apre la prima dell'elenco; ogni riga porta con sé la sua scheda.
+        self.assertEqual(r.context["scelta"], r.context["righe"][0])
+        self.assertContains(r, "<template data-sc-modello>", count=2)
+        self.assertContains(r, 'data-sc-param="richiesta"')
+        self.assertNotContains(r, "{#")
+        r = self._elenco(self.hr, richiesta=seconda.pk)
+        scelta = r.context["scelta"]
+        self.assertEqual(scelta["richiesta"], seconda)
+        campi = dict(scelta["scheda"]["campi"])
+        self.assertEqual((campi["Richiesta"], campi["Mansione"]), (seconda.codice, self.fresa.nome))
+        self.assertEqual(scelta["scheda"]["livello"]["codice"], "O")
+        nomi = [x["nome"] for x in scelta["scheda"]["collegate"]]
+        self.assertEqual(nomi[0], "Apri la richiesta")
+        self.assertIn("Richieste su questa mansione", nomi)
+        with mock.patch("anagrafica.views_richieste.svc.attore", return_value=self.hr):
+            for x in scelta["scheda"]["collegate"]:
+                self.assertNotIn(self.client.get(x["url"]).status_code, (404, 500), x["nome"])
+        # Una richiesta che non è nell'elenco non si apre: resta la prima.
+        self.assertEqual(self._elenco(self.estraneo, richiesta=prima.pk).context["scelta"], None)
+
+    def test_da_fare_nell_elenco(self):
+        self._ram()
+        self.assertEqual([x["titolo"] for x in self._elenco(self.rdd).context["da_fare"]], ["Richieste da approvare"])
+        self.assertEqual([x["titolo"] for x in self._elenco(self.capo).context["da_fare"]],
+                         ["Le mie richieste in attesa di altri"])
+        self.assertEqual(self._elenco(self.hr).context["da_fare"], [])
