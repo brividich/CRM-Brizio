@@ -46,6 +46,9 @@ MODULI_HUB: tuple[ModuloHub, ...] = (
     ModuloHub("security", "SOC sicurezza informatica", "/soc/", ("/soc/",)),
     ModuloHub("tickets", "Ticket IT", "/tickets/", ("/tickets/",)),
     ModuloHub("anagrafica", "Anagrafica e formazione", "/anagrafica/", ("/anagrafica/",)),
+    # Prefissi più lunghi di «anagrafica» e «assets»: sulle loro pagine vincono questi.
+    ModuloHub("processi_qualificati", "Processi qualificati (MOD.128)", "/anagrafica/mod128/",
+              ("/anagrafica/mod128/", "/assets/processi/")),
     ModuloHub("assenze", "Assenze", "/assenze/", ("/assenze/",)),
 )
 PER_CHIAVE = {m.chiave: m for m in MODULI_HUB}
@@ -65,6 +68,8 @@ REGOLE: tuple[tuple[tuple[str, ...], str, bool], ...] = (
     (("audit", "riesame", "rischi"), "sistema_gestione", False),
     (("acquisizione ordini", "first article", "riesame del contratto", "piano della qualita", "piano qualita"), "kickoff", False),
     (("ordine di lavorazione", "lavorazione", "tracciabil", "messa in lavoro", "produzione"), "produzione", True),
+    (("processi qualificati", "processi speciali", "processo speciale", "mansionario processi", "foratur",
+      "qualifica macchin", "registro utensil"), "processi_qualificati", True),
     (("formazione", "competenz", "selezione", "assunzion"), "anagrafica", False),
     (("genitorialit", "conciliazione"), "assenze", False),
     (("requisiti legali", "scadenz"), "scadenzario", False),
@@ -86,10 +91,15 @@ def proposte(documenti) -> list[dict]:
     from procedure_refresh.models import SgiDocumentoModulo
 
     esistenti = set(SgiDocumentoModulo.objects.values_list("documento_id", "modulo"))
+    rif_mod128 = _codici_riferimenti_mod128()
     out = []
     for d in documenti:
         testo = _piega(f"{d.code} {d.title}")
         visti = set()
+        if (d.pk, "processi_qualificati") not in esistenti and _chiave_codice(d.code) in rif_mod128:
+            visti.add("processi_qualificati")
+            out.append({"doc": d, "modulo": PER_CHIAVE["processi_qualificati"],
+                        "parola": "riferimento di un processo qualificato", "compila": False})
         for parole, modulo, compila in REGOLE:
             if modulo in visti or (d.pk, modulo) in esistenti:
                 continue
@@ -102,6 +112,22 @@ def proposte(documenti) -> list[dict]:
                 "compila": compila and d.code.upper().startswith("MOD"),
             })
     return out
+
+
+def _chiave_codice(codice: str) -> str:
+    from procedure_refresh.sgi_riferimenti import chiave
+
+    return chiave(codice)
+
+
+def _codici_riferimenti_mod128() -> set[str]:
+    """Codici (forma di confronto) usati come riferimento da un processo qualificato MOD.128."""
+    try:
+        from anagrafica.models_mpq import RiferimentoProcesso
+
+        return {_chiave_codice(c) for c in RiferimentoProcesso.objects.values_list("codice", flat=True).distinct()}
+    except Exception:
+        return set()
 
 
 def svuota_cache() -> None:
