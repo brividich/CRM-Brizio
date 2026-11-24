@@ -138,7 +138,7 @@ def _ultime_visite_map(legacy_ids: list[int]) -> dict[tuple[int, int], VisitaMed
     ultima: dict[tuple[int, int], VisitaMedica] = {}
     for visita in (
         VisitaMedica.objects
-        .filter(legacy_anagrafica_id__in=legacy_ids)
+        .filter(legacy_anagrafica_id__in=legacy_ids, a_richiesta=False)
         .order_by("-data_svolgimento", "-pk")
     ):
         ultima.setdefault((visita.legacy_anagrafica_id, visita.tipo_id), visita)

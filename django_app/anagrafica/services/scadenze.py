@@ -120,7 +120,7 @@ def ricalcola_visite(legacy_ids=None, *, oggi: date | None = None) -> dict[str, 
     # Le visite non piu' correnti (superate da una piu' recente) tornano alla scadenza
     # del proprio tipo: non devono tenere un anticipo o una durata ormai cambiati.
     visite = filtra_in(VisitaMedica.objects.select_related("tipo")
-                       .only("pk", "data_scadenza", "scadenza_nota", "scadenza_medico", "data_svolgimento",
+                       .only("pk", "data_scadenza", "scadenza_nota", "scadenza_medico", "a_richiesta", "data_svolgimento",
                              "tipo__durata_mesi"),
                        "legacy_anagrafica_id", ctx.id_estesi(persone)) if persone else []
     for visita in visite:

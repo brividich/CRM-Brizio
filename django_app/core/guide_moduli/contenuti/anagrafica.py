@@ -789,6 +789,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "visite-a-richiesta",
+            "titolo": "Visite a richiesta: nessuna scadenza, non sono un rinnovo",
+            "blocchi": [
+                ("p", "Una visita chiesta dal lavoratore o fatta fuori periodicità (es. un'audiometria «a richiesta») si "
+                      "registra con la spunta «A richiesta (non è un rinnovo)». Non ha scadenza, non compare tra le scadute "
+                      "o in scadenza e non prende il posto della visita periodica: se la mansione richiede quella visita, "
+                      "resta valida la periodica precedente con la sua scadenza. Nello storico e nel dettaglio appare "
+                      "«A richiesta». Con la spunta non si può indicare il «Richiamo indicato dal medico»."),
+                ("p", "Per sistemare visite già registrate: in Visite mediche, nella tabella delle scadute o in scadenza, "
+                      "spunta le righe e premi «Segna come a richiesta» (tolgono anche l'eventuale richiamo; resta "
+                      "traccia nel registro attività). Per togliere la spunta a una visita: «Modifica» nel dettaglio."),
+            ],
+        },
+        {
             "id": "omonimi",
             "titolo": "Anagrafiche doppie e omonimi",
             "blocchi": [

@@ -332,7 +332,7 @@ def _fonti(legacy_ids, requisiti) -> dict:
         for d in TrainingDeadline.objects.filter(legacy_anagrafica_id__in=ids, corso_id__in=corsi):
             out["deadlines"].setdefault(d.legacy_anagrafica_id, {})[d.corso_id] = d
     if ids and tipi:
-        for v in (VisitaMedica.objects.filter(legacy_anagrafica_id__in=ids, tipo_id__in=tipi)
+        for v in (VisitaMedica.objects.filter(legacy_anagrafica_id__in=ids, tipo_id__in=tipi, a_richiesta=False)
                   .order_by("-data_svolgimento", "-pk")):
             out["visite"].setdefault(v.legacy_anagrafica_id, {}).setdefault(v.tipo_id, v)
     if ids and tipi_q:

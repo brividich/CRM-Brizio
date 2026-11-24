@@ -181,6 +181,7 @@ urlpatterns = [
     path("visite-mediche/<int:v_id>/", views.visita_medica_dettaglio, name="visita_medica_dettaglio"),
     path("visite-mediche/<int:v_id>/elimina/", views.visita_medica_elimina, name="visita_medica_elimina"),
     path("visite-mediche/<int:v_id>/superata/", views.visita_medica_superata, name="visita_medica_superata"),
+    path("visite-mediche/a-richiesta/", views.visite_mediche_segna_a_richiesta, name="visite_mediche_segna_a_richiesta"),
     path("visite-mediche/referti/<int:doc_id>/gestione/", views.referto_gestione, name="referto_gestione"),
     path("visite-mediche/nuova-sessione/", views.visite_mediche_nuova_sessione, name="visite_mediche_nuova_sessione"),
     path("visite-mediche/export/scadenze.xlsx", views.visite_mediche_export_scadenze, name="visite_mediche_export_scadenze"),

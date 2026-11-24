@@ -259,14 +259,16 @@ class VisitaMedicaForm(forms.ModelForm):
     class Meta:
         model = VisitaMedica
         fields = [
-            "tipo", "data_svolgimento", "esito", "scadenza_medico",
+            "tipo", "data_svolgimento", "esito", "a_richiesta", "scadenza_medico",
             "prescrizioni", "medico_competente", "note",
         ]
-        labels = {"scadenza_medico": "Richiamo indicato dal medico"}
+        labels = {"scadenza_medico": "Richiamo indicato dal medico",
+                  "a_richiesta": "A richiesta (non è un rinnovo)"}
         widgets = {
             "tipo": forms.Select(attrs={"class": "dp-input"}),
             "data_svolgimento": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
             "esito": forms.Select(attrs={"class": "dp-input"}),
+            "a_richiesta": forms.CheckboxInput(),
             "scadenza_medico": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
             "prescrizioni": forms.Textarea(attrs={"class": "dp-input", "rows": 2}),
             "medico_competente": forms.TextInput(attrs={"class": "dp-input"}),
@@ -313,6 +315,9 @@ class VisitaMedicaForm(forms.ModelForm):
         errore = errore_esito_note(cleaned.get("esito"), cleaned.get("note"))
         if errore:
             self.add_error("note", errore)
+        if cleaned.get("a_richiesta") and cleaned.get("scadenza_medico"):
+            self.add_error("scadenza_medico", "Una visita a richiesta non ha scadenza: togli il richiamo "
+                                              "o la spunta «A richiesta».")
         return cleaned
 
 

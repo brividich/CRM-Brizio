@@ -415,6 +415,41 @@ def visita_medica_superata(request, v_id: int):
 
 
 @login_required
+@require_POST
+def visite_mediche_segna_a_richiesta(request):
+    """Segna in blocco le visite scelte come «a richiesta»: non sono un rinnovo,
+    perdono la scadenza e lasciano il posto alla visita periodica precedente."""
+    if not _helpers._can_edit_visite_mediche(request):
+        return HttpResponseForbidden("Non hai i permessi per modificare le visite mediche.")
+
+    from core.audit import log_action
+
+    ids = [int(x) for x in request.POST.getlist("visita_ids") if str(x).isdigit()][:500]
+    visite = list(VisitaMedica.objects.select_related("tipo").filter(pk__in=ids, a_richiesta=False))
+    if not visite:
+        messages.error(request, "Seleziona almeno una visita da segnare come a richiesta.")
+        return redirect("anagrafica:visite_mediche_dashboard")
+    with transaction.atomic():
+        for visita in visite:
+            dettaglio = {
+                "visita_id": visita.pk,
+                "dipendente_id": visita.legacy_anagrafica_id,
+                "tipo_visita": visita.tipo.nome,
+                "data_svolgimento": visita.data_svolgimento.isoformat(),
+                "scadenza_precedente": visita.data_scadenza.isoformat() if visita.data_scadenza else None,
+            }
+            visita.a_richiesta = True
+            visita.scadenza_medico = None
+            visita.updated_by = request.user
+            visita.save(update_fields=["a_richiesta", "scadenza_medico", "updated_by", "updated_at"])
+            log_action(request, "VISITA_MEDICA_A_RICHIESTA", "anagrafica", dettaglio, oggetto=visita)
+    n = len(visite)
+    messages.success(request, f"{n} visit{'a segnata' if n == 1 else 'e segnate'} come a richiesta: "
+                              "non hanno più scadenza e non contano come rinnovo.")
+    return redirect("anagrafica:visite_mediche_dashboard")
+
+
+@login_required
 @require_http_methods(["GET", "POST"])
 def visita_medica_elimina(request, v_id: int):
     """Rimuove una visita errata solo dopo conferma, ACL e audit atomico."""
@@ -1157,7 +1192,7 @@ def _build_candidati_sessione(tipo: TipoVisitaMedica, oggi) -> list[dict]:
         # nello storico, non tutta l'azienda.
         pool_ids = set(
             VisitaMedica.objects
-            .filter(tipo=tipo)
+            .filter(tipo=tipo, a_richiesta=False)
             .values_list("legacy_anagrafica_id", flat=True)
         ) - cessati
 
@@ -1168,7 +1203,8 @@ def _build_candidati_sessione(tipo: TipoVisitaMedica, oggi) -> list[dict]:
     ultima_per_id: dict[int, VisitaMedica] = {}
     for v in (
         VisitaMedica.objects
-        .filter(tipo=tipo, legacy_anagrafica_id__in=pool_ids)
+        # Le visite a richiesta non sono un rinnovo: conta l'ultima periodica.
+        .filter(tipo=tipo, legacy_anagrafica_id__in=pool_ids, a_richiesta=False)
         .select_related("tipo")
         .order_by("legacy_anagrafica_id", "-data_svolgimento", "-pk")
     ):

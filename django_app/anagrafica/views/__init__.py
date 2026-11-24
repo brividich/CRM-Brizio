@@ -516,6 +516,7 @@ from .visite import (
     visita_medica_dettaglio,
     visita_medica_elimina,
     visita_medica_superata,
+    visite_mediche_segna_a_richiesta,
     visite_mediche_api_cerca_dipendente,
     visite_mediche_candidati,
     visite_mediche_dashboard,
