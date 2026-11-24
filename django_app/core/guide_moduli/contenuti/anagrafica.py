@@ -175,6 +175,11 @@ GUIDA = {
                     "Stati: «In approvazione», «Approvata», «Respinta», «Evasa».",
                     "Da «Esplora la struttura» → «Richieste su questa mansione» l'elenco si apre già ristretto a quella "
                     "mansione; «mostra tutte le richieste» toglie il filtro.",
+                    "Nell'elenco «Richieste» clicca una riga: a destra compaiono «Richiesta scelta» (numero, tipo, "
+                    "persona, mansione o competenza, livello da raggiungere, stato, chi l'ha chiesta, motivo, «Tocca a») "
+                    "e le «Pagine collegate» (la richiesta, la scheda della persona, «Esplora la struttura» sulla "
+                    "mansione, le richieste della stessa mansione). Il campo di ricerca filtra per persona, mansione o "
+                    "numero; «Da fare» ricorda ciò che aspetta te.",
                 ]),
                 ("p", "Che cosa cambia all'approvazione. Assegnazione: se la persona non ha ancora la mansione, entra "
                       "nella skill matrix a livello I (in formazione); il livello chiesto arriva solo alla chiusura "
@@ -217,6 +222,12 @@ GUIDA = {
                     ("Rischi", "i gruppi omogenei del DVR per mansione di rischio."),
                 ]),
                 ("p", "Il selettore in alto passa da una vista all'altra; i collegamenti salvati continuano a funzionare."),
+                ("p", "Nella vista «Elenco» clicca il riquadro di un reparto: a destra compaiono «Reparto scelto» "
+                      "(«Responsabile», «Ruolo responsabile», «Riporta a», «Persone», «Aree»), il pulsante per la scheda "
+                      "del responsabile e le «Pagine collegate». Il riquadro scelto ha il bordo arancione. Il campo di "
+                      "ricerca tiene i reparti che contengono il testo, anche nel nome di una persona; «Da fare» conta "
+                      "i reparti senza responsabile e le persone con un reparto non a catalogo. In stampa escono solo i "
+                      "riquadri dei reparti."),
             ],
         },
         {
@@ -727,7 +738,13 @@ GUIDA = {
                       "cambia il capo a mano e vince su tutto. Nessuno è capo di sé stesso. "
                       "Più persone con la stessa mansione sono co-capo: le assenze le approva la prima, le richieste DPI "
                       "tutte. Il team è l'inverso: le persone di cui sei il capo, e i loro team."),
-                ("p", "Persone → Reparti apre «Reparti, aree e capi»: una scheda per reparto con «Ruolo responsabile», "
+                ("p", "Organizzazione → Reparti apre «Reparti e capi»: un elenco con «Reparto», «Centro di costo», "
+                      "«Responsabile», «Persone» e «Stato» («Completo», «Da sistemare», «Non attivo»). Il campo di ricerca "
+                      "cerca anche aree e persone; «Tutti», «Attivi», «Con il capo» e «Da sistemare» filtrano. Aprendo un "
+                      "reparto compaiono a destra «Reparto scelto» con i suoi dati e le «Pagine collegate»; a fianco «Da "
+                      "fare» (reparti da sistemare, persone senza capo, aree senza reparto) e «Capi delle persone». «Nuovo "
+                      "reparto» e «Nuova area» sono in alto."),
+                ("p", "Dentro il reparto aperto: «Ruolo responsabile», "
                       "«Capo», le aree con il «Responsabile» e gli avvisi («Scegli il ruolo responsabile», «Nessuno ha "
                       "la «Responsabilità del reparto»: vale l'organigramma dei ruoli», «Senza ruolo responsabile: segue "
                       "il reparto», persone senza capo). «Assegna la mansione a…» + «Assegna» cambia il capo, la × lo "
@@ -760,8 +777,12 @@ GUIDA = {
             "id": "prospetto",
             "titolo": "Prospetto dei cambiamenti",
             "blocchi": [
-                ("p", "Persone → Prospetto dei cambiamenti: confronta «Oggi» e «Dopo» prima di cambiare la struttura. "
-                      "Finché non premi «Applica» non cambia niente."),
+                ("p", "Organizzazione → Prospetto dei cambiamenti apre «Prova un cambiamento»: confronta «Oggi» e «Dopo» "
+                      "prima di cambiare la struttura. Finché non premi «Applica» non cambia niente."),
+                ("p", "L'elenco «Prove» mostra «Stato» («In preparazione», «Applicato», «Archiviato»), «Cambiamenti», "
+                      "«Preparata da» e «Aggiornata». Clicca una riga: a destra compaiono «Prova scelta» con «Apri la "
+                      "prova» e «Vai al confronto». «Nuova prova» apre una finestra con il nome. Nella prova, i tre passi "
+                      "in cima («Che cosa cambia», «Confronto», «Conferma») portano alle tre parti della pagina."),
                 ("def", [
                     ("Si prova", "reparto in un altro centro di costo; persona in un altro reparto (lascia o tiene le "
                                  "mansioni); ruolo di una persona; persona su una mansione; mansione in un altro reparto."),
@@ -819,10 +840,17 @@ GUIDA = {
             "id": "centri-costo",
             "titolo": "Centri di costo",
             "blocchi": [
-                ("p", "Persone → Centri di costo: una scheda per centro con reparti, persone e ruoli. Un centro di costo "
+                ("p", "Organizzazione → Centri di costo: l'elenco dei centri, ognuno con il suo albero. Un centro di costo "
                       "può includere più reparti; un reparto sta in un solo centro. Qui «reparto» è l'area aziendale del "
                       "portale, l'unità in cui lavorano le persone."),
                 ("ul", [
+                    "Clicca un centro per aprire il suo albero: reparti, poi ruoli, poi mansioni, ognuno con la sua "
+                    "etichetta e il numero di persone. «Apri tutto» e «Chiudi tutto» valgono per ogni livello; il "
+                    "campo di ricerca tiene solo i centri che contengono il testo.",
+                    "Aprendo un centro, a destra compaiono «Centro scelto» con i suoi dati (RML e costo orario medio "
+                    "solo a chi vede i costi) e le «Pagine collegate» già aperte su quel centro. «Da fare» elenca i "
+                    "reparti senza centro di costo e le mansioni da guardare.",
+                    "«Nuovo centro di costo» è il pulsante in alto a destra.",
                     "«Modifica» sulla riga del reparto: «Centro di costo» (scegliere un altro centro lo toglie dal "
                     "precedente) e «Ruoli del reparto». Il centro si sceglie anche in «Reparti, aree e capi», nella "
                     "modifica dell'area.",
@@ -1120,6 +1148,13 @@ GUIDA = {
                       "ruolo MSM (Management System Manager) apre «Revisioni», legge le modifiche rispetto alla revisione "
                       "in vigore, scrive il motivo e preme «Emetti la Rev. N». Nessun altro può emetterla, nemmeno "
                       "l'amministratore del portale. Se non è cambiato niente il portale non emette."),
+                ("p", "La pagina si chiama «Struttura e revisioni». In alto i dati della revisione in vigore: «Revisione in "
+                      "vigore», «Emessa il», «Emessa da», «Modifiche non emesse», «Chi può emettere» e «Stato» («Nessuna "
+                      "revisione emessa», «Bozza diversa dalla revisione», «Bozza uguale alla revisione»). Sotto: le "
+                      "modifiche non ancora emesse con il modulo per emettere (solo MSM; il pulsante «Emetti la "
+                      "revisione» in alto porta lì), «Da completare prima di emettere» con il numero di voci e il link "
+                      "alla struttura, le «Pagine collegate» (anche il PDF della revisione in vigore) e l'elenco delle "
+                      "revisioni emesse."),
                 ("p", "Ogni revisione è una fotografia non modificabile: processi, reparti, aree, ruoli, mansioni con "
                       "competenze richieste e mansioni di rischio. Non contiene nominativi né livelli delle persone. "
                       "Dalla revisione: confronto con un'altra («Confronta con») e «Scarica PDF», il mansionario "
@@ -1175,6 +1210,14 @@ GUIDA = {
             "blocchi": [
                 ("p", "Competenze → Skill Matrix → «Mansionario». La struttura è ruolo → mansione → persone. Una mansione "
                       "è una macchina o un processo: sono le colonne della skill matrix MOD.187."),
+                ("p", "La pagina si apre in vista semplice, «Mansioni»: un elenco con «Mansione», «Reparto», «Ruolo», "
+                      "«Competenze», «Persone» e «Stato» («Completa», «Senza competenze», «Senza persone», «Da "
+                      "guardare»). Clicca una riga: a destra compaiono «Mansione scelta» con i suoi dati e «Apri la "
+                      "mansione», le «Competenze richieste» con il livello (il riquadro ha un'altezza fissa e scorre, "
+                      "anche con molte competenze) e le «Pagine collegate». Il campo di ricerca cerca mansione, reparto "
+                      "o ruolo; i filtri accanto contano le mansioni di ogni stato. «Vista completa», in fondo, apre la "
+                      "pagina descritta qui sotto; «Torna alla vista semplice» la richiude. La scelta resta finché non "
+                      "esci dal portale. Dai link di un ruolo l'elenco si apre già ristretto alle sue mansioni."),
                 ("def", [
                     ("Elenco per ruolo", "la pagina mostra un blocco per ruolo con le sue mansioni; si apre e si chiude "
                                          "cliccando il nome del ruolo («Apri tutti» / «Chiudi tutti» per tutti insieme). "

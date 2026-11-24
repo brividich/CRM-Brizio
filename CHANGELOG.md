@@ -47,6 +47,45 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - **Documenti e collegamenti della bacheca in cache per ruolo** (5 minuti, `HOME_BACHECA_CACHE_SECONDS`): la cache si rinnova a ogni salvataggio o cancellazione di documenti e categorie (segnali in `dashboard/apps.py`), per tutti i processi.
 - **Non conformità in «Le mie attività»:** da 56 a 3 query, da 218 a 31 ms. I nomi dell'utente sono memorizzati sulla richiesta (`anomalie/views.py` `_current_user_name_norms`): prima si rileggeva l'anagrafica per ognuna delle NC aperte. Ne beneficiano anche le pagine delle anomalie.
 - Guide: «? Guida» della home (`dashboard/guida.py`), Centro guide Home (`core/guide_moduli/contenuti/home.py`, nuovo caso in «Problemi»). Test: `dashboard/tests_home_differita.py` (nuovo).
+### Anagrafica: «Struttura e revisioni»
+
+- **Revisioni della struttura** (`/anagrafica/struttura/revisioni/`) diventa «Struttura e revisioni»: in alto i dati etichettati della revisione in vigore (revisione, emessa il, da, modifiche non emesse, chi può emettere, stato); poi modifiche non emesse con il modulo «Emetti» (solo MSM, raggiungibile dal pulsante in alto), «Da completare prima di emettere» (da `struttura_vista.da_completare`, con il numero e il link alla struttura), «Pagine collegate» (struttura, rischi da confermare, reparti e capi, mansioni, PDF della revisione in vigore) e revisioni emesse. Riquadri che si dispongono da soli. Emissione e permessi invariati.
+- File: `anagrafica/views_struttura_org.py`, `pages/struttura_revisioni.html`, `tests_struttura_v8.py`, Centro guide.
+
+### Anagrafica: «Prova un cambiamento» (prospetto dei cambiamenti)
+
+- **Elenco** (`/anagrafica/struttura/prospetto/`): una tabella sola «Prova / Stato / Cambiamenti / Preparata da / Aggiornata» al posto dei due pannelli; la riga scelta mostra a destra «Prova scelta» con «Apri la prova», «Vai al confronto» e le pagine collegate (`?prova=`); «Come funziona» con i tre passi; «Nuova prova» in finestra.
+- **Dettaglio**: tre passi in cima («Che cosa cambia», «Confronto», «Conferma») che portano alle parti della pagina; «Tutte le prove» torna all'elenco sulla stessa prova.
+- **Errore corretto (c'era già su main):** l'elenco andava in errore 500 se una prova non aveva più l'autore (`creato_da` vuoto, ad esempio utente eliminato): il filtro `default:p.creato_da.username` valutava `None.username`. Ora il nome si calcola nella vista; prova in `tests_prospetto`.
+- File: `anagrafica/views_prospetto.py`, `pages/prospetti.html`, `pages/prospetto.html`, `tests_prospetto.py`, guida in pagina, Centro guide.
+
+### Anagrafica: Organigramma con il reparto scelto
+
+- **Organigramma, vista Elenco** (`/anagrafica/organigramma/`): il riquadro di un reparto si clicca e a destra compaiono «Reparto scelto» (responsabile, ruolo responsabile, a chi riporta, persone, aree), la scheda del responsabile e le «Pagine collegate» (`?scelto=`); ricerca per reparto, area o persona; «Da fare» al posto delle tessere con i numeri; riquadri che si dispongono da soli. In stampa solo i riquadri. «Capo di ogni persona» e «Dashboard» passano da testata a «Pagine collegate»; il filtro `?reparto=` resta.
+- File: `anagrafica/services/organigramma_vista.py` (nuovo), `anagrafica/views/struttura.py`, `pages/organigramma.html`, `anagrafica/tests.py` (OrganigrammaTests), Centro guide.
+
+### Anagrafica: «Mansioni» in vista semplice
+
+- **Mansionario** (`/anagrafica/mansionario/`) si apre in vista semplice: elenco «Mansione / Reparto / Ruolo / Competenze / Persone / Stato», mansione scelta a destra con «Apri la mansione», «Competenze richieste» col livello in un riquadro ad altezza fissa (verificato con 60 competenze: 300 px) e «Pagine collegate». Filtri «Senza competenze», «Senza persone», «Da guardare» con il numero; ricerca per mansione, reparto o ruolo; `?mansione=` ricorda la scelta. La pagina di prima resta come «Vista completa» (`?vista=completa`, scelta in sessione) con «Torna alla vista semplice».
+- `?ruolo=` restringe l'elenco alle mansioni di un ruolo: i link «ruolo» di scheda mansione, scheda competenza, requisiti e catalogo ruoli portano anche `?ruolo=` (l'ancora `#ruolo-` resta per la vista completa). `?flag=da-guardare` (Dashboard, Centri di costo) diventa il filtro; gli altri `?flag=` aprono la vista completa per quella volta, senza cambiare la scelta.
+- Le prove della vista completa la chiedono con `?vista=completa` (`tests_mansionario`, `tests_centro_filtro`, `tests_capi_mansione`, `tests_scheda_competenza`).
+- File: `anagrafica/services/mansioni_semplice.py` (nuovo), `anagrafica/views_mansionario.py`, `pages/mansionario_semplice.html` (nuovo), `partials/_mansione_scheda.html` (nuovo), `pages/mansionario.html`, `pages/mansionario_mansione.html`, `pages/mansionario_competenza.html`, `pages/mansione_requisiti.html`, `partials/_ruoli_operativi_body.html`, Centro guide, `docs/moduli/anagrafica.md`.
+
+### Anagrafica: «Reparti e capi» e «Richieste» con la scheda a destra
+
+- **Reparti e capi** (`/anagrafica/aree/`): un reparto per riga («Reparto», «Centro di costo», «Responsabile», «Persone», «Stato») al posto delle schede; la riga si apre sulla gestione di sempre (capo, aree, ruolo responsabile, «Modifica», «Elimina»). A destra «Reparto scelto» con i dati etichettati e le «Pagine collegate» (`?reparto=` nell'indirizzo); «Da fare» e «Capi delle persone» al posto delle tessere con i numeri; filtri «Tutti / Attivi / Con il capo / Da sistemare» con le regole di prima (`FILTRI_REPARTI`); ricerca per reparto, area o persona; «Apri tutto», «Chiudi tutto»; «Nuovo reparto» e «Nuova area» in finestra. Tolti dalla testata i collegamenti ad altre pagine. Nessun dato nuovo: `services/reparti_capi_vista.py` legge le schede di `views_capi_reparti._contesto`.
+- **Richieste** (`/anagrafica/competenze/richieste/`): cliccando una riga compaiono a destra «Richiesta scelta» e le «Pagine collegate» (`?richiesta=`), senza ricaricare; ricerca per persona, mansione o numero; «Da fare» con ciò che aspetta chi guarda.
+- Componenti riusabili: `components/_apri_scelta.html` (righe che si aprono → scheda a destra, apri/chiudi tutto, ricerca), `components/_scelta_riga.html` (riga di tabella → scheda), `partials/_scheda_scelta.html`.
+- **Centri di costo:** il filtro «Attivi» torna con l'ancora `#centri` (lo chiede `tests_kpi_link_persone`).
+- File: `anagrafica/services/reparti_capi_vista.py` (nuovo), `anagrafica/views_capi_reparti.py`, `anagrafica/views_richieste.py`, `pages/aree_list.html`, `pages/richieste_elenco.html`, `pages/centri_costo.html`, `partials/_richiesta_scheda.html` (nuovo), prove in `tests_capi_mansione.py` e `tests_richieste.py`, guida in pagina, Centro guide, `docs/moduli/anagrafica.md`.
+
+### Anagrafica: «Centri di costo» con l'albero che si apre
+
+- **Albero di ogni centro:** l'elenco dei centri di costo sostituisce le schede; ogni centro si apre sui suoi reparti, ogni reparto sui ruoli, ogni ruolo sulle mansioni, con etichetta («Reparto:», «Ruolo:», «Mansione:») e numero di persone. Stessi dati e conteggi di «Esplora la struttura», a cui ogni riga porta. «Apri tutto», «Chiudi tutto» e ricerca per nome di centro o di reparto.
+- **Centro scelto:** aprendo un centro, a destra compaiono i suoi dati etichettati (RML e costo orario medio solo a chi vede i costi) e le «Pagine collegate»; l'indirizzo ricorda il centro aperto (`?centro=`). «Da fare» con reparti senza centro di costo e mansioni da guardare al posto dei riquadri con i numeri. I riquadri si dispongono da soli (`components/_flusso_dinamico.html`).
+- **Nuovo centro di costo** in una finestra, dal pulsante in alto. Restano «Modifica» del centro e del reparto. Tolti dalla testata i collegamenti ad altre pagine: stanno in «Pagine collegate».
+- **Prova corretta:** `tests_carico_mansioni.test_esplora_mostra_i_segnali` era rossa dalla vista semplice di «Esplora la struttura» (i segnali di carico stanno nella vista completa): ora chiede quella vista.
+- File: `anagrafica/services/centri_costo_albero.py` (nuovo), `anagrafica/views_centri_costo.py`, `anagrafica/templates/anagrafica/pages/centri_costo.html`, `partials/_centro_costo_scheda.html` (nuovo), `anagrafica/tests_centri_costo.py`, `anagrafica/tests_carico_mansioni.py`, guida in pagina, Centro guide, `docs/moduli/anagrafica.md`.
 
 ### Prestazioni: pagine lente corrette (misurate sui dati di produzione)
 

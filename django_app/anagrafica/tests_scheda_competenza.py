@@ -103,13 +103,13 @@ class SchedaCompetenzaTests(_DatiCompetenza):
         self.assertIn(f'#ruolo-{self.ruolo.pk}"', body)
 
     def test_ruolo_e_mansionario_collegati_nei_due_sensi(self):
-        body = self.client.get(reverse("anagrafica:mansionario")).content.decode()
+        body = self.client.get(reverse("anagrafica:mansionario"), {"vista": "completa"}).content.decode()
         self.assertIn(f'id="ruolo-{self.ruolo.pk}"', body)
         self.assertIn(f'{reverse("anagrafica:ruoli_operativi_list")}#ruolo-{self.ruolo.pk}', body)
         body = self.client.get(reverse("anagrafica:ruoli_operativi_list")).content.decode()
         self.assertIn(f'id="ruolo-{self.ruolo.pk}"', body)
         self.assertIn("Tornitura sintetica", body)
-        self.assertIn(f'{reverse("anagrafica:mansionario")}#ruolo-{self.ruolo.pk}', body)
+        self.assertIn(f'{reverse("anagrafica:mansionario")}?ruolo={self.ruolo.pk}#ruolo-{self.ruolo.pk}', body)
 
     def test_senza_permessi_niente_scheda(self):
         utente = User.objects.create_user("sc_base", "b@example.invalid", "x")

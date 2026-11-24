@@ -6,6 +6,32 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_semplice_stili.html" %}
 {% include "anagrafica/components/_richieste_stili.html" %}
+{% include "anagrafica/components/_flusso_dinamico.html" %}
+{% include "anagrafica/components/_scelta_riga.html" %}
+<style>
+.rq-cerca { margin-left:auto; width:300px; max-width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; }
+.rq-sotto { margin-top:14px; }
+.rq-scegli tbody tr[data-sc-riga] { cursor:pointer; }
+.rq-scegli tbody tr[data-sc-riga]:hover td { background:#f8fafc; }
+.rq-scegli tbody tr.is-scelta td { background:#e8f3fb; }
+.rq-scegli tbody tr:focus-visible { outline:2px solid #1f87cd; outline-offset:-2px; }
+.rq-fare { display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid #f1f5f9; }
+.rq-fare:last-child { border-bottom:0; }
+.rq-fare.is-urgente { background:#fff7f0; box-shadow:inset 3px 0 0 #ea580c; }
+.rq-fare > b { flex:0 0 40px; font-size:20px; text-align:center; color:#0c2545; }
+.rq-fare.is-urgente > b { color:#c2410c; }
+.rq-fare div { flex:1; min-width:0; }
+.rq-fare strong { display:block; font-size:13.5px; color:#0f172a; }
+.rq-fare small { display:block; font-size:12px; color:#64748b; }
+body.theme-dark .rq-cerca { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
+body.theme-dark .rq-scegli tbody tr[data-sc-riga]:hover td { background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .rq-scegli tbody tr.is-scelta td { background:#1e3a5f; color:#fff; }
+body.theme-dark .rq-fare { border-color:var(--border); }
+body.theme-dark .rq-fare.is-urgente { background:rgba(245,158,11,.12); }
+body.theme-dark .rq-fare strong { color:var(--text); }
+body.theme-dark .rq-fare small { color:var(--text-light); }
+body.theme-dark .rq-fare > b { color:#7cc0f0; }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -16,22 +42,49 @@
   <div class="rq-testa">
     <h1>Richieste</h1>
     <div class="rq-azioni">
-      {% if puo_chiedere %}<a class="rq-btn rq-btn-p" href="{% url 'anagrafica:richiesta_nuova' %}">Nuova richiesta</a>{% endif %}
       {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="rq-btn" href="{{ guida_url }}#richieste-competenze">? Guida</a>
+      {% if puo_chiedere %}<a class="rq-btn rq-btn-p" href="{% url 'anagrafica:richiesta_nuova' %}">Nuova richiesta</a>{% endif %}
     </div>
   </div>
 
   {% url 'anagrafica:richieste' as u_elenco %}
   <nav class="rq-filtri" aria-label="Filtra per stato">
-    <a href="{{ u_elenco }}{% if mansione %}?mansione={{ mansione.pk }}{% endif %}"{% if not stato %} class="is-scelto" aria-current="true"{% endif %}>Tutte</a>
+    <a href="{{ u_elenco }}{% if mansione %}?mansione={{ mansione.pk }}{% endif %}"{% if not stato %} class="is-scelto" aria-current="true"{% endif %}>Tutte: {{ n_tutte }}</a>
     {% for s in stati %}<a href="{{ u_elenco }}?stato={{ s.chiave }}{% if mansione %}&amp;mansione={{ mansione.pk }}{% endif %}"{% if stato == s.chiave %} class="is-scelto" aria-current="true"{% endif %}>{{ s.nome }}: {{ s.n }}</a>{% endfor %}
+    <input type="search" class="rq-cerca" data-sc-cerca placeholder="Cerca persona, mansione o numero…" aria-label="Cerca nell'elenco delle richieste" autocomplete="off">
   </nav>
 
   {% if mansione %}<p class="rq-nota" style="margin:0 0 12px">Mansione: <b>{{ mansione.nome }}</b> · <a href="{{ u_elenco }}">mostra tutte le richieste</a></p>{% endif %}
 
-  <section class="es-s-card">
-    {% if righe %}{% include "anagrafica/partials/_richieste_righe.html" with righe=righe azione="Apri" stato=1 %}
-    {% else %}<p class="es-s-vuoto">Nessuna richiesta{% if stato %} in questo stato{% endif %}.</p>{% endif %}
-  </section>
+  <div class="fx-flusso">
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">Elenco <span>{{ righe|length }} richiest{{ righe|length|pluralize:"a,e" }}</span></h2>
+      {% if righe %}
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab rq-scegli">
+        <thead><tr><th>Persona</th><th>Tipo di richiesta</th><th>Mansione o competenza</th><th>Richiesta</th><th>Stato</th><th>Tocca a</th></tr></thead>
+        <tbody>{% for x in righe %}<tr data-sc-riga="{{ x.richiesta.pk }}" tabindex="0"{% if scelta.richiesta.pk == x.richiesta.pk %} class="is-scelta"{% endif %} data-sc-testo="{{ x.persona }} {{ x.richiesta.oggetto }} {{ x.richiesta.codice }} {{ x.richiesta.get_tipo_display }}">
+          <td><b>{{ x.persona }}</b></td>
+          <td>{{ x.richiesta.get_tipo_display }}</td>
+          <td>{{ x.richiesta.oggetto }}</td>
+          <td><a href="{% url 'anagrafica:richiesta' x.richiesta.pk %}">{{ x.richiesta.codice }}</a></td>
+          <td>{% include "anagrafica/partials/_richiesta_stato.html" with r=x.richiesta %}</td>
+          <td>{{ x.tocca_a|default:"Nessuno" }}</td>
+          <template data-sc-modello>{% include "anagrafica/partials/_richiesta_scheda.html" with x=x %}</template>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<p class="es-s-vuoto">Nessuna richiesta{% if stato %} in questo stato{% endif %}.</p>{% endif %}
+    </section></div>
+
+    {% if scelta %}
+    <div class="fx-blocco"><div data-sc-scelta data-sc-param="richiesta">{% include "anagrafica/partials/_richiesta_scheda.html" with x=scelta %}</div></div>
+    {% endif %}
+
+    {% if da_fare %}
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Da fare</h2>
+      {% for r in da_fare %}<div class="rq-fare{% if r.urgente %} is-urgente{% endif %}"><b>{{ r.n }}</b><div><strong>{{ r.titolo }}</strong><small>{{ r.sotto }}</small></div><a class="rq-btn rq-btn-s" href="{{ r.url }}">{{ r.azione }}</a></div>{% endfor %}
+    </section></div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

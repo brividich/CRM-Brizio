@@ -261,9 +261,27 @@ def _gruppi_per_ruolo(righe: list[dict], persone: dict[int, dict] | None = None)
 def mansionario(request):
     if not _puo_vedere(request):
         return _nega(request)
-    from .services import carico_mansioni, sezioni_c
+    from .services import carico_mansioni, mansioni_semplice, sezioni_c
 
     righe = carico_mansioni.su_riepilogo(svc.riepilogo(), carico_mansioni.oggi())
+    vista = mansioni_semplice.vista_scelta(request)
+    url_pagina = reverse("anagrafica:mansionario")
+    if vista == mansioni_semplice.SEMPLICE:
+        from .services.organizzazione_panoramica import _puo_aprire
+
+        scelta = (request.GET.get("mansione") or "").strip()
+        ruolo = (request.GET.get("ruolo") or "").strip()
+        filtro = (request.GET.get("filtro") or "").strip() or mansioni_semplice.FLAG_SEMPLICI.get(request.GET.get("flag") or "", "")
+        ctx = mansioni_semplice.costruisci(
+            righe, filtro=filtro, ruolo_id=int(ruolo) if ruolo.isdigit() and len(ruolo) < 10 else None,
+            scelta_id=int(scelta) if scelta.isdigit() and len(scelta) < 10 else None,
+            puo_esplora=_puo_aprire(request, reverse("anagrafica:esplora_struttura")),
+            puo_richieste=_puo_aprire(request, reverse("anagrafica:richieste")),
+        )
+        return render(request, "anagrafica/pages/mansionario_semplice.html", {
+            **ctx, "page_title": "Mansioni", "is_admin": _puo_gestire(request),
+            "url_vista_completa": f"{url_pagina}?vista={mansioni_semplice.COMPLETA}",
+        })
     aree = sezioni_c.aree_visibili(request, [
         sezioni_c.Area("anagrafica:mansionario_lacune", "Lacune di competenza", "Chi non è abilitato e cosa manca", icona="i-alert-cir"),
         sezioni_c.Area("anagrafica:skill_matrix_macchina", "Skill matrix", "Persone × macchine, livelli I/L/U/O", icona="i-grid"),
@@ -310,6 +328,7 @@ def mansionario(request):
         "cc_card": {"legenda": LEGENDA_LIVELLI},
         "aree": aree,
         "is_admin": _puo_gestire(request),
+        "url_vista_semplice": f"{url_pagina}?vista={mansioni_semplice.SEMPLICE}",
     })
 
 

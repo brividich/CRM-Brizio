@@ -1,0 +1,16 @@
+{# Scheda della riga scelta: dati etichettati, comandi e pagine collegate. Parametri: titolo, scheda = {campi: [(etichetta, valore)], azioni?: [{nome, url}], collegate: [{nome, spiega, url}]}. #}
+<section class="es-s-card">
+  <h2 class="es-s-h">{{ titolo }}</h2>
+  <div class="es-s-testa"><dl class="es-s-campi es-s-campi-1">
+    {% for etichetta, valore in scheda.campi %}<div class="es-s-campo"><dt>{{ etichetta }}:</dt><dd>{{ valore }}</dd></div>{% endfor %}
+  </dl></div>
+  {% if scheda.azioni %}<div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 14px">{% for a in scheda.azioni %}<a class="rc-btn rc-btn-ghost rc-btn-sm" href="{{ a.url }}">{{ a.nome }}</a>{% endfor %}</div>{% endif %}
+</section>
+{% if scheda.collegate %}
+<section class="es-s-card" style="margin-top:14px">
+  <h2 class="es-s-h">Pagine collegate <span>{{ scheda.collegate|length }}</span></h2>
+  <div class="es-s-collegate">
+    {% for x in scheda.collegate %}<a href="{{ x.url }}"><span><b>{{ x.nome }}</b><small>{{ x.spiega }}</small></span><span class="es-s-freccia" aria-hidden="true">→</span></a>{% endfor %}
+  </div>
+</section>
+{% endif %}

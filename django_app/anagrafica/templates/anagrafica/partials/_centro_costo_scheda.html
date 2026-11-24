@@ -1,0 +1,13 @@
+{# Scheda di un centro di costo: dati etichettati e pagine collegate (services/centri_costo_albero.scheda). Parametro: s. #}
+<section class="es-s-card">
+  <h2 class="es-s-h">Centro scelto</h2>
+  <div class="es-s-testa"><dl class="es-s-campi es-s-campi-1">
+    {% for etichetta, valore in s.scheda.campi %}<div class="es-s-campo"><dt>{{ etichetta }}:</dt><dd>{{ valore }}</dd></div>{% endfor %}
+  </dl></div>
+</section>
+<section class="es-s-card cc-sotto">
+  <h2 class="es-s-h">Pagine collegate <span>{{ s.scheda.collegate|length }}</span></h2>
+  <div class="es-s-collegate">
+    {% for x in s.scheda.collegate %}<a href="{{ x.url }}"><span><b>{{ x.nome }}</b><small>{{ x.spiega }}</small></span><span class="es-s-freccia" aria-hidden="true">→</span></a>{% endfor %}
+  </div>
+</section>

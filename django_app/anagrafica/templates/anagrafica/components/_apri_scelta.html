@@ -1,0 +1,41 @@
+{# Elenco di righe che si aprono (24/11/2026). Ogni riga è un details[data-ap-riga="<id>"] con dentro un <template data-ap-modello>: aprendola, la sua scheda va nel contenitore [data-ap-scelta], la riga prende «is-scelto» e l'indirizzo ricorda la scelta nel parametro di data-ap-param. [data-ap-tutti="1|0"] apre o chiude ogni details dentro [data-ap-elenco] senza cambiare la riga scelta; [data-ap-cerca] tiene le righe che contengono il testo (data-ap-testo). #}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  if (window.apSceltaPronta) return;
+  window.apSceltaPronta = true;
+  function avvia() {
+    var scelta = document.querySelector('[data-ap-scelta]');
+    var righe = Array.prototype.slice.call(document.querySelectorAll('details[data-ap-riga]'));
+    var inBlocco = false;
+    righe.forEach(function (c) {
+      c.addEventListener('toggle', function () {
+        if (!c.open || inBlocco) return;   // «Apri tutto» non cambia la riga scelta
+        var modello = c.querySelector('template[data-ap-modello]');
+        if (modello && scelta) scelta.innerHTML = modello.innerHTML;
+        righe.forEach(function (x) { x.classList.toggle('is-scelto', x === c); });
+        var parametro = scelta && scelta.getAttribute('data-ap-param');
+        if (parametro && window.history.replaceState) {
+          var u = new URL(location.href);
+          u.searchParams.set(parametro, c.getAttribute('data-ap-riga'));
+          history.replaceState(null, '', u.pathname + u.search + (c.id ? '#' + c.id : ''));
+        }
+      });
+    });
+    document.querySelectorAll('[data-ap-tutti]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var apri = b.getAttribute('data-ap-tutti') === '1';
+        inBlocco = true;
+        document.querySelectorAll('[data-ap-elenco] details').forEach(function (d) { if (!d.hidden) d.open = apri; });
+        // L'evento di apertura arriva dopo: il blocco si toglie al giro successivo.
+        setTimeout(function () { inBlocco = false; }, 0);
+      });
+    });
+    var cerca = document.querySelector('[data-ap-cerca]');
+    if (cerca) cerca.addEventListener('input', function () {
+      var t = cerca.value.trim().toLowerCase();
+      righe.forEach(function (c) { c.hidden = !!t && (c.getAttribute('data-ap-testo') || '').toLowerCase().indexOf(t) < 0; });
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', avvia); else avvia();
+})();
+</script>

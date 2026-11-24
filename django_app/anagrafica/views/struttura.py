@@ -1181,6 +1181,7 @@ def organigramma(request):
 
     reparti = list(
         Reparto.objects.filter(is_active=True)
+        .select_related("ruolo_responsabile__riporta_a")
         .prefetch_related("aree_aziendali")
         .order_by("nome")
     )
@@ -1247,8 +1248,16 @@ def organigramma(request):
     from .dipendenti import build_dipendenti_rows, riepilogo_stati_dipendenti
     n_dipendenti = riepilogo_stati_dipendenti(build_dipendenti_rows(request, apply_filters=False))["attivi"]
 
+    from ..services import organigramma_vista
+
+    is_admin = _helpers._is_anagrafica_admin(request)
+    scelto = (request.GET.get("scelto") or "").strip()
+    scelta = organigramma_vista.arricchisci(
+        request, blocchi, is_admin=is_admin, scelto=int(scelto) if scelto.isdigit() and len(scelto) < 10 else None)
     return render(request, "anagrafica/pages/organigramma.html", {
-        "is_anagrafica_admin": _helpers._is_anagrafica_admin(request),
+        "is_anagrafica_admin": is_admin,
+        "scelta": scelta,
+        "da_fare": organigramma_vista.da_fare(blocchi, 0 if filtro_reparto else len(non_mappati)),
         "blocchi": blocchi,
         "non_mappati": non_mappati,
         "nomi_reparti": nomi_reparti,

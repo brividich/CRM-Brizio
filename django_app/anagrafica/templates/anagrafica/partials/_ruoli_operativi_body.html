@@ -202,7 +202,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
             </div>
             <div class="ro-qual">
               <div class="ro-qual-title">Mansioni{% if not r.mansioni_list %} <span class="ro-qual-empty">· nessuna</span>{% endif %}
-                <a class="ro-mns-link" href="{% url 'anagrafica:mansionario' %}{% if r.mansioni_list %}#ruolo-{{ r.id }}{% endif %}" title="Il ruolo nel Mansionario: mansioni, competenze e chi lo ricopre">Mansionario →</a></div>
+                <a class="ro-mns-link" href="{% url 'anagrafica:mansionario' %}{% if r.mansioni_list %}?ruolo={{ r.id }}#ruolo-{{ r.id }}{% endif %}" title="Il ruolo nel Mansionario: mansioni, competenze e chi lo ricopre">Mansionario →</a></div>
               {% if r.mansioni_list %}
               <div class="ro-qual-list">
                 {% for m in r.mansioni_list %}<a class="ro-qual-chip ro-mns-chip" href="{% url 'anagrafica:mansionario_mansione' m.pk %}" title="Apri la mansione: persone, competenze, formazione">{{ m.nome }}</a>{% endfor %}
