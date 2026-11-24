@@ -30,6 +30,31 @@ def vista_scelta(request) -> str:
     return COMPLETA if request.session.get("esplora_vista") == COMPLETA else SEMPLICE
 
 
+PRIMA, ULTIMA = "prima", "ultima"
+
+
+def posizione_mansioni(request) -> str:
+    """Dove sta la colonna «Mansioni»: per ultima di default; la scelta fatta con ``?mansioni=`` resta per la sessione."""
+    chiesta = request.GET.get("mansioni")
+    if chiesta in (PRIMA, ULTIMA):
+        request.session["esplora_mansioni"] = chiesta
+    return PRIMA if request.session.get("esplora_mansioni") == PRIMA else ULTIMA
+
+
+def _con_prima(url: str) -> str:
+    """Il link porta con sé la posizione della colonna: l'indirizzo dice tutto, anche alla copia in memoria della pagina."""
+    if not url or "mansioni=" in url:
+        return url
+    return f"{url}{'&' if '?' in url else '?'}mansioni={PRIMA}"
+
+
+def _colonna_mansioni(d, m) -> dict:
+    """Tutte le mansioni, in ordine di nome: con la colonna per prima si parte da qui."""
+    voci = [es._voce(x.pk, x.nome, url_=es.url(mansione=x.pk), scelta=m is not None and x.pk == m.pk)
+            for x in sorted(d.mansioni, key=lambda x: x.nome.casefold())]
+    return {"livello": "mansione", "titolo": "Mansioni", "attesa": "", "voci": voci, "corrente": m is None}
+
+
 def livello(codice: str) -> dict | None:
     codice = (codice or "").strip().upper()
     return {"codice": codice, "parola": PAROLE_LIVELLO.get(codice, "")} if codice else None
@@ -109,13 +134,31 @@ def _persone_mansione(d, m) -> list[dict]:
     return righe
 
 
+def _richieste_aperte(m) -> int:
+    from ..models_richieste import RichiestaCompetenze
+
+    return RichiestaCompetenze.objects.filter(mansione=m, stato__in=RichiestaCompetenze.STATI_APERTI).count()
+
+
+def _altre_mansione(m, persone: list[dict]) -> list[dict]:
+    """Altri dati sulla mansione scelta: stesse regole e stessi elenchi delle pagine a cui portano."""
+    abilitate = sum(1 for p in persone if p["stato"] == mc.ESITI_LABEL[mc.ABILITATO])
+    aperte = _richieste_aperte(m)
+    return [
+        _campo("Persone abilitate", f"{abilitate} su {len(persone)}" if persone else "Nessuna persona"),
+        _campo("Abilitazione con scadenza", "Sì" if m.abilitazione_con_scadenza else "No"),
+        _campo("Richieste aperte", str(aperte), f"{reverse('anagrafica:richieste')}?mansione={m.pk}" if aperte else ""),
+    ]
+
+
 def _persone_punto(det: dict) -> list[dict]:
     return [{"nome": p["nome"], "url": _url_scheda(p["id"]), "ruoli": p.get("ruoli") or [],
              "area": p.get("area") or "", "mansioni": p.get("mansioni") or []}
             for p in det.get("persone") or []]
 
 
-def costruisci(ctx: dict, *, puo_gestire: bool = False, puo_chiedere: bool = False) -> dict:
+def costruisci(ctx: dict, *, puo_gestire: bool = False, puo_chiedere: bool = False, mansioni_prima: bool = False,
+              strade=(), appena_spostata: bool = False) -> dict:
     """Che cosa mostra la vista semplice per il punto scelto (``ctx`` = contesto della pagina, con ``dati``)."""
     d, s, det = ctx["dati"], ctx["scelti"], ctx["dettaglio"]
     m, voce = ctx["mansione_obj"], ctx["voce_obj"]
@@ -127,7 +170,29 @@ def costruisci(ctx: dict, *, puo_gestire: bool = False, puo_chiedere: bool = Fal
     briciole = [dict(b, url_corrente=False) for b in ctx["briciole"] if b.get("livello") != "Competenza"]
     briciole[-1]["url_corrente"] = True
 
-    out = {"colonne": colonne, "briciole": briciole, "legenda": LEGENDA, "scheda": None}
+    if mansioni_prima:
+        # La colonna delle mansioni passa davanti e le elenca tutte; le altre tre restano nel loro ordine
+        # e mostrano dove sta la mansione scelta. Ogni link porta con sé la posizione.
+        altre = [c for c in colonne if c["livello"] != "mansione"]
+        for c in altre:
+            c["corrente"] = False
+            c["voci"] = [dict(v, url=_con_prima(v["url"])) for v in c["voci"]] if c["voci"] is not None else None
+        prima = _colonna_mansioni(d, m)
+        prima["voci"] = [dict(v, url=_con_prima(v["url"])) for v in prima["voci"]]
+        if m is not None:
+            altre[-1]["corrente"] = True
+        colonne = [prima, *altre]
+        briciole = [dict(b, url=_con_prima(b.get("url") or "")) for b in briciole]
+        scelta = next((b for b in briciole if b.get("livello") == "Mansione"), None)
+        if scelta is not None:
+            briciole.remove(scelta)
+            briciole.insert(1, scelta)
+        # Si parte dalle mansioni: la radice del percorso lo dice.
+        briciole[0]["nome"] = "Tutte le mansioni"
+
+    out = {"colonne": colonne, "briciole": briciole, "legenda": LEGENDA, "scheda": None,
+           "mansioni_prima": mansioni_prima, "appena_spostata": appena_spostata,
+           "collegate": [{"nome": x["nome"], "url": x["url"], "spiega": x.get("sotto") or ""} for x in strade]}
     centro, area, ruolo = _nome_centro(ctx), _nome_area(ctx), _nome_ruolo(ctx)
 
     if m is not None:
@@ -152,6 +217,11 @@ def costruisci(ctx: dict, *, puo_gestire: bool = False, puo_chiedere: bool = Fal
         out["scheda"] = {"titolo": "Mansione scelta", "campi": campi, "azioni": azioni}
         out["competenze"] = _competenze(m, voce)
         out["persone_mansione"] = _persone_mansione(d, m)
+        out["altre"] = _altre_mansione(m, out["persone_mansione"])
+        url_richieste = f"{reverse('anagrafica:richieste')}?mansione={m.pk}"
+        out["collegate"].insert(0, {"nome": "Richieste su questa mansione", "url": url_richieste,
+                                    "spiega": "Assegnazioni, sospensioni e rimozioni",
+                                    "attesa": _richieste_aperte(m)})
     elif ctx["ruolo_obj"] is not None or s["ruolo"] is not None:
         campi = [_campo("Ruolo", ruolo), _campo("Reparto", area or "Nessuno"), _campo("Centro di costo", centro or "Nessuno")]
         sopra = next((x for x in det.get("gerarchia") or [] if x["sotto"] == "riporta a"), None)

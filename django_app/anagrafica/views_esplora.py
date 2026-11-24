@@ -95,7 +95,7 @@ def esplora_struttura(request):
                 "vista": vista})
     # Il punto scelto resta quando si cambia vista: stesso indirizzo, altra vista.
     punto = request.GET.copy()
-    for chiave in ("parziale", "vista"):
+    for chiave in ("parziale", "vista", "mansioni"):
         punto.pop(chiave, None)
     for nome in (semplice.SEMPLICE, semplice.COMPLETA):
         altra = punto.copy()
@@ -104,8 +104,16 @@ def esplora_struttura(request):
     if vista == semplice.SEMPLICE:
         from .services import richieste
 
-        ctx["semplice"] = semplice.costruisci(ctx, puo_gestire=_puo_gestire(request),
-                                              puo_chiedere=bool(richieste.tipi_ammessi(richieste.attore(request))))
+        # La colonna «Mansioni» può stare per ultima o per prima: il comando porta alla stessa vista, spostata.
+        prima = semplice.posizione_mansioni(request) == semplice.PRIMA
+        sposta = punto.copy()
+        sposta["mansioni"] = semplice.ULTIMA if prima else semplice.PRIMA
+        ctx["url_sposta_mansioni"] = f"{reverse('anagrafica:esplora_struttura')}?{sposta.urlencode()}"
+        ctx["semplice"] = semplice.costruisci(
+            ctx, puo_gestire=_puo_gestire(request),
+            puo_chiedere=bool(richieste.tipi_ammessi(richieste.attore(request))),
+            mansioni_prima=prima, strade=ctx["strade"], appena_spostata="mansioni" in request.GET,
+        )
     ctx.pop("dati")
     # Nella pagina già aperta si cambia solo la parte viva: niente menu da ricaricare.
     if request.GET.get("parziale") == "1":

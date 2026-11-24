@@ -1,0 +1,55 @@
+{# Riquadri che si dispongono da soli (23/11/2026). Tre colonne: un blocco «fx-largo» ne occupa due, gli altri una. Ogni blocco va nel primo posto libero: accanto a una tabella lunga, sotto una tabella corta, così non resta un vuoto al centro. Senza script resta una griglia normale; su schermi stretti una colonna sola. Uso: <div class="fx-flusso"><div class="fx-blocco fx-largo">…</div><div class="fx-blocco">…</div></div> #}
+<style>
+.fx-flusso { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; align-items:start; }
+.fx-blocco { min-width:0; }
+.fx-blocco.fx-largo { grid-column:span 2; }
+.fx-blocco > * { margin:0; }
+.fx-flusso.fx-pronto { row-gap:0; grid-auto-rows:4px; grid-auto-flow:row dense; }
+@media (max-width:1100px) {
+  .fx-flusso, .fx-flusso.fx-pronto { display:block; }
+  .fx-blocco { margin:0 0 14px; }
+}
+</style>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  if (window.fxDisponi) return;
+  var PASSO = 4, SPAZIO = 14, inAttesa = false, stretto = window.matchMedia('(max-width:1100px)');
+  var osserva = window.ResizeObserver ? new ResizeObserver(chiedi) : null;
+
+  function disponi() {
+    inAttesa = false;
+    document.querySelectorAll('.fx-flusso').forEach(function (flusso) {
+      var blocchi = flusso.querySelectorAll(':scope > .fx-blocco');
+      if (stretto.matches) {
+        flusso.classList.remove('fx-pronto');
+        blocchi.forEach(function (b) { b.style.gridRowEnd = ''; });
+        return;
+      }
+      flusso.classList.add('fx-pronto');
+      blocchi.forEach(function (b) {
+        var dentro = b.firstElementChild;
+        if (!dentro) return;
+        if (osserva && !dentro.fxVisto) { dentro.fxVisto = true; osserva.observe(dentro); }
+        b.style.gridRowEnd = 'span ' + Math.ceil((dentro.offsetHeight + SPAZIO) / PASSO);
+      });
+    });
+  }
+  function chiedi() {
+    if (inAttesa) return;
+    inAttesa = true;
+    window.requestAnimationFrame(disponi);
+  }
+  window.fxDisponi = chiedi;
+  function avvia() {
+    // La pagina può cambiare la sua parte viva senza ricaricarsi: i riquadri nuovi si dispongono da soli.
+    // Lo script sta in testa alla pagina: il corpo esiste solo da qui in poi.
+    if (window.MutationObserver && document.body) {
+      new MutationObserver(chiedi).observe(document.body, {childList: true, subtree: true});
+    }
+    chiedi();
+  }
+  window.addEventListener('resize', chiedi);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', avvia); else avvia();
+  window.addEventListener('load', chiedi);
+})();
+</script>
