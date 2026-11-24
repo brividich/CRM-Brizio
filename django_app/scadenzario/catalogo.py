@@ -62,6 +62,7 @@ def _kind_noti_asset() -> dict[str, str]:
             feed.KIND_ADMINISTRATIVE: "Scadenza amministrativa",
             feed.KIND_LICENSE: "Licenza software",
             feed.KIND_CONTRACT: "Contratto di assistenza",
+            feed.KIND_DOCUMENT: "Documento asset",
         }
     except Exception:
         return TIPI_NOTI["asset"]

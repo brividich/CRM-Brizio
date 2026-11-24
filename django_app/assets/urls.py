@@ -135,6 +135,7 @@ urlpatterns = [
     path("assets/view/qr-etichette/", views_asset_qr.asset_qr_labels_bulk, name="asset_qr_labels_bulk"),
     path("assets/view/<int:id>/storico-campi/", views_asset_storico.asset_field_history, name="asset_field_history"),
     path("assets/documenti/<int:document_id>/download/", views.asset_document_download, name="asset_document_download"),
+    path("assets/view/<int:id>/documenti/<slug:slug>/zip/", views.asset_document_folder_zip, name="asset_document_folder_zip"),
     path(
         "assets/workorders/allegati/<int:attachment_id>/download/",
         views.workorder_attachment_download,
@@ -402,7 +403,7 @@ _PAGINE_ASSET_PER_ID = {
     "asset_view", "asset_edit", "work_machine_edit", "chemical_edit", "asset_detail_export_xlsx",
     "asset_report_pdf", "asset_qr_label", "asset_qr_image", "asset_qr_panel", "asset_qr_public_link",
     "asset_field_history", "asset_rete_edit", "asset_rete_prefisso", "asset_image_upload",
-    "asset_assign", "asset_calendar_json",
+    "asset_assign", "asset_calendar_json", "asset_document_folder_zip",
 }
 
 

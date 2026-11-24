@@ -343,3 +343,7 @@ Unica definizione di OdL in ritardo: `maintenance.q_odl_in_ritardo` / `odl_in_ri
 ### Cartelle documento per singolo asset (24/11)
 
 Le scelte per asset stanno in `Asset.extra_columns["_cartelle_documenti"]` (`assets/services/cartelle_asset.py`): `senza_categoria` (spunta «Usa le cartelle documento della categoria» del form), `tolte` e `aggiunte` (azioni `togli_cartella_categoria` / `aggiungi_cartella_categoria` della scheda). `AssetCategoryDocumentFolder.facoltativa` (migrazione assets 0174, «Rendi facoltativa» in Impostazioni) nasconde la cartella finché non viene aggiunta. Una cartella con documenti resta sempre visibile.
+
+### Documenti: sposta, ZIP, scadenza, ricerca; nuovo asset come questo (24/11)
+
+`assets/services/documenti_asset.py`: `sposta`, `zip_cartella` (URL `assets:asset_document_folder_zip` `/assets/view/<id>/documenti/<slug>/zip/`, binding regex nella migrazione 0175, in `_PAGINE_ASSET_PER_ID`), `stato_scadenza` (preavviso 30 giorni) e `stato_sds_per_prodotti` (etichetta SDS nell'elenco). `AssetDocument.data_scadenza` (migrazione 0175) alimenta `deadline_feed.KIND_DOCUMENT` → Scadenzario asset (scheda «Documenti»), Scadenzario globale, riquadro Scadenze, calendario. Azioni scheda `sposta_documenti`, `rinomina_cartella_asset`, `scadenza_documento`. `asset_create?da_asset=<id>` precompila i campi condivisi e copia cartelle e scelte. Lo «Storico tecnico» mostra i ticket RISOLTO/CHIUSO con l'ultimo «cosa è stato fatto».

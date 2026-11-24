@@ -58,6 +58,7 @@ from ._helpers_c import (  # noqa: F401
 from .documents import (  # noqa: F401
     admin_deadline_attachment_download,
     asset_document_download,
+    asset_document_folder_zip,
     asset_document_qr_download,
     workorder_attachment_download,
 )

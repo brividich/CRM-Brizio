@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Asset: documenti più comodi, scadenze dei documenti, nuovo asset come questo, SDS in elenco, ticket nello storico (24/11)
+
+- **Documenti dell'asset:** ricerca per nome in tutte le cartelle; numero di file su ogni linguetta (vuote in grigio); «Sposta i selezionati in…» tra cartelle; «Scarica ZIP (N)» per cartella; «Rinomina cartella» sulle cartelle «solo qui».
+- **Scadenza dei documenti:** nuova colonna «Scadenza» (si salva appena scelta la data), etichette «In scadenza» (30 giorni prima) e «Scaduto». I documenti in scadenza entrano nel registro scadenze unico: Scadenzario asset (nuova scheda «Documenti»), Scadenzario globale, riquadro Scadenze dell'asset e calendario. Migrazione `assets` 0175 (campo + binding ACL dello ZIP).
+- **«+ Nuovo asset come questo»** (menu «Altro» della scheda): precompila categoria, reparto, marca, modello, stato e spunta cartelle; al salvataggio copia le cartelle «solo qui» e le scelte sulle cartelle di categoria, senza file.
+- **Elenco asset:** sui prodotti chimici l'etichetta «SDS aggiornata / da rivedere / mancante» con link al prodotto (la scheda asset la mostrava già).
+- **Storico tecnico** della scheda: anche i ticket risolti e chiusi, con l'ultimo «cosa è stato fatto» e il link.
+- File: `assets/services/documenti_asset.py`, `assets/services/deadline_feed.py`, `assets/models.py`, `assets/migrations/0175_documento_data_scadenza.py`, `assets/views/_helpers.py`, `assets/views/asset_detail.py`, `assets/views/asset_crud.py`, `assets/views/documents.py`, `assets/views/__init__.py`, `assets/urls.py`, `assets/views_maintenance.py`, `dashboard/scadenze_providers.py`, `scadenzario/catalogo.py`, template `asset_detail.html`, `asset_list.html`, `asset_detail.css`, guida in-app `guida.html`, Centro guide `core/guide_moduli/contenuti/assets.py`, `docs/moduli/assets.md`, test `assets/tests_documenti_plus.py`.
+
 ### Processi qualificati (MOD.128): lista «Configurazione», avviso doppioni, export, guida PDF, MOD.176 in officina
 - **Configurazione:** in cima alla pagina del processo ✓/✗ su processo attivo, riferimenti, persone, requisiti persona, macchine con verifica MOD.161 e utensili/Technical Plan approvati (le ultime due solo se il processo li usa), con il link dove si sistema; sparisce a lavoro finito. Nelle sezioni dedicate (Qualifiche e Asset) «Da completare». Tolto l'avviso «senza riferimenti», ripetuto dalla lista.
 - **Nuovo processo:** con un processo dallo stesso nome (o simile per lo stesso cliente) o la stessa sigla di sezione non salva e mostra il link; «Salva comunque».

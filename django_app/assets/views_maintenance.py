@@ -674,9 +674,10 @@ _SCADENZE_TYPE_TABS = [
     ("administrative", "Amministrative"),
     ("checks", "Verifiche impianti"),
     ("renewals", "Licenze e contratti"),
+    ("documents", "Documenti"),
 ]
 # Tipologie che non sono occorrenze: si leggono dal registro scadenze unico.
-_PLAN_TYPES_FEED = ("", "renewals", "administrative", "checks", "piani")
+_PLAN_TYPES_FEED = ("", "renewals", "administrative", "checks", "piani", "documents")
 
 
 def _tab_links(request: HttpRequest, param: str, options, active: str) -> list[dict[str, Any]]:
@@ -737,7 +738,8 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
 
     data = form.cleaned_data if form.is_valid() else {}
     wanted = {
-        "": {feed.KIND_LICENSE, feed.KIND_CONTRACT, feed.KIND_ADMINISTRATIVE, feed.KIND_CHECK},
+        "": {feed.KIND_LICENSE, feed.KIND_CONTRACT, feed.KIND_ADMINISTRATIVE, feed.KIND_CHECK, feed.KIND_DOCUMENT},
+        "documents": {feed.KIND_DOCUMENT},
         "renewals": {feed.KIND_LICENSE, feed.KIND_CONTRACT},
         "administrative": {feed.KIND_ADMINISTRATIVE},
         "checks": {feed.KIND_CHECK},
@@ -870,7 +872,7 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     # Solo qui la tipologia comprende anche licenze e contratti: non sono
     # occorrenze e in "Da fare" non c'e' niente da eseguire su di loro.
     form.fields["plan_type"].choices = list(form.fields["plan_type"].choices) + [
-        ("checks", "Verifiche impianti"), ("renewals", "Licenze e contratti"),
+        ("checks", "Verifiche impianti"), ("renewals", "Licenze e contratti"), ("documents", "Documenti"),
         # Solo da link (KPI «Piani scaduti / in scadenza» del cruscotto), non una scheda.
         ("piani", "Piani e verifiche impianti"),
     ]
@@ -879,7 +881,7 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
 
     queryset = _apply_occurrence_filters(_base_occurrence_queryset(), form, today=today)
     queryset, scoped_reparti = _apply_caporeparto_scope(queryset, request)
-    if plan_type in ("renewals", "checks"):
+    if plan_type in ("renewals", "checks", "documents"):
         rows = []
     else:
         rows = _decorate(list(queryset[:2000]), today=today)
@@ -1147,7 +1149,8 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
     scadenzario_url = reverse("assets:maintenance_scadenze")
     calendario_url = reverse("assets:calendario_asset")
     plan_type_for = {feed.KIND_ORDINARY: "ordinary", feed.KIND_ADMINISTRATIVE: "administrative",
-                     feed.KIND_CHECK: "checks", feed.KIND_LICENSE: "renewals", feed.KIND_CONTRACT: "renewals"}
+                     feed.KIND_CHECK: "checks", feed.KIND_LICENSE: "renewals", feed.KIND_CONTRACT: "renewals",
+                     feed.KIND_DOCUMENT: "documents"}
 
     types = []
     for kind, label in feed.KIND_LABELS.items():
@@ -1163,11 +1166,12 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
                 feed.KIND_CHECK: "Verifiche impianti",
                 feed.KIND_LICENSE: "Licenze software",
                 feed.KIND_CONTRACT: "Contratti di assistenza",
-            }[kind],
+                feed.KIND_DOCUMENT: "Documenti in scadenza",
+            }.get(kind, label),
             "overdue": sum(1 for row in of_kind if row.due_date < today),
             "due_30": sum(1 for row in upcoming if row.due_date <= horizon),
             "next": upcoming[0] if upcoming else None,
-            "url": f"{scadenzario_url}?{urlencode({**shared, 'window': '', 'plan_type': plan_type_for[kind]})}",
+            "url": f"{scadenzario_url}?{urlencode({**shared, 'window': '', 'plan_type': plan_type_for.get(kind, '')})}",
             "calendar_url": f"{calendario_url}?{urlencode({**shared, 'kinds': kind})}",
         })
 

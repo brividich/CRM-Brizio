@@ -39,6 +39,7 @@ from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.models import UserExtraInfo
+from ..services.documenti_asset import stato_scadenza
 from core.upload_mime import UploadMimeValidationError, safe_filename, validate_extension_and_mime
 from ..forms import (
     PRODUCTION_ASSET_TYPES,
@@ -1311,6 +1312,8 @@ def _build_asset_documents_by_category(asset: Asset) -> tuple[dict[str, str], di
                 "kind": "uploaded",
                 "meta": " | ".join(meta_parts),
                 "folder": _normalize_document_path(uploaded.relative_folder),
+                "scadenza": uploaded.data_scadenza,
+                "scad_stato": stato_scadenza(uploaded.data_scadenza),
             }
         )
 
