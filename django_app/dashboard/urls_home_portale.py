@@ -8,4 +8,5 @@ urlpatterns = [
     path("guida/", views.home_guida, name="guida"),
     path("toggle-locked/", views.toggle_locked, name="toggle_locked"),
     path("activity/recent/", views.activity_recent, name="activity_recent"),
+    path("mie-attivita/", views.mie_attivita_blocco, name="mie_attivita_blocco"),
 ]

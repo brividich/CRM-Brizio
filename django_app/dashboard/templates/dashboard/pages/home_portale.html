@@ -82,7 +82,7 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
   <div class="hs-main">
     <div class="hs-rooms-bar">
       <nav class="hs-rooms" role="tablist" aria-label="Stanze della home">
-        <button type="button" role="tab" id="hs-tab-oggi" data-room="oggi" aria-controls="hs-room-oggi" aria-selected="true">Oggi{% if cose_da_gestire_total %}<sup>{{ cose_da_gestire_total }}</sup>{% endif %}</button>
+        <button type="button" role="tab" id="hs-tab-oggi" data-room="oggi" aria-controls="hs-room-oggi" aria-selected="true">Oggi<span id="hs-tab-oggi-n">{% if cose_da_gestire_total %}<sup>{{ cose_da_gestire_total }}</sup>{% endif %}</span></button>
         <button type="button" role="tab" id="hs-tab-sapere" data-room="sapere" aria-controls="hs-room-sapere" aria-selected="false" tabindex="-1">Sapere{% if self_help_total %}<sup>{{ self_help_total }}</sup>{% endif %}</button>
         <button type="button" role="tab" id="hs-tab-persone" data-room="persone" aria-controls="hs-room-persone" aria-selected="false" tabindex="-1">Persone &amp; sicurezza</button>
         <button type="button" role="tab" id="hs-tab-moduli" data-room="moduli" aria-controls="hs-room-moduli" aria-selected="false" tabindex="-1">Moduli<sup>{{ module_total }}</sup></button>
@@ -192,7 +192,13 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
       {% endif %}
       <div class="hs-oggi">
         <div class="hs-mie" data-hp-section="card-cose-da-gestire">
+          {% if cose_da_gestire_differita %}
+          <div class="hs-mie-attesa" hx-get="{% url 'home_portale:mie_attivita_blocco' %}" hx-trigger="load" hx-swap="outerHTML" aria-busy="true">
+            <p class="hp-empty">Carico le tue attività…</p>
+          </div>
+          {% else %}
           {% include "dashboard/components/mie_attivita_blocco.html" %}
+          {% endif %}
         </div>
 
         <div class="hs-col">
