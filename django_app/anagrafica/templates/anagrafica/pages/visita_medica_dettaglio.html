@@ -19,7 +19,14 @@
 .vm-detail-docs a { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 11px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; color:#0c2545; font-size:13px; font-weight:700; text-decoration:none; }
 .vm-detail-docs a:hover { background:#eff6ff; border-color:#bfdbfe; }
 .vm-detail-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.vm-detail-form { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:15px 18px; }
+.vm-detail-form { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:15px 18px; align-items:start; }
+.vm-detail-form .vm-f-span2 { grid-column:span 2; }
+.vm-detail-form .vm-f-full { grid-column:1 / -1; }
+.vm-detail-form .vm-f-check { padding-top:21px; }
+.vm-detail-form label.vm-check { display:flex; align-items:flex-start; gap:9px; margin:0; padding:8px 11px; border:1px solid #cbd5e1; border-radius:9px; background:#f8fafc; cursor:pointer; font-weight:700; }
+.vm-detail-form label.vm-check input { width:16px; height:16px; margin:2px 0 0; padding:0; flex:none; }
+.vm-detail-form label.vm-check small { display:block; margin-top:2px; color:#64748b; font-size:11px; font-weight:500; }
+.vm-detail-form textarea { resize:vertical; min-height:74px; }
 .vm-detail-form label { display:block; margin-bottom:5px; color:#334155; font-size:12px; font-weight:700; }
 .vm-detail-form input, .vm-detail-form select, .vm-detail-form textarea { width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid #cbd5e1; border-radius:9px; background:#fff; color:#0f172a; font:inherit; font-size:13px; }
 .vm-detail-form input:focus, .vm-detail-form select:focus, .vm-detail-form textarea:focus { outline:2px solid #bfdbfe; border-color:#1f87cd; }
@@ -31,7 +38,9 @@ body.theme-dark .vm-detail-field dd, body.theme-dark .vm-detail-form label { col
 body.theme-dark .vm-detail-wide { border-color:var(--border); }
 body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.theme-dark .vm-detail-form select, body.theme-dark .vm-detail-form textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 @media (max-width:800px) { .vm-detail-layout { grid-template-columns:1fr; } }
-@media (max-width:600px) { .vm-detail-grid, .vm-detail-form { grid-template-columns:1fr; } }
+@media (max-width:900px) { .vm-detail-form { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+@media (max-width:600px) { .vm-detail-grid, .vm-detail-form { grid-template-columns:1fr; } .vm-detail-form > div { grid-column:auto !important; } }
+body.theme-dark .vm-detail-form label.vm-check { background:var(--surface-alt); border-color:var(--border); }
 @media print {
   .vm-detail-no-print, .vm-detail-edit, nav, header, footer { display:none !important; }
   .fmd-hero { color:#0f172a !important; background:#fff !important; clip-path:none; padding:0 0 12px; border-bottom:2px solid #0c2545; }
@@ -150,7 +159,17 @@ body.theme-dark .vm-detail-docs a:hover{background:rgba(59,130,246,.18)}
         <p class="vm-detail-sub" style="margin:0 0 16px;">La scadenza viene ricalcolata dal tipo e dalla data della visita, e anticipata se la mansione richiede oggi una periodicità più stretta. Se il medico ha scritto una data di richiamo, indicala in «Richiamo indicato dal medico»: prevale sul calcolo. Un nuovo referto diventa quello principale: il precedente resta nel fascicolo, segnato come sostituito.</p>
         <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:dipendente_visita_edit' visita.legacy_anagrafica_id visita.pk %}">
           {% csrf_token %}
-          <div class="vm-detail-form">{% for field in form %}<div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}</div>
+          <div class="vm-detail-form">
+            <div class="vm-f-span2"><label for="{{ form.tipo.id_for_label }}">{{ form.tipo.label }}</label>{{ form.tipo }}</div>
+            <div><label for="{{ form.data_svolgimento.id_for_label }}">{{ form.data_svolgimento.label }}</label>{{ form.data_svolgimento }}</div>
+            <div><label for="{{ form.esito.id_for_label }}">{{ form.esito.label }}</label>{{ form.esito }}</div>
+            <div class="vm-f-span2"><label for="{{ form.medico_competente.id_for_label }}">{{ form.medico_competente.label }}</label>{{ form.medico_competente }}</div>
+            <div><label for="{{ form.scadenza_medico.id_for_label }}">{{ form.scadenza_medico.label }}</label>{{ form.scadenza_medico }}<div class="helptext">Vuoto = scadenza calcolata dal tipo.</div></div>
+            <div class="vm-f-check"><label class="vm-check" title="{{ form.a_richiesta.help_text }}">{{ form.a_richiesta }}<span>{{ form.a_richiesta.label }}<small>Nessuna scadenza, non sostituisce la periodica.</small></span></label></div>
+            <div class="vm-f-span2"><label for="{{ form.prescrizioni.id_for_label }}">{{ form.prescrizioni.label }}</label>{{ form.prescrizioni }}</div>
+            <div class="vm-f-span2"><label for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>{{ form.note }}</div>
+            <div class="vm-f-full"><label for="{{ form.referto_file.id_for_label }}">Referto</label>{{ form.referto_file }}<div class="helptext">PDF o immagine, opzionale. Storage privato.</div></div>
+          </div>
           <div class="vm-detail-form-footer"><button type="submit" class="hr-btn hr-btn-primary">Salva modifiche</button></div>
         </form>
       </div>

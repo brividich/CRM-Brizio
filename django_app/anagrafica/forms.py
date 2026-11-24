@@ -266,13 +266,13 @@ class VisitaMedicaForm(forms.ModelForm):
                   "a_richiesta": "A richiesta (non è un rinnovo)"}
         widgets = {
             "tipo": forms.Select(attrs={"class": "dp-input"}),
-            "data_svolgimento": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            "data_svolgimento": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
             "esito": forms.Select(attrs={"class": "dp-input"}),
             "a_richiesta": forms.CheckboxInput(),
             "scadenza_medico": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
-            "prescrizioni": forms.Textarea(attrs={"class": "dp-input", "rows": 2}),
+            "prescrizioni": forms.Textarea(attrs={"class": "dp-input", "rows": 3}),
             "medico_competente": forms.TextInput(attrs={"class": "dp-input"}),
-            "note": forms.Textarea(attrs={"class": "dp-input", "rows": 2}),
+            "note": forms.Textarea(attrs={"class": "dp-input", "rows": 3}),
         }
 
     def __init__(self, *args, **kwargs):

@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Visite mediche: form più ordinati, data della visita di nuovo compilata in «Modifica»
+
+- **Segnalazione:** nei form delle visite «Esito» occupava troppo spazio rispetto a prescrizioni e note.
+- Giornata visite: colonne a larghezza fissa per scadenza, stato, esito e referto; prescrizioni e note più larghe, con segnaposto chiari (`templates/anagrafica/pages/visite_mediche_nuova_sessione.html`, `partials/_visite_candidati.html`).
+- Dettaglio visita, «Modifica visita»: griglia a 4 colonne (tipo · data · esito, medico · richiamo · «A richiesta», prescrizioni e note affiancate, referto); spunta «A richiesta» in un riquadro alto come un campo (`visita_medica_dettaglio.html`).
+- **Bug corretto:** in «Modifica visita» la data della visita compariva vuota (gg/mm/aaaa) e andava reinserita a ogni salvataggio: il campo data ora usa il formato del calendario (`anagrafica/forms.py` `VisitaMedicaForm`).
+- Scheda dipendente, «Registra nuova visita»: stessa disposizione a 4 colonne; le tendine ricercabili non mostrano più un doppio riquadro (`dipendente_detail.html`, `static/anagrafica/css/pagine/dipendente_detail.css`: serve `collectstatic`).
+- Giornata salvata, «+ Aggiungi»: campi su una griglia con larghezze proporzionate, tipo ed esito leggibili per intero (`visite_mediche_sessione_detail.html`).
+
 ### Visite «a richiesta»: il pulsante passa nella Giornata visite
 
 - **Segnalazione:** il pulsante «Segna come a richiesta» stava in una tabella della dashboard (caselle nella colonna Azioni), non dove si lavorano le visite scadute.
