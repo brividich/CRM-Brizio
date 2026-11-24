@@ -117,16 +117,36 @@
       {% if riferimenti or can_manage %}
       <div id="riferimenti" style="margin-top:10px;padding-top:10px;border-top:1px solid #eef3f8;">
         <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Riferimenti / codici di approvazione</div>
-        {% for rif in riferimenti %}
-          <span class="fmd-badge fmd-b-violet" title="{{ rif.get_tipo_display }}">{{ rif.codice }}{% if can_manage %}
-            <form method="post" action="{% url 'anagrafica:mpq_riferimento_delete' rif.id %}" style="display:inline;" data-hub-confirm="Rimuovere il riferimento {{ rif.codice }}?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 4px;font:inherit;">×</button></form>
-          {% endif %}</span>
-        {% empty %}{% if not can_manage %}<span class="fmd-muted">—</span>{% endif %}{% endfor %}
+        <div class="mpq-rif-lista">
+        {% for r in riferimenti_sgi %}{% with rif=r.rif %}
+          <span class="mpq-rif{% if r.nuova_revisione %} mpq-rif-nuova{% endif %}">
+            <span class="fmd-badge fmd-b-violet" title="{{ rif.get_tipo_display }}{% if r.doc %} · {{ r.doc.title }}{% endif %}">{{ rif.codice }}{% if can_manage %}
+              <form method="post" action="{% url 'anagrafica:mpq_riferimento_delete' rif.id %}" style="display:inline;" data-hub-confirm="Rimuovere il riferimento {{ rif.codice }}?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 4px;font:inherit;">×</button></form>
+            {% endif %}</span>
+            {% if r.nuova_revisione %}<span class="mpq-rif-nota mpq-rif-warn">nuova rev. {{ r.corrente }} (verificata {{ rif.revisione_vista }}): ricontrolla persone e Technical Plan</span>{% if can_manage %}<form method="post" action="{% url 'anagrafica:mpq_riferimento_verificato' rif.id %}" style="display:inline;">{% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-sm">Verificata</button></form>{% endif %}
+            {% elif r.rev %}<span class="mpq-rif-nota">rev. {{ r.corrente|default:"—" }}</span>
+            {% elif r.nel_registro is False %}<span class="mpq-rif-nota" title="Codice non trovato nel registro SGI (Procedure)">non nel registro SGI</span>{% endif %}
+          </span>
+        {% endwith %}{% empty %}{% if not can_manage %}<span class="fmd-muted">—</span>{% endif %}{% endfor %}
+        </div>
+        {% if can_manage and sgi_suggeriti %}
+        <div class="mpq-rif-sugg">
+          <span class="fmd-muted" style="font-size:12px;">Citati nei documenti di riferimento:</span>
+          {% for d in sgi_suggeriti %}
+          <form method="post" action="{% url 'anagrafica:mpq_riferimento_add' processo.id %}" style="display:inline;">
+            {% csrf_token %}<input type="hidden" name="codice" value="{{ d.codice }}"><input type="hidden" name="tipo" value="SPECIFICA">
+            <button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-sm" title="{{ d.titolo }} · citato da {{ d.citato_da }}">+ {{ d.codice }}</button>
+          </form>
+          {% endfor %}
+        </div>
+        {% endif %}
         {% if can_manage %}
         <form method="post" action="{% url 'anagrafica:mpq_riferimento_add' processo.id %}" style="display:flex;gap:6px;margin-top:8px;max-width:520px;">
           {% csrf_token %}
-          <input type="text" name="codice" placeholder="Nuovo codice (es. COP001)" required
+          <input type="text" name="codice" placeholder="Nuovo codice: scrivi e scegli dal registro SGI" required list="mpq-sgi-elenco"
+                 autocomplete="off" data-sgi-cerca="{% url 'anagrafica:mpq_sgi_cerca' %}" maxlength="200"
                  style="flex:1;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+          <datalist id="mpq-sgi-elenco"></datalist>
           <select name="tipo" style="padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
             <option value="APPROVAZIONE">Approvazione</option>
             <option value="SPECIFICA">Specifica</option>
@@ -138,6 +158,41 @@
         {% endif %}
       </div>
       {% endif %}
+      <style>
+        .mpq-rif-lista { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; }
+        .mpq-rif { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
+        .mpq-rif-nota { font-size:11px; color:#64748b; }
+        .mpq-rif-warn { color:#92400e; background:#fef3c7; border-radius:6px; padding:2px 6px; font-weight:600; }
+        .mpq-rif-sugg { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px; }
+        body.theme-dark .mpq-rif-warn { background:rgba(245,158,11,.18); color:#fcd34d; }
+      </style>
+      <script>
+      (function () {
+        var input = document.querySelector('[data-sgi-cerca]');
+        if (!input) return;
+        var lista = document.getElementById('mpq-sgi-elenco'), timer = null, ultimo = '';
+        input.addEventListener('input', function () {
+          clearTimeout(timer);
+          var q = input.value.trim();
+          if (q.length < 2 || q === ultimo) return;
+          timer = setTimeout(function () {
+            ultimo = q;
+            fetch(input.getAttribute('data-sgi-cerca') + '?q=' + encodeURIComponent(q), {headers: {'Accept': 'application/json'}, credentials: 'same-origin'})
+              .then(function (r) { return r.ok ? r.json() : {risultati: []}; })
+              .then(function (dati) {
+                lista.innerHTML = '';
+                (dati.risultati || []).forEach(function (d) {
+                  var o = document.createElement('option');
+                  o.value = d.codice;
+                  o.label = d.titolo + (d.rev ? ' · rev. ' + d.rev : '');
+                  o.textContent = o.label;
+                  lista.appendChild(o);
+                });
+              }).catch(function () {});
+          }, 200);
+        });
+      })();
+      </script>
       {% if processo.note %}<p class="fmd-sub" style="margin-top:10px;">{{ processo.note|linebreaksbr }}</p>{% endif %}
     </section>
 

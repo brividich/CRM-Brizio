@@ -143,7 +143,7 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Apri «Collegamenti ai moduli».",
-                "In «Proposte da confermare» spunta i collegamenti giusti (trovati dalle parole del codice e del titolo) e clicca «Conferma le spuntate».",
+                "In «Proposte da confermare» spunta i collegamenti giusti (trovati dalle parole del codice e del titolo; per «Processi qualificati (MOD.128)» anche i documenti usati come riferimento di un processo) e clicca «Conferma le spuntate».",
                 "Per aggiungerne uno a mano scegli documento e modulo, spunta «Si compila nell'HUB» se il modello cartaceo è stato digitalizzato da quel modulo, e clicca «Collega».",
                 "«Togli» cancella un collegamento.",
             ]),

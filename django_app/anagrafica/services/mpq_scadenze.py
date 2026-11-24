@@ -1,7 +1,8 @@
 """MOD.128 — avviso settimanale: persone e macchine qualificate da sistemare.
 
 Persone (abilitazioni attive) non qualificate o con scadenza entro 60 giorni e
-macchine non operative o in scadenza, per tutti i processi attivi. Destinatari:
+macchine non operative o in scadenza, per tutti i processi attivi, e riferimenti con una
+revisione nel registro SGI più nuova di quella verificata. Destinatari:
 gli stessi dei timbri sospesi MOD.128 (``mpq_msm_reminder_emails``).
 """
 from __future__ import annotations
@@ -23,7 +24,29 @@ def raccogli(*, giorni=GIORNI, oggi=None) -> dict:
     return {
         "persone": persone_in_scadenza(giorni=giorni, oggi=oggi),
         "macchine": macchine_in_scadenza(giorni=giorni, oggi=oggi),
+        "documenti": documenti_da_verificare(),
     }
+
+
+def documenti_da_verificare() -> list[dict]:
+    """Riferimenti dei processi attivi con una revisione SGI più nuova di quella verificata."""
+    import logging
+
+    from ..models_mpq import ProcessoQualificato
+    from .mpq_sgi import stato_riferimenti
+
+    try:
+        from procedure_refresh.models import ProcedureDocument
+
+        catalogo = list(ProcedureDocument.objects.filter(is_active=True).prefetch_related("revisions"))
+        out = []
+        for p in (ProcessoQualificato.objects.filter(stato=ProcessoQualificato.STATO_ATTIVO)
+                  .filter(riferimenti__isnull=False).distinct().prefetch_related("riferimenti")):
+            out += [{"processo": p, **r} for r in stato_riferimenti(p, catalogo=catalogo) if r["nuova_revisione"]]
+        return out
+    except Exception:
+        logging.getLogger(__name__).exception("MOD.128: revisioni SGI dei riferimenti non leggibili")
+        return []
 
 
 def _processo_html(processo) -> str:
@@ -53,7 +76,7 @@ def notifica_scadenze(*, override=None, fail_silently: bool = True, giorni=GIORN
     if not recipients:
         return 0
     dati = raccogli(giorni=giorni)
-    n = len(dati["persone"]) + len(dati["macchine"])
+    n = len(dati["persone"]) + len(dati["macchine"]) + len(dati.get("documenti", []))
     if not n:
         return 0
     nomi = _nomi_map([r["abilitazione"].legacy_anagrafica_id for r in dati["persone"]])
@@ -83,6 +106,15 @@ def notifica_scadenze(*, override=None, fail_silently: bool = True, giorni=GIORN
             f"<td style='{cella}'><strong>{escape(r['stato']['label'])}</strong></td>"
             f"<td style='{cella}'><a href='{escape(url)}'>Apri</a></td></tr>"
         )
+    for r in dati.get("documenti", []):
+        url = reverse("anagrafica:mpq_processo_detail", args=[r["processo"].pk]) + "#riferimenti"
+        righe.append(
+            f"<tr><td style='{cella}'>Documento</td><td style='{cella}'>{escape(r['rif'].codice)}</td>"
+            f"<td style='{cella}'>{_processo_html(r['processo'])}</td>"
+            f"<td style='{cella}'><strong>Nuova rev. {escape(r['corrente'])}</strong> (verificata "
+            f"{escape(r['rif'].revisione_vista)}): ricontrolla persone e Technical Plan</td>"
+            f"<td style='{cella}'><a href='{escape(url)}'>Apri</a></td></tr>"
+        )
     tabella = (
         "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' "
         "style='width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;'>"
@@ -92,6 +124,8 @@ def notifica_scadenze(*, override=None, fail_silently: bool = True, giorni=GIORN
     )
     testo = (f"{len(dati['persone'])} persone e {len(dati['macchine'])} macchine dei processi qualificati "
              f"non sono in regola o scadono entro {giorni} giorni.")
+    if dati.get("documenti"):
+        testo += f" {len(dati['documenti'])} documenti di riferimento hanno una nuova revisione da verificare."
     return send_hub_mail(
         subject=f"[MOD.128] Persone e macchine qualificate da sistemare ({n})",
         body_text=testo, recipients=recipients,

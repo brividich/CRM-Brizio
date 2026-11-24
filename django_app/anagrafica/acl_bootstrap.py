@@ -41,7 +41,9 @@ logger = logging.getLogger(__name__)
 # Bump alla v20: sezioni dedicate dei processi qualificati (anagrafica:mpq_sezione, mpq_sezione_export).
 # Bump alla v21: guida PDF, MOD.176 in officina ed export del processo (mpq_guida_pdf, mpq_officina,
 #   mpq_processo_export → view; registrare in officina resta «gestisci», controllato nella view).
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v21"
+# Bump alla v22: registro SGI nei riferimenti MOD.128 (mpq_riferimento_verificato → gestisci,
+#   mpq_sgi_cerca → view).
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v22"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -124,6 +126,8 @@ _MPQ_ROUTE_BINDINGS = {
     "anagrafica:mpq_certificazione_delete": PERM_MPQ_MANAGE,
     "anagrafica:mpq_riferimento_add": PERM_MPQ_MANAGE,
     "anagrafica:mpq_riferimento_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_riferimento_verificato": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_sgi_cerca": PERM_MPQ_VIEW,
     "anagrafica:mpq_requisito_add": PERM_MPQ_MANAGE,
     "anagrafica:mpq_requisito_edit": PERM_MPQ_MANAGE,
     "anagrafica:mpq_requisito_delete": PERM_MPQ_MANAGE,
