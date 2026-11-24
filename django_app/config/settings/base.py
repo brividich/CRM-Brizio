@@ -359,6 +359,10 @@ AI_PREWARM_ON_PAGE_OPEN = env_bool("AI_PREWARM_ON_PAGE_OPEN", True)
 
 # Home: secondi di cache per persona dei contatori dei riquadri (0 = spenta).
 HOME_KPI_CACHE_SECONDS = int(env("HOME_KPI_CACHE_SECONDS", "90") or "90")
+# Home: «Le mie attività» caricato subito dopo la pagina invece che dentro (False = come prima).
+HOME_MIE_ATTIVITA_DIFFERITA = env_bool("HOME_MIE_ATTIVITA_DIFFERITA", True)
+# Home: secondi di cache di Documenti e collegamenti per ruolo (0 = spenta).
+HOME_BACHECA_CACHE_SECONDS = int(env("HOME_BACHECA_CACHE_SECONDS", "300") or "300")
 # Home anagrafica: secondi di cache del cruscotto HR e del carico mansioni (0 = spenta).
 ANAGRAFICA_CRUSCOTTO_CACHE_SECONDS = int(env("ANAGRAFICA_CRUSCOTTO_CACHE_SECONDS", "120") or "120")
 

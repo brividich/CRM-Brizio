@@ -90,7 +90,8 @@ SEZIONI: list[dict] = [
                 "«Banco consegne DPI» (in cima, solo per chi gestisce le consegne DPI, per esempio il Magazzino): numeri del banco, "
                 "le prime 6 persone da servire con «Consegna», la ricerca «Chi è al banco?» e «Consegna diretta». "
                 "Tutto porta alla pagina DPI → Banco consegne.",
-                "«Le mie attività» raccoglie le cose che aspettano una tua azione, dai vari moduli: KICK-OFF "
+                "«Le mie attività» si carica un attimo dopo il resto della pagina (intanto vedi «Carico le tue attività…»), "
+                "poi compare anche il numero sulla linguetta «Oggi». Raccoglie le cose che aspettano una tua azione, dai vari moduli: KICK-OFF "
                 "(attività, anche senza commessa, sotto-attività, azioni, problemi, programmi e FAI assegnati a te), ordini di lavoro assegnati, «Assenze della squadra» (le richieste da accettare e, sotto, quelle già accettate in corso o in arrivo, con il riepilogo «N da accettare · N accettate»), ticket "
                 "(aperti da te o per tuo conto, assegnati a te o in cui hai fatto un intervento, e quelli del tuo team che nessuno ha ancora preso), anomalie, non conformità, procedure da leggere, «DPI da gestire» (richieste da approvare, scarpe da ordinare per l'operatore incaricato, consegne da preparare per chi riceve l'avviso), richieste DPI, corsi e-learning, "
                 "refresh abilitazioni macchina, «Approvazioni e richieste» (modifiche SGI, approvazioni dei flussi, richieste di visita da decidere, richieste di spostamento date del KICK-OFF, segnalazioni di modifica dei documenti CN-SGI per chi le gestisce, rilevazioni di sicurezza dell'ultimo anno in attesa dell'approvazione RLS o della chiusura RSPP), "

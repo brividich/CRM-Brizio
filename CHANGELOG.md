@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: home subito visibile, «Le mie attività» caricato dopo
+
+- **«Le mie attività» caricato subito dopo la pagina** (`dashboard/views_home_portale.py` `mie_attivita_blocco`, rotta `home_portale:mie_attivita_blocco`, `dashboard/templates/dashboard/partials/home_mie_attivita.html`, `home_portale.html`): le 17 fonti, circa il 40% del tempo della home, non trattengono più la pagina. Intanto c'è il segnaposto «Carico le tue attività…»; il numero della linguetta «Oggi» arriva con uno swap HTMX fuori banda. La rotta è condivisa come la pagina `mie_attivita` (`core/middleware.py`). `HOME_MIE_ATTIVITA_DIFFERITA=0` torna come prima. Misurato sui dati di prod con 4 utenti: la pagina scende da 1,2-2,7 s a 0,5-1,1 s, e il blocco arriva in 0,5-1,1 s.
+- **Documenti e collegamenti della bacheca in cache per ruolo** (5 minuti, `HOME_BACHECA_CACHE_SECONDS`): la cache si rinnova a ogni salvataggio o cancellazione di documenti e categorie (segnali in `dashboard/apps.py`), per tutti i processi.
+- **Non conformità in «Le mie attività»:** da 56 a 3 query, da 218 a 31 ms. I nomi dell'utente sono memorizzati sulla richiesta (`anomalie/views.py` `_current_user_name_norms`): prima si rileggeva l'anagrafica per ognuna delle NC aperte. Ne beneficiano anche le pagine delle anomalie.
+- Guide: «? Guida» della home (`dashboard/guida.py`), Centro guide Home (`core/guide_moduli/contenuti/home.py`, nuovo caso in «Problemi»). Test: `dashboard/tests_home_differita.py` (nuovo).
+
 ### Prestazioni: pagine lente corrette (misurate sui dati di produzione)
 
 - **Salvataggio della matrice ruoli** (`core/permessi/sync.py`, `core/acl_v2.py`): la sincronizzazione scende da 10,3 a 0,76 s. I grant del ruolo si leggono tutti e si filtrano in Python: prima c'era un `IN` con 1.316 codici, da 8,7 s. Inoltre la normalizzazione dei pattern è in cache, e i binding già caricati sono indicizzati per rotta una sola volta: l'indice delle capacità faceva 470.000 `urlsplit`.

@@ -358,6 +358,13 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "«Le mie attività» compare un attimo dopo il resto della home",
+            "perche": "per aprire subito la pagina il riquadro si carica appena dopo: mentre arriva vedi «Carico le tue attività…», poi compaiono le voci e il numero sulla linguetta «Oggi». I documenti della bacheca si aggiornano entro 5 minuti dalla modifica (subito se cambiano documenti o categorie); i numeri delle tessere entro 90 secondi.",
+            "fare": [
+                "Se resta su «Carico le tue attività…», ricarica la pagina; se non cambia, apri «Le mie attività» dal menu e segnala il problema.",
+            ],
+        },
+        {
             "sintomo": "Sono amministratore e in «Le mie attività» non vedo più le anomalie o le rilevazioni di tutti",
             "perche": "«Le mie attività» e il pulsante «N da approvare» mostrano solo ciò che è assegnato a te o aspetta te. Essere amministratore, superuser o avere un ruolo che vede tutto (IT, Direzione) non aggiunge voci: i permessi delle pagine non cambiano.",
             "fare": [
