@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Tendine ricercabili: valore giusto nelle finestre, lista visibile, tutte cercabili in Anagrafica
+
+- **Segnalazione:** in Anagrafica → Impostazioni → Ruoli → «Modifica ruolo», la ricerca di «Riporta a» mostrava il campo vuoto (o il valore di prima) mentre il modulo inviava il ruolo sovraordinato vero, proponeva anche il ruolo stesso, e la lista dei risultati restava dietro la finestra.
+- **Correzioni nel punto comune** (`core/static/core/js/tomselect-init.js`, valgono in tutto il portale): quando una pagina cambia da script valore, voci, stato attivo o visibilità di una tendina, la ricerca si riallinea; le voci nascoste dalla pagina non compaiono nella ricerca e non si scelgono; le tendine create dopo il caricamento (filtri di colonna e «Ordina per…» delle tabelle) diventano ricercabili; il mese del calendario resta escluso. La lista dei risultati sta sopra finestre e pannelli (`core/static/core/css/components.css`).
+- **Anagrafica:** tutte le tendine si cercano scrivendo, anche le corte (prima solo sopra le 10 voci); scrivendo, il testo di default sparisce.
+- **Verifica:** tutte le pagine di Anagrafica che si aprono senza parametri, aperte in Chrome con dati di prova: 71 pagine con tendine, 520 tendine, tutte ricercabili tranne quelle con una sola voce; nessun valore diverso tra campo e ricerca, nessun errore di script.
+- File: `core/static/core/js/tomselect-init.js`, `core/static/core/css/components.css`, `core/templates/core/base.html` (versione dello script).
+
+
 ### Asset: documenti più comodi, scadenze dei documenti, nuovo asset come questo, SDS in elenco, ticket nello storico (24/11)
 
 - **Documenti dell'asset:** ricerca per nome in tutte le cartelle; numero di file su ogni linguetta (vuote in grigio); «Sposta i selezionati in…» tra cartelle; «Scarica ZIP (N)» per cartella; «Rinomina cartella» sulle cartelle «solo qui».
