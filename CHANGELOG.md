@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anomalie: report CMM in PDF, le quote non finiscono più nel gruppo sopra
+
+- **Segnalazione:** caricando il report CMM in PDF, alcune caratteristiche comparivano sotto il gruppo precedente (es. la 016 di «ALETTE QUOTA INTERNA 184.291÷184.342» elencata sotto «ALETTE QUOTA ESTERNA 206.3÷206.5»).
+- **Causa:** un titolo di gruppo lungo arriva fin sotto la colonna ID/valori del report e non veniva più riconosciuto come titolo, quindi restava valido il gruppo di sopra.
+- **Ora:** è titolo ogni riga che parte a sinistra dei nomi e non porta i numeri di una misura, comunque sia lunga. File: `django_app/anomalie/report_cmm.py`, `django_app/anomalie/tests_report_cmm.py` (test con titolo lungo).
+
 ### Tendine ricercabili: valore giusto nelle finestre, lista visibile, tutte cercabili in Anagrafica
 
 - **Segnalazione:** in Anagrafica → Impostazioni → Ruoli → «Modifica ruolo», la ricerca di «Riporta a» mostrava il campo vuoto (o il valore di prima) mentre il modulo inviava il ruolo sovraordinato vero, proponeva anche il ruolo stesso, e la lista dei risultati restava dietro la finestra.

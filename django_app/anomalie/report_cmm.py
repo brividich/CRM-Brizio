@@ -510,8 +510,11 @@ def righe_da_pagina_pdf(parole: list[tuple], pagina: int = 1, sezione: str = "")
             celle.setdefault(_colonna(w, col), []).append(w[4])
         valori = {k: " ".join(v) for k, v in celle.items() if k in _COLONNE_VALORI}
         nome = " ".join(celle.get("name", []))
-        # Titolo di sezione: solo testo, parte piu' a sinistra dei nomi delle caratteristiche.
-        if not valori and "id" not in celle and riga[0][0] < col["name"] - 2:
+        # Titolo di sezione: parte piu' a sinistra dei nomi delle caratteristiche e non porta i
+        # valori di una misura. Un titolo lungo («ALETTE QUOTA INTERNA 184.291÷184.342») sconfina
+        # nelle colonne ID/valori: non conta dove finisce, conta che non ci siano i numeri di una riga.
+        numerici = sum(1 for w in riga if _colonna(w, col) in _COLONNE_VALORI and _NUMERO.match(w[4]))
+        if riga[0][0] < col["name"] - 2 and numerici < 4 and not _NOME.match(riga[0][4]):
             sezione = unito[:120]
             tipo_sospeso = nome_sospeso = ""
             ecc_sospesa = None
