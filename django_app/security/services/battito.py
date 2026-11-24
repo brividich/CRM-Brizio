@@ -22,6 +22,8 @@ from datetime import datetime, timedelta
 
 from django.utils import timezone
 
+from core.memo_richiesta import per_richiesta
+
 GIORNI_MAPPA = 14
 TOLLERANZA_MINUTI = 10
 
@@ -319,6 +321,7 @@ def _raccoglitore(ora) -> dict | None:
     return {"tono": "warn" if errore else "ok", "frase": errore or "Raccoglitore acceso.", "at": b["at"]}
 
 
+@per_richiesta  # ricalcolato più volte nella stessa pagina (core/memo_richiesta.py)
 def stato(ora: datetime | None = None) -> dict:
     """Tutto quello che serve alla pagina «Battito del SOC»."""
     from security.models import SecurityLetturaLog

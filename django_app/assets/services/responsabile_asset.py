@@ -19,6 +19,8 @@ from dataclasses import dataclass
 
 from ..models import IT_DEVICE_TYPES, Asset
 
+from core.memo_richiesta import per_richiesta
+
 logger = logging.getLogger(__name__)
 
 TIPI_REPARTO = frozenset(v for v, _label in Asset.TYPE_CHOICES if v not in IT_DEVICE_TYPES)
@@ -100,6 +102,7 @@ def capi_per_reparto() -> dict[str, tuple[int, str]]:
         return {}
 
 
+@per_richiesta  # chiesto da ogni filtro di visibilità della pagina (6 volte nel quadro)
 def persone_per_reparto() -> dict[str, set[int]]:
     """Come :func:`capi_per_reparto`, ma con capo e co-capi (id anagrafica): chi vede le macchine del reparto."""
     try:

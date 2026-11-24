@@ -408,7 +408,7 @@ def panoramica_rack() -> dict:
     senza_rack = [
         riga(s) for s in Asset.objects.filter(_filtro_switch(), rack__isnull=True)
         .exclude(status=Asset.STATUS_RETIRED).order_by("asset_tag")
-        .only("id", "asset_tag", "name", "model", "status", "switch_prefisso_porte", "switch_membro")
+        .only("id", "asset_tag", "name", "model", "status", "switch_prefisso_porte", "switch_membro", "rack")
     ]
     riepilogo = {
         "rack": len(racks),

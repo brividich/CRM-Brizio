@@ -696,7 +696,7 @@ def impostazioni(request):
 
     # --- Reparti e Aree aziendali ---
     aree = list(Reparto.objects.prefetch_related("aree_aziendali", "responsabili").order_by("nome"))
-    aree_aziendali = list(AreaAziendale.objects.prefetch_related("responsabili").order_by("nome"))
+    aree_aziendali = list(AreaAziendale.objects.select_related("reparto").prefetch_related("responsabili").order_by("nome"))
     dipendenti_picker = _helpers._dipendenti_picker_rows()
     _dip_picker_map = {item["id"]: item["label"] for item in dipendenti_picker}
 
