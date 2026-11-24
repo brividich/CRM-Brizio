@@ -266,6 +266,14 @@ def dictlookup(value, key):
 
 @register.simple_tag(takes_context=True)
 def subnav_anagrafica(context):
+    # Tutti i controlli dei link in un blocco: permessi letti una volta (core.acl_resolver).
+    from core.acl_resolver import memo_permessi
+
+    with memo_permessi():
+        return _subnav_anagrafica_calcola(context)
+
+
+def _subnav_anagrafica_calcola(context):
     """Carica categorie e link subnav anagrafica dal DB.
 
     Ritorna una struttura ``{"items": [...]}`` dove ogni item è:
@@ -664,6 +672,14 @@ def _safety_conteggi(chiavi: set[str], request=None) -> dict[str, int]:
 
 @register.simple_tag(takes_context=True)
 def safety_subnav(context, active=""):
+    # Tutti i controlli dei link in un blocco: permessi letti una volta (core.acl_resolver).
+    from core.acl_resolver import memo_permessi
+
+    with memo_permessi():
+        return _safety_subnav_calcola(context, active)
+
+
+def _safety_subnav_calcola(context, active=""):
     """Gruppi della subnav Salute e sicurezza, filtrati per ACL e cancelli in-view.
 
     Una voce che l'utente non può aprire non compare (stessa politica di
