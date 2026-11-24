@@ -206,3 +206,85 @@ class DaFareTests(_Scenario):
         self.assertEqual([x["sessione"] for x in svc.da_fare(self.persona)["da_firmare_io"]], [s])
         s = svc.firma_persona(self.persona, s)
         self.assertEqual([x["sessione"] for x in svc.da_fare(self.hr)["da_chiudere"]], [s])
+
+
+class PagineTests(_Scenario):
+    def _come(self, attore):
+        self.client.force_login(attore.user)
+        return mock.patch("anagrafica.services.richieste.attore", return_value=attore)
+
+    def test_giro_completo_dalle_pagine(self):
+        richiesta = self._approvata()
+        with self._come(self.hr):
+            pagina = self.client.get(reverse("anagrafica:richiesta", args=[richiesta.pk]))
+            self.assertContains(pagina, "Apri la sessione formativa")
+            r = self.client.post(reverse("anagrafica:sessione_apri", args=[richiesta.pk]))
+            s = S.objects.get(richiesta=richiesta)
+            self.assertRedirects(r, reverse("anagrafica:sessione", args=[s.pk]))
+            elenco = self.client.get(reverse("anagrafica:sessioni"))
+            self.assertContains(elenco, s.codice)
+            self.assertContains(elenco, "<template data-sc-modello>", count=1)
+            self.assertNotContains(elenco, "{#")
+        with self._come(self.capo):
+            pagina = self.client.get(reverse("anagrafica:sessione", args=[s.pk]))
+            self.assertContains(pagina, "Tocca a: Responsabile: valutare 2 competenze")
+            self.assertContains(pagina, 'data-sf-valuta="', count=2)
+            self.assertNotContains(pagina, "{#")
+            riga = self._riga(s, self.v_misure)
+            r = self.client.post(reverse("anagrafica:sessione_valuta", args=[riga.pk]), {
+                "modalita": "A", "livello": "U", "tutor_nome": "Tutor di prova", "dal": "2026-11-01",
+                "al": "2026-11-20", "ore": "16", "registro_mod040": _pdf()})
+            self.assertRedirects(r, reverse("anagrafica:sessione", args=[s.pk]))
+            riga.refresh_from_db()
+            self.assertEqual((riga.stato, riga.ore), (Riga.STATO_POSITIVA, 16))
+            self.assertEqual(self.client.get(reverse("anagrafica:sessione_file_riga", args=[s.pk, "mod040", riga.pk])).status_code, 200)
+            svc.valuta(self.capo, self._riga(s, self.v_disegno), modalita="C", livello="L", docente_ente="Ente",
+                       verifica="conferma")
+        with self._come(self.rdd):
+            r = self.client.post(reverse("anagrafica:sessione_firma", args=[s.pk]), {"visto_mod040": "1"})
+            self.assertRedirects(r, reverse("anagrafica:sessione", args=[s.pk]))
+        with self._come(self.persona):
+            self.client.post(reverse("anagrafica:sessione_firma_persona", args=[s.pk]), {"modo": "portale"})
+        with self._come(self.hr):
+            self.client.post(reverse("anagrafica:sessione_chiudi", args=[s.pk]))
+        s.refresh_from_db()
+        self.assertEqual(s.stato, S.STATO_POSITIVA)
+        self.assertEqual(rq.abilitazione(self.torno, self.rossi).livello, "U")
+
+    def test_chi_non_c_entra_non_vede_e_i_file_sono_protetti(self):
+        s = self._aperta()
+        with self._come(self.estraneo):
+            self.assertEqual(self.client.get(reverse("anagrafica:sessione", args=[s.pk])).status_code, 404)
+            self.assertEqual(self.client.post(reverse("anagrafica:sessione_chiudi", args=[s.pk])).status_code, 404)
+            self.assertEqual(self.client.get(reverse("anagrafica:sessione_file", args=[s.pk, "firma"])).status_code, 404)
+            self.assertNotContains(self.client.get(reverse("anagrafica:sessioni")), s.codice)
+        with self._come(self.capo):
+            r = self.client.post(reverse("anagrafica:sessione_valuta", args=[self._riga(s, self.v_misure).pk]),
+                                 {"modalita": "A", "registro_mod040": SimpleUploadedFile("x.exe", b"MZ")}, follow=True)
+            self.assertContains(r, "PDF o un&#x27;immagine")
+
+    def test_voci_di_menu_in_organizzazione_e_formazione(self):
+        from .models import SubnavLinkAnagrafica
+
+        voci = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:sessioni", is_active=True)
+        # Accanto a «Richieste» in Organizzazione e accanto alle edizioni dei corsi in Formazione.
+        posti = {(v.categoria_id, v.gruppo) for v in voci}
+        for vicina in ("anagrafica:richieste", "anagrafica:formazione_sessioni_list"):
+            accanto = SubnavLinkAnagrafica.objects.filter(url_value=vicina).first()
+            if accanto is not None:
+                self.assertIn((accanto.categoria_id, accanto.gruppo), posti)
+        self.assertTrue(voci.exists())
+        self.assertTrue(all(v.etichetta == "Sessioni formative" for v in voci))
+
+
+    def test_da_fare_e_dashboard_mostrano_le_sessioni(self):
+        richiesta = self._approvata()
+        with self._come(self.hr):
+            pagina = self.client.get(reverse("anagrafica:richieste_da_fare"))
+            self.assertContains(pagina, "Sessioni da aprire · 1")
+            righe = self.client.get(reverse("anagrafica:index")).context["cose_da_gestire"]
+            self.assertIn("Sessioni formative da aprire", [x["titolo"] for x in righe])
+        s = svc.apri(self.hr, richiesta)
+        with self._come(self.capo):
+            self.assertContains(self.client.get(reverse("anagrafica:richieste_da_fare")), "Competenze da valutare · 1")
+            self.assertContains(self.client.get(reverse("anagrafica:richiesta", args=[richiesta.pk])), s.codice)

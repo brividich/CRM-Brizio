@@ -1,0 +1,100 @@
+{% extends "core/base.html" %}
+
+{% block title %}Sessioni formative | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_rc_stili.html" %}
+{% include "anagrafica/components/_semplice_stili.html" %}
+{% include "anagrafica/components/_richieste_stili.html" %}
+{% include "anagrafica/components/_flusso_dinamico.html" %}
+{% include "anagrafica/components/_scelta_riga.html" %}
+<style>
+.sf-cerca { margin-left:auto; width:300px; max-width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; }
+.sf-tab tbody tr[data-sc-riga] { cursor:pointer; }
+.sf-tab tbody tr[data-sc-riga]:hover td { background:#f8fafc; }
+.sf-tab tbody tr.is-scelta td { background:#e8f3fb; }
+.sf-tab tbody tr:focus-visible { outline:2px solid #1f87cd; outline-offset:-2px; }
+.sf-fare { display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid #f1f5f9; }
+.sf-fare:last-child { border-bottom:0; }
+.sf-fare > b { flex:0 0 40px; font-size:20px; text-align:center; color:#c2410c; }
+.sf-fare div { flex:1; min-width:0; }
+.sf-fare strong { display:block; font-size:13.5px; color:#0f172a; }
+.sf-fare small { display:block; font-size:12px; color:#64748b; }
+body.theme-dark .sf-cerca { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
+body.theme-dark .sf-tab tbody tr[data-sc-riga]:hover td { background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .sf-tab tbody tr.is-scelta td { background:#1e3a5f; color:#fff; }
+body.theme-dark .sf-fare { border-color:var(--border); }
+body.theme-dark .sf-fare strong { color:var(--text); }
+body.theme-dark .sf-fare small { color:var(--text-light); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="rq-testa">
+    <h1>Sessioni formative</h1>
+    <div class="rq-azioni">
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="rq-btn" href="{{ guida_url }}#sessioni-formative">? Guida</a>
+    </div>
+  </div>
+  <p class="rq-nota" style="margin:-6px 0 14px">Ogni richiesta approvata di assegnazione o di competenza diventa una sessione: le competenze da acquisire, come (pregressa, affiancamento, corso), chi le valuta e le firme di chiusura. I livelli cambiano solo quando la sessione si chiude.</p>
+
+  {% url 'anagrafica:sessioni' as u_elenco %}
+  <nav class="rq-filtri" aria-label="Filtra per stato">
+    <a href="{{ u_elenco }}"{% if not filtro %} class="is-scelto" aria-current="true"{% endif %}>Tutte: {{ n_tutte }}</a>
+    {% for f in filtri %}<a href="{{ u_elenco }}?stato={{ f.chiave }}"{% if filtro == f.chiave %} class="is-scelto" aria-current="true"{% endif %}>{{ f.nome }}: {{ f.n }}</a>{% endfor %}
+    <input type="search" class="sf-cerca" data-sc-cerca placeholder="Cerca persona, mansione o numero…" aria-label="Cerca nell'elenco delle sessioni" autocomplete="off">
+  </nav>
+
+  <div class="fx-flusso">
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">Elenco <span>{{ righe|length }} session{{ righe|length|pluralize:"e,i" }}</span></h2>
+      {% if righe %}
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab sf-tab">
+        <thead><tr><th>Persona</th><th>Mansione o competenza</th><th>Sessione</th><th>Competenze</th><th>Stato</th><th>Tocca a</th></tr></thead>
+        <tbody>{% for x in righe %}<tr data-sc-riga="{{ x.sessione.pk }}" tabindex="0"{% if scelta.sessione.pk == x.sessione.pk %} class="is-scelta"{% endif %} data-sc-testo="{{ x.persona }} {{ x.sessione.richiesta.oggetto }} {{ x.sessione.codice }} {{ x.sessione.richiesta.codice }}">
+          <td><b>{{ x.persona }}</b></td>
+          <td>{{ x.sessione.richiesta.oggetto }}</td>
+          <td><a href="{% url 'anagrafica:sessione' x.sessione.pk %}">{{ x.sessione.codice }}</a></td>
+          <td>{{ x.fatte }} di {{ x.totale }}</td>
+          <td>{% include "anagrafica/partials/_sessione_stato.html" with s=x.sessione %}</td>
+          <td>{{ x.tocca_a|default:"Nessuno" }}</td>
+          <template data-sc-modello>{% include "anagrafica/partials/_scheda_scelta.html" with titolo="Sessione scelta" scheda=x.scheda %}</template>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<p class="es-s-vuoto">Nessuna sessione{% if filtro %} in questo stato{% endif %}.</p>{% endif %}
+    </section></div>
+
+    {% if scelta %}
+    <div class="fx-blocco"><div data-sc-scelta data-sc-param="sessione">{% include "anagrafica/partials/_scheda_scelta.html" with titolo="Sessione scelta" scheda=scelta.scheda %}</div></div>
+    {% endif %}
+
+    {% if da_fare %}
+    <div class="fx-blocco"><section class="es-s-card">
+      <h2 class="es-s-h">Da fare</h2>
+      {% for x in da_fare %}<div class="sf-fare"><b>{{ x.n }}</b><div><strong>{{ x.titolo }}</strong><small>{{ x.sotto }}</small></div></div>{% endfor %}
+    </section></div>
+    {% endif %}
+
+    {% if da_aprire %}
+    <div class="fx-blocco fx-largo"><section class="es-s-card">
+      <h2 class="es-s-h">Richieste approvate senza sessione <span>{{ da_aprire|length }}</span></h2>
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+        <thead><tr><th>Persona</th><th>Tipo di richiesta</th><th>Mansione o competenza</th><th>Approvata</th><th></th></tr></thead>
+        <tbody>{% for x in da_aprire %}<tr>
+          <td><b>{{ x.persona }}</b></td>
+          <td>{{ x.richiesta.get_tipo_display }}</td>
+          <td>{{ x.richiesta.oggetto }}</td>
+          <td>{{ x.richiesta.deciso_da_nome }} · {{ x.richiesta.decisa_il|date:"d/m/Y" }}</td>
+          <td><form method="post" action="{% url 'anagrafica:sessione_apri' x.richiesta.pk %}" style="margin:0">{% csrf_token %}<button type="submit" class="rq-btn rq-btn-p rq-btn-s">Apri la sessione</button></form></td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+    </section></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
