@@ -197,7 +197,8 @@ def ultime_visite_per_tipo(legacy_id: int) -> dict[int, VisitaMedica]:
     """
     out: dict[int, VisitaMedica] = {}
     for visita in (
-        VisitaMedica.objects.filter(legacy_anagrafica_id=legacy_id)
+        # Le visite a richiesta non sono un rinnovo: conta l'ultima periodica.
+        VisitaMedica.objects.filter(legacy_anagrafica_id=legacy_id, a_richiesta=False)
         .select_related("tipo").order_by("-data_svolgimento", "-pk")
     ):
         out.setdefault(visita.tipo_id, visita)
@@ -296,11 +297,13 @@ def annota_storico(visite: list[VisitaMedica]) -> list[VisitaMedica]:
     for gruppo in per_famiglia.values():
         attuale = next((v for v in gruppo if v.pk in correnti), None)
         # La più recente della famiglia, anche se segnata a mano come superata.
-        piu_recente = max(gruppo, key=lambda v: (v.data_svolgimento, v.pk))
+        # Le visite a richiesta non rinnovano niente: non sostituiscono e non sono sostituite.
+        periodiche = [v for v in gruppo if not v.a_richiesta] or gruppo
+        piu_recente = max(periodiche, key=lambda v: (v.data_svolgimento, v.pk))
         for v in gruppo:
             v.corrente = v.pk in correnti
             v.sostituita_da = None
-            if not v.corrente and v.superata_il is None:
+            if not v.corrente and v.superata_il is None and not v.a_richiesta:
                 sostituta = attuale or piu_recente
                 v.sostituita_da = sostituta if sostituta.pk != v.pk else None
             v.stesso_giorno = [
@@ -325,7 +328,9 @@ def ultime_visite_correnti_ids(
     alto. Le righe storiche superate NON sono "correnti": una scadenza superata
     da una visita più recente non deve più comparire come scaduta in nessuna
     vista. Le visite segnate a mano come superate (``superata_il``) non sono
-    mai correnti, e non restituiscono il posto alle precedenti.
+    mai correnti, e non restituiscono il posto alle precedenti. Le visite a
+    richiesta (``a_richiesta``) non sono un rinnovo: non sono mai correnti e
+    lasciano il posto alla visita periodica precedente.
 
     I dipendenti cessati (``data_cessazione`` valorizzata) sono esclusi: le loro
     scadenze sono congelate, non cancellate — le visite restano nel libretto e
@@ -337,7 +342,7 @@ def ultime_visite_correnti_ids(
         pk: (f"cat:{categoria.strip().lower()}" if (categoria or "").strip() else f"tipo:{pk}")
         for pk, categoria in TipoVisitaMedica.objects.values_list("id", "categoria")
     }
-    qs = VisitaMedica.objects.all()
+    qs = VisitaMedica.objects.filter(a_richiesta=False)
     if legacy_ids is not None:
         qs = qs.filter(legacy_anagrafica_id__in=list(legacy_ids))
     if not includi_cessati:

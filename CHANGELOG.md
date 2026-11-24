@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Visite mediche «a richiesta»: nessuna scadenza, non sono un rinnovo
+
+- **Segnalazione:** circa 20 audiometrie risultavano scadute ma erano state fatte «a richiesta», quindi senza scadenza.
+- Nuova spunta «A richiesta (non è un rinnovo)» nella registrazione e nella modifica della visita (`anagrafica/models.py` campo `VisitaMedica.a_richiesta`, migrazione `anagrafica/migrations/0246_visita_a_richiesta.py`, `anagrafica/forms.py`, `templates/anagrafica/pages/dipendente_detail.html`, `visita_medica_dettaglio.html`). La visita a richiesta non ha scadenza, non compare tra scadute/in scadenza e non prende il posto della periodica (`services/visite.py` `ultime_visite_correnti_ids`, `annota_storico`, `ultime_visite_per_tipo`; `services/conformita.py`, `services/mpq_persone.py`, `services/scadenze.py`, candidati della giornata in `views/visite.py`).
+- Dashboard Visite mediche: spunta sulle righe scadute/in scadenza e pulsante «Segna come a richiesta» per sistemarle in blocco (`views/visite.py` `visite_mediche_segna_a_richiesta`, `urls.py`, `visite_mediche_dashboard.html`), con audit `VISITA_MEDICA_A_RICHIESTA`.
+- Guida: Centro guide Anagrafica, sezione «Visite a richiesta» (`core/guide_moduli/contenuti/anagrafica.py`); scheda `docs/moduli/anagrafica.md`. Test `anagrafica/tests_visite_a_richiesta.py`.
+
 ### Fix: import Excel della Struttura e delle assegnazioni non dà più «HTTP ERROR 405»
 
 - `anagrafica/views_struttura.py`: ricaricare la pagina dell'anteprima (F5, «Indietro», link) apriva in GET un indirizzo che accetta solo l'invio del modulo e il browser mostrava «HTTP ERROR 405». Ora si torna alla sezione d'import (Mansionario → Struttura → Importa; Ruoli in blocco → Da Excel), dove si ricarica il file. Nessun dato era salvato dalla prova.
