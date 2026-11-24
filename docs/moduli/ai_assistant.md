@@ -81,3 +81,5 @@ Dalle valutazioni negative in produzione (6 su 9): due erano elenchi parziali pr
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) ogni tool di dati gira solo se la persona può «vedere» almeno uno dei moduli che legge (`ai_assistant/tools.py::TOOL_MODULI`, `tool_consentito`). Sempre: il tool «Carichi macchina» richiede il permesso di consultazione del piano carichi, e il tool ticket riconosce i ticket propri solo da identificativi stabili (mai dal nome).
 - **Centro guide nell'assistente**: «Come si usa» dei moduli per tutti; «Amministratore e configurazione», «Se qualcosa non va» e Manuale di emergenza solo per gli amministratori del portale (guide `solo_admin`, filtrate in `guide_consentite`).
+
+**Limite condiviso (audit P15, 23/11/2026):** `OLLAMA_MAX_CONCURRENT_REQUESTS` vale per tutto il portale, non per processo: i posti sono chiavi `ai_assistant_slot_<n>` nella cache (in produzione su database, comune ai processi waitress) prese con `cache.add` e una scadenza di 300 s; se la cache non risponde si ripiega sul semaforo del processo. Oltre il limite, dopo 5 s di attesa, «L'assistente AI è occupato».

@@ -2723,38 +2723,90 @@ def _apply_ollama_tuning(payload: dict[str, Any], provider: str) -> None:
         payload["keep_alive"] = keep_alive
 
 
-# ── Limite di chiamate AI contemporanee (per processo) ─────────────────────────
-# Il portale gira con un solo processo waitress e pochi thread: ogni chiamata al
-# modello tiene occupato un thread fino a OLLAMA_REQUEST_TIMEOUT_SECONDS. Senza
-# limite, poche chat lente bloccano l'intero portale. Oltre il limite si risponde
-# subito "assistente occupato" invece di accodare thread.
+# ── Limite di chiamate AI contemporanee (fra tutti i processi) ────────────────
+# Ogni chiamata al modello tiene occupato un thread fino a OLLAMA_REQUEST_TIMEOUT_SECONDS.
+# Oltre il limite si risponde subito "assistente occupato" invece di accodare thread.
+# Il limite vale per tutto il portale (audit P15): con più processi waitress un semaforo
+# per processo moltiplicava le richieste a Ollama. I posti sono chiavi nella cache, che in
+# produzione è sul database e quindi comune ai processi; ogni posto ha una scadenza, così un
+# processo caduto non lo tiene per sempre. Se la cache non risponde si ripiega sul semaforo
+# del processo.
 _AI_SLOTS_LOCK = threading.Lock()
 _AI_SLOTS: threading.BoundedSemaphore | None = None
 _AI_SLOT_WAIT_SECONDS = 5
+_AI_SLOT_POLL_SECONDS = 0.2
+_AI_SLOT_LEASE_SECONDS = 300
+_AI_SLOT_CACHE_PREFIX = "ai_assistant_slot_"
+
+
+def _ai_slot_limit() -> int:
+    return max(1, int(getattr(settings, "OLLAMA_MAX_CONCURRENT_REQUESTS", 3) or 3))
 
 
 def _ai_slots() -> threading.BoundedSemaphore:
     global _AI_SLOTS
     with _AI_SLOTS_LOCK:
         if _AI_SLOTS is None:
-            limit = max(1, int(getattr(settings, "OLLAMA_MAX_CONCURRENT_REQUESTS", 3) or 3))
-            _AI_SLOTS = threading.BoundedSemaphore(limit)
+            _AI_SLOTS = threading.BoundedSemaphore(_ai_slot_limit())
         return _AI_SLOTS
 
 
-def _acquire_ai_slot() -> threading.BoundedSemaphore:
-    slots = _ai_slots()
-    if not slots.acquire(timeout=_AI_SLOT_WAIT_SECONDS):
-        raise OllamaChatError(
-            "L'assistente AI è occupato con altre richieste: riprova fra qualche secondo."
-        )
-    return slots
+class _PostoAI:
+    """Un posto occupato: ``release()`` lo libera una sola volta."""
+
+    def __init__(self, chiave: str = "", token: str = "", semaforo: threading.BoundedSemaphore | None = None):
+        self._chiave = chiave
+        self._token = token
+        self._semaforo = semaforo
+        self._liberato = False
+
+    def release(self) -> None:
+        if self._liberato:
+            return
+        self._liberato = True
+        if self._semaforo is not None:
+            self._semaforo.release()
+            return
+        from django.core.cache import cache
+
+        try:
+            if cache.get(self._chiave) == self._token:
+                cache.delete(self._chiave)
+        except Exception:  # noqa: BLE001 - il posto scade comunque da solo
+            logger.warning("Posto AI %s non liberato: scadrà da solo", self._chiave, exc_info=True)
+
+
+def _acquire_ai_slot() -> _PostoAI:
+    import time
+    import uuid
+
+    from django.core.cache import cache
+
+    token = uuid.uuid4().hex
+    chiavi = [f"{_AI_SLOT_CACHE_PREFIX}{i}" for i in range(_ai_slot_limit())]
+    fine = time.monotonic() + _AI_SLOT_WAIT_SECONDS
+    try:
+        while True:
+            for chiave in chiavi:
+                if cache.add(chiave, token, _AI_SLOT_LEASE_SECONDS) and cache.get(chiave) == token:
+                    return _PostoAI(chiave, token)
+            if time.monotonic() >= fine:
+                break
+            time.sleep(_AI_SLOT_POLL_SECONDS)
+    except Exception:  # noqa: BLE001 - cache giù: limite del solo processo
+        logger.warning("Cache non disponibile per il limite AI: uso il limite del processo", exc_info=True)
+        semaforo = _ai_slots()
+        if semaforo.acquire(timeout=_AI_SLOT_WAIT_SECONDS):
+            return _PostoAI(semaforo=semaforo)
+    raise OllamaChatError(
+        "L'assistente AI è occupato con altre richieste: riprova fra qualche secondo."
+    )
 
 
 class _SlotReleasingResponse:
     """Stream HTTP che libera lo slot AI alla chiusura (una sola volta)."""
 
-    def __init__(self, response: Any, slots: threading.BoundedSemaphore):
+    def __init__(self, response: Any, slots: "_PostoAI"):
         self._response = response
         self._slots = slots
         self._released = False

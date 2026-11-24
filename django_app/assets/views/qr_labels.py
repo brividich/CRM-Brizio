@@ -520,6 +520,10 @@ def asset_qr_ticket_upload(request: HttpRequest, public_qr_token: str, ticket_id
     )
     if asset is None or not getattr(settings, "ASSETS_QR_PUBLIC_TICKET_UPLOAD", True):
         raise Http404("Link non disponibile.")
+    from ..services.asset_qr import contenuti_pubblici
+
+    if not contenuti_pubblici(asset)[1]:  # caricamento dal QR spento per questo asset (audit P3)
+        raise Http404("Link non disponibile.")
     landing_url = reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": token}) + "#ticket"
 
     ticket = Ticket.objects.filter(pk=ticket_id, asset_id=asset.id).first()
@@ -694,7 +698,13 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     # view a token per il QR pubblico, dalla view autenticata per l'utente loggato.
     asset_documents = []
     qr_token = _clean_string(asset.public_qr_token) if asset.public_qr_enabled else ""
-    for doc in asset.documents.all()[:15]:
+    from ..services.asset_qr import contenuti_pubblici
+
+    qr_cartelle, qr_caricamento = contenuti_pubblici(asset) if public else (set(), True)
+    documenti = asset.documents.all()
+    if public:  # dal QR pubblico solo le cartelle scelte nel pannello QR (audit P3)
+        documenti = documenti.filter(category__in=qr_cartelle)
+    for doc in documenti[:15]:
         if public:
             # Il visitatore anonimo ha in mano solo il token: download a token dei
             # file locali, nessun altro percorso esposto.
@@ -727,7 +737,7 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     qr_tickets = _qr_landing_tickets(request, asset, public=public, qr_token=qr_token)
     qr_upload_enabled = bool(
         qr_tickets
-        and (not public or (qr_token and getattr(settings, "ASSETS_QR_PUBLIC_TICKET_UPLOAD", True)))
+        and (not public or (qr_token and qr_caricamento and getattr(settings, "ASSETS_QR_PUBLIC_TICKET_UPLOAD", True)))
     )
     qr_uploader_name = ""
     if request.user.is_authenticated:

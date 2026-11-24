@@ -35,6 +35,18 @@
               <button type="submit" name="azione" value="abilita" class="aq-btn aq-btn--primary">{% if qr_has_token %}Riattiva link pubblico{% else %}Abilita link pubblico{% endif %}</button>
             {% endif %}
           </form>
+          {% if qr_cartelle %}
+          <form method="post" action="{{ qr_public_action_url }}" class="aq-public-form aq-public-contenuti">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="" data-aq-next>
+            <div class="aq-label">Cosa si vede senza login</div>
+            {% for c in qr_cartelle %}
+              <label class="aq-check"><input type="checkbox" name="cartelle" value="{{ c.code }}" {% if c.pubblica %}checked{% endif %}> Documenti «{{ c.label }}»</label>
+            {% endfor %}
+            <label class="aq-check"><input type="checkbox" name="caricamento_file" value="1" {% if qr_caricamento_file %}checked{% endif %}> Chi inquadra il QR può caricare file sui ticket aperti (arrivano «da validare»)</label>
+            <button type="submit" name="azione" value="contenuti" class="aq-btn">Salva</button>
+          </form>
+          {% endif %}
         </div>
       {% endif %}
     </div>
