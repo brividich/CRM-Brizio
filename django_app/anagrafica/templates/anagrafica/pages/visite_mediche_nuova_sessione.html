@@ -63,13 +63,19 @@
         <button type="button" onclick="selVisite(true)" style="padding:6px 13px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">Tutti</button>
         <button type="button" onclick="selVisite(false)" style="padding:6px 13px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">Nessuno</button>
       </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+      <button type="submit" name="azione" value="a_richiesta" formnovalidate
+        data-hub-confirm="Segnare le visite delle righe selezionate come «a richiesta»? Non sono un rinnovo: perdono la scadenza ed escono dalle scadute. Non si registra nessuna visita nuova."
+        title="Visite fatte a richiesta o fuori periodicità: tolgono la scadenza all'ultima visita delle righe selezionate, senza registrare visite nuove"
+        style="padding:10px 18px;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Segna come a richiesta (<span class="cnt-sel">{{ n_pre }}</span>)</button>
       <button type="submit" style="padding:10px 24px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Registra giornata (<span id="cnt">{{ n_pre }}</span>)</button>
+      </div>
     </div>
   </form>
 </div>
 <script>
 function selVisite(state){document.querySelectorAll('.candidato-check').forEach(function(cb){cb.checked=state;});updCnt();}
-function updCnt(){var n=document.querySelectorAll('.candidato-check:checked').length;var el=document.getElementById('cnt');if(el)el.textContent=n;}
+function updCnt(){var n=document.querySelectorAll('.candidato-check:checked').length;var el=document.getElementById('cnt');if(el)el.textContent=n;document.querySelectorAll('.cnt-sel').forEach(function(x){x.textContent=n;});}
 document.addEventListener('change',function(e){if(e.target.classList&&e.target.classList.contains('candidato-check'))updCnt();});
 document.body.addEventListener('htmx:afterSwap',function(){updCnt();});
 </script>

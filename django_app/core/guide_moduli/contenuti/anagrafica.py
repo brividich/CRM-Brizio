@@ -797,9 +797,12 @@ GUIDA = {
                       "o in scadenza e non prende il posto della visita periodica: se la mansione richiede quella visita, "
                       "resta valida la periodica precedente con la sua scadenza. Nello storico e nel dettaglio appare "
                       "«A richiesta». Con la spunta non si può indicare il «Richiamo indicato dal medico»."),
-                ("p", "Per sistemare visite già registrate: in Visite mediche, nella tabella delle scadute o in scadenza, "
-                      "spunta le righe e premi «Segna come a richiesta» (tolgono anche l'eventuale richiamo; resta "
-                      "traccia nel registro attività). Per togliere la spunta a una visita: «Modifica» nel dettaglio."),
+                ("p", "Per sistemare visite già registrate: apri «Giornata visite» (Visite mediche → «↻ Rinnova», oppure "
+                      "Sessioni & proposte) sul tipo di visita, lascia spuntate solo le righe fatte a richiesta e premi "
+                      "«Segna come a richiesta (N)» in fondo, accanto a «Registra giornata». Dopo la conferma l'ultima visita "
+                      "di ogni riga perde la scadenza (e l'eventuale richiamo) e la riga sparisce; non si registra nessuna "
+                      "visita nuova. Resta traccia nel registro attività. Per togliere la spunta: «Modifica» nel dettaglio."),
+
             ],
         },
         {

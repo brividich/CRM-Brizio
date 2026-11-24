@@ -369,3 +369,31 @@ def ultime_visite_correnti_ids(
         pk for _data, pk, tid, superata in correnti.values()
         if superata is None and (tipi_richiesti is None or tid in tipi_richiesti)
     }
+
+
+def segna_a_richiesta(request, visite) -> int:
+    """Segna le visite come «a richiesta»: non sono un rinnovo, perdono scadenza e
+    richiamo e lasciano il posto alla visita periodica precedente. Audit per visita."""
+    from django.db import transaction
+
+    from core.audit import log_action
+
+    n = 0
+    with transaction.atomic():
+        for visita in visite:
+            if visita.a_richiesta:
+                continue
+            dettaglio = {
+                "visita_id": visita.pk,
+                "dipendente_id": visita.legacy_anagrafica_id,
+                "tipo_visita": visita.tipo.nome,
+                "data_svolgimento": visita.data_svolgimento.isoformat(),
+                "scadenza_precedente": visita.data_scadenza.isoformat() if visita.data_scadenza else None,
+            }
+            visita.a_richiesta = True
+            visita.scadenza_medico = None
+            visita.updated_by = request.user
+            visita.save(update_fields=["a_richiesta", "scadenza_medico", "updated_by", "updated_at"])
+            log_action(request, "VISITA_MEDICA_A_RICHIESTA", "anagrafica", dettaglio, oggetto=visita)
+            n += 1
+    return n

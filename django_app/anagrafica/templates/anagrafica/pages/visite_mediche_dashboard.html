@@ -168,13 +168,6 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
     </div>
     <div id="card-scad-body">
       {% if scad_o_in_scad %}
-      {% if can_manage %}
-      <form method="post" action="{% url 'anagrafica:visite_mediche_segna_a_richiesta' %}" id="vm-a-richiesta-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
-        {% csrf_token %}
-        <button type="submit" class="hr-btn hr-btn-outline hr-btn-sm" title="Visite chieste dal lavoratore o fuori periodicità: non hanno scadenza e non sostituiscono la visita periodica">Segna come a richiesta</button>
-        <span style="font-size:12px;color:#64748b;">Spunta le visite fatte «a richiesta»: escono dalle scadute e resta valida la visita periodica precedente.</span>
-      </form>
-      {% endif %}
       <div style="overflow-x:auto;">
         <table class="hr-table" data-table-id="anagrafica.visite_mediche.dashboard_top">
           <thead>
@@ -204,7 +197,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
                   <span class="hr-pill warning">Tra {{ v.giorni_a_scadenza }}g</span>
                 {% endif %}
               </td>
-              <td>{% if can_manage %}<label style="margin-right:6px;" title="Seleziona per «Segna come a richiesta»"><input type="checkbox" name="visita_ids" value="{{ v.pk }}" form="vm-a-richiesta-form" aria-label="Seleziona la visita di {{ v.dipendente_nome }}"></label><a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ v.tipo_id }}" class="fmd-act" title="Registra una nuova sessione di «{{ v.tipo.nome }}»: propone chi ha la visita scaduta, in scadenza o mai fatta">↻ Rinnova</a> {% endif %}<a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm">Apri visita</a> <a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}#superata" class="hr-btn hr-btn-outline hr-btn-sm" title="Toglie la visita dallo scadenziario senza cancellarla">Superata</a>{% if can_delete_visite %} <a href="{% url 'anagrafica:visita_medica_elimina' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm" aria-label="Elimina visita errata">Elimina</a>{% endif %}</td>
+              <td>{% if can_manage %}<a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ v.tipo_id }}" class="fmd-act" title="Registra una nuova sessione di «{{ v.tipo.nome }}»: propone chi ha la visita scaduta, in scadenza o mai fatta">↻ Rinnova</a> {% endif %}<a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm">Apri visita</a> <a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}#superata" class="hr-btn hr-btn-outline hr-btn-sm" title="Toglie la visita dallo scadenziario senza cancellarla">Superata</a>{% if can_delete_visite %} <a href="{% url 'anagrafica:visita_medica_elimina' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm" aria-label="Elimina visita errata">Elimina</a>{% endif %}</td>
             </tr>
             {% endfor %}
             {% endfor %}
