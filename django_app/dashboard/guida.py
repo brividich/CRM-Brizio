@@ -104,7 +104,7 @@ SEZIONI: list[dict] = [
                 "Il pulsante «N da approvare» nella barra in alto somma tutto ciò che aspetta una tua decisione (assenze della squadra, DPI da approvare, "
                 "approvazioni dei flussi, richieste di visita, spostamenti date, modifiche SGI, segnalazioni di modifica, rilevazioni di sicurezza): "
                 "passandoci sopra dice quante per tipo; con un tipo solo apre quella pagina, con più tipi apre «Le mie attività».",
-                "«Il tuo brief di oggi» è un riepilogo preparato dall'assistente AI. Il pulsante ↻ lo rigenera.",
+                "«Il tuo brief di oggi» è un riepilogo preparato dall'assistente AI. Se lo hai aperto negli ultimi 14 giorni lo trovi già pronto dalle 6:10 (l'ora in fondo dice quando è stato preparato); altrimenti si prepara alla prima apertura, in qualche secondo. Il pulsante ↻ lo rigenera con i dati di adesso.",
                 "«News aziendali» mostra le ultime comunicazioni; «Vedi tutte →» apre l'archivio.",
             ]),
         ],

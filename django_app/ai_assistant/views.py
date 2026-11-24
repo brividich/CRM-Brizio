@@ -646,8 +646,7 @@ def api_daily_brief(request):
         return JsonResponse({"ok": False, "error": "Brief AI non disponibile."}, status=503)
 
     user_id = getattr(request.user, "id", None) or "anon"
-    today = timezone.localdate().isoformat()
-    cache_key = f"ai_daily_brief:{user_id}:{today}"
+    cache_key = daily_brief_cache_key(user_id)
     force = request.GET.get("refresh") == "1"
 
     if not force:
@@ -662,6 +661,31 @@ def api_daily_brief(request):
         if not allowed:
             return _rate_limited_response(retry_after)
 
+    data, info = genera_daily_brief(request)
+    try:
+        cache.set(cache_key, data, timeout=_seconds_until_end_of_day())
+    except Exception:
+        pass
+
+    log_action(
+        request,
+        "ai_daily_brief",
+        "ai_assistant",
+        {**info, "forced": force},
+    )
+    return JsonResponse({"ok": True, "cached": False, **data})
+
+
+def daily_brief_cache_key(user_id, giorno: str | None = None) -> str:
+    """Chiave di cache del brief: la usano la pagina e la generazione notturna."""
+    return f"ai_daily_brief:{user_id}:{giorno or timezone.localdate().isoformat()}"
+
+
+def genera_daily_brief(request) -> tuple[dict, dict]:
+    """``(dati per la pagina, riepilogo per l'audit)`` del brief della persona di ``request``.
+
+    Usata dalla view e da ``daily_brief_notturno`` (stessi dati ACL-filtrati della persona).
+    """
     started = time.monotonic()
     runtime_context = build_runtime_context(request, _DAILY_BRIEF_QUERY)
     has_context = bool(runtime_context.text.strip())
@@ -695,25 +719,14 @@ def api_daily_brief(request):
         "generated_at": timezone.localtime().strftime("%H:%M"),
         "sources": list(runtime_context.sources),
     }
-    try:
-        cache.set(cache_key, data, timeout=_seconds_until_end_of_day())
-    except Exception:
-        pass
-
-    log_action(
-        request,
-        "ai_daily_brief",
-        "ai_assistant",
-        {
-            "model": model,
-            "response_chars": len(message),
-            "elapsed_ms": elapsed_ms,
-            "forced": force,
-            "had_context": has_context,
-            **_runtime_audit_summary(runtime_context.audit),
-        },
-    )
-    return JsonResponse({"ok": True, "cached": False, **data})
+    info = {
+        "model": model,
+        "response_chars": len(message),
+        "elapsed_ms": elapsed_ms,
+        "had_context": has_context,
+        **_runtime_audit_summary(runtime_context.audit),
+    }
+    return data, info
 
 
 @require_POST

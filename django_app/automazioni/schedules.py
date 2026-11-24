@@ -421,6 +421,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {"q_options": {"timeout": 900}},
     },
     {
+        # Riepilogo AI del giorno preparato all'alba per chi lo ha aperto negli ultimi
+        # 14 giorni: alla prima apertura della home è già pronto, invece dei 20-25 s
+        # di Ollama a persona. Esce subito se il brief AI è spento.
+        "name": "ai_daily_brief_notturno",
+        "func": "ai_assistant.tasks.run_daily_brief_notturno",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "10 6 * * *",   # ogni giorno alle 06:10
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 3600}},
+    },
+    {
         # Storico chat dell'assistente AI: cancella le conversazioni ferme da più di
         # AI_CHAT_HISTORY_RETENTION_DAYS (default 90). Fail-safe.
         "name": "ai_pulisci_conversazioni",
