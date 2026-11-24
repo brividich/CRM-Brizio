@@ -115,7 +115,9 @@ GUIDA = {
                       "«Dal report ZEISS» (l'immagine non viene allegata; le righe proposte si confermano a mano). Con «📄 Dal report CMM (PDF)» "
                       "si caricano invece i report completi in PDF (uno per S/N): un pannello laterale mostra tutte le righe lette "
                       "dal testo del PDF, con le fuori tolleranza già spuntate, e «Inserisci N anomalie» crea un'anomalia per riga sul "
-                      "S/N del report; se il report è di un altro OP o di un altro P/N compare un avviso. «📝 Da elenco» trasforma ogni riga di un file di testo (o incollata) in un'anomalia; "
+                      "S/N del report; se il report è di un altro OP o di un altro P/N compare un avviso. Le righe sono raggruppate per "
+                      "titolo del report («Titolo › Sottotitolo»), gli angoli in gradi/primi/secondi sono letti in gradi decimali, e "
+                      "«da verificare» segnala le righe in cui l'esito calcolato non coincide con l'eccedenza scritta nel report. «📝 Da elenco» trasforma ogni riga di un file di testo (o incollata) in un'anomalia; "
                       "«📋 Copia difetti da un S/N» porta le anomalie di un S/N, anche di un blocco già salvato, su altri S/N. "
                       "Un caso già scelto in «Che cosa hai trovato?» non sparisce più mentre si scrive. Il capocommessa li vede nella mail e nel "
                       "riquadro «Dal controllore». Se sull'OP c'è già un controllo aperto il portale propone di "
@@ -229,6 +231,15 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Dal report CMM (PDF) una riga è nel gruppo sbagliato o ha «da verificare»",
+            "fare": [
+                "Confronta la riga con il PDF: il portale usa i titoli del report, e un testo senza misure allineato ai "
+                "nomi diventa sottotitolo solo se la misura sotto ha un nome suo.",
+                "«da verificare» vuol dire che l'esito calcolato e l'eccedenza («+/-») del report non coincidono: vale il report.",
+                "Le anomalie già inserite tengono il gruppo letto allora: per correggere elimina le righe e ricarica il PDF.",
+            ],
+        },
         {
             "sintomo": "Nella scheda dell'OP non compare «Modifica OP»",
             "fare": [

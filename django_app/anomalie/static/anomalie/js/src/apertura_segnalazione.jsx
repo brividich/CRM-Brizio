@@ -939,7 +939,8 @@
                         {righe.map(x => {
                           const k = `${rep.id}:${x.indice}`;
                           const testa = x.sezione !== sezione ? (sezione = x.sezione, x.sezione) : null;
-                          const inf = x.tol_inf <= 0 ? x.tol_inf : -x.tol_inf;
+                          const inf = x.tol_inf_limite != null ? x.tol_inf_limite : (x.tol_inf <= 0 ? x.tol_inf : -x.tol_inf);
+                          const di = x.fuori_di != null && x.fuori_di !== 0 ? x.fuori_di : (x.eccedenza != null && x.eccedenza !== 0 ? x.eccedenza : x.scostamento);
                           return (
                             <React.Fragment key={k}>
                               {testa && <tr className="cmm-tab__sez"><td colSpan={7}>{testa}</td></tr>}
@@ -949,8 +950,8 @@
                                 <td>{(CARATT_BY[x.car] || {}).nome || x.tipo_zeiss || '—'}</td>
                                 <td className="num">{fmtNum(x.misurato)}</td>
                                 <td className="num">{fmtNum(x.nominale)}</td>
-                                <td className="num">+{fmtNum(x.tol_sup)} / {fmtNum(inf)}</td>
-                                <td>{x.fuori ? <span className="mis-esito is-ko">Fuori {x.scostamento > 0 ? '+' : '−'}{fmtNum(Math.abs(x.eccedenza != null && x.eccedenza !== 0 ? x.eccedenza : x.scostamento))}</span> : <span className="mis-esito is-ok">Dentro</span>}
+                                <td className="num">+{fmtNum(x.tol_sup)} / {inf > 0 ? "+" : ""}{fmtNum(inf)}</td>
+                                <td>{x.fuori ? <span className="mis-esito is-ko">Fuori {di > 0 ? '+' : '−'}{fmtNum(Math.abs(di))}</span> : <span className="mis-esito is-ok">Dentro</span>}
                                   {x.da_verificare && <span className="pill-verifica" title="I valori letti non tornano fra loro: controllali sul report">da verificare</span>}</td>
                               </tr>
                             </React.Fragment>
