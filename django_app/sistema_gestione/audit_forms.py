@@ -19,6 +19,7 @@ from .models import (
     RigaProgramma,
 )
 from .services.audit import conflitti_imparzialita
+from core.persone_tendine import tendina_utenti_form as _tendina_utenti
 
 _DATE = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
 _DATETIME = forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M")
@@ -42,6 +43,7 @@ class AuditorForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["norme"].initial = sorted(self.instance.norme_abilitate_set)
+        _tendina_utenti(self, "user")
 
     def save(self, commit=True):
         self.instance.norme_abilitate = ",".join(self.cleaned_data.get("norme") or [])
@@ -224,6 +226,7 @@ class ProcessoForm(forms.ModelForm):
         owner = self.fields["ruolo_owner"]
         owner.queryset = RuoloOperativo.objects.filter(is_active=True).order_by("nome")
         owner.label_from_instance = lambda r: r.etichetta
+        _tendina_utenti(self, "responsabile")
         for nome in ("responsabile", "scopo", "input", "output", "rischi", "indicatori", "procedure"):
             self.fields[nome].required = True
         self.fields["criticita"].required = False
@@ -322,6 +325,7 @@ class AuditEsitoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.initial["versione"] = self.instance.versione
+        _tendina_utenti(self, "responsabile_azione")
         if self.instance.ofi_id:
             for nome in self.Meta.fields:
                 self.fields[nome].disabled = True

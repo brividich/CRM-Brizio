@@ -191,9 +191,14 @@ def _persone_in_forza() -> dict[int, dict]:
 
     from .models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
 
+    from core.persone_tendine import cessati_anagrafica_ids
+
+    # In forza = account attivo E rapporto non cessato (data_cessazione vuota).
+    cessati = cessati_anagrafica_ids()
     out = {int(r["id"]): {"id": int(r["id"]), "nome": naming.nome_completo(r.get("nome"), r.get("cognome")),
                           "reparto": "", "area": "", "ruoli": set()}
-           for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo", True) and r.get("id")}
+           for r in fetch_anagrafica_rows(deduplicate=True)
+           if r.get("attivo", True) and r.get("id") and int(r["id"]) not in cessati}
     for a in (DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id__in=list(out),
                                                            area_aziendale__isnull=False)
               .select_related("area_aziendale__reparto")):

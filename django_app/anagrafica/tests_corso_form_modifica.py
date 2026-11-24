@@ -84,11 +84,14 @@ class CorsoFormModificaTests(TestCase):
 
 
 class TendineRicercabiliTests(TestCase):
-    def test_init_automatico_delle_tendine_lunghe(self):
+    def test_init_automatico_di_tutte_le_tendine(self):
         from django.contrib.staticfiles import finders
         path = finders.find("core/js/tomselect-init.js")
         src = open(path, encoding="utf-8").read()
-        self.assertIn("AUTO_MIN = 10", src)
+        # Ricercabili tutte in tutto il portale, non solo le lunghe (24/11/2026):
+        # resta nativa solo la tendina con una voce sola.
+        self.assertIn("AUTO_MIN = 1;", src)
+        self.assertIn("function collega(", src)
         self.assertIn("data-no-search", src)
         self.assertIn('select:not(.js-searchable)', src)
 

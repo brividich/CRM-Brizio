@@ -3490,8 +3490,14 @@ def formazione_sessione_iscritti(request, sessione_id: int):
             if i.turni_espliciti else "Tutte"
         )
 
-    # Lista dipendenti attivi per il form di iscrizione manuale
-    dipendenti_attivi = _helpers._build_nomi_map()
+    # Lista dipendenti attivi per il form di iscrizione manuale: chi non è più
+    # in forza (data_cessazione valorizzata) non si iscrive a un'edizione.
+    from core.persone_tendine import cessati_anagrafica_ids
+
+    _cessati_isc = cessati_anagrafica_ids()
+    dipendenti_attivi = {
+        lid: nome for lid, nome in _helpers._build_nomi_map().items() if lid not in _cessati_isc
+    }
 
     # Candidati all'iscrizione: motore di idoneità (pertinenza + scadenze + prerequisiti).
     # Restituisce idonei (proponibili, pre-spuntati i rinnovi) e non idonei (prerequisiti
@@ -3519,7 +3525,7 @@ def formazione_sessione_iscritti(request, sessione_id: int):
         "puo_esiti":         is_editor and not sessione.is_approvata,
         "motivo_blocco":     motivo_blocco_edizione(sessione),
         "annullati":         annullati,
-        "dipendenti_attivi": sorted(dipendenti_attivi.items(), key=lambda x: x[1]),
+        "dipendenti_attivi": sorted(dipendenti_attivi.items(), key=lambda x: naming.chiave_testo(x[1])),
         "STATO_CHOICES":     TrainingEnrollment.STATO_CHOICES,
         "candidati":         candidati,
         "candidati_rinnovo": candidati_rinnovo,

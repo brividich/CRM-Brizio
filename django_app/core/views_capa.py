@@ -102,8 +102,13 @@ class ActionItemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["responsabile"].queryset = User.objects.filter(is_active=True).order_by(
-            "last_name", "first_name", "username"
+        from core.persone_tendine import imposta_tendina_persone, utenti_in_forza
+
+        # In forza, COGNOME NOME (prima per nome e con lo username come etichetta).
+        imposta_tendina_persone(
+            self.fields["responsabile"],
+            utenti_in_forza(User.objects.all()),
+            tieni=[getattr(self.instance, "responsabile_id", None)],
         )
         self.fields["responsabile"].required = False
         self.fields["reparto"].required = False

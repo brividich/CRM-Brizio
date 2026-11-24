@@ -317,11 +317,12 @@ def responsabili_proposti(nc) -> list[dict]:
     except Exception:
         logger.debug("nc: CC/CAR non risolti op=%s", nc.op_titolo, exc_info=True)
     try:
-        from core.legacy_models import UtenteLegacy
+        from core.persone_tendine import utenti_legacy_per_tendina
 
-        for u in UtenteLegacy.objects.filter(attivo=True).order_by("nome").only("id", "nome"):
-            if u.id not in visti and (u.nome or "").strip():
-                out.append({"id": u.id, "nome": naming.normalizza_parte(u.nome), "ruolo": ""})
+        # Gli altri: in forza, COGNOME NOME dall'anagrafica, in ordine alfabetico.
+        for u in utenti_legacy_per_tendina():
+            if u.id not in visti and u.etichetta:
+                out.append({"id": u.id, "nome": u.etichetta, "ruolo": ""})
     except Exception:
         logger.debug("nc: utenti legacy non disponibili", exc_info=True)
     return out

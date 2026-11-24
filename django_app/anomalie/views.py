@@ -1297,10 +1297,17 @@ def _anomalie_anagrafica_name_choices() -> list[str]:
     except Exception:
         logger.debug("[anomalie] impossibile caricare l'elenco dipendenti", exc_info=True)
         return []
+    from core.persone_tendine import cessati_anagrafica_ids
+
+    # Fuori anche chi ha il rapporto cessato (data_cessazione), non solo attivo=0.
+    # Il formato «Nome Cognome» resta: è il testo salvato negli override.
+    cessati = cessati_anagrafica_ids()
     names = set()
     for row in rows:
         attivo = row.get("attivo")
         if attivo is not None and not attivo:
+            continue
+        if row.get("id") is not None and int(row["id"]) in cessati:
             continue
         label = _label_from_anagrafica_row(row)
         if label:

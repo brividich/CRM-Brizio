@@ -614,10 +614,13 @@ def _persona_row(a) -> dict | None:
 
 
 def _solo_attivi(qs):
-    """Esclude i dipendenti cessati: la colonna legacy ``attivo`` non è nel modello."""
+    """Esclude i dipendenti cessati: la colonna legacy ``attivo`` non è nel modello,
+    e chi ha ``data_cessazione`` sull'anagrafica aziendale (regola unica)."""
     try:
         from core.legacy_utils import legacy_table_columns
+        from core.persone_tendine import cessati_anagrafica_subquery
 
+        qs = qs.exclude(id__in=cessati_anagrafica_subquery())
         if "attivo" in (legacy_table_columns("anagrafica_dipendenti") or set()):
             return qs.extra(where=["attivo = 1"])
     except Exception:

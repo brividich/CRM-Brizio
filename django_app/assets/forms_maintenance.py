@@ -42,7 +42,10 @@ def _active_users_queryset():
 
     # ``first_name`` contiene il cognome (vedi ``core.legacy_utils._split_name``):
     # l'ordinamento segue l'etichetta mostrata, non i nomi dei campi.
-    return get_user_model().objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+    # Esclusi anche gli utenti con rapporto cessato (regola unica delle tendine persone).
+    from core.persone_tendine import utenti_in_forza
+
+    return utenti_in_forza(get_user_model().objects.all())
 
 
 def _set_user_choices(field):

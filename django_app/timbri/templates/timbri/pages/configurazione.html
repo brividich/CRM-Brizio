@@ -251,7 +251,7 @@ body.theme-dark .tim-switch-thumb{background:var(--surface)}
             <select id="ov-user-id" name="user_id" required>
               <option value="">— seleziona —</option>
               {% for u in all_users %}
-                <option value="{{ u.id }}">{% if u.get_full_name %}{{ u.get_full_name }} ({{ u.username }}){% else %}{{ u.username }}{% endif %}</option>
+                <option value="{{ u.id }}">{{ u.etichetta }}</option>
               {% endfor %}
             </select>
           </div>

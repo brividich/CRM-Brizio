@@ -816,7 +816,10 @@ def impostazioni(request):
         ruoli_acl = []
     # Utenti legacy attivi: allow-list per-utente (singleton) + override canonici.
     try:
-        utenti_acl = list(UtenteLegacy.objects.filter(attivo=True).order_by("nome"))
+        from core.persone_tendine import utenti_legacy_per_tendina
+
+        # In forza, COGNOME NOME, ordine alfabetico: regola unica delle tendine persone.
+        utenti_acl = utenti_legacy_per_tendina()
     except Exception:
         utenti_acl = []
 

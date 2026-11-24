@@ -492,11 +492,14 @@ def _load_dipendenti_attivi_list() -> list[dict]:
         f"SELECT {_quoted_columns(['id', 'nome', 'cognome'])} FROM anagrafica_dipendenti "
         f"WHERE {' AND '.join(where_parts)} ORDER BY cognome, nome"
     )
+    from core.persone_tendine import cessati_anagrafica_ids
+
+    cessati = cessati_anagrafica_ids()  # rapporto cessato: fuori dalle tendine
     out: list[dict] = []
     seen: set[str] = set()
     for row in rows:
         ana_id = _as_int(row.get("id"))
-        if ana_id is None:
+        if ana_id is None or ana_id in cessati:
             continue
         cognome = str(row.get("cognome") or "").strip()
         nome = str(row.get("nome") or "").strip()
@@ -2724,13 +2727,20 @@ def _build_anagrafica_hr_capo_option(row: dict) -> dict:
 
 
 def _load_anagrafica_hr_capi_options() -> list[dict]:
-    rows_by_id = _fetch_anagrafica_rows_by_ids(_anagrafica_hr_capo_ids())
+    from core.persone_tendine import cessati_anagrafica_ids
+
+    # Un capo con il rapporto cessato non compare più nella tendina.
+    cessati = cessati_anagrafica_ids()
+    rows_by_id = {
+        k: v for k, v in _fetch_anagrafica_rows_by_ids(_anagrafica_hr_capo_ids()).items()
+        if _as_int(k) not in cessati
+    }
     if not rows_by_id:
         return []
 
     out: list[dict] = []
     seen: set[str] = set()
-    for row in sorted(rows_by_id.values(), key=lambda item: _anagrafica_row_label(item).casefold()):
+    for row in sorted(rows_by_id.values(), key=lambda item: naming.chiave_testo(_anagrafica_row_label(item))):
         option = _build_anagrafica_hr_capo_option(row)
         key = str(option.get("LegacyUserId") or option.get("AnagraficaLegacyId") or option.get("Email") or "").casefold()
         if not key or key in seen:

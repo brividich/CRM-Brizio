@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
+from core.persone_tendine import utenti_in_forza as _utenti_in_forza
 from django import forms
 from django.db import transaction
 from django.db.models import Q
@@ -746,6 +747,10 @@ class AssetAssignmentForm(forms.ModelForm):
         choices = [("", "-- Nessun dipendente --")]
         if user_choices:
             choices.extend(user_choices)
+        # L'elenco ha solo chi è in forza: l'assegnatario già salvato, se nel
+        # frattempo è cessato, resta scelto (altrimenti il salvataggio fallirebbe).
+        if selected_user_id and str(selected_user_id) not in {str(v) for v, _ in choices}:
+            choices.append((str(selected_user_id), f"Utente #{selected_user_id} (non più in forza)"))
         self.fields["assigned_user_id"].choices = choices
         if selected_user_id is not None:
             self.initial["assigned_user_id"] = str(selected_user_id or "")
@@ -1294,8 +1299,8 @@ class MaintenanceRuleForm(forms.ModelForm):
 
         User = get_user_model()
         current_assigned_id = getattr(self.instance, "assigned_to_id", None)
-        self.fields["assigned_to"].queryset = User.objects.filter(
-            Q(is_active=True) | Q(pk=current_assigned_id)
+        self.fields["assigned_to"].queryset = (
+            _utenti_in_forza(User.objects.all()) | User.objects.filter(pk=current_assigned_id)
         ).order_by("first_name", "last_name", "username")
         self.fields["assigned_to"].label_from_instance = user_display_label
         self.fields["assigned_to"].required = False
@@ -3181,7 +3186,7 @@ class WorkOrderForm(forms.ModelForm):
         if squadra is not None:
             assigned_qs = User.objects.filter(Q(pk__in=squadra.values("pk")) | Q(pk=current_assigned_id))
         else:
-            assigned_qs = User.objects.filter(Q(is_active=True) | Q(pk=current_assigned_id))
+            assigned_qs = _utenti_in_forza(User.objects.all()) | User.objects.filter(pk=current_assigned_id)
         self.fields["assigned_to"].queryset = assigned_qs.order_by("first_name", "last_name", "username")
         self.fields["assigned_to"].label_from_instance = user_display_label
         self.fields["assigned_to"].help_text = (
@@ -3499,7 +3504,11 @@ class WorkOrderCloseForm(forms.Form):
         User = get_user_model()
         current_assigned_id = getattr(self.workorder, "assigned_to_id", None)
         current_executed_id = getattr(self.workorder, "executed_by_id", None)
-        user_qs = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        # In forza, COGNOME NOME; assegnato ed esecutore già salvati restano scelti.
+        user_qs = (
+            _utenti_in_forza(User.objects.all())
+            | User.objects.filter(pk__in=[pk for pk in (current_assigned_id, current_executed_id) if pk])
+        ).order_by("first_name", "last_name", "username")
         self.fields["assigned_to"].queryset = user_qs
         self.fields["assigned_to"].label_from_instance = user_display_label
         self.fields["assigned_to"].help_text = "Manutentore assegnato all'intervento."

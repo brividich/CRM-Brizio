@@ -3434,8 +3434,11 @@ def _salva_dati_base(request, legacy_id: int, dip: dict, post) -> bool | None:
                 legacy_user_id=int(dip["utente_id"])
             ).first()
             if profilo and profilo.user_id:
-                profilo.user.first_name = str(aggiornato.get("nome") or "")[:150]
-                profilo.user.last_name = str(aggiornato.get("cognome") or "")[:150]
+                # Convenzione degli account (core.legacy_utils._sync_django_user_fields,
+                # core.apps._user_get_full_name): first_name = COGNOME, last_name = NOME.
+                # Prima qui era al contrario e l'account mostrava «NOME COGNOME».
+                profilo.user.first_name = str(aggiornato.get("cognome") or "")[:150]
+                profilo.user.last_name = str(aggiornato.get("nome") or "")[:150]
                 profilo.user.save(update_fields=["first_name", "last_name"])
         except Exception:
             logger.warning("Nome non riportato sull'account portale del dipendente %s", legacy_id, exc_info=True)

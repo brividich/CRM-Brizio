@@ -28,6 +28,15 @@ from .notifiche_gs import pool_utenti
 from .sync_cartelle import attivo as sync_attivo
 
 
+def _utenti_in_forza():
+    """Utenti attivi e in forza, ordine COGNOME NOME (regola unica delle tendine)."""
+    from django.contrib.auth import get_user_model
+
+    from core.persone_tendine import utenti_in_forza
+
+    return utenti_in_forza(get_user_model().objects.all())
+
+
 def utente_puo_admin(request) -> bool:
     """True se l'utente ha il permesso ACL della sezione admin (per il link condizionato in UI)."""
     from core.acl_v2 import evaluate_permission_code_access
@@ -85,7 +94,6 @@ def admin_home(request):
 @admin_specifiche_required
 def admin_notifiche(request):
     """#5 — Config notifiche/assegnazione: reparto IN1 + nomi aggiuntivi + email on/off."""
-    from django.contrib.auth import get_user_model
 
     cfg = NotificaConfig.get_config()
     if request.method == "POST":
@@ -97,8 +105,7 @@ def admin_notifiche(request):
         messages.success(request, "Configurazione notifiche salvata.")
         return redirect("gestione_specifiche:admin_notifiche")
 
-    User = get_user_model()
-    utenti = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+    utenti = _utenti_in_forza()  # attivi e in forza, COGNOME NOME
     selezionati = set(cfg.utenti_aggiuntivi.values_list("pk", flat=True))
     return render(request, "gestione_specifiche/admin/notifiche.html",
                   {"cfg": cfg, "utenti": utenti, "selezionati": selezionati})
@@ -160,7 +167,6 @@ def admin_specifica_riassegna(request, pk: int):
 @admin_specifiche_required
 def admin_timbri(request):
     """#2 — Timbri «RICEVUTO» per capocommessa: elenco + caricamento (file SENZA data)."""
-    from django.contrib.auth import get_user_model
 
     if request.method == "POST":
         codice = (request.POST.get("codice") or "").strip()
@@ -189,8 +195,7 @@ def admin_timbri(request):
             messages.success(request, f"Timbro {codice} caricato.")
         return redirect("gestione_specifiche:admin_timbri")
 
-    User = get_user_model()
-    utenti = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+    utenti = _utenti_in_forza()  # attivi e in forza, COGNOME NOME
     return render(request, "gestione_specifiche/admin/timbri.html", {
         "timbri": TimbroCapocommessa.objects.select_related("utente").all(),
         "utenti": utenti,
@@ -276,7 +281,6 @@ def admin_cartella_delete(request, pk: int):
 @admin_specifiche_required
 def admin_auto_approva(request):
     """#3 — Config auto-approvazione MOD.133: attiva + approvatore MSO."""
-    from django.contrib.auth import get_user_model
 
     cfg = AutoApprovazioneConfig.get_config()
     if request.method == "POST":
@@ -291,8 +295,7 @@ def admin_auto_approva(request):
         messages.success(request, "Configurazione auto-approvazione salvata.")
         return redirect("gestione_specifiche:admin_auto_approva")
 
-    User = get_user_model()
-    utenti = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+    utenti = _utenti_in_forza()  # attivi e in forza, COGNOME NOME
     # Gestione: ultime specifiche auto-approvate (dal log)
     auto_recenti = (EventoSpecifica.objects.filter(trigger="auto_approvazione")
                     .select_related("specifica").order_by("-timestamp")[:20])

@@ -462,7 +462,14 @@ class SecurityIncidentForm(forms.ModelForm):
         self.fields["severity"].choices = [(value, SEVERITY_LABELS[value]) for value in SEVERITY_ORDER]
         from core.form_fields import user_display_label
 
-        self.fields["owner"].queryset = get_user_model().objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        from core.persone_tendine import imposta_tendina_persone, utenti_in_forza
+
+        # In forza e COGNOME NOME; il responsabile già salvato resta scelto.
+        imposta_tendina_persone(
+            self.fields["owner"],
+            utenti_in_forza(get_user_model().objects.all()),
+            tieni=[getattr(self.instance, "owner_id", None)],
+        )
         self.fields["owner"].label_from_instance = user_display_label
         self.fields["owner"].required = False
         for name in ("detected_at", "occurred_at", "resolved_at"):

@@ -260,15 +260,20 @@ def _contesto_layout() -> dict:
 
 
 def _nominativo(u) -> str:
-    return naming.nome_completo(u.first_name, u.last_name) or u.username
+    # first_name = COGNOME (convenzione degli account): get_full_name dà COGNOME NOME.
+    from core.form_fields import user_display_label
+
+    return user_display_label(u)
 
 
 def _utenti_destinatari():
+    from core.persone_tendine import utenti_in_forza
+
     User = get_user_model()
     utenti = list(
-        User.objects.filter(is_active=True).exclude(email="").only("id", "username", "first_name", "last_name", "email")
+        utenti_in_forza(User.objects.exclude(email="")).only("id", "username", "first_name", "last_name", "email")
     )
-    utenti.sort(key=_nominativo)
+    utenti.sort(key=lambda u: naming.chiave_testo(_nominativo(u)))
     return [{"id": u.pk, "nome": _nominativo(u), "email": u.email} for u in utenti]
 
 

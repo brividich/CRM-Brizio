@@ -1836,10 +1836,14 @@ def skm_refresh(request):
         CampagnaRefresh.objects.filter(reparto=reparto, stato=CampagnaRefresh.STATO_APERTA).first()
         if reparto else None
     )
+    from core.persone_tendine import cessati_anagrafica_ids
+
+    _cessati_opts = cessati_anagrafica_ids() if reparto else set()
     persone_opts = sorted(
         ({"id": int(r["id"]), "nome": naming.nome_completo(r.get("nome"), r.get("cognome"))}
-         for r in dip_rows if r.get("attivo", True) and r.get("id")),
-        key=lambda c: c["nome"].casefold(),
+         for r in dip_rows
+         if r.get("attivo", True) and r.get("id") and int(r["id"]) not in _cessati_opts),
+        key=lambda c: naming.chiave_testo(c["nome"]),
     ) if reparto else []
 
     return render(request, "anagrafica/pages/skm_refresh.html", {

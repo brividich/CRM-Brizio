@@ -268,8 +268,6 @@ def _dipendenti_selezionabili(request) -> list[dict]:
     """Chi si puo' scegliere come richiedente: i propri dipendenti (responsabile/preposto),
     tutti per i gestori DPI. Vuota = nessuna scelta, la richiesta e' sempre personale."""
     try:
-        from core.legacy_models import AnagraficaDipendente
-
         own = _legacy_id(request)
         if _is_gestore(request):
             ids = None
@@ -277,13 +275,17 @@ def _dipendenti_selezionabili(request) -> list[dict]:
             ids = _scope_approvatore(request)
             if not ids:
                 return []
-        qs = AnagraficaDipendente.objects.all()
+        from core.persone_tendine import anagrafica_in_forza
+
+        # Solo chi è in forza (data_cessazione vuota), COGNOME NOME.
+        qs = anagrafica_in_forza()
         if ids is not None:
             qs = qs.filter(pk__in=list(ids | ({own} if own else set())))
-        return [
+        righe = [
             {"id": ad.pk, "nome": naming.nome_completo(ad.nome, ad.cognome) or ad.aliasusername or f"#{ad.pk}"}
-            for ad in qs.order_by("cognome", "nome")
+            for ad in qs
         ]
+        return sorted(righe, key=lambda r: naming.chiave_testo(r["nome"]))
     except Exception:
         return []
 
@@ -628,11 +630,14 @@ def nuova_richiesta(request):
     preposti_scelta: list[dict] = []
     preposto_predefinito = None
     if not approvata_da_sola and _req_legacy:
+        from core.persone_tendine import cessati_anagrafica_ids
+
         tutti, incaricati = flusso.scelta_preposto(_req_legacy)
+        tutti = set(tutti) - cessati_anagrafica_ids()  # «Chi approva»: solo chi è in forza
         nomi = _nomi_anagrafiche(tutti)
         preposti_scelta = sorted(
             ({"id": i, "nome": nomi[i], "incaricato": i in incaricati} for i in tutti if i in nomi),
-            key=lambda p: (not p["incaricato"], p["nome"].casefold()),
+            key=lambda p: (not p["incaricato"], naming.chiave_testo(p["nome"])),
         )
         preposto_predefinito = next((p["id"] for p in preposti_scelta if p["incaricato"]), None)
     preposto_scelto = preposto_predefinito
@@ -833,13 +838,17 @@ def _scope_report(request) -> set[int] | None:
 
 def _dipendenti_attivi(request) -> list[dict]:
     """Dipendenti attivi nel perimetro di chi guarda, in ordine di cognome e nome."""
+    from core.persone_tendine import cessati_anagrafica_ids
+
     ensure_anagrafica_schema()
     scope = _scope_report(request)
+    cessati = cessati_anagrafica_ids()
     righe = [
         {**row, "nominativo": naming.nome_completo(row.get("nome"), row.get("cognome"))}
         for row in fetch_anagrafica_rows(deduplicate=True)
         if row.get("id")
         and (row.get("attivo") is None or bool(row.get("attivo")))
+        and int(row["id"]) not in cessati
         and (scope is None or int(row["id"]) in scope)
     ]
     return sorted(righe, key=lambda row: (
