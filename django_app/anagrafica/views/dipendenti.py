@@ -14,6 +14,7 @@ from datetime import timedelta as _timedelta
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import IntegrityError, connections, transaction
@@ -124,6 +125,41 @@ CAMPI_CIVILE_HR = (
     "codice_fiscale", "nome_banca", "iban", "intestatario_conto",
     "categoria_protetta", "categoria_disabili", "percentuale_disabilita",
 )
+
+
+def _impronta_ids(ids) -> str:
+    if ids is None:
+        return "tutti"
+    import hashlib
+
+    return hashlib.sha1(",".join(str(i) for i in sorted(ids)).encode("ascii")).hexdigest()
+
+
+def _in_cache_breve(parti: tuple, calcola):
+    """Risultato di ``calcola()`` tenuto ``ANAGRAFICA_CRUSCOTTO_CACHE_SECONDS`` (0 = spento).
+
+    Per i numeri aggregati della home anagrafica, identici per chi ha gli stessi
+    parametri: un errore della cache non deve mai togliere la pagina.
+    """
+    from django.core.cache import cache
+
+    durata = int(getattr(settings, "ANAGRAFICA_CRUSCOTTO_CACHE_SECONDS", 120) or 0)
+    if durata <= 0:
+        return calcola()
+    chiave = "anagrafica:home:" + ":".join(str(p) for p in parti)
+    try:
+        trovato = cache.get(chiave)
+    except Exception:
+        trovato = None
+    if trovato is not None:
+        return trovato
+    valore = calcola()
+    if valore is not None:
+        try:
+            cache.set(chiave, valore, durata)
+        except Exception:
+            logger.warning("Home anagrafica: valore non salvato in cache", exc_info=True)
+    return valore
 
 
 def _foto_dipendente_url(civile, legacy_id, miniatura: bool = False) -> str:
@@ -471,10 +507,15 @@ def index(request):
         from ..services.cruscotto_hr import calcola as calcola_cruscotto
         # Stesso ambito dell'elenco dipendenti (propri/team/tutti) e niente
         # formazione a chi non ha il permesso: prima contava tutta l'azienda.
-        cruscotto = calcola_cruscotto(
-            include_visite=can_view_visite,
-            include_formazione=_helpers._can_view_formazione(request),
-            visibili=_schede_visibili(request) if _helpers._ruoli_attivi() else None,
+        _incl_form = _helpers._can_view_formazione(request)
+        _visibili = _schede_visibili(request) if _helpers._ruoli_attivi() else None
+        # Stessi parametri = stessi numeri: in cache per ANAGRAFICA_CRUSCOTTO_CACHE_SECONDS
+        # (default 120 s). Prima il motore dei requisiti girava a ogni apertura della home.
+        cruscotto = _in_cache_breve(
+            ("cruscotto", can_view_visite, _incl_form, _impronta_ids(_visibili), oggi.isoformat()),
+            lambda: calcola_cruscotto(
+                include_visite=can_view_visite, include_formazione=_incl_form, visibili=_visibili,
+            ),
         )
         n_qualifiche_scadute = cruscotto.n_qualifiche_scadute
         n_qualifiche_scadenza = cruscotto.n_qualifiche_in_scadenza
@@ -489,9 +530,13 @@ def index(request):
         from ..models import CentroDiCosto
         from ..services import carico_mansioni
 
-        carico = carico_mansioni.oggi()
-        if carico is not None:
-            carico_home = {**carico.conteggi(), "centri": CentroDiCosto.objects.filter(is_active=True).count()}
+        def _conteggi_carico():
+            carico = carico_mansioni.oggi()
+            return carico.conteggi() if carico is not None else None
+
+        conteggi = _in_cache_breve(("carico", oggi.isoformat()), _conteggi_carico)
+        if conteggi is not None:
+            carico_home = {**conteggi, "centri": CentroDiCosto.objects.filter(is_active=True).count()}
 
     return render(request, "anagrafica/pages/index.html", {
         "carico_home": carico_home,

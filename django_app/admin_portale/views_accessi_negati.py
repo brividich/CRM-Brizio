@@ -29,7 +29,7 @@ from core.acl_resolution import (
 )
 from core import naming
 from core.legacy_models import UtenteLegacy
-from core.models import AclDenialEvent
+from core.models import AclDenialEvent, PermissionDefinition
 
 from .decorators import legacy_admin_required
 
@@ -74,6 +74,14 @@ def accessi_negati(request):
     except DatabaseError:
         users = {}
 
+    # Permessi letti in un colpo e memo per persona: prima ogni riga rifaceva le
+    # stesse letture (catalogo, ruolo, sistema ruoli), 268 query per 30 righe.
+    codici = {str(e.permission_code).strip() for e in events if e.permission_code}
+    try:
+        permessi = {p.code: p for p in PermissionDefinition.objects.filter(code__in=codici)} if codici else {}
+    except DatabaseError:
+        permessi = None
+    memo: dict = {}
     rows = []
     for event in events:
         person = users.get(int(event.legacy_user_id))
@@ -83,7 +91,9 @@ def accessi_negati(request):
         if person is None:
             unresolvable = "L'utente non esiste più."
         elif event.permission_code:
-            access = describe_access(legacy_user=person, permission_code=event.permission_code)
+            access = describe_access(
+                legacy_user=person, permission_code=event.permission_code, permessi=permessi, memo=memo
+            )
             if not access["resolvable"]:
                 unresolvable = "Il permesso di questa pagina è stato disattivato o rimosso dal catalogo."
         else:

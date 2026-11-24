@@ -906,16 +906,20 @@ def visite_mediche_dashboard(request):
     filtro_centro = centro_filtro.leggi(request)
     visite_qs = filtro_centro.applica(VisitaMedica.objects.all())
     # Senza i cessati, come lo scadenzario a cui portano i riquadri.
-    correnti_qs = visite_qs.filter(id__in=ultime_visite_correnti_ids()).exclude(
-        legacy_anagrafica_id__in=_helpers._cessati_legacy_ids())
+    # Visite correnti lette UNA volta e filtrate in Python: prima ogni contatore e ogni
+    # tipologia rimandava a SQL la lista degli id correnti e dei cessati (IN con
+    # centinaia di valori), 10-20 query da oltre un secondo l'una in prod.
+    _ids_correnti = ultime_visite_correnti_ids()
+    _cessati = _helpers._cessati_legacy_ids()
+    correnti = [
+        # Note e prescrizioni (cifrate) non servono al cruscotto: non si decifrano.
+        v for v in visite_qs.select_related("tipo").defer("prescrizioni", "note")
+        if v.pk in _ids_correnti and v.legacy_anagrafica_id not in _cessati
+    ]
 
     # KPI globali (sulle visite correnti dell'intero dataset, non filtrato per mese)
-    kpi_scadute = correnti_qs.filter(
-        data_scadenza__isnull=False, data_scadenza__lt=oggi
-    ).count()
-    kpi_in_scad = correnti_qs.filter(
-        data_scadenza__isnull=False, data_scadenza__range=[oggi, soglia_avviso]
-    ).count()
+    kpi_scadute = sum(1 for v in correnti if v.data_scadenza and v.data_scadenza < oggi)
+    kpi_in_scad = sum(1 for v in correnti if v.data_scadenza and oggi <= v.data_scadenza <= soglia_avviso)
     kpi_visite_totali = visite_qs.count()
 
     _MESI_ITA = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -940,27 +944,19 @@ def visite_mediche_dashboard(request):
         _, last_day_n = _calendar.monthrange(oggi.year, oggi.month)
         _range_start = oggi.replace(day=1)
         _range_end = oggi.replace(day=last_day_n)
-        scad_qs = correnti_qs.filter(
-            data_scadenza__isnull=False,
-            data_scadenza__range=[_range_start, _range_end],
-        )
+        scad_lista = [v for v in correnti if v.data_scadenza and _range_start <= v.data_scadenza <= _range_end]
     elif filtro_scad == "prossimo_mese":
         pm_y = oggi.year + 1 if oggi.month == 12 else oggi.year
         pm_m = 1 if oggi.month == 12 else oggi.month + 1
         _, last_day_n = _calendar.monthrange(pm_y, pm_m)
         _range_start = date(pm_y, pm_m, 1)
         _range_end = date(pm_y, pm_m, last_day_n)
-        scad_qs = correnti_qs.filter(
-            data_scadenza__isnull=False,
-            data_scadenza__range=[_range_start, _range_end],
-        )
+        scad_lista = [v for v in correnti if v.data_scadenza and _range_start <= v.data_scadenza <= _range_end]
     else:
         filtro_scad = "tutti"
-        scad_qs = correnti_qs.filter(
-            data_scadenza__isnull=False, data_scadenza__lte=soglia_avviso
-        )
+        scad_lista = [v for v in correnti if v.data_scadenza and v.data_scadenza <= soglia_avviso]
 
-    scad_o_in_scad = list(scad_qs.select_related("tipo").order_by("data_scadenza"))
+    scad_o_in_scad = sorted(scad_lista, key=lambda v: (v.data_scadenza, v.pk))
     for v in scad_o_in_scad:
         v.dipendente_nome = nomi_map.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
         v.giorni_a_scadenza = (v.data_scadenza - oggi).days if v.data_scadenza else None
@@ -970,44 +966,37 @@ def visite_mediche_dashboard(request):
             v.mese_label = "Senza scadenza"
 
     # Pre-aggrega conteggi DB per tipo (evita N query nel loop) — solo visite correnti
-    _valide_per_tipo = {
-        row["tipo_id"]: row["n"]
-        for row in correnti_qs
-        .filter(data_scadenza__gte=oggi)
-        .order_by()
-        .values("tipo_id")
-        .annotate(n=Count("legacy_anagrafica_id", distinct=True))
-    }
-    _scadute_per_tipo = {
-        row["tipo_id"]: row["n"]
-        for row in correnti_qs
-        .filter(data_scadenza__lt=oggi)
-        .order_by()
-        .values("tipo_id")
-        .annotate(n=Count("legacy_anagrafica_id", distinct=True))
-    }
+    from collections import defaultdict as _dd
+
+    _valide_id: dict = _dd(set)
+    _scadute_id: dict = _dd(set)
+    _tutte_id: dict = _dd(set)
+    for v in correnti:
+        _tutte_id[v.tipo_id].add(v.legacy_anagrafica_id)
+        if v.data_scadenza and v.data_scadenza >= oggi:
+            _valide_id[v.tipo_id].add(v.legacy_anagrafica_id)
+        elif v.data_scadenza and v.data_scadenza < oggi:
+            _scadute_id[v.tipo_id].add(v.legacy_anagrafica_id)
+    _valide_per_tipo = {k: len(x) for k, x in _valide_id.items()}
+    _scadute_per_tipo = {k: len(x) for k, x in _scadute_id.items()}
 
     # Tipologie con copertura ruoli + conteggi reali DB
     tipi_attivi_qs = TipoVisitaMedica.objects.filter(is_active=True).prefetch_related("ruoli_operativi")
     tipologie_stats = []
     for t in tipi_attivi_qs:
-        ruoli_ids = list(t.ruoli_operativi.values_list("id", flat=True))
+        ruoli_ids = [r.id for r in t.ruoli_operativi.all()]  # dal prefetch, senza query per tipo
         if ruoli_ids:
             legacy_ids_richiesti = _richiesti_per_ruoli(ruoli_ids, oggi)
             if filtro_centro.attivo:
                 legacy_ids_richiesti &= filtro_centro.ids
         else:
             legacy_ids_richiesti = set()
-        legacy_ids_coperti = set(
-            correnti_qs
-            .filter(tipo=t, data_scadenza__gte=oggi)
-            .values_list("legacy_anagrafica_id", flat=True)
-        )
+        legacy_ids_coperti = set(_valide_id.get(t.pk, set()))
         mancanti = legacy_ids_richiesti - legacy_ids_coperti
         # Richiesti che non hanno nessuna visita di questo tipo (né valida né scaduta).
-        senza_visita = legacy_ids_richiesti - set(
-            correnti_qs.filter(tipo=t).values_list("legacy_anagrafica_id", flat=True)
-        ) if legacy_ids_richiesti else set()
+        senza_visita = (
+            legacy_ids_richiesti - _tutte_id.get(t.pk, set()) if legacy_ids_richiesti else set()
+        )
         tipologie_stats.append({
             "tipo": t,
             "ha_ruoli": bool(ruoli_ids),
@@ -1025,11 +1014,10 @@ def visite_mediche_dashboard(request):
     from collections import defaultdict as _defaultdict
     _all_tipo_ids = [row["tipo"].pk for row in tipologie_stats]
     if _all_tipo_ids:
-        _latest_sessions_bulk = list(
-            correnti_qs
-            .filter(tipo_id__in=_all_tipo_ids)
-            .select_related("tipo")
-            .order_by("tipo_id", "legacy_anagrafica_id")
+        _tipi_set = set(_all_tipo_ids)
+        _latest_sessions_bulk = sorted(
+            (v for v in correnti if v.tipo_id in _tipi_set),
+            key=lambda v: (v.tipo_id, v.legacy_anagrafica_id, v.pk),
         )
         _soglia_avviso = oggi + _timedelta(days=60)
         _sessions_by_tipo: dict = _defaultdict(list)
