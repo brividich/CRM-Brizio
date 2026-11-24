@@ -29,6 +29,40 @@ RISORSE = (svc.MACCHINA, svc.ATTREZZATURA, svc.UTENSILE)
 PROGRAMMI = (svc.CAM, svc.CMM, svc.FAI)
 
 
+# Campi facoltativi dei form dinamici: si passano al servizio solo quelli arrivati.
+CAMPI_OPERAZIONE = {"numero": "numero", "lavorazione": "lavorazione", "dal": "dal", "al": "al", "note": "note", "programma": "programma"}
+CAMPI_PROGRAMMA = {"responsabile": "responsabile", "entro": "entro"}
+
+
+def _presenti(post, campi: dict) -> dict:
+    return {nome: post.get(chiave, "") for chiave, nome in campi.items() if chiave in post}
+
+
+def _form_dinamici(task: Task, voci: list[dict]) -> dict:
+    """Quello che serve ai form di «+ Macchina» e «+ Programma CAM/CMM»: valori proposti e scelte."""
+    from ..forms import task_active_users_queryset
+    from ..models import ProgrammaFase
+
+    inizio, fine = _finestra(task)
+    operazioni = [v["operazione"] for v in voci if v["tipo"] == svc.MACCHINA and v.get("operazione")]
+    return {
+        "persone": [
+            {"id": u.pk, "nome": (u.get_full_name() or u.get_username()).strip()}
+            for u in task_active_users_queryset()
+        ],
+        "responsabile": task.assigned_to_id or "",
+        "entro": task.due_date,
+        "dal": inizio,
+        "al": fine,
+        "prossima_op": (max(operazioni) // 10 + 1) * 10 if operazioni else 10,
+        "fasi": ProgrammaFase.choices,
+        "programmi": [
+            {"id": v["ref"].pk, "nome": f"{v['nome']} {v['codice']}"}
+            for v in voci if v["tipo"] in (svc.CAM, svc.CMM) and v.get("ref") is not None and not v.get("vuoto")
+        ],
+    }
+
+
 def _errore(motivo: str, status: int = 400) -> JsonResponse:
     return JsonResponse({"ok": False, "reason": motivo}, status=status)
 
@@ -90,7 +124,8 @@ def collegamenti_context(request, task: Task, *, apri: str = "") -> dict:
     for voce in dati["voci"]:
         if voce["tipo"] == svc.MACCHINA and "conflitti" in voce:
             # Abilitati e assenze nel periodo: gli impegni sono già l'avviso della riga.
-            voce["operatori"] = disponibilita_macchina(voce["asset"], *_finestra(task), con_nomi=con_nomi)
+            inizio, fine = _finestra(task)
+            voce["operatori"] = disponibilita_macchina(voce["asset"], voce.get("dal") or inizio, voce.get("al") or fine, con_nomi=con_nomi)
         voce["puo"] = (
             _puo(perm, voce["tipo"]) and not voce.get("vuoto")
             and (voce["tipo"] != svc.INCONTRO or voce.get("pianificato"))
@@ -108,6 +143,7 @@ def collegamenti_context(request, task: Task, *, apri: str = "") -> dict:
                 voce["url"] += f"&causale={esito.causale}"
     dati["tipi"] = [t for t in dati["tipi"] if _puo(perm, t["codice"])]
     dati.update(
+        form=_form_dinamici(task, dati["voci"]) if perm["qualcosa"] else None,
         task=task,
         puo=perm["qualcosa"],
         url_azione=reverse("tasks:collegamenti_azione", args=[task.pk]),
@@ -205,11 +241,21 @@ def collegamenti_azione(request, task_id: int):
                         svc.conflitti_macchina(voce["asset"], inizio, fine, escludi_task_id=task.pk, visibili=_visibili(request)),
                         inizio, fine,
                     )
+                    # Form della macchina: operazione, lavorazione, periodo, note, programma (tutti facoltativi).
+                    extra = _presenti(post, CAMPI_OPERAZIONE)
+                    if extra:
+                        voce = svc.aggiorna_operazione(task, voce["asset"].pk, **extra)
                     messaggio = f"Macchina {voce['codice']} collegata"
                     if avviso:
                         avviso = f"Macchina {voce['codice']} collegata, ma nel periodo è già impegnata. {avviso}"
             else:
                 voce, nuovo = svc.aggiungi(task, tipo, post.get("testo", "")[:400], request.user, progetti_visibili=visibili)
+                if tipo in (svc.CAM, svc.CMM) and voce.get("ref") is not None:
+                    # Form del programma: responsabile, entro il, fase di partenza (facoltativi).
+                    svc.imposta_programma(
+                        voce["ref"], request.user, fase=(post.get("fase") or "").strip(),
+                        **_presenti(post, CAMPI_PROGRAMMA),
+                    )
                 if not nuovo:
                     messaggio = f"{voce['nome']} {voce['codice']} collegato"
                 elif svc.INFO[tipo]["catalogo"]:
@@ -234,9 +280,7 @@ def collegamenti_azione(request, task_id: int):
             asset_id = chiave[4:] if chiave.startswith("mac:") else ""
             if not asset_id.isdigit():
                 return _errore("Collegamento non valido.")
-            voce = svc.aggiorna_operazione(
-                task, int(asset_id), numero=post.get("numero", ""), lavorazione=post.get("lavorazione", ""),
-            )
+            voce = svc.aggiorna_operazione(task, int(asset_id), **_presenti(post, CAMPI_OPERAZIONE))
             messaggio = f"Operazione della macchina {voce['codice']} salvata"
         elif azione in ("fase", "aggiorna"):
             if not perm["programmi"]:

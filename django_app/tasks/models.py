@@ -1206,6 +1206,10 @@ class TaskExtraRef(models.Model):
     # ognuna sulla sua macchina con la sua lavorazione.
     operazione = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Operazione")
     lavorazione = models.CharField(max_length=120, blank=True, default="", verbose_name="Lavorazione")
+    # Periodo dell'operazione su quella macchina (vuoto = il periodo dell'attività) e note per l'operatore.
+    dal = models.DateField(null=True, blank=True, verbose_name="Dal")
+    al = models.DateField(null=True, blank=True, verbose_name="Al")
+    note_operatore = models.CharField(max_length=300, blank=True, default="", verbose_name="Note per l'operatore")
 
     class Meta:
         indexes = [

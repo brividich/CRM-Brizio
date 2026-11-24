@@ -1285,7 +1285,10 @@ class KickoffMeetingForm(forms.ModelForm):
             ]
         # Pre-popola il campo hidden con i punti agenda dell'istanza (per edit)
         if self.instance.pk:
-            self.initial["agenda_items_raw"] = json.dumps(self.instance.agenda_items or [])
+            # Come nella scheda: tappe col titolo aggiornato, attività agganciate, niente fotografie.
+            from .services.odg_vivo import per_form
+
+            self.initial["agenda_items_raw"] = json.dumps(per_form(self.instance, self.instance.agenda_items), default=str)
 
     def clean_agenda_items_raw(self):
         import json
