@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ticket: pagina di gestione riordinata, ticket IT dei gestori manutenzione, «Rimuovi» asset (24/11)
+
+- **Gestione ticket, una sola barra azioni:** «Prendo io/Risolvi», «Metti in attesa», «Chiudi ticket», «Assegnato a: …» (tecnico e fornitore in un menu a comparsa) e «⋯» con «Annulla ticket…». I cambi di stato chiedono nota, data prevista o motivo (obbligatorio per l'annullamento) in una finestra al centro. Tolto il riquadro «Aggiorna stato / Assegna».
+- **Dati senza doppioni:** componente, fermo, causa e ricorrente si compilano in «Risolvi». Il riquadro «Dati di chiusura» (ex «Dati tecnici per KPI») compare solo da Risolto in poi, per correggerli. Nel modulo intervento componente, procedura, costi e rapportino stanno in un blocco richiudibile.
+- **Testata e lato senza ripetizioni:** la testata mostra richiedente (con link all'anagrafica) e data di apertura con «Correggi». Il riquadro «Dettagli» tiene solo ciò che manca altrove. Via l'etichetta «Registro manutenzione». La manutenzione straordinaria con OdL passa a destra sotto l'asset; il Copilota compare solo sui ticket aperti e non assegnati. «Non ancora» diventa «Chiudi pannello»; sotto «Segna risolto» c'è cosa succede dopo. CSS in testa alla pagina.
+- **«Rimuovi» asset:** accanto all'asset collegato, sempre disponibile e aggiornato senza ricaricare. Corretto il link all'asset restituito dopo il salvataggio (`/assets/view/<id>/`).
+- **Lista ticket:** chi gestisce un solo tipo (es. manutenzione) apriva i propri ticket IT nella pagina di gestione IT, che rispondeva «Accesso negato». Ora la gestione si apre solo per i tipi gestiti, gli altri nella scheda del richiedente.
+- File: `tickets/templates/tickets/pages/gestione_detail.html`, `tickets/templates/tickets/pages/dashboard.html`, `tickets/static/tickets/css/pagine/gestione_detail-2.css`, `tickets/views.py`, Centro guide `core/guide_moduli/contenuti/tickets.py`, test `tickets/tests_gestione_riordino.py`, `tickets/tests_lavorazione.py`.
+
 ### Prestazioni: pagine lente corrette (misurate sui dati di produzione)
 
 - **Salvataggio della matrice ruoli** (`core/permessi/sync.py`, `core/acl_v2.py`): la sincronizzazione scende da 10,3 a 0,76 s. I grant del ruolo si leggono tutti e si filtrano in Python: prima c'era un `IN` con 1.316 codici, da 8,7 s. Inoltre la normalizzazione dei pattern è in cache, e i binding già caricati sono indicizzati per rotta una sola volta: l'indice delle capacità faceva 470.000 `urlsplit`.
