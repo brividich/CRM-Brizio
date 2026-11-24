@@ -432,6 +432,7 @@ def mpq_processo_detail(request, processo_id: int):
     return render(request, "anagrafica/pages/mpq_processo_detail.html", {
         "sezione_url_qualifiche": url_qualifiche(processo.sezione_sigla) if processo.sezione_in_qualifiche else "",
         "sezione_url_asset": url_asset(processo.sezione_sigla) if processo.sezione_in_asset else "",
+        "configurazione": _configurazione_sicura(processo, oggi=oggi, macchine=macchine),
         "oggi": oggi,
         "can_manage": _check_manage(request),
         "processo": processo,
@@ -643,14 +644,83 @@ def _qa_corso_options():
     return piani, categorie
 
 
+def _configurazione_sicura(processo, **kwargs):
+    """Riquadro «Configurazione»: un errore nel calcolo non fa cadere la pagina del processo."""
+    import logging
+
+    from .services.mpq_configurazione import riepilogo
+
+    try:
+        return riepilogo(processo, **kwargs)
+    except Exception:
+        logging.getLogger(__name__).exception("MOD.128: configurazione non calcolabile per il processo %s", processo.pk)
+        return None
+
+
+@login_required
+def mpq_processo_export(request, processo_id: int, formato: str):
+    """Il dossier del processo in PDF o Excel: persone, macchine, utensili, Technical Plan, MOD.176, documenti.
+
+    Stessa costruzione delle sezioni dedicate, per un processo qualsiasi (anche senza la spunta).
+    """
+    if not _check_mpq_permission(request):
+        return _mpq_denied(request)
+    from django.http import Http404
+    from django.utils.text import slugify
+
+    from assets.services import part145_dossier, sezione_processo
+
+    if formato not in ("pdf", "xlsx"):
+        raise Http404("Formato non previsto")
+    proc = get_object_or_404(ProcessoQualificato, pk=processo_id)
+    dossier = sezione_processo.costruisci(
+        proc.sezione_sigla or "processo", processi_qs=ProcessoQualificato.objects.filter(pk=proc.pk),
+        titolo=f"Processo qualificato · {proc.nome}", ordine=sezione_processo.ORDINE_QUALIFICHE)
+    dossier["nome_file"] = f"processo-{slugify(proc.nome)[:50] or proc.pk}-{dossier['oggi']:%Y%m%d}"
+    if formato == "pdf":
+        data, nome = part145_dossier.esporta_pdf(dossier, request.user)
+        tipo = "application/pdf"
+    else:
+        data, nome = part145_dossier.esporta_xlsx(dossier, request.user)
+        tipo = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    resp = HttpResponse(data, content_type=tipo)
+    resp["Content-Disposition"] = f'attachment; filename="{nome}"'
+    return resp
+
+
+@login_required
+def mpq_guida_pdf(request):
+    """Guida passo passo per configurare un processo qualificato e la sua sezione dedicata (PDF)."""
+    if not _check_mpq_permission(request):
+        return _mpq_denied(request)
+    from core.guida_pdf import render_guida_pdf
+
+    from . import guida_mpq_configurazione as guida
+
+    autore = (request.user.get_full_name() or request.user.get_username() or "").strip()
+    pdf = render_guida_pdf(titolo=guida.TITOLO, sottotitolo=guida.SOTTOTITOLO, sezioni=guida.SEZIONI,
+                           generato_da=autore, generato_il=timezone.localdate().strftime("%d-%m-%Y"))
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = 'attachment; filename="Guida_configurazione_processo_qualificato.pdf"'
+    return resp
+
+
 @login_required
 def mpq_processo_create(request):
     if not _check_manage(request):
         return _mpq_denied(request)
     from .forms_mpq import ProcessoQualificatoForm
+    simili = []
     if request.method == "POST":
         form = ProcessoQualificatoForm(request.POST)
-        if form.is_valid():
+        if form.is_valid() and not request.POST.get("salva_comunque"):
+            from .services.mpq_configurazione import processi_simili
+
+            cd = form.cleaned_data
+            simili = processi_simili(cliente_id=cd["cliente"].pk if cd.get("cliente") else None,
+                                     nome=cd.get("nome", ""),
+                                     sigla=cd.get("sezione_sigla", "") if cd.get("sezione_dedicata") else "")
+        if form.is_valid() and not simili:
             proc = form.save()
             _mpq_log(request, processo=proc, evento="Creazione processo")
             sincronizza_menu_sicuro()
@@ -661,7 +731,7 @@ def mpq_processo_create(request):
     qa_piani, qa_categorie = _qa_corso_options()
     return render(request, "anagrafica/pages/mpq_processo_form.html", {
         "form": form, "titolo": "Nuovo processo qualificato (MOD.128)",
-        "back_url": reverse("anagrafica:mpq_cruscotto"),
+        "back_url": reverse("anagrafica:mpq_cruscotto"), "simili": simili,
         "mpq_requisiti": True, "qa_piani": qa_piani, "qa_categorie": qa_categorie,
     })
 

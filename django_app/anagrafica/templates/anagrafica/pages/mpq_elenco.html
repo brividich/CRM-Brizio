@@ -23,6 +23,7 @@
         <div class="fmd-block-aside">{{ processo.cliente.nome }} · al {{ oggi|date:"d-m-Y" }}
           <span class="no-print"> · <a href="{% url 'anagrafica:mpq_processo_detail' processo.id %}">← Processo</a></span></div>
       </div>
+      <div class="no-print" style="margin:0 0 8px;">{% include "anagrafica/components/_export_menu.html" with export_key="mpq_elenco" export_query=export_query %}</div>
 
       <div class="fmd-muted" style="font-size:12px;margin:4px 0 8px;">Personale qualificato: {{ n_persone }}</div>
       <div class="fmd-tablewrap">

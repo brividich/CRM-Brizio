@@ -10,9 +10,10 @@
 {% if dossier.con_personale %}<a class="btn btn-secondary" href="{% url 'anagrafica:mpq_sezione' dossier.sigla %}">Vista persone (Qualifiche)</a>{% endif %}
 {% if dossier.con_personale and dossier.processi|length == 1 %}<a class="btn btn-secondary" href="{% url 'anagrafica:mpq_processo_detail' dossier.processi.0.pk %}">Apri il processo</a>{% endif %}
 <a class="btn btn-secondary" href="{% url 'assets:guida' %}#sezione-dedicata">? Guida</a>
+{% if dossier.con_personale %}<a class="btn btn-secondary" href="{% url 'anagrafica:mpq_guida_pdf' %}" title="Come configurare il processo, passo passo">Guida PDF</a>{% endif %}
 {% endblock %}
 
-{% block p145_info %}{% if not dossier.con_personale %}<div class="p145-info">Persone e formazione non sono mostrate: servono i permessi sui processi qualificati (MOD.128).</div>{% endif %}{% endblock %}
+{% block p145_info %}{% if not dossier.con_personale %}<div class="p145-info">Persone e formazione non sono mostrate: servono i permessi sui processi qualificati (MOD.128).</div>{% endif %}{% for cfg in dossier.configurazione %}{% include "anagrafica/partials/_mpq_configurazione.html" with cfg=cfg con_nome=1 %}{% endfor %}{% endblock %}
 
 {% block p145_scarica %}
 <details class="p145-menu">

@@ -54,6 +54,12 @@
             <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_utensili' processo.id %}" title="Utensili critici, Technical Plan e registri MOD.176">
               <svg class="fmd-ico"><use href="#i-gear"/></svg>Utensili e Technical Plan
             </a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_export' processo.id 'pdf' %}" title="Persone, macchine, utensili, Technical Plan, MOD.176 e documenti: pronto per l'audit">
+              <svg class="fmd-ico"><use href="#i-download"/></svg>Scarica PDF
+            </a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_export' processo.id 'xlsx' %}" title="Riepilogo + un foglio per parte">
+              <svg class="fmd-ico"><use href="#i-download"/></svg>Scarica Excel
+            </a>
           {% if can_manage %}
             <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_edit' processo.id %}">
               <svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica
@@ -88,6 +94,10 @@
     </section>
     {% endif %}
 
+    {% if configurazione and not configurazione.completa %}
+    {% include "anagrafica/partials/_mpq_configurazione.html" with cfg=configurazione %}
+    {% endif %}
+
     {# ── Anagrafica processo ────────────────────────────────────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
@@ -105,9 +115,8 @@
           {% if processo.responsabile_qualita %}<div class="fmd-muted" style="font-size:12px;">RQ: {{ processo.responsabile_qualita }}</div>{% endif %}</div>
       </div>
       {% if riferimenti or can_manage %}
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #eef3f8;">
+      <div id="riferimenti" style="margin-top:10px;padding-top:10px;border-top:1px solid #eef3f8;">
         <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Riferimenti / codici di approvazione</div>
-        {% if processo.sezione_dedicata and not riferimenti %}<div class="mpq-avviso-rif" style="margin:0 0 8px;padding:8px 12px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:13px;">La sezione dedicata {{ processo.sezione_sigla }} non ha documenti di riferimento: tra i documenti mostra solo il MOD.128.{% if can_manage %} Aggiungi qui sotto procedure, moduli e approvazioni del cliente (es. istruzione tecnica, MOD.161, MOD.176).{% endif %}</div>{% endif %}
         {% for rif in riferimenti %}
           <span class="fmd-badge fmd-b-violet" title="{{ rif.get_tipo_display }}">{{ rif.codice }}{% if can_manage %}
             <form method="post" action="{% url 'anagrafica:mpq_riferimento_delete' rif.id %}" style="display:inline;" data-hub-confirm="Rimuovere il riferimento {{ rif.codice }}?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 4px;font:inherit;">×</button></form>

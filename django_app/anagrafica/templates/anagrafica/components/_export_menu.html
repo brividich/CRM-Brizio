@@ -1,6 +1,7 @@
 {% comment %}
 Menu di export "Esporta ▾" per le liste di anagrafica (Excel/PDF, filtrato o tutto).
 Uso: {% include "anagrafica/components/_export_menu.html" with export_key="mansioni" %}
+Facoltativo export_query="processo=12": parametri sempre aggiunti (anche a «tutto»), per le liste di un oggetto.
 Richiede che la pagina includa già anagrafica/components/_fm_icons.html (per #i-download)
 e che sia servita dall'endpoint unico anagrafica:export (django_app/anagrafica/exports.py).
 Il link "risultati filtrati" propaga la querystring corrente della pagina
@@ -14,10 +15,10 @@ quindi il separatore "&" arriva gia' come "&amp;" nell'HTML prodotto.
     <svg class="fmd-ico"><use href="#i-download"/></svg>Esporta
   </summary>
   <div class="fmd-export-menu" role="menu">
-    <a role="menuitem" href="{{ fmd_export_base_url }}?format=xlsx&amp;scope=filtered{% if request.GET.urlencode %}&amp;{{ request.GET.urlencode }}{% endif %}">Excel — risultati filtrati</a>
-    <a role="menuitem" href="{{ fmd_export_base_url }}?format=xlsx&amp;scope=full">Excel — tutto</a>
-    <a role="menuitem" href="{{ fmd_export_base_url }}?format=pdf&amp;scope=filtered{% if request.GET.urlencode %}&amp;{{ request.GET.urlencode }}{% endif %}">PDF — risultati filtrati</a>
-    <a role="menuitem" href="{{ fmd_export_base_url }}?format=pdf&amp;scope=full">PDF — tutto</a>
+    <a role="menuitem" href="{{ fmd_export_base_url }}?format=xlsx&amp;scope=filtered{% if export_query %}&amp;{{ export_query }}{% endif %}{% if request.GET.urlencode %}&amp;{{ request.GET.urlencode }}{% endif %}">Excel — risultati filtrati</a>
+    <a role="menuitem" href="{{ fmd_export_base_url }}?format=xlsx&amp;scope=full{% if export_query %}&amp;{{ export_query }}{% endif %}">Excel — tutto</a>
+    <a role="menuitem" href="{{ fmd_export_base_url }}?format=pdf&amp;scope=filtered{% if export_query %}&amp;{{ export_query }}{% endif %}{% if request.GET.urlencode %}&amp;{{ request.GET.urlencode }}{% endif %}">PDF — risultati filtrati</a>
+    <a role="menuitem" href="{{ fmd_export_base_url }}?format=pdf&amp;scope=full{% if export_query %}&amp;{{ export_query }}{% endif %}">PDF — tutto</a>
   </div>
 </details>
 {# Chiusura al click fuori: registrato una volta sola anche se la pagina include piu' menu. #}

@@ -71,14 +71,20 @@ def _sicuro(avvisi: list, cosa: str, funzione, predefinito):
         return predefinito
 
 
-def costruisci(sigla: str, *, oggi=None, con_personale: bool = True, ordine=None, giorni: int = GIORNI_SCADENZE) -> dict:
-    """Tutta la pagina. Il personale (dati MOD.128) solo con il permesso sui processi qualificati."""
+def costruisci(sigla: str, *, oggi=None, con_personale: bool = True, ordine=None, giorni: int = GIORNI_SCADENZE,
+               processi_qs=None, titolo: str = "") -> dict:
+    """Tutta la pagina. Il personale (dati MOD.128) solo con il permesso sui processi qualificati.
+
+    ``processi_qs`` al posto della sigla: lo stesso dossier per un processo qualsiasi (export dalla
+    pagina del processo), con ``titolo`` come titolo.
+    """
     from anagrafica.models_mpq import AbilitazioneProcesso, RegistroUtensile, TechnicalPlanRevisione
 
     oggi = oggi or timezone.localdate()
     limite = oggi + timedelta(days=giorni)
     avvisi: list[str] = []
-    elenco = list(processi(sigla).select_related("cliente", "ente_certificatore").prefetch_related("riferimenti"))
+    base = processi(sigla) if processi_qs is None else processi_qs
+    elenco = list(base.select_related("cliente", "ente_certificatore").prefetch_related("riferimenti"))
 
     def apri(processo, ancora=""):
         if not con_personale:
@@ -424,8 +430,23 @@ def costruisci(sigla: str, *, oggi=None, con_personale: bool = True, ordine=None
                 "stato": "warn" if not persone or non_ok else ""}
         kpi.insert(2 if ordine == ORDINE_QUALIFICHE else len(kpi), voce)
     kpi = [k for k in kpi if k["sezione"] in per_codice]
-    titolo = titolo_sezione(sigla, elenco)
-    return {"oggi": oggi, "sigla": sigla, "titolo": titolo, "processi": elenco, "kpi": kpi, "sezioni": sezioni,
+    titolo = titolo or titolo_sezione(sigla, elenco)
+
+    # Configurazione: cosa manca ancora da inserire, processo per processo (solo con i dati MOD.128).
+    configurazione = []
+    if con_personale:
+        def _configurazione():
+            from anagrafica.services.mpq_configurazione import riepilogo
+
+            out = []
+            for p in elenco:
+                r = riepilogo(p, oggi=oggi, macchine=[rr for pp, rr in righe_macchine if pp.pk == p.pk])
+                if not r["completa"]:
+                    out.append(r)
+            return out
+
+        configurazione = _sicuro(avvisi, "Configurazione del processo", _configurazione, [])
+    return {"configurazione": configurazione,"oggi": oggi, "sigla": sigla, "titolo": titolo, "processi": elenco, "kpi": kpi, "sezioni": sezioni,
             "con_personale": con_personale, "avvisi": avvisi, "badge": BADGE,
             # Per gli export (stesse funzioni del Dossier PART 145).
             "titolo_export": titolo, "nome_file": f"sezione-{slugify(sigla)}-{oggi:%Y%m%d}",

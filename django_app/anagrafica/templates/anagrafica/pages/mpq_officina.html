@@ -1,0 +1,93 @@
+{% extends "core/base.html" %}
+{% load static %}
+{# MOD.176 in officina: registri utensili aperti, da tablet. Dati da views_mpq_utensili.mpq_officina. #}
+
+{% block title %}MOD.176 in officina | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+.off-cerca { display:flex; gap:10px; margin:0 0 16px; }
+.off-cerca input { flex:1; min-width:0; font-size:20px; padding:14px 16px; border:2px solid #cbd5e1; border-radius:12px; }
+.off-cerca button { font-size:18px; padding:0 22px; border-radius:12px; }
+.off-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:14px; }
+.off-card { background:#fff; border:1px solid #dbe1ea; border-radius:14px; padding:16px; display:grid; gap:10px; }
+.off-card.tcp { border:2px solid #dc2626; }
+.off-kit { font-size:22px; font-weight:800; margin:0; }
+.off-sub { color:#64748b; font-size:14px; }
+.off-barra { height:14px; background:#e2e8f0; border-radius:999px; overflow:hidden; }
+.off-barra span { display:block; height:100%; background:#16a34a; }
+.off-barra span.warn { background:#f59e0b; }
+.off-barra span.ko { background:#dc2626; }
+.off-uso { font-size:16px; font-weight:700; }
+.off-form { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.off-form label { display:grid; gap:3px; font-size:13px; color:#475569; }
+.off-form input { font-size:18px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; min-width:0; }
+.off-form .off-q input { font-size:24px; font-weight:800; text-align:center; }
+.off-form button { grid-column:1 / -1; font-size:20px; padding:14px; border-radius:12px; border:0; background:#1d4ed8; color:#fff; font-weight:800; cursor:pointer; }
+.off-err { grid-column:1 / -1; color:#b91c1c; font-size:14px; }
+.off-tcp { background:#fef2f2; color:#991b1b; border-radius:10px; padding:10px 12px; font-weight:700; }
+body.theme-dark .off-card { background:var(--surface,#1e293b); border-color:var(--border,#334155); }
+body.theme-dark .off-cerca input, body.theme-dark .off-form input { background:var(--surface,#0f172a); color:var(--text,#e2e8f0); border-color:#475569; }
+body.theme-dark .off-tcp { background:rgba(220,38,38,.15); color:#fca5a5; }
+@media (max-width: 480px) { .off-grid { grid-template-columns:1fr; } .off-form { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <div class="fmd-pagehead">
+      <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-gear"/></svg>MOD.176 in officina</h1>
+    </div>
+    <form method="get" class="off-cerca" role="search">
+      <input type="search" name="q" value="{{ cerca }}" placeholder="Kit, utensile o P/N…" aria-label="Cerca kit, utensile o P/N" autocomplete="off">
+      <button type="submit" class="fmd-btn fmd-btn-primary">Cerca</button>
+    </form>
+    {% if not can_manage %}<p class="fmd-muted">Puoi vedere i registri; per registrare le parti serve il permesso «Processi qualificati MOD.128 - Gestisci».</p>{% endif %}
+
+    {% if schede %}
+    <div class="off-grid">
+      {% for s in schede %}
+      <article class="off-card{% if s.reg.stato == 'TCP_RAGGIUNTO' %} tcp{% endif %}">
+        <div>
+          <p class="off-kit"><a href="{% url 'anagrafica:mpq_registro' s.reg.id %}" style="color:inherit;text-decoration:none;">{{ s.reg.identificativo }}</a></p>
+          <div class="off-sub">{{ s.reg.passo.revisione.plan.part_number }} · {{ s.reg.passo.revisione.plan.tipologia_foro }}{% if s.reg.passo.utensile %} · {{ s.reg.passo.utensile.codice }}{% endif %} · {{ s.reg.passo.revisione.plan.processo.nome }}</div>
+        </div>
+        {% if s.limite %}
+        <div class="off-barra" aria-hidden="true"><span class="{% if s.percentuale >= 100 %}ko{% elif s.percentuale >= 80 %}warn{% endif %}" style="width:{{ s.percentuale }}%;"></span></div>
+        <div class="off-uso">{{ s.usato }} / {{ s.limite }} {{ s.reg.passo.get_tcp_unita_display|lower }}{% if s.residuo is not None and s.residuo > 0 %} · ne mancano {{ s.residuo }}{% endif %}</div>
+        {% else %}
+        <div class="off-uso">{{ s.usato }} {{ s.reg.passo.get_tcp_unita_display|lower }} · nessun TCP nel Technical Plan</div>
+        {% endif %}
+        {% if s.reg.stato == 'TCP_RAGGIUNTO' %}
+        <div class="off-tcp">TCP raggiunto: cambia l'utensile e chiudi il registro (<a href="{% url 'anagrafica:mpq_registro' s.reg.id %}">apri il registro</a>).</div>
+        {% elif can_manage %}
+        <form method="post" class="off-form">
+          {% csrf_token %}
+          <input type="hidden" name="registro" value="{{ s.reg.id }}">
+          <input type="hidden" name="q" value="{{ cerca }}">
+          <input type="hidden" name="data" value="{{ oggi|date:'Y-m-d' }}">
+          {% if s.form.errors %}<div class="off-err">{% for f in s.form %}{% for e in f.errors %}{{ f.label }}: {{ e }} {% endfor %}{% endfor %}{{ s.form.non_field_errors }}</div>{% endif %}
+          <label>P/N<input name="part_number" value="{{ s.form.part_number.value|default_if_none:'' }}" required maxlength="80"></label>
+          <label class="off-q">Quantità<input name="quantita" type="number" min="1" inputmode="numeric" value="{{ s.form.quantita.value|default_if_none:'' }}" required></label>
+          <label>OP / commessa<input name="ordine_produzione" value="{{ s.form.ordine_produzione.value|default_if_none:'' }}" maxlength="60"></label>
+          <label>Matricola / seriale<input name="seriale" value="{{ s.form.seriale.value|default_if_none:'' }}" maxlength="80"></label>
+          <label>Operatore<input name="operatore" value="{{ s.form.operatore.value|default_if_none:'' }}" maxlength="120"></label>
+          <label>Note<input name="note" value="{{ s.form.note.value|default_if_none:'' }}" maxlength="255"></label>
+          <button type="submit">Registra</button>
+        </form>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="fmd-empty">{% if cerca %}Nessun registro aperto per «{{ cerca }}».{% else %}Nessun registro utensili aperto. Si apre dal passo del Technical Plan approvato («Apri MOD.176»).{% endif %}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

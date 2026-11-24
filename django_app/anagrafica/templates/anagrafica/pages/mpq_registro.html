@@ -57,7 +57,7 @@
     {% endif %}
 
     <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Parti lavorate <span class="fmd-count">{{ righe|length }}</span></div></div>
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Parti lavorate <span class="fmd-count">{{ righe|length }}</span></div><div class="fmd-block-aside">{% include "anagrafica/components/_export_menu.html" with export_key="mpq_registro_righe" export_query=export_query %}</div></div>
       {% if righe %}
       <table class="fmd-table" data-fm-table-skip="1">
         <thead><tr><th>Data</th><th>P/N</th><th>OP / commessa</th><th>Seriale</th><th>Quantità</th><th>Operatore</th><th>Note</th></tr></thead>

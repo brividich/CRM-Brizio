@@ -41,6 +41,12 @@
               <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>{{ v.etichetta }}
             </a>
             {% endfor %}
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_officina' %}" title="Registri utensili aperti: registra le parti lavorate dal tablet">
+              <svg class="fmd-ico"><use href="#i-gear"/></svg>MOD.176 in officina
+            </a>
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_guida_pdf' %}" title="Come configurare un processo qualificato, passo passo">
+              <svg class="fmd-ico"><use href="#i-download"/></svg>Guida PDF
+            </a>
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_matrice' %}">
               <svg class="fmd-ico"><use href="#i-grid"/></svg>Matrice persone × processi
             </a>
@@ -194,7 +200,7 @@
     <section class="fmd-panel fmd-block" id="registro-processi" style="scroll-margin-top:90px;">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Registro processi qualificati{% if filtro_label %} <span class="fmd-count">{{ processi|length }}</span>{% endif %}</div>
-        <div class="fmd-block-aside">{% if filtro_label %}{{ filtro_label }} · <a class="fmd-data-link" href="{% url 'anagrafica:mpq_cruscotto' %}#registro-processi">mostra tutti</a>{% else %}La "vista MOD.128" completa (export dedicato in arrivo){% endif %}</div>
+        <div class="fmd-block-aside">{% if filtro_label %}{{ filtro_label }} · <a class="fmd-data-link" href="{% url 'anagrafica:mpq_cruscotto' %}#registro-processi">mostra tutti</a>{% else %}La "vista MOD.128" completa{% endif %} {% include "anagrafica/components/_export_menu.html" with export_key="mpq_processi" %}</div>
       </div>
       {% if processi %}
       <div class="fmd-tablewrap" style="margin:0 -22px;">

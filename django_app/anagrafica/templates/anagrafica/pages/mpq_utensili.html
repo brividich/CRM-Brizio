@@ -15,6 +15,11 @@
 <div class="fmd">
   <div class="fmd-wrap">
     <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;"><a href="{% url 'anagrafica:mpq_processo_detail' processo.id %}">← {{ processo.nome }}</a> · {{ processo.cliente.nome }}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px;">
+      <a class="fmd-btn fmd-btn-ghost fmd-btn-sm" href="{% url 'anagrafica:mpq_officina' %}" title="Registra le parti lavorate dal tablet">MOD.176 in officina</a>
+      <a class="fmd-btn fmd-btn-ghost fmd-btn-sm" href="{% url 'anagrafica:mpq_processo_export' processo.id 'pdf' %}"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica PDF</a>
+      <a class="fmd-btn fmd-btn-ghost fmd-btn-sm" href="{% url 'anagrafica:mpq_processo_export' processo.id 'xlsx' %}"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica Excel</a>
+    </div>
 
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">

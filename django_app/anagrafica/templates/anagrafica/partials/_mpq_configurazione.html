@@ -1,0 +1,44 @@
+{% comment %}
+Riquadro «Configurazione» di un processo qualificato (MOD.128): voci da anagrafica/services/mpq_configurazione.py.
+Uso: include con cfg=<riepilogo> e, facoltativo, con_nome=1 (titolo con il nome del processo, per le sezioni dedicate).
+Stili propri (mpqc-*): serve sia nelle pagine di anagrafica sia nella pagina Asset.
+{% endcomment %}
+<section class="mpqc" aria-label="Configurazione del processo">
+  <div class="mpqc-head">
+    <strong>{% if con_nome %}Da completare: <a href="{% url 'anagrafica:mpq_processo_detail' cfg.processo.pk %}">{{ cfg.processo.nome }}</a>{% else %}Configurazione del processo{% endif %}</strong>
+    <span class="mpqc-conta">{{ cfg.fatte }} di {{ cfg.totale }} fatti</span>
+    <a class="mpqc-guida" href="{% url 'anagrafica:mpq_guida_pdf' %}">Guida passo passo (PDF)</a>
+  </div>
+  <ul class="mpqc-voci">
+    {% for v in cfg.voci %}
+    <li class="{% if v.ok %}mpqc-ok{% else %}mpqc-ko{% endif %}">
+      <span class="mpqc-segno" aria-hidden="true">{% if v.ok %}&#10003;{% else %}&#10007;{% endif %}</span>
+      <span class="mpqc-testo"><b>{{ v.etichetta }}</b> <small>{{ v.dettaglio }}</small></span>
+      {% if not v.ok %}<a class="mpqc-azione" href="{{ v.url }}">{{ v.azione }} &rarr;</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% if not mpqc_stile_incluso %}
+<style>
+.mpqc { border:1px solid #fde68a; background:#fffbeb; border-radius:12px; padding:12px 16px; margin:0 0 16px; }
+.mpqc-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; margin-bottom:8px; color:#78350f; }
+.mpqc-head a { color:inherit; }
+.mpqc-conta { font-size:12px; font-weight:700; background:#fef3c7; border-radius:999px; padding:2px 8px; }
+.mpqc-guida { margin-left:auto; font-size:13px; }
+.mpqc-voci { list-style:none; margin:0; padding:0; display:grid; gap:4px; }
+.mpqc-voci li { display:flex; align-items:center; gap:10px; padding:5px 8px; border-radius:8px; background:rgba(255,255,255,.6); }
+.mpqc-segno { width:20px; text-align:center; font-weight:700; }
+.mpqc-ok .mpqc-segno { color:#15803d; }
+.mpqc-ko .mpqc-segno { color:#b91c1c; }
+.mpqc-testo { flex:1; min-width:0; }
+.mpqc-testo small { color:#64748b; margin-left:4px; }
+.mpqc-azione { white-space:nowrap; font-weight:700; font-size:13px; color:#1d4ed8; text-decoration:none; }
+body.theme-dark .mpqc { background:rgba(245,158,11,.08); border-color:rgba(245,158,11,.35); }
+body.theme-dark .mpqc-head { color:#fcd34d; }
+body.theme-dark .mpqc-conta { background:rgba(245,158,11,.18); }
+body.theme-dark .mpqc-voci li { background:rgba(255,255,255,.03); }
+body.theme-dark .mpqc-azione { color:#93c5fd; }
+@media (max-width: 640px) { .mpqc-voci li { flex-wrap:wrap; } .mpqc-guida { margin-left:0; } }
+</style>
+{% endif %}
