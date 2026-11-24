@@ -309,9 +309,10 @@ def responsabili_proposti(nc) -> list[dict]:
     try:
         from .mail_action_service import _resolve_op_cc_car_legacy_ids
 
-        ruoli = {v: k for k, v in (("CC", nc.capocommessa), ("CAR", nc.car)) if v}
+        # Ruolo per chiave di persona: l'OP e l'anagrafica scrivono il nome in ordini diversi.
+        ruoli = {naming.chiave_persona(v): k for k, v in (("CC", nc.capocommessa), ("CAR", nc.car)) if v}
         for uid, display in _resolve_op_cc_car_legacy_ids(nc.op_titolo):
-            etichetta = ruoli.get(display, "")
+            etichetta = ruoli.get(naming.chiave_persona(display), "")
             out.append({"id": uid, "nome": naming.normalizza_parte(display), "ruolo": etichetta or "OP"})
             visti.add(uid)
     except Exception:

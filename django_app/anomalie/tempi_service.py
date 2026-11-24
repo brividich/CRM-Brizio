@@ -304,10 +304,19 @@ def riepilogo(tempi: dict[int, dict], *, gruppi: dict[int, str] | None = None) -
     }
     per_gruppo = []
     if gruppi:
+        from core.naming import chiave_persona
+
+        # Stessa persona in un gruppo solo anche se gli OP la scrivono in ordini
+        # diversi («Mario Rossi» / «ROSSI MARIO»): si raggruppa per chiave e si
+        # mostra il primo nominativo incontrato.
         nomi: dict[str, list[int]] = {}
+        etichetta: dict[str, str] = {}
         for aid, nome in gruppi.items():
             if aid in tempi:
-                nomi.setdefault(nome or "—", []).append(aid)
+                chiave = chiave_persona(nome) or "—"
+                etichetta.setdefault(chiave, nome or "—")
+                nomi.setdefault(chiave, []).append(aid)
+        nomi = {etichetta[k]: v for k, v in nomi.items()}
         for nome, ids in sorted(nomi.items(), key=lambda kv: (-len(kv[1]), kv[0])):
             riga = {"nome": nome, "anomalie": len(ids)}
             for chiave in ("risposta", "risoluzione"):

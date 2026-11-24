@@ -142,6 +142,10 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Chi è capocommessa e chi riceve le mail si decide con i ruoli del modulo e in Anagrafica.",
+                    "I nominativi (capi commessa, capi reparto, referenti, persone aggiunte o escluse, CAR scelti) sono "
+                    "nel formato COGNOME NOME, come nel resto del portale. Per il modulo un nome scritto in un altro "
+                    "ordine è la stessa persona: «Mario Rossi» aggiunto a mano o arrivato da un OP vale come «ROSSI MARIO» "
+                    "(esclusioni, «In carico a me», mail «Segnala a CAR» senza doppioni).",
                     "«Campi del blocco del controllore» (Configurazione, in cima): per ogni parte nuova di Apertura "
                     "segnalazione «Visibile: Sempre / Mai / Solo se…» con gruppi di controllori («Chi fa cosa»: CMM, visivo…), "
                     "persone, ruoli operativi, parole della fase "

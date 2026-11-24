@@ -711,11 +711,15 @@ def separa_car_scelti(raw) -> list[str]:
         voci = [str(v or "") for v in raw]
     else:
         voci = re.split(r"[;,\n]+", str(raw or ""))
+    from core.naming import chiave_persona
+
+    # Doppioni anche in ordine diverso («Mario Rossi» = «ROSSI MARIO»).
     out, visti = [], set()
     for v in voci:
         nome = " ".join(v.split())[:120]
-        if nome and nome.lower() not in visti:
-            visti.add(nome.lower())
+        chiave = chiave_persona(nome)
+        if nome and chiave not in visti:
+            visti.add(chiave)
             out.append(nome)
     return out[:10]
 
