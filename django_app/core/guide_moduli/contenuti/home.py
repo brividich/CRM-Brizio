@@ -378,6 +378,13 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "«Il tuo brief di oggi» riporta dati di stamattina presto",
+            "perche": "per chi lo usa abitualmente (aperto negli ultimi 14 giorni) il brief si prepara alle 6:10, così alla prima apertura non si aspetta l'assistente AI: riflette le attività e le scadenze di quell'ora.",
+            "fare": [
+                "Premi ↻ sul riquadro per rigenerarlo con i dati di adesso.",
+            ],
+        },
+        {
             "sintomo": "«Le mie attività» compare un attimo dopo il resto della home",
             "perche": "per aprire subito la pagina il riquadro si carica appena dopo: mentre arriva vedi «Carico le tue attività…», poi compaiono le voci e il numero sulla linguetta «Oggi». I documenti della bacheca si aggiornano entro 5 minuti dalla modifica (subito se cambiano documenti o categorie); i numeri delle tessere entro 90 secondi.",
             "fare": [

@@ -32,6 +32,30 @@ def run_warmup_ollama(timeout: int | None = None) -> dict:
         return {"ok": False, "skipped": False, "loaded": False, "message": "errore inatteso"}
 
 
+def run_daily_brief_notturno() -> dict:
+    """Prepara all'alba il riepilogo AI del giorno per chi lo usa (``daily_brief_notturno``).
+
+    **Fail-safe**: non solleva; con Ollama giù i brief restano da generare alla prima apertura.
+    """
+    from django.conf import settings
+    from django.core.cache import cache
+
+    from ai_assistant.daily_brief_notturno import pregenera
+
+    if not bool(getattr(settings, "OLLAMA_DAILY_BRIEF_NOTTURNO", True)):
+        return {"ok": True, "skipped": True, "message": "Brief notturno disattivato."}
+    lock_key = "ai_assistant:daily_brief_notturno:lock"
+    if not cache.add(lock_key, "1", 3700):
+        return {"ok": True, "skipped": True, "message": "Brief notturno gia' in corso."}
+    try:
+        return {"ok": True, **pregenera()}
+    except Exception:
+        logger.exception("run_daily_brief_notturno: errore inatteso")
+        return {"ok": False, "message": "errore inatteso"}
+    finally:
+        cache.delete(lock_key)
+
+
 # Poco oltre il timeout dedicato dello schedule (900 s): un lock orfano scade da solo.
 _INDEX_SGI_LOCK_SECONDS = 960
 

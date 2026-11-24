@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Assistente AI: «Il tuo brief di oggi» pronto all'alba
+
+- **Brief preparato alle 6:10 dal cluster** per chi lo ha aperto negli ultimi 14 giorni (`ai_assistant/daily_brief_notturno.py`, task `ai_assistant.tasks.run_daily_brief_notturno`, schedule `ai_daily_brief_notturno`). Prima si generava alla prima apertura della home: 20-25 s di Ollama a persona, ogni mattina. Usa gli stessi dati e permessi della persona e va nella stessa cache della pagina. Chi non è in elenco lo genera come prima; ↻ lo rigenera con i dati di adesso.
+- La generazione è uscita dalla view in `genera_daily_brief` e `daily_brief_cache_key` (`ai_assistant/views.py`).
+- Impostazioni: `OLLAMA_DAILY_BRIEF_NOTTURNO` (0 = spento), `OLLAMA_DAILY_BRIEF_NOTTURNO_GIORNI` (14), `OLLAMA_DAILY_BRIEF_NOTTURNO_MAX` (150 persone).
+- In prod, il 24/11, sono 58 persone, circa 20-25 minuti di Ollama all'alba.
+- **Deploy:** riavviare qcluster, perché il nuovo schedule si registra con i flussi gestiti.
+- Guide: «? Guida» della home (`dashboard/guida.py`), Centro guide Home (`core/guide_moduli/contenuti/home.py`, «Problemi»). Test: `ai_assistant/tests_daily_brief_notturno.py`.
+
 ### Visite mediche «a richiesta»: nessuna scadenza, non sono un rinnovo
 
 - **Segnalazione:** circa 20 audiometrie risultavano scadute ma erano state fatte «a richiesta», quindi senza scadenza.
