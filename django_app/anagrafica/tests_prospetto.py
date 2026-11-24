@@ -329,6 +329,36 @@ class ApplicaTests(_Base):
         self.assertEqual(self.p.modifiche.filter(esito_ok=False).count(), 1)
 
 
+class FormazioneTests(_Base):
+    def test_competenze_gia_presenti_mancanti_e_mansione_senza(self):
+        from .models import AbilitazioneMacchina
+        from .services import mansionario_competenze as comp
+
+        disegno_f1 = comp.salva_competenza(self.m1, nome="Lettura disegno", livello_minimo="L")
+        comp.registra_livelli(AbilitazioneMacchina.objects.get(competenza=self.m1, legacy_anagrafica_id=self.rossi),
+                              {disegno_f1.pk: "U"})
+        comp.salva_competenza(self.m2, nome="Lettura disegno", livello_minimo="L")
+        comp.salva_competenza(self.m2, nome="Taglio laser", livello_minimo="U", bloccante=True)
+        self.riga(M.PERSONA_MANSIONE, self.rossi, self.m2.pk, modo=M.ENTRA, livello="U")
+        self.riga(M.PERSONA_MANSIONE, self.bianchi, self.m3.pk, modo=M.ENTRA, livello="U")
+        ctx = self.ctx(requisiti=False)
+        per = {(f["persona_id"], f["mansione_id"]): f for f in ctx["formazione"]}
+        rossi = per[(self.rossi, self.m2.pk)]
+        stati = {c["nome"]: c for c in rossi["competenze"]}
+        self.assertEqual(stati["Lettura disegno"]["stato"], "presente")
+        self.assertEqual(stati["Lettura disegno"]["altrove"], "Fresa F1")
+        self.assertEqual(stati["Taglio laser"]["stato"], "bloccante")
+        self.assertEqual((rossi["esito"], rossi["sessione_da_aprire"]), (svc.FORM_NON_ABILITATO, True))
+        self.assertEqual(per[(self.bianchi, self.m3.pk)]["esito"], svc.FORM_SENZA)
+        tot = ctx["formazione_totali"]
+        self.assertEqual((tot["da_acquisire"], tot["presenti"], tot["sessioni"], tot["non_abilitati"], tot["senza_competenze"]),
+                         (1, 1, 1, 1, 1))
+        r = self.client.get(reverse("anagrafica:prospetto", args=[self.p.pk]))
+        for testo in ("Competenze e formazione", "Sessione da aprire", "valutata in Fresa F1", "Definisci le competenze"):
+            self.assertContains(r, testo)
+        self.assertNotContains(r, "{#")
+
+
 class PagineTests(_Base):
     def url(self):
         return reverse("anagrafica:prospetto", args=[self.p.pk])

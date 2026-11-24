@@ -114,7 +114,11 @@ def _scelte(base) -> dict:
     d = base.dati
     per_area: dict = {}
     for pid in d.in_forza:
-        per_area.setdefault(d.area_di.get(pid), []).append({"id": pid, "nome": base.nome_persona(pid)})
+        ruoli = sorted(base.nome_ruolo(r) for r in base.stato.ruoli_di.get(pid, set()))
+        n = len(base.stato.abil.get(pid) or {})
+        info = " · ".join(x for x in (", ".join(ruoli[:2]) + ("…" if len(ruoli) > 2 else ""),
+                                      f"{n} mansion{'e' if n == 1 else 'i'}") if x)
+        per_area.setdefault(d.area_di.get(pid), []).append({"id": pid, "nome": base.nome_persona(pid), "info": info})
     gruppi = [{"nome": base.nome_area(a), "persone": sorted(v, key=lambda x: x["nome"].casefold())}
               for a, v in sorted(per_area.items(), key=lambda kv: (kv[0] is None, base.nome_area(kv[0]).casefold()))]
     return {
