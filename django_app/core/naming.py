@@ -57,6 +57,14 @@ def chiave_testo(valore: str | None) -> str:
     return " ".join(testo.split()).upper()
 
 
+def chiave_persona(valore: str | None) -> str:
+    """Chiave di confronto di un nominativo che non dipende dall'ordine delle parole:
+    «Mario Rossi», «ROSSI MARIO» e «rossi  mario» danno la stessa chiave
+    (parole di :func:`chiave_testo` in ordine alfabetico). Vale anche con i cognomi
+    composti («DE LUCA MARIO» = «Mario De Luca»)."""
+    return " ".join(sorted(chiave_testo(valore).split()))
+
+
 def q_persona(testo: str | None, *campi: str):
     """Filtro di RICERCA di una persona da testo libero, in qualunque ordine.
 

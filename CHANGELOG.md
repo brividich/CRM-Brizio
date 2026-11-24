@@ -16,6 +16,20 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - Dashboard Visite mediche: spunta sulle righe scadute/in scadenza e pulsante «Segna come a richiesta» per sistemarle in blocco (`views/visite.py` `visite_mediche_segna_a_richiesta`, `urls.py`, `visite_mediche_dashboard.html`), con audit `VISITA_MEDICA_A_RICHIESTA`.
 - Guida: Centro guide Anagrafica, sezione «Visite a richiesta» (`core/guide_moduli/contenuti/anagrafica.py`); scheda `docs/moduli/anagrafica.md`. Test `anagrafica/tests_visite_a_richiesta.py`.
 
+### Anomalie: nominativi in COGNOME NOME e confronti che non dipendono dall'ordine (24/11)
+
+- **Formato unico:** capi commessa e capi reparto (dall'anagrafica e dai ruoli operativi), elenco persone della Configurazione e CAR proposti sono ora «COGNOME NOME» (`anomalie/views.py::_label_from_anagrafica_row` usa `core.naming.nome_completo`).
+- **Confronti per persona, non per testo** (`core.naming.chiave_persona`: stesse parole in qualunque ordine, senza maiuscole e accenti, anche con cognomi composti): aggiunti/esclusi delle liste capi, «Segnala a CAR» dalla pagina e dal link mail (niente seconda mail se il CAR salvato era scritto in un altro ordine), opzioni CAR e capocommessa senza doppioni, KPI per capocommessa (una riga per persona), etichetta CC/CAR del responsabile NC, nomi dell'utente collegato in entrambi gli ordini. Gestione anomalie (React): «In carico a me», chip dei CAR e autorizzati alla modifica ora riconoscono la persona anche in un altro ordine (prima i nomi dal server, in maiuscolo, non coincidevano mai).
+- **Mail e notifiche per nominativo** (`find_legacy_user_by_name`): trova l'utente anche con cognomi composti («DE LUCA MARIO» = «Mario De Luca»); prima l'inversione per posizione li perdeva.
+- **Valori salvati convertiti** dalla migrazione `anomalie 0034` (solo dati, nessuno schema): elenchi di persone del JSON di Configurazione e CAR segnalati sulle schede qualità, solo se il nominativo corrisponde a una persona dell'anagrafica (omonimi e testi liberi restano come sono). I dati degli OP che arrivano dal gestionale non si toccano.
+- File: `core/naming.py`, `anomalie/views.py`, `anomalie/automazioni_service.py`, `anomalie/mail_action_views.py`, `anomalie/mail_action_service.py`, `anomalie/nc_service.py`, `anomalie/tempi_service.py`, `anomalie/nominativi.py` (nuovo), `anomalie/migrations/0034_nominativi_cognome_nome.py`, `anomalie/static/anomalie/js/src/gestione_anomalie.jsx` e `apertura_segnalazione.jsx` con i bundle ricompilati, Centro guide `core/guide_moduli/contenuti/anomalie.py`, `docs/moduli/anomalie.md`, test `anomalie/tests_nominativi_cognome_nome.py`. Deploy: `migrate anomalie` + `collectstatic`.
+
+### Tendine: «Ordina: Come arriva · A→Z · Z→A» dentro la lista (24/11)
+
+- Nelle tendine con almeno 6 voci, in cima alla lista, la barra «Ordina» con tre scelte: l'ordine della pagina, alfabetico, alfabetico inverso. La scelta si ricorda per quella tendina di quella pagina; la voce vuota resta in cima e mentre si cerca vale prima la pertinenza. Esclusione con `data-no-ordina`.
+- Centro guide: nuova sezione «Tendine: cercare scrivendo e ordinare» (con la regola delle tendine di persone).
+- File: `core/static/core/js/tomselect-init.js` (v11), `core/static/core/css/components.css`, `core/templates/core/base.html`, `core/guide_moduli/contenuti/home.py`, `docs/moduli/core.md`. Dopo il deploy: `collectstatic`.
+
 ### Fix: import Excel della Struttura e delle assegnazioni non dà più «HTTP ERROR 405»
 
 - `anagrafica/views_struttura.py`: ricaricare la pagina dell'anteprima (F5, «Indietro», link) apriva in GET un indirizzo che accetta solo l'invio del modulo e il browser mostrava «HTTP ERROR 405». Ora si torna alla sezione d'import (Mansionario → Struttura → Importa; Ruoli in blocco → Da Excel), dove si ricarica il file. Nessun dato era salvato dalla prova.

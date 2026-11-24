@@ -93,10 +93,13 @@ const dedupeChoices = values => {
   });
   return out;
 };
-const normalizeIdentity = value => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+
+// Chiave di una persona che non dipende da ordine, maiuscole e accenti: «Mario Rossi»,
+// «ROSSI MARIO» e «Rossi  Màrio» coincidono (come core.naming.chiave_persona lato server).
+const normalizeIdentity = value => String(value || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[’‘´`]/g, "'").trim().toLowerCase().split(/\s+/).filter(Boolean).sort().join(" ");
 const splitPeopleTokens = rawValue => String(rawValue || "").split(/[,\n;|]+/).map(part => String(part || "").trim().replace(/^["'\[\]()]+|["'\[\]()]+$/g, "")).filter(Boolean);
 const USER_NAME_NORM = normalizeIdentity(CURRENT_USER_NAME);
-const USER_NAME_NORMS = new Set([USER_NAME_NORM, ...CURRENT_USER_NAME_NORMS].filter(Boolean));
+const USER_NAME_NORMS = new Set([USER_NAME_NORM, ...CURRENT_USER_NAME_NORMS.map(normalizeIdentity)].filter(Boolean));
 const EDIT_NAME_WHITELIST_SET = new Set(EDIT_NAME_WHITELIST.map(name => normalizeIdentity(name)));
 const accessAtLeast = (level, minimum) => (ACCESS_ORDER[String(level || "NONE")] || 0) >= (ACCESS_ORDER[String(minimum || "NONE")] || 0);
 const peopleMatchCurrentUser = rawPeople => {
@@ -113,7 +116,7 @@ const INITIAL_OP = normalizeChoice(QUERY_PARAMS.get("op")).toLowerCase();
 const canUserEditOp = (opCapocommessa, opCar) => {
   if (IS_ADMIN) return true;
   if (ACCESS_CONTEXT.can_edit_all) return true;
-  if (USER_NAME_NORM && EDIT_NAME_WHITELIST_SET.has(USER_NAME_NORM)) return true;
+  if ([...USER_NAME_NORMS].some(n => EDIT_NAME_WHITELIST_SET.has(n))) return true;
   const roleChecks = [["CC", opCapocommessa], ["CAR", opCar]];
   const globalLevel = String(ACCESS_CONTEXT.global_level || "NONE");
   if (accessAtLeast(globalLevel, "EDIT_ASSIGNED") && roleChecks.some(([, rawPeople]) => peopleMatchCurrentUser(rawPeople))) {
@@ -2383,8 +2386,8 @@ function GestioneAnomalie() {
     const out = [];
     [...carDellOp, ...(Array.isArray(CONFIG_LISTS.capi_reparto) ? CONFIG_LISTS.capi_reparto : []), ...carScelti].forEach(n => {
       const nome = String(n || "").trim();
-      if (nome && !visti.has(nome.toLowerCase())) {
-        visti.add(nome.toLowerCase());
+      if (nome && !visti.has(normalizeIdentity(nome))) {
+        visti.add(normalizeIdentity(nome));
         out.push(nome);
       }
     });
@@ -2393,8 +2396,9 @@ function GestioneAnomalie() {
   // Nessun CAR scelto di serie: il CAR dell'OP riceve già il riepilogo delle modifiche,
   // la mail «Segnala a CAR» va solo a chi scegli tu.
   const toggleSegnalaCar = () => setSegnalaCar(!segnalaCar);
-  const isCarDellOp = nome => carDellOp.some(n => n.toLowerCase() === String(nome).toLowerCase());
-  const toggleCarScelto = nome => setCarScelti(prev => prev.some(n => n.toLowerCase() === nome.toLowerCase()) ? prev.filter(n => n.toLowerCase() !== nome.toLowerCase()) : [...prev, nome]);
+  const stessaPersona = (a, b) => normalizeIdentity(a) === normalizeIdentity(b);
+  const isCarDellOp = nome => carDellOp.some(n => stessaPersona(n, nome));
+  const toggleCarScelto = nome => setCarScelti(prev => prev.some(n => stessaPersona(n, nome)) ? prev.filter(n => !stessaPersona(n, nome)) : [...prev, nome]);
 
   // Preselezione da ?op= (promemoria in dashboard, mail).
   const initialOpApplied = useRef(false);
@@ -4870,7 +4874,7 @@ function GestioneAnomalie() {
     className: "ga-chips"
   }, carOpzioni.map(nome => /*#__PURE__*/React.createElement(Chip, {
     key: nome,
-    active: carScelti.some(n => n.toLowerCase() === nome.toLowerCase()),
+    active: carScelti.some(n => stessaPersona(n, nome)),
     onClick: () => canEditSelected && toggleCarScelto(nome)
   }, nome, isCarDellOp(nome) ? " · CAR dell'OP" : ""))), /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"

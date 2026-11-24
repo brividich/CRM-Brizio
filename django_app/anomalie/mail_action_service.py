@@ -1158,16 +1158,22 @@ def find_legacy_user_by_name(name: str):
     primo "Rossi" qualunque).
     """
     from core.legacy_models import UtenteLegacy
+    from core.naming import chiave_persona
 
     tokens = str(name or "").split()
     if not tokens:
         return None
     full = " ".join(tokens)
     if len(tokens) >= 2:
-        reversed_full = " ".join(tokens[1:] + tokens[:1])
-        qs = UtenteLegacy.objects.filter(nome__iexact=full) | UtenteLegacy.objects.filter(nome__iexact=reversed_full)
-    else:
-        qs = UtenteLegacy.objects.filter(nome__iexact=full) | UtenteLegacy.objects.filter(nome__iendswith=f" {full}")
+        # Stesse parole in qualunque ordine, anche con cognomi composti
+        # («DE LUCA MARIO» = «Mario De Luca»): candidati che contengono la parola
+        # più lunga, poi confronto per chiave di persona (spazi, maiuscole e accenti).
+        chiave = chiave_persona(full)
+        perno = max(tokens, key=len)
+        candidati = UtenteLegacy.objects.filter(nome__icontains=perno).only("id", "nome")[:200]
+        matches = [u for u in candidati if chiave_persona(u.nome) == chiave][:2]
+        return matches[0] if len(matches) == 1 else None
+    qs = UtenteLegacy.objects.filter(nome__iexact=full) | UtenteLegacy.objects.filter(nome__iendswith=f" {full}")
     matches = list(qs.distinct()[:2])
     return matches[0] if len(matches) == 1 else None
 

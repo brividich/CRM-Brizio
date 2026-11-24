@@ -1104,16 +1104,15 @@ def _default_anomalie_lists() -> dict[str, list[str]]:
 
 
 def _label_from_anagrafica_row(row: dict) -> str:
-    """Compone l'etichetta dipendente ("Nome Cognome") da una riga anagrafica.
+    """Compone l'etichetta dipendente («COGNOME NOME», ``core.naming``) da una riga anagrafica.
 
     Usa la stessa fonte (``anagrafica_dipendenti``) e gli stessi id legacy
     impiegati da Anagrafica per popolare/risolvere ``caporeparto_legacy_id`` e
     ``ruolo_aziendale``, così le label coincidono con quelle mostrate nei
-    moduli HR.
+    moduli HR. Fino al 24/11/2026 era «Nome Cognome»: i confronti con i valori
+    salvati passano da ``naming.chiave_persona``, che non dipende dall'ordine.
     """
-    nome = str(row.get("nome") or "").strip()
-    cognome = str(row.get("cognome") or "").strip()
-    return " ".join(part for part in [nome, cognome] if part).strip()
+    return naming.nome_completo(row.get("nome"), row.get("cognome"))
 
 
 def _capireparto_from_anagrafica() -> list[str]:
@@ -1332,15 +1331,18 @@ def _resolve_derived_list(key: str, sources: dict[str, dict]) -> list[str]:
         base = _capicommessa_from_anagrafica()
     else:
         base = []
-    esclusi = {n.casefold() for n in (cfg.get("esclusi") or [])}
-    values = [n for n in base if n.casefold() not in esclusi]
-    seen = {n.casefold() for n in values}
+    # Confronti per chiave di persona: un escluso o un aggiunto salvato come
+    # «Mario Rossi» vale anche per «ROSSI MARIO» (formato delle liste dal 24/11/2026).
+    ch = naming.chiave_persona
+    esclusi = {ch(n) for n in (cfg.get("esclusi") or [])}
+    values = [n for n in base if ch(n) not in esclusi]
+    seen = {ch(n) for n in values}
     for extra in cfg.get("extra") or []:
-        if extra.casefold() in esclusi or extra.casefold() in seen:
+        if ch(extra) in esclusi or ch(extra) in seen:
             continue
         values.append(extra)
-        seen.add(extra.casefold())
-    return sorted(values, key=lambda n: n.casefold())
+        seen.add(ch(extra))
+    return sorted(values, key=naming.chiave_testo)
 
 
 def _apply_derived_anomalie_lists(data: dict[str, list[str]]) -> None:
@@ -1672,9 +1674,10 @@ def _calcola_user_name_norms(legacy_user) -> set[str]:
             if ana:
                 if ana.nome:
                     names.add(_normalize_identity_text(ana.nome))
-                full_name = f"{ana.cognome or ''} {ana.nome or ''}".strip()
-                if full_name:
-                    names.add(_normalize_identity_text(full_name))
+                # Entrambi gli ordini: gli OP e le liste salvate usano l'uno o l'altro.
+                for full_name in (f"{ana.cognome or ''} {ana.nome or ''}", f"{ana.nome or ''} {ana.cognome or ''}"):
+                    if full_name.strip():
+                        names.add(_normalize_identity_text(full_name))
         except Exception:
             # Fail-open solo sul fallback legacy_user.nome già presente in names.
             logger.exception("_current_user_name_norms: errore ignorato")
@@ -2173,9 +2176,12 @@ def _salva_dove_pezzi_terzista(request, scheda, data: dict) -> None:
         segnala = bool(_as_bool_int(data.get("segnala_car")))
         scelti = separa_car_scelti(data.get("car_segnalati")) if segnala else []
         segnala = segnala and bool(scelti)
-        prima = {n.lower() for n in separa_car_scelti(scheda.car_segnalati)} if scheda.segnala_car else set()
-        # Mail solo ai CAR aggiunti ora: risalvare la stessa decisione non rimanda nulla.
-        da_avvisare = [n for n in scelti if n.lower() not in prima]
+        from core.naming import chiave_persona
+
+        prima = {chiave_persona(n) for n in separa_car_scelti(scheda.car_segnalati)} if scheda.segnala_car else set()
+        # Mail solo ai CAR aggiunti ora: risalvare la stessa decisione non rimanda nulla
+        # (anche se il nominativo salvato è in un altro ordine, es. «Mario Rossi» / «ROSSI MARIO»).
+        da_avvisare = [n for n in scelti if chiave_persona(n) not in prima]
         testo = "; ".join(scelti)[:500]
         if segnala != scheda.segnala_car or testo != scheda.car_segnalati:
             scheda.segnala_car = segnala
