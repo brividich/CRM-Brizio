@@ -204,6 +204,11 @@ SEZIONI: list[dict] = [
                 "tolleranza» / «Tutte le righe» cambia la vista; spunta o togli le righe (anche cliccando la riga) e premi "
                 "«Inserisci N anomalie»: ogni riga diventa un'anomalia con la sua misura, sul S/N scritto nel report "
                 "(aggiunto al blocco se manca). Se il report è di un altro ordine o di un altro P/N compare un avviso. Il PDF non viene allegato. "
+                "Le sezioni seguono i titoli del report; un titolo secondario sotto quello principale compare come "
+                "«Titolo › Sottotitolo». Gli angoli in gradi/primi/secondi diventano gradi decimali (24° 57' 32\" → 24.9589) e un "
+                "rilevato stampato in radianti viene riportato in gradi. La tolleranza inferiore vale col suo segno: "
+                "+0.034 / +0.025 è una zona tutta sopra il nominale. «da verificare» compare se l'esito calcolato non coincide "
+                "con l'eccedenza («+/-») segnata dal report. "
                 "Le anomalie inserite restano modificabili fino a «Salva blocco».",
                 "«📝 Da elenco» (sotto le anomalie del blocco): trascina un file di testo (.txt), sceglilo o incolla le righe; "
                 "ogni riga diventa un'anomalia (le righe vuote si saltano, trattini e numeri d'elenco in testa si tolgono). "
