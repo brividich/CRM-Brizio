@@ -1706,6 +1706,14 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                     {% else %}
                       <span class="chip-soft slate">Disattiva</span>
                     {% endif %}
+                    {% if item.folder.facoltativa %}<span class="chip-soft slate" title="Compare solo sugli asset dove viene aggiunta">Facoltativa</span>{% endif %}
+                    <form method="post" style="display:inline;">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="toggle_facoltativa_asset_category_document_folder">
+                      <input type="hidden" name="folder_id" value="{{ item.folder.id }}">
+                      <input type="hidden" name="cat_focus" value="{{ row.category.id }}">
+                      <button type="submit" class="btn btn-sm" style="border:1px solid #dbe3f0;" title="{% if item.folder.facoltativa %}Mostrala di nuovo su tutti gli asset della categoria{% else %}Mostrala solo sugli asset dove viene aggiunta dai Documenti{% endif %}">{% if item.folder.facoltativa %}Su tutti gli asset{% else %}Rendi facoltativa{% endif %}</button>
+                    </form>
                   </td>
                   <td>
                     <form method="post" style="display:inline;">

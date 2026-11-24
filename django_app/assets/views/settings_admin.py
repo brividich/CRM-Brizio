@@ -73,6 +73,7 @@ DOCUMENT_FOLDER_ACTIONS = {
     "create_asset_category_document_folder",
     "rename_asset_category_document_folder",
     "toggle_asset_category_document_folder",
+    "toggle_facoltativa_asset_category_document_folder",
     "update_asset_category_document_folder_order",
     "delete_asset_category_document_folder",
 }
@@ -314,6 +315,27 @@ def _handle_asset_document_folder_request(request: HttpRequest) -> tuple[bool, s
         )
         stato = "riattivata" if folder.is_active else "disattivata"
         return True, f'Cartella documento "{folder.name}" {stato}.'
+
+    if action == "toggle_facoltativa_asset_category_document_folder":
+        folder = AssetCategoryDocumentFolder.objects.filter(
+            pk=_as_int(request.POST.get("folder_id"), default=0)
+        ).first()
+        if not folder:
+            return False, "Cartella documento non trovata."
+        folder.facoltativa = not folder.facoltativa
+        folder.save(update_fields=["facoltativa"])
+        log_action(
+            request,
+            "facoltativa_asset_document_folder",
+            "assets",
+            {"folder_id": folder.id, "slug": folder.slug, "category_id": folder.category_id, "facoltativa": folder.facoltativa},
+        )
+        if folder.facoltativa:
+            return True, (
+                f'Cartella "{folder.name}" ora facoltativa: compare solo sugli asset dove la aggiungi '
+                "(e dove ha già documenti)."
+            )
+        return True, f'Cartella "{folder.name}" di nuovo su tutti gli asset della categoria.'
 
     if action == "update_asset_category_document_folder_order":
         folder = AssetCategoryDocumentFolder.objects.filter(

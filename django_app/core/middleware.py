@@ -430,6 +430,18 @@ class ACLMiddleware:
         self.exempt_prefixes = getattr(settings, "MIDDLEWARE_EXEMPT_PREFIXES", ())
 
     def __call__(self, request):
+        # Richieste di sola lettura: tutti i controlli dei permessi della richiesta (gate,
+        # menu, righe delle pagine) leggono una volta binding, gruppi e permessi della
+        # persona (core.acl_resolver.memo_permessi). POST e simili restano senza memoria:
+        # chi salva un permesso e ricontrolla subito vede il valore nuovo.
+        if request.method in ("GET", "HEAD"):
+            from core.acl_resolver import memo_permessi
+
+            with memo_permessi():
+                return self._call(request)
+        return self._call(request)
+
+    def _call(self, request):
         path = request.path or "/"
         onboarding_path = reverse("onboarding_wizard")
         is_onboarding_shared_path = is_acl_onboarding_shared_path(path)

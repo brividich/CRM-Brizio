@@ -9,6 +9,29 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Asset: cartelle documento della categoria scelte per singolo asset (24/11)
+
+- **«Togli da questo asset»** su una cartella di categoria vuota: sparisce solo da quella scheda. «Cartelle della categoria non usate qui» → «Aggiungi a questo asset» la rimette. Il pulsante per tutta la categoria ora si chiama «Disattiva per tutta la categoria».
+- **«Usa le cartelle documento della categoria»** nel modulo Nuovo/Modifica asset: senza spunta l'asset ha solo le 3 cartelle di base, le sue e quelle aggiunte una per una.
+- **Cartelle facoltative:** in Impostazioni → categorie «Rendi facoltativa» / «Su tutti gli asset»; una cartella facoltativa compare solo dove viene aggiunta. Migrazione `assets` 0174.
+- Una cartella con documenti resta sempre visibile. File: `assets/services/cartelle_asset.py`, `assets/models.py`, `assets/migrations/0174_cartella_categoria_facoltativa.py`, `assets/views/_helpers.py`, `assets/views/asset_detail.py`, `assets/views/settings_admin.py`, `assets/forms.py`, `assets/templates/assets/pages/asset_detail.html`, `assets/templates/assets/pages/asset_form.html`, `assets/templates/assets/pages/gestione_admin.html`, `assets/static/assets/css/pagine/asset_detail.css`, guida in-app `assets/templates/assets/pages/guida.html`, Centro guide `core/guide_moduli/contenuti/assets.py`, `docs/moduli/assets.md`, test `assets/tests_cartelle_per_asset.py`.
+
+### Prestazioni: permessi letti una volta per richiesta (chi non è amministratore)
+
+- **Memoria dei permessi per i controlli in blocco** (`core/acl_resolver.py` `memo_permessi`, `core/acl_v2.py`): dentro il blocco si leggono una volta i binding delle rotte, i permessi personali, i gruppi della persona e i loro permessi, e i permessi del ruolo. Prima un sottomenu di anagrafica faceva circa 6 query per ognuno degli 80 link, circa 500 query per pagina per chi non è amministratore.
+- **Dove si applica:**
+  - sottomenu di anagrafica e di salute e sicurezza (`anagrafica/templatetags/anagrafica_extras.py`);
+  - tutte le richieste GET/HEAD tramite `ACLMiddleware` (`core/middleware.py`).
+  Le richieste che salvano (POST…) restano senza memoria.
+- **Misurato sui dati di prod con un utente normale:**
+  - elenco dipendenti: da 3,8 s e 514 query a 0,7 s e 49;
+  - anagrafica home: da 3,3 s e 473 query a 0,6 s e 50;
+  - scadenzario qualifiche: da 6,8 s e 454 query a 0,7 s;
+  - «Il mio team»: da 4,9 a 1,4 s.
+  I controlli ripetuti spariscono anche dalle pagine Asset.
+- **Soglia di ritardo degli OdL in memoria per 30 s** (`assets/maintenance.py`, `assets/apps.py`): la dashboard asset la rileggeva per ogni OdL, 66 volte per pagina. Si azzera al salvataggio della configurazione; `ASSETS_SOGLIA_RITARDO_CACHE_SECONDS`, 0 nei test.
+- Test: `core/test_acl_memo.py` (nuovo).
+
 ### Ticket: pagina di gestione riordinata, ticket IT dei gestori manutenzione, «Rimuovi» asset (24/11)
 
 - **Gestione ticket, una sola barra azioni:** «Prendo io/Risolvi», «Metti in attesa», «Chiudi ticket», «Assegnato a: …» (tecnico e fornitore in un menu a comparsa) e «⋯» con «Annulla ticket…». I cambi di stato chiedono nota, data prevista o motivo (obbligatorio per l'annullamento) in una finestra al centro. Tolto il riquadro «Aggiorna stato / Assegna».

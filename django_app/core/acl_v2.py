@@ -457,6 +457,17 @@ def _find_canonical_binding(
     Il chiamante deve passare binding con ``permission`` gia in select_related.
     """
     if bindings is None:
+        # Controlli in blocco (menu): tutti i binding letti una volta e ramo in memoria.
+        from core.acl_resolver import memo_attiva
+
+        memo = memo_attiva()
+        if memo is not None:
+            if "bindings" not in memo:
+                memo["bindings"] = list(
+                    RoutePermissionBinding.objects.filter(is_active=True).select_related("permission")
+                )
+            bindings = memo["bindings"]
+    if bindings is None:
         by_route = None
 
         if route_name:
