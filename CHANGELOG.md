@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Visite «a richiesta»: il pulsante passa nella Giornata visite
+
+- **Segnalazione:** il pulsante «Segna come a richiesta» stava in una tabella della dashboard (caselle nella colonna Azioni), non dove si lavorano le visite scadute.
+- Tolte caselle e pulsante dalla dashboard Visite mediche (`templates/anagrafica/pages/visite_mediche_dashboard.html`, vista `visite_mediche_segna_a_richiesta` e URL `visite-mediche/a-richiesta/` rimossi).
+- «Giornata visite»: pulsante «Segna come a richiesta (N)» accanto a «Registra giornata», con conferma; l'ultima visita di ogni riga spuntata diventa a richiesta, nessuna visita nuova, si torna sullo stesso tipo (`views/visite.py` `_giornata_segna_a_richiesta`, `services/visite.py` `segna_a_richiesta`, `visite_mediche_nuova_sessione.html`). Lo Scadenzario non ha selezione per le visite: invariato.
+- Guida «Visite a richiesta» e scheda modulo aggiornate; test `tests_visite_a_richiesta.py`.
+
 ### Assistente AI: «Il tuo brief di oggi» pronto all'alba
 
 - **Brief preparato alle 6:10 dal cluster** per chi lo ha aperto negli ultimi 14 giorni (`ai_assistant/daily_brief_notturno.py`, task `ai_assistant.tasks.run_daily_brief_notturno`, schedule `ai_daily_brief_notturno`). Prima si generava alla prima apertura della home: 20-25 s di Ollama a persona, ogni mattina. Usa gli stessi dati e permessi della persona e va nella stessa cache della pagina. Chi non è in elenco lo genera come prima; ↻ lo rigenera con i dati di adesso.

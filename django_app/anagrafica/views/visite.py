@@ -414,40 +414,6 @@ def visita_medica_superata(request, v_id: int):
     return redirect("anagrafica:visita_medica_dettaglio", v_id=v_id)
 
 
-@login_required
-@require_POST
-def visite_mediche_segna_a_richiesta(request):
-    """Segna in blocco le visite scelte come «a richiesta»: non sono un rinnovo,
-    perdono la scadenza e lasciano il posto alla visita periodica precedente."""
-    if not _helpers._can_edit_visite_mediche(request):
-        return HttpResponseForbidden("Non hai i permessi per modificare le visite mediche.")
-
-    from core.audit import log_action
-
-    ids = [int(x) for x in request.POST.getlist("visita_ids") if str(x).isdigit()][:500]
-    visite = list(VisitaMedica.objects.select_related("tipo").filter(pk__in=ids, a_richiesta=False))
-    if not visite:
-        messages.error(request, "Seleziona almeno una visita da segnare come a richiesta.")
-        return redirect("anagrafica:visite_mediche_dashboard")
-    with transaction.atomic():
-        for visita in visite:
-            dettaglio = {
-                "visita_id": visita.pk,
-                "dipendente_id": visita.legacy_anagrafica_id,
-                "tipo_visita": visita.tipo.nome,
-                "data_svolgimento": visita.data_svolgimento.isoformat(),
-                "scadenza_precedente": visita.data_scadenza.isoformat() if visita.data_scadenza else None,
-            }
-            visita.a_richiesta = True
-            visita.scadenza_medico = None
-            visita.updated_by = request.user
-            visita.save(update_fields=["a_richiesta", "scadenza_medico", "updated_by", "updated_at"])
-            log_action(request, "VISITA_MEDICA_A_RICHIESTA", "anagrafica", dettaglio, oggetto=visita)
-    n = len(visite)
-    messages.success(request, f"{n} visit{'a segnata' if n == 1 else 'e segnate'} come a richiesta: "
-                              "non hanno più scadenza e non contano come rinnovo.")
-    return redirect("anagrafica:visite_mediche_dashboard")
-
 
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -1289,6 +1255,41 @@ def _build_candidati_giornata(oggi, tipo_id=None) -> list[dict]:
 # View: registrazione nuova sessione batch visite mediche
 # ---------------------------------------------------------------------------
 
+def _giornata_segna_a_richiesta(request):
+    """Righe spuntate della Giornata visite → l'ultima visita periodica di quella
+    persona e tipo diventa «a richiesta» (era fuori periodicità: niente scadenza)."""
+    from ..services.visite import segna_a_richiesta
+
+    torna = reverse("anagrafica:visite_mediche_nuova_sessione")
+    # Si torna sullo stesso filtro («Filtra per tipo» del modulo), le righe segnate spariscono.
+    tipo_q = (request.POST.get("tipo") or "").strip()
+    torna += f"?tipo={tipo_q}" if tipo_q.isdigit() else "?all=1"
+    coppie: set[tuple[int, int]] = set()
+    for key in request.POST.keys():
+        parts = key.split("_")
+        if key.startswith("sel_") and len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit():
+            coppie.add((int(parts[1]), int(parts[2])))
+    if not coppie:
+        messages.warning(request, "Nessuna riga selezionata.")
+        return redirect(torna)
+    ultime: dict[tuple[int, int], VisitaMedica] = {}
+    for v in (VisitaMedica.objects.select_related("tipo")
+              .filter(legacy_anagrafica_id__in={lid for lid, _ in coppie},
+                      tipo_id__in={tid for _, tid in coppie},
+                      a_richiesta=False, superata_il__isnull=True)
+              .order_by("-data_svolgimento", "-pk")):
+        chiave = (v.legacy_anagrafica_id, v.tipo_id)
+        if chiave in coppie:
+            ultime.setdefault(chiave, v)
+    n = segna_a_richiesta(request, list(ultime.values()))
+    senza = len(coppie) - len(ultime)
+    testo = f"{n} visit{'a segnata' if n == 1 else 'e segnate'} come a richiesta: escono dalle scadute."
+    if senza:
+        testo += f" {senza} righe senza visite registrate: nulla da segnare."
+    messages.success(request, testo)
+    return redirect(torna)
+
+
 @login_required
 def visite_mediche_nuova_sessione(request):
     """Registrazione batch di visite mediche per un tipo e una data.
@@ -1304,6 +1305,10 @@ def visite_mediche_nuova_sessione(request):
 
     oggi = _tz.localdate()
     tipi_attivi = list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"))
+
+    # ---- POST «Segna come a richiesta»: nessuna visita nuova -------------
+    if request.method == "POST" and request.POST.get("azione") == "a_richiesta":
+        return _giornata_segna_a_richiesta(request)
 
     # ---- POST: salva la giornata (sessione + visite multi-tipo) -----------
     if request.method == "POST":
