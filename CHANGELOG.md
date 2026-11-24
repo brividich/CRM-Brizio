@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: «Centri di costo» con l'albero che si apre
+
+- **Albero di ogni centro:** l'elenco dei centri di costo sostituisce le schede; ogni centro si apre sui suoi reparti, ogni reparto sui ruoli, ogni ruolo sulle mansioni, con etichetta («Reparto:», «Ruolo:», «Mansione:») e numero di persone. Stessi dati e conteggi di «Esplora la struttura», a cui ogni riga porta. «Apri tutto», «Chiudi tutto» e ricerca per nome di centro o di reparto.
+- **Centro scelto:** aprendo un centro, a destra compaiono i suoi dati etichettati (RML e costo orario medio solo a chi vede i costi) e le «Pagine collegate»; l'indirizzo ricorda il centro aperto (`?centro=`). «Da fare» con reparti senza centro di costo e mansioni da guardare al posto dei riquadri con i numeri. I riquadri si dispongono da soli (`components/_flusso_dinamico.html`).
+- **Nuovo centro di costo** in una finestra, dal pulsante in alto. Restano «Modifica» del centro e del reparto. Tolti dalla testata i collegamenti ad altre pagine: stanno in «Pagine collegate».
+- **Prova corretta:** `tests_carico_mansioni.test_esplora_mostra_i_segnali` era rossa dalla vista semplice di «Esplora la struttura» (i segnali di carico stanno nella vista completa): ora chiede quella vista.
+- File: `anagrafica/services/centri_costo_albero.py` (nuovo), `anagrafica/views_centri_costo.py`, `anagrafica/templates/anagrafica/pages/centri_costo.html`, `partials/_centro_costo_scheda.html` (nuovo), `anagrafica/tests_centri_costo.py`, `anagrafica/tests_carico_mansioni.py`, guida in pagina, Centro guide, `docs/moduli/anagrafica.md`.
+
 ### Prestazioni: pagine lente corrette (misurate sui dati di produzione)
 
 - **Salvataggio della matrice ruoli** (`core/permessi/sync.py`, `core/acl_v2.py`): la sincronizzazione scende da 10,3 a 0,76 s. I grant del ruolo si leggono tutti e si filtrano in Python: prima c'era un `IN` con 1.316 codici, da 8,7 s. Inoltre la normalizzazione dei pattern è in cache, e i binding già caricati sono indicizzati per rotta una sola volta: l'indice delle capacità faceva 470.000 `urlsplit`.

@@ -819,10 +819,17 @@ GUIDA = {
             "id": "centri-costo",
             "titolo": "Centri di costo",
             "blocchi": [
-                ("p", "Persone → Centri di costo: una scheda per centro con reparti, persone e ruoli. Un centro di costo "
+                ("p", "Organizzazione → Centri di costo: l'elenco dei centri, ognuno con il suo albero. Un centro di costo "
                       "può includere più reparti; un reparto sta in un solo centro. Qui «reparto» è l'area aziendale del "
                       "portale, l'unità in cui lavorano le persone."),
                 ("ul", [
+                    "Clicca un centro per aprire il suo albero: reparti, poi ruoli, poi mansioni, ognuno con la sua "
+                    "etichetta e il numero di persone. «Apri tutto» e «Chiudi tutto» valgono per ogni livello; il "
+                    "campo di ricerca tiene solo i centri che contengono il testo.",
+                    "Aprendo un centro, a destra compaiono «Centro scelto» con i suoi dati (RML e costo orario medio "
+                    "solo a chi vede i costi) e le «Pagine collegate» già aperte su quel centro. «Da fare» elenca i "
+                    "reparti senza centro di costo e le mansioni da guardare.",
+                    "«Nuovo centro di costo» è il pulsante in alto a destra.",
                     "«Modifica» sulla riga del reparto: «Centro di costo» (scegliere un altro centro lo toglie dal "
                     "precedente) e «Ruoli del reparto». Il centro si sceglie anche in «Reparti, aree e capi», nella "
                     "modifica dell'area.",

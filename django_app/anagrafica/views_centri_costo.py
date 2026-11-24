@@ -79,11 +79,27 @@ def centri_costo(request):
     for area in aree:
         if area.is_active or area.centro_di_costo_id:
             per_centro.setdefault(area.centro_di_costo_id, []).append(_riga(area, persone, segnali_area))
+    from .services import centri_costo_albero as albero
+    from .services import esplora_struttura
+
+    centri = list(CentroDiCosto.objects.order_by("nome"))
+    # L'albero di ogni centro (reparto → ruolo → mansione): stessi dati di «Esplora la struttura».
+    alberi = albero.alberi(esplora_struttura.Dati.carica(), [c.pk for c in centri])
+    try:
+        aperto = int(request.GET.get("centro") or 0)
+    except ValueError:
+        aperto = 0
     schede = []
-    for centro in CentroDiCosto.objects.order_by("nome"):
+    for centro in centri:
         righe = per_centro.get(centro.pk, [])
+        segnali, costi_centro = segnali_centro.get(centro.pk), costi["centri"].get(centro.pk)
+        modifica = {r["area"].pk: r for r in righe}
+        reparti = alberi.get(centro.pk, [])
+        for reparto in reparti:
+            reparto["riga"] = modifica.get(reparto["area"].pk)
         schede.append({"centro": centro, "righe": righe, "persone": sum(r["persone"] for r in righe),
-                       "segnali": segnali_centro.get(centro.pk), "costi": costi["centri"].get(centro.pk)})
+                       "segnali": segnali, "costi": costi_centro, "albero": reparti, "aperto": centro.pk == aperto,
+                       "scheda": albero.scheda(centro, righe, segnali=segnali, costi=costi_centro, puo_costi=puo_costi)})
     senza = per_centro.get(None, [])
     kpi = {
         "centri": sum(1 for s in schede if s["centro"].is_active),
@@ -93,12 +109,25 @@ def centri_costo(request):
         "persone_senza_centro": sum(r["persone"] for r in senza),
         "da_guardare": carico.conteggi()["da_guardare"] if carico else None,
     }
-    # KPI «Centri di costo attivi» → ?filtro=attivi: stesse schede contate sopra.
+    # «Attivi» → ?filtro=attivi: stesse schede contate sopra.
     filtro = "attivi" if request.GET.get("filtro") == "attivi" else ""
     schede_mostrate = [s for s in schede if s["centro"].is_active] if filtro else schede
+    # Da fare: solo ciò che aspetta, con il numero dell'elenco a cui porta.
+    da_fare = []
+    if kpi["senza_centro"]:
+        da_fare.append({"n": kpi["senza_centro"], "titolo": "Reparti senza centro di costo",
+                        "sotto": f"{kpi['persone_senza_centro']} person{'a' if kpi['persone_senza_centro'] == 1 else 'e'} in questi reparti",
+                        "url": "#senza-centro", "azione": "Collega"})
+    if kpi["da_guardare"] and (_helpers._is_anagrafica_admin(request) or puo_costi):
+        da_fare.append({"n": kpi["da_guardare"], "titolo": "Mansioni da guardare",
+                        "sotto": "Scoperte, con pochi operativi o con carico concentrato",
+                        "url": reverse("anagrafica:mansionario") + "?flag=da-guardare", "azione": "Apri"})
     return render(request, "anagrafica/pages/centri_costo.html", {
         "schede": schede_mostrate,
         "filtro": filtro,
+        "n_tutti": len(schede),
+        "scelta": next((s for s in schede_mostrate if s["aperto"]), None),
+        "da_fare": da_fare,
         "senza_centro": senza,
         "kpi": kpi,
         "carico": carico,
