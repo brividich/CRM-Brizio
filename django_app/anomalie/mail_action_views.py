@@ -305,11 +305,14 @@ def _car_opzioni(op_car: str, righe: list[dict] | None = None) -> list[str]:
     voci = _separa_nomi(op_car) + [str(c or "") for c in capi]
     for a in righe or []:
         voci += list(a.get("car_segnalati") or [])
+    from core.naming import chiave_persona
+
+    # Stessa persona una volta sola anche se scritta in ordine diverso.
     out, visti = [], set()
     for v in voci:
         nome = " ".join(str(v or "").split())[:120]
-        if nome and nome.lower() not in visti:
-            visti.add(nome.lower())
+        if nome and chiave_persona(nome) not in visti:
+            visti.add(chiave_persona(nome))
             out.append(nome)
     return out
 
@@ -458,15 +461,18 @@ def _salva_segnalati_mail(token_obj, anomalia_id: int, stato: dict) -> None:
         if scheda is not None and stato.get("car") is not None:
             from .automazioni_service import separa_car_scelti
 
-            prima = {n.lower() for n in separa_car_scelti(scheda.car_segnalati)} if scheda.segnala_car else set()
-            ammessi = {n.lower(): n for n in _car_opzioni(_car_di_op(token_obj.op_id))}
-            ammessi.update({n.lower(): n for n in separa_car_scelti(scheda.car_segnalati)})
+            from core.naming import chiave_persona as _ch
+
+            # Confronti indipendenti da ordine e maiuscole («Mario Rossi» = «ROSSI MARIO»).
+            prima = {_ch(n) for n in separa_car_scelti(scheda.car_segnalati)} if scheda.segnala_car else set()
+            ammessi = {_ch(n): n for n in _car_opzioni(_car_di_op(token_obj.op_id))}
+            ammessi.update({_ch(n): n for n in separa_car_scelti(scheda.car_segnalati)})
             richiesti = stato.get("car_scelti")
             if richiesti is None:  # form vecchio senza scelta: il CAR dell'OP
                 richiesti = _separa_nomi(_car_di_op(token_obj.op_id))
-            scelti = [ammessi[n.lower()] for n in separa_car_scelti(richiesti) if n.lower() in ammessi] if stato["car"] else []
+            scelti = [ammessi[_ch(n)] for n in separa_car_scelti(richiesti) if _ch(n) in ammessi] if stato["car"] else []
             segnala = bool(stato["car"] and scelti)
-            da_avvisare = [n for n in scelti if n.lower() not in prima]
+            da_avvisare = [n for n in scelti if _ch(n) not in prima]
             valori = {"segnala_car": segnala, "car_segnalati": "; ".join(scelti)[:500], "updated_at": timezone.now()}
             if da_avvisare:
                 valori["car_segnalati_il"] = timezone.now()

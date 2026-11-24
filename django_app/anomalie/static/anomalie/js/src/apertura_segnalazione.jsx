@@ -187,19 +187,29 @@
       );
     });
 
-    const capocommessaOptions = Array.from(
-      new Set(
-        [...CFG_CAPI_COMMESSA, ...ordini
-          .map(op => String(op.capo || '').trim())
-          .filter(v => v && v !== '—')]
-      )
+    // Una persona una volta sola anche se gli OP la scrivono in un altro ordine
+    // («Mario Rossi» / «ROSSI MARIO»): vince la scrittura della Configurazione.
+    const chiavePersona = (v) => String(v || '')
+      .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+      .trim().toLowerCase().split(/\s+/).filter(Boolean).sort().join(' ');
+    const senzaDoppioni = (valori) => {
+      const visti = new Set();
+      return valori.filter((v) => {
+        const k = chiavePersona(v);
+        if (!k || visti.has(k)) return false;
+        visti.add(k);
+        return true;
+      });
+    };
+    const capocommessaOptions = senzaDoppioni(
+      [...CFG_CAPI_COMMESSA, ...ordini
+        .map(op => String(op.capo || '').trim())
+        .filter(v => v && v !== '—')]
     );
-    const carOptions = Array.from(
-      new Set(
-        [...CFG_CAPI_REPARTO, ...ordini
-          .map(op => String(op.car || '').trim())
-          .filter(v => v && v !== '—')]
-      )
+    const carOptions = senzaDoppioni(
+      [...CFG_CAPI_REPARTO, ...ordini
+        .map(op => String(op.car || '').trim())
+        .filter(v => v && v !== '—')]
     );
 
     const updateNewOp = (field, value) => {

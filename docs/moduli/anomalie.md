@@ -9,6 +9,7 @@ Area **HR & Workflow** · URL `/anomalie/` `/anomalie-menu` · codice [`django_a
 Controllo dell'OP a blocchi di seriali (singoli, liste, range) con più anomalie per blocco, allegati con trascinamento e incolla dagli appunti; ogni anomalia ha la sua decisione del capocommessa (portale o link via mail, anche per tutto il blocco); mail a ogni blocco o unica a fine controllo; distinzione collaudo di benestare. Scheda qualità temporaneamente nascosta. Piano: [checklist Gestione anomalie](../../docs/ai/CHECKLIST_GESTIONE_ANOMALIE_PER_FASE_E_SERIALI.md).
 
 ## Dettaglio
+- **Nominativi COGNOME NOME (24/11/2026)**: le liste derivate (capi commessa/reparto) escono da `_label_from_anagrafica_row` = `core.naming.nome_completo`. Ogni confronto fra nominativi passa da `core.naming.chiave_persona` (Python) / `normalizeIdentity` (JSX, stessa regola): token ordinati, senza maiuscole e accenti. `find_legacy_user_by_name` confronta per chiave (cognomi composti). La migrazione `0034_nominativi_cognome_nome` ha convertito i valori salvati (`anomalie/nominativi.py`: elenchi `referenti_rdc`, `autorizzati_modifica`, `extra`, `esclusi`, `persone` del JSON di Configurazione e `AnomaliaSchedaQualita.car_segnalati`), solo per nominativi univoci in anagrafica. I valori degli OP dal gestionale restano come arrivano.
 
 Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 
