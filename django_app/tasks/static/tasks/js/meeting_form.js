@@ -174,6 +174,7 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
           <div class="agenda-num">${idx + 1}</div>
           <div class="agenda-body">
             <div class="agenda-title">${esc(item.titolo)}${issueBadge}${taskBadge}${creaBadge}${respBadge}${durataBadge}</div>
+            ${item.task_id ? `<a class="agenda-apri" href="/tasks/${parseInt(item.task_id, 10)}/" data-preview="/tasks/${parseInt(item.task_id, 10)}/" data-pannello-senza-ricarica>Apri l'attività</a>` : ''}
             ${nota}
             ${customFieldsHtml}
           </div>

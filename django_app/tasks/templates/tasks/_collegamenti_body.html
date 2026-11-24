@@ -7,16 +7,17 @@ il pulsante del passo successivo e lo storico. FAI da compilare: il pulsante che
   <li class="kc-voce kc-voce--op">
     <span class="kc-tipo">{% if col.macchine|length > 1 %}Macchine{% else %}Macchina{% endif %}</span>
     <table class="kc-op">
-      <tbody>
-        {% for v in col.macchine %}
-        <tr data-kc-voce="{{ v.chiave }}">
+      {% for v in col.macchine %}
+      <tbody data-kc-voce="{{ v.chiave }}">
+        <tr>
           {% if v.puo %}
-          <td class="kc-op-num"><input class="input" type="text" inputmode="numeric" maxlength="4" value="{{ v.operazione|default_if_none:'' }}" placeholder="Op." data-kc-op-num aria-label="Operazione della macchina {{ v.codice }}"></td>
+          <td class="kc-op-num"><input class="input" type="text" inputmode="numeric" maxlength="4" value="{{ v.operazione|default_if_none:'' }}" placeholder="Op." data-kc-op="numero" aria-label="Operazione della macchina {{ v.codice }}"></td>
           {% else %}
           <td class="kc-op-num">{% if v.operazione %}Op. {{ v.operazione }}{% else %}&ndash;{% endif %}</td>
           {% endif %}
           <td>
             <span class="kc-desc"><b class="kc-codice">{{ v.codice }}</b>{% if v.descrizione %} {{ v.descrizione }}{% endif %}</span>
+            {% if v.dal or v.al or v.programmi or v.note_operatore %}<small class="kc-op-info">{% if v.dal or v.al %}{{ v.dal|date:"d/m"|default:"…" }}–{{ v.al|date:"d/m"|default:"…" }}{% endif %}{% if v.programmi %}{% if v.dal or v.al %} &middot; {% endif %}{{ v.programmi|join:", " }}{% endif %}{% if v.note_operatore %} &middot; {{ v.note_operatore }}{% endif %}</small>{% endif %}
             {% if v.avviso %}<p class="kc-avviso" role="note"><b>Avviso:</b> {{ v.avviso }}</p>{% endif %}
             {% if v.operatori %}{% with m=v.operatori %}
             <p class="kc-operatori">
@@ -28,14 +29,29 @@ il pulsante del passo successivo e lo storico. FAI da compilare: il pulsante che
             {% endwith %}{% endif %}
           </td>
           {% if v.puo %}
-          <td class="kc-op-lav"><input class="input" type="text" maxlength="120" value="{{ v.lavorazione }}" placeholder="Lavorazione (es. sgrossatura)" data-kc-op-lav aria-label="Lavorazione sulla macchina {{ v.codice }}"></td>
+          <td class="kc-op-lav"><input class="input" type="text" maxlength="120" value="{{ v.lavorazione }}" placeholder="Lavorazione (es. sgrossatura)" data-kc-op="lavorazione" aria-label="Lavorazione sulla macchina {{ v.codice }}"></td>
           {% else %}
           <td class="kc-op-lav">{{ v.lavorazione }}</td>
           {% endif %}
-          <td class="kc-op-stato">{% if v.stato %}<span class="ts-chip {{ v.tono }}">{{ v.stato }}</span>{% endif %}{% if v.puo %}<button type="button" class="kc-x" data-kc-togli aria-label="Togli la macchina {{ v.codice }}">&times;</button>{% endif %}</td>
+          <td class="kc-op-stato">{% if v.stato %}<span class="ts-chip {{ v.tono }}">{{ v.stato }}</span>{% endif %}{% if v.puo %}<button type="button" class="kc-mod" data-kc-op-dettagli aria-expanded="false">Dettagli</button><button type="button" class="kc-x" data-kc-togli aria-label="Togli la macchina {{ v.codice }}">&times;</button>{% endif %}</td>
         </tr>
-        {% endfor %}
+        {% if v.puo %}
+        <tr class="kc-op-dett" data-kc-op-riga hidden>
+          <td></td>
+          <td colspan="3">
+            <div class="kc-dgrid">
+              <label><span>Dal</span><input class="input" type="date" value="{{ v.dal|date:'Y-m-d' }}" data-kc-op="dal"></label>
+              <label><span>Al</span><input class="input" type="date" value="{{ v.al|date:'Y-m-d' }}" data-kc-op="al"></label>
+              {% if col.form.programmi %}
+              <label><span>Programma che ci gira</span><select class="input" data-kc-op="programma" data-no-search><option value="">&mdash;</option>{% for pr in col.form.programmi %}<option value="{{ pr.id }}"{% if pr.id in v.programmi_id %} selected{% endif %}>{{ pr.nome }}</option>{% endfor %}</select></label>
+              {% endif %}
+              <label class="kc-dgrid-largo"><span>Note per l'operatore</span><input class="input" type="text" maxlength="300" value="{{ v.note_operatore }}" data-kc-op="note"></label>
+            </div>
+          </td>
+        </tr>
+        {% endif %}
       </tbody>
+      {% endfor %}
     </table>
   </li>
   {% endif %}
@@ -98,3 +114,30 @@ il pulsante del passo successivo e lo storico. FAI da compilare: il pulsante che
   {% for t in col.tipi %}<button type="button" class="kc-chip{% if t.serve %} is-serve{% endif %}" data-kc-tipo="{{ t.codice }}" data-kc-nome="{{ t.nome }}" aria-pressed="false">+ {% if t.codice == 'macchina' and col.macchine %}Operazione su altra macchina{% else %}{{ t.nome }}{% endif %}</button>{% endfor %}
 </div>
 {% endif %}
+
+{% if col.form and col.puo %}{% with f=col.form %}
+{# Form dinamici: «+ Programma CAM/CMM» chiede responsabile, scadenza e fase; «Collega» su una macchina chiede l'operazione. Tutto facoltativo tranne codice e macchina. #}
+<div class="kc-dform" data-kc-dform="programma" hidden>
+  <p class="kc-dform-titolo">Nuovo <span data-kc-dform-nome>programma</span> <small>oppure scegline uno già usato qui sopra</small></p>
+  <div class="kc-dgrid">
+    <label><span>Codice *</span><input class="input" type="text" maxlength="120" data-kc-f="codice"></label>
+    <label class="kc-dgrid-largo"><span>Descrizione</span><input class="input" type="text" maxlength="200" data-kc-f="descrizione"></label>
+    <label><span>Responsabile</span><select class="input" data-kc-f="responsabile" data-no-search><option value="">&mdash;</option>{% for u in f.persone %}<option value="{{ u.id }}"{% if u.id == f.responsabile %} selected{% endif %}>{{ u.nome }}</option>{% endfor %}</select></label>
+    <label><span>Entro il</span><input class="input" type="date" value="{{ f.entro|date:'Y-m-d' }}" data-kc-f="entro"></label>
+    <label><span>Fase di partenza</span><select class="input" data-kc-f="fase" data-no-search>{% for valore, nome in f.fasi %}<option value="{{ valore }}">{{ nome }}</option>{% endfor %}</select></label>
+  </div>
+  <div class="kc-dform-azioni"><button type="button" class="btn btn-sm" data-kc-dform-salva>Aggiungi e collega</button><button type="button" class="btn btn-secondary btn-sm" data-kc-dform-annulla>Annulla</button></div>
+</div>
+<div class="kc-dform" data-kc-dform="macchina" hidden>
+  <p class="kc-dform-titolo">Macchina <b data-kc-dform-mac></b></p>
+  <div class="kc-dgrid">
+    <label><span>Operazione</span><input class="input" type="text" inputmode="numeric" maxlength="4" value="{{ f.prossima_op }}" data-kc-f="numero"></label>
+    <label class="kc-dgrid-largo"><span>Lavorazione</span><input class="input" type="text" maxlength="120" placeholder="es. sgrossatura" data-kc-f="lavorazione"></label>
+    <label title="Vuoto: il periodo dell'attività ({{ f.dal|date:'d/m' }}–{{ f.al|date:'d/m' }})"><span>Dal (facoltativo)</span><input class="input" type="date" data-kc-f="dal"></label>
+    <label title="Vuoto: il periodo dell'attività ({{ f.dal|date:'d/m' }}–{{ f.al|date:'d/m' }})"><span>Al (facoltativo)</span><input class="input" type="date" data-kc-f="al"></label>
+    {% if f.programmi %}<label><span>Programma che ci gira</span><select class="input" data-kc-f="programma" data-no-search><option value="">&mdash;</option>{% for pr in f.programmi %}<option value="{{ pr.id }}">{{ pr.nome }}</option>{% endfor %}</select></label>{% endif %}
+    <label class="kc-dgrid-largo"><span>Note per l'operatore</span><input class="input" type="text" maxlength="300" data-kc-f="note"></label>
+  </div>
+  <div class="kc-dform-azioni"><button type="button" class="btn btn-sm" data-kc-dform-salva>Collega la macchina</button><button type="button" class="btn btn-secondary btn-sm" data-kc-dform-annulla>Annulla</button></div>
+</div>
+{% endwith %}{% endif %}
