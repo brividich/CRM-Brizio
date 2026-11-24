@@ -2332,6 +2332,9 @@ class AssetDocument(models.Model):
     )
     notes = models.CharField(max_length=255, blank=True, default="")
     document_date = models.DateField(null=True, blank=True)
+    # Scadenza del documento (certificato, verbale di verifica, attestato):
+    # compare nella scheda e nello Scadenzario quando si avvicina.
+    data_scadenza = models.DateField(null=True, blank=True, db_index=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

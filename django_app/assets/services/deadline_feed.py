@@ -40,6 +40,7 @@ KIND_ADMINISTRATIVE = "administrative"
 KIND_LICENSE = "license"
 KIND_CONTRACT = "contract"
 KIND_CHECK = "check"
+KIND_DOCUMENT = "document"
 
 KIND_LABELS = {
     KIND_ORDINARY: "Ordinaria",
@@ -47,6 +48,7 @@ KIND_LABELS = {
     KIND_CHECK: "Verifica impianto",
     KIND_LICENSE: "Licenza",
     KIND_CONTRACT: "Contratto",
+    KIND_DOCUMENT: "Documento",
 }
 ALL_KINDS = tuple(KIND_LABELS)
 
@@ -353,6 +355,45 @@ def _licenses(start: date | None, end: date | None, filters: FeedFilters, today:
             detail_url=actions[0]["url"],
             actions=actions,
             **fields,
+        ))
+    return rows
+
+
+def _documents(start: date | None, end: date | None, filters: FeedFilters, today: date) -> list[Deadline]:
+    """Documenti degli asset con data di scadenza (certificati, verbali, attestati)."""
+    from ..models import AssetDocument
+    from .documenti_asset import GIORNI_PREAVVISO
+
+    if KIND_DOCUMENT not in filters.kinds or filters.execution_mode:
+        return []
+    qs = AssetDocument.objects.select_related("asset", "asset__asset_category").filter(data_scadenza__isnull=False)
+    if start:
+        qs = qs.filter(data_scadenza__gte=start)
+    if end:
+        qs = qs.filter(data_scadenza__lte=end)
+    if filters.category_ids is not None:
+        qs = qs.filter(asset__asset_category_id__in=filters.category_ids)
+    if filters.reparto:
+        qs = qs.filter(asset__reparto=filters.reparto)
+    if filters.group_id:
+        qs = qs.filter(asset__group_memberships__group_id=filters.group_id)
+    if filters.asset_id:
+        qs = qs.filter(asset_id=filters.asset_id)
+    rows = []
+    for doc in qs.order_by("data_scadenza", "id").distinct()[:1000]:
+        asset_url = reverse("assets:asset_view", args=[doc.asset_id])
+        nome = doc.original_name or doc.file.name.rsplit("/", 1)[-1]
+        rows.append(Deadline(
+            key=f"doc-{doc.id}",
+            kind=KIND_DOCUMENT,
+            title=f"Documento: {nome}",
+            due_date=doc.data_scadenza,
+            state=_simple_state(doc.data_scadenza, today, GIORNI_PREAVVISO),
+            target_label=nome,
+            detail_url=asset_url,
+            actions=[{"label": "Apri asset", "url": asset_url},
+                     {"label": "Apri documento", "url": reverse("assets:asset_document_download", args=[doc.id])}],
+            **_asset_fields(doc.asset),
         ))
     return rows
 
@@ -815,7 +856,8 @@ def allowed_kinds(request) -> frozenset[str]:
     delle loro pagine, le occorrenze quella della pagina che chiama."""
     from core.middleware import acl_allows_path
 
-    kinds = {KIND_ORDINARY, KIND_ADMINISTRATIVE}
+    # Documenti asset: li legge chiunque sia autenticato (stessa regola del download).
+    kinds = {KIND_ORDINARY, KIND_ADMINISTRATIVE, KIND_DOCUMENT}
     user = getattr(request, "user", None)
     for kind, path in ((KIND_LICENSE, LICENSES_PATH), (KIND_CONTRACT, CONTRACTS_PATH), (KIND_CHECK, CHECKS_PATH)):
         try:
@@ -847,6 +889,7 @@ def collect(
         + _contracts(start, end, filters, today)
         + _legacy_deadlines(start, end, filters, today)
         + _checks(start, end, filters, today)
+        + _documents(start, end, filters, today)
     )
     state_order = {STATE_OVERDUE: 0, STATE_DUE_SOON: 1, STATE_OPEN: 2, STATE_PLANNED: 3, STATE_DONE: 4, "forecast": 5}
     rows.sort(key=lambda d: (d.due_date, state_order.get(d.state, 9), d.kind, d.title))

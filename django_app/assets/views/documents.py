@@ -312,3 +312,29 @@ def admin_deadline_attachment_download(request, attachment_id: int):
         filename=filename,
         content_type=content_type,
     )
+
+
+@login_required
+def asset_document_folder_zip(request, id: int, slug: str):
+    """Tutti i file di una cartella documento dell'asset in un unico ZIP."""
+    from django.utils.text import slugify
+
+    from ..services.documenti_asset import zip_cartella
+
+    asset = get_object_or_404(Asset, pk=id)
+    if not _can_download_asset_document(request):
+        return render(request, "core/pages/forbidden.html", status=403)
+    contenuto, n = zip_cartella(asset, slug)
+    if not n:
+        return HttpResponse("Nessun file in questa cartella.", status=404)
+    log_action(
+        request,
+        "download_asset_document_zip",
+        "assets",
+        {"asset_id": asset.id, "category": slug, "file": n, "esito": "success"},
+    )
+    nome = f"{slugify(asset.name)[:60] or 'asset'}-{slug}.zip"
+    response = HttpResponse(contenuto, content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="{nome}"'
+    response["X-Content-Type-Options"] = "nosniff"
+    return response

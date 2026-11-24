@@ -138,7 +138,7 @@ def collect_asset(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     # contratti restano soggetti all'ACL delle loro pagine.
     from assets.services import deadline_feed as feed
 
-    kinds = {feed.KIND_ADMINISTRATIVE, feed.KIND_LICENSE, feed.KIND_CONTRACT}
+    kinds = {feed.KIND_ADMINISTRATIVE, feed.KIND_LICENSE, feed.KIND_CONTRACT, feed.KIND_DOCUMENT}
     if not ctx.sistema:
         kinds &= feed.allowed_kinds(request)
     rows = feed.collect(

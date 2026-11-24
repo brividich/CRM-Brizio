@@ -5,7 +5,7 @@ Estratto meccanicamente da assets/views.py (refactor C4): nessun cambio di compo
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
@@ -576,6 +576,53 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 )
                 messages.success(request, f"Documento \"{doc_label}\" eliminato.")
             return redirect("assets:asset_view", id=asset.id)
+        if action in {"sposta_documenti", "rinomina_cartella_asset", "scadenza_documento"}:
+            if not (_can_manage_asset_document_folders(request) or _can_edit_asset(request, asset.id)):
+                messages.error(request, "Permessi insufficienti per modificare i documenti di questo asset.")
+                return redirect("assets:asset_view", id=asset.id)
+            if action == "sposta_documenti":
+                from ..services.documenti_asset import sposta
+
+                destinazione = _clean_string(request.POST.get("destinazione"))[:60]
+                specs_validi = {spec["code"]: spec["label"] for spec in _asset_document_folder_specs(asset)}
+                if destinazione not in specs_validi:
+                    messages.error(request, "Scegli la cartella in cui spostare i documenti.")
+                    return redirect("assets:asset_view", id=asset.id)
+                ids = request.POST.getlist("document_ids")
+                if not ids:
+                    messages.error(request, "Seleziona almeno un documento da spostare.")
+                    return redirect("assets:asset_view", id=asset.id)
+                n = sposta(asset, ids, destinazione)
+                log_action(request, "sposta_documenti_asset", "assets", {"asset_id": asset.id, "destinazione": destinazione, "spostati": n})
+                messages.success(request, f"{n} documenti spostati in «{specs_validi[destinazione]}».")
+            elif action == "rinomina_cartella_asset":
+                folder = asset.document_folders.filter(id=_as_int(request.POST.get("folder_id"), default=0), is_active=True).first()
+                nome = _clean_string(request.POST.get("folder_name"))[:120]
+                if folder is None or not nome:
+                    messages.error(request, "Cartella o nome non validi.")
+                else:
+                    vecchio = folder.name
+                    folder.name = nome
+                    folder.save(update_fields=["name"])
+                    log_action(request, "rinomina_cartella_asset", "assets", {"asset_id": asset.id, "folder_id": folder.id, "da": vecchio, "a": nome})
+                    messages.success(request, f"Cartella «{vecchio}» rinominata in «{nome}».")
+            else:
+                document = asset.documents.filter(id=_as_int(request.POST.get("document_id"), default=0)).first()
+                if document is None:
+                    messages.error(request, "Documento non trovato.")
+                else:
+                    raw = _clean_string(request.POST.get("data_scadenza"))
+                    try:
+                        nuova = date.fromisoformat(raw) if raw else None
+                    except ValueError:
+                        messages.error(request, "Data di scadenza non valida.")
+                        return redirect("assets:asset_view", id=asset.id)
+                    document.data_scadenza = nuova
+                    document.save(update_fields=["data_scadenza"])
+                    log_action(request, "scadenza_documento_asset", "assets", {"asset_id": asset.id, "document_id": document.id, "data_scadenza": raw})
+                    nome = document.original_name or Path(document.file.name).name
+                    messages.success(request, f"Scadenza di «{nome}» {'impostata al ' + nuova.strftime('%d/%m/%Y') if nuova else 'tolta'}.")
+            return redirect("assets:asset_view", id=asset.id)
         if action in {"togli_cartella_categoria", "aggiungi_cartella_categoria"}:
             # Cartella di categoria tolta o aggiunta su questo solo asset.
             from ..services import cartelle_asset
@@ -1138,6 +1185,31 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 })
     except Exception:
         pass
+    try:
+        # Ticket risolti o chiusi su questo asset: cosa è stato fatto, con il link
+        # (gestione o scheda del richiedente, secondo chi guarda; niente link se
+        # la persona non può aprirlo).
+        from tickets.models import StatoTicket as _ST, TipoTicket as _TT
+
+        _gestibili = {t for t in (_TT.IT, _TT.MAN) if _can_manage_ticket_type_for_asset_view(request, t)}
+        _ticket_chiusi = (
+            asset.tickets.filter(stato__in=[_ST.RISOLTO, _ST.CHIUSO])
+            .prefetch_related("interventi")
+            .order_by("-closed_at", "-updated_at")[:30]
+        )
+        for _t in _ticket_chiusi:
+            _lavori = [i.descrizione_lavoro.strip() for i in _t.interventi.all() if (i.descrizione_lavoro or "").strip()]
+            timeline_tech_rows.append({
+                "tipo": "ticket",
+                "tipo_label": f"Ticket {_t.label_tipo.replace('Ticket ', '')} — {_t.label_stato}",
+                "data": _t.closed_at or _t.updated_at,
+                "titolo": f"{_t.numero_ticket} · {_t.titolo}",
+                "dettaglio": _lavori[-1] if _lavori else (_t.causa_radice or ""),
+                "id": _t.id,
+                "url": _asset_ticket_detail_url(request, _t, _gestibili),
+            })
+    except Exception:
+        pass
     timeline_tech_rows.sort(key=lambda r: r["data"] if r["data"] else timezone.datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     timeline_tech_rows = timeline_tech_rows[:40]
 
@@ -1164,6 +1236,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     ticket_kpi = _compute_ticket_kpi_for_asset(asset)
     doc_category_labels, documents_by_category = _build_asset_documents_by_category(asset)
     doc_category_specs = _asset_document_folder_specs(asset)
+    for spec in doc_category_specs:
+        spec["count"] = sum(len(g["documents"]) for g in documents_by_category.get(spec["code"], []))
     doc_upload_field_map = {spec["code"]: spec["field"] for spec in doc_category_specs}
     can_manage_doc_folders = _can_manage_asset_document_folders(request)
     can_manage_asset_doc_folders = can_manage_doc_folders or _can_edit_asset(request, asset.id)

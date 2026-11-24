@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Asset: documenti più comodi, scadenze dei documenti, nuovo asset come questo, SDS in elenco, ticket nello storico (24/11)
+
+- **Documenti dell'asset:** ricerca per nome in tutte le cartelle; numero di file su ogni linguetta (vuote in grigio); «Sposta i selezionati in…» tra cartelle; «Scarica ZIP (N)» per cartella; «Rinomina cartella» sulle cartelle «solo qui».
+- **Scadenza dei documenti:** nuova colonna «Scadenza» (si salva appena scelta la data), etichette «In scadenza» (30 giorni prima) e «Scaduto». I documenti in scadenza entrano nel registro scadenze unico: Scadenzario asset (nuova scheda «Documenti»), Scadenzario globale, riquadro Scadenze dell'asset e calendario. Migrazione `assets` 0175 (campo + binding ACL dello ZIP).
+- **«+ Nuovo asset come questo»** (menu «Altro» della scheda): precompila categoria, reparto, marca, modello, stato e spunta cartelle; al salvataggio copia le cartelle «solo qui» e le scelte sulle cartelle di categoria, senza file.
+- **Elenco asset:** sui prodotti chimici l'etichetta «SDS aggiornata / da rivedere / mancante» con link al prodotto (la scheda asset la mostrava già).
+- **Storico tecnico** della scheda: anche i ticket risolti e chiusi, con l'ultimo «cosa è stato fatto» e il link.
+- File: `assets/services/documenti_asset.py`, `assets/services/deadline_feed.py`, `assets/models.py`, `assets/migrations/0175_documento_data_scadenza.py`, `assets/views/_helpers.py`, `assets/views/asset_detail.py`, `assets/views/asset_crud.py`, `assets/views/documents.py`, `assets/views/__init__.py`, `assets/urls.py`, `assets/views_maintenance.py`, `dashboard/scadenze_providers.py`, `scadenzario/catalogo.py`, template `asset_detail.html`, `asset_list.html`, `asset_detail.css`, guida in-app `guida.html`, Centro guide `core/guide_moduli/contenuti/assets.py`, `docs/moduli/assets.md`, test `assets/tests_documenti_plus.py`.
+
 ### Anagrafica: sessioni formative (dalla richiesta approvata al nuovo livello)
 
 - **Che cos'è:** la richiesta approvata di assegnazione di mansione o di acquisizione di competenza diventa una sessione formativa `SF-AAAA-NNNN` (specifica della Qualità v1.0): una riga per competenza con livello richiesto, modalità P (pregressa: descrizione e data della verifica), A (affiancamento: tutor, periodo, ore, registro MOD.040 caricato) o C (corso: corso a catalogo o docente/ente e verifica attestato/test/conferma), livello raggiunto e chi ha valutato. Le competenze già al livello richiesto entrano «Già presente».
