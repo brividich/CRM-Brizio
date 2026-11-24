@@ -6,7 +6,7 @@ server (``views_sessioni.py``). Idempotente.
 from django.db import migrations
 
 SORELLA = "anagrafica:mio_team"
-NOTA = "[SESSIONI_0244] copiato da anagrafica:mio_team"
+NOTA = "[SESSIONI_0245] copiato da anagrafica:mio_team"
 ROTTE = ("anagrafica:sessione_pdf", "anagrafica:storico_competenze_pdf", "anagrafica:sessioni_matricole")
 
 
@@ -46,7 +46,7 @@ def indietro(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("anagrafica", "0243_onboarding_matricola"),
+        ("anagrafica", "0244_onboarding_matricola"),
     ]
 
     operations = [

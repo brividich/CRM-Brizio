@@ -19,7 +19,7 @@ def copia_firme(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0241_sessioni_edizione_corso'),
+        ('anagrafica', '0242_sessioni_edizione_corso'),
     ]
 
     operations = [
