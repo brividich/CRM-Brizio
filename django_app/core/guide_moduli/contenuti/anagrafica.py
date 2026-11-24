@@ -294,6 +294,16 @@ GUIDA = {
                       "ricerca tiene i reparti che contengono il testo, anche nel nome di una persona; «Da fare» conta "
                       "i reparti senza responsabile e le persone con un reparto non a catalogo. In stampa escono solo i "
                       "riquadri dei reparti."),
+                ("p", "Il «Diagramma» disegna un organigramma alla volta: il menu a sinistra della barra sceglie l'ambito "
+                      "(Produttivo, ISO 45001, …). Si apre sull'ambito della scheda, che comprende anche i ruoli senza "
+                      "ambito, e poi ricorda l'ultimo scelto. Zoom, rami chiusi e posizione della tela restano come li "
+                      "lasci, per ogni ambito."),
+                ("p", "«Cerca persona o ruolo…» evidenzia le tessere che contengono il testo (bastano 2 lettere): Invio o "
+                      "› va alla successiva, apre i rami chiusi e centra la tela; Maiusc+Invio o ‹ torna indietro, Esc "
+                      "svuota la ricerca."),
+                ("p", "Le sezioni (es. «Team CNC») sono riquadri colorati che raccolgono alcuni riporti dello stesso "
+                      "responsabile: servono a leggere il disegno e non danno né tolgono permessi. Una sezione vuota si "
+                      "vede solo in modalità «Modifica»."),
             ],
         },
         {
@@ -449,6 +459,31 @@ GUIDA = {
         },
     ],
     "admin": [
+        {
+            "id": "organigramma-modifica",
+            "titolo": "Modificare l'organigramma dal diagramma",
+            "blocchi": [
+                ("p", "Chi gestisce l'anagrafica vede «✎ Modifica» nella barra del diagramma. In modalità Modifica:"),
+                ("ul", [
+                    "trascina una tessera su un'altra: dopo «Conferma» il suo ruolo «riporta a» quello della tessera "
+                    "d'arrivo. È la gerarchia vera: cambia anche nell'Albero, nei capi e nei team. Una tessera non va "
+                    "sotto se stessa né sotto un proprio riporto (bordo rosso tratteggiato);",
+                    "trascina una tessera dentro una sezione: se la sezione è dello stesso responsabile cambia solo il "
+                    "disegno; se è di un altro responsabile chiede conferma e sposta anche la gerarchia;",
+                    "clicca la tessera (o «⋯») per «Persone in questa posizione» («Togli», «Assegna»), «Riporta a» "
+                    "(«Sposta», anche «— Nessuno: in cima all'organigramma —»), «Sezione» e «Nuova sezione sotto "
+                    "questa tessera» con nome e colore;",
+                    "«⋯» sul titolo di una sezione: rinomina, cambia colore, «Elimina la sezione» (le tessere tornano "
+                    "libere sotto lo stesso responsabile).",
+                ]),
+                ("p", "«Togli» chiude il ruolo della persona con la data di ieri: il periodo resta nello storico dei "
+                      "ruoli della scheda. «Assegna» apre il ruolo da oggi (o riapre quello concluso). Se è il primo "
+                      "ruolo dell'ambito della scheda, diventa anche il «Ruolo aziendale»."),
+                ("nota", "Un ruolo con più persone disegnate come tessere fratelle si sposta sempre intero, con tutte "
+                         "le persone; in una sezione invece ogni persona può entrare da sola. Ogni modifica finisce "
+                         "nel registro attività."),
+            ],
+        },
         {
             "id": "organizzazione",
             "titolo": "Reparti, aree aziendali e responsabili",

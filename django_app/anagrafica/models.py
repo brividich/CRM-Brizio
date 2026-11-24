@@ -573,6 +573,57 @@ class DipendenteRuoloOperativo(models.Model):
         return f"[{self.legacy_anagrafica_id}] → {self.ruolo.nome}"
 
 
+class OrganigrammaSezione(models.Model):
+    """Sezione del diagramma («Team Saldatura»): un riquadro sotto un ruolo.
+
+    Raggruppa a colpo d'occhio alcune tessere fra i riporti di ``ruolo_padre``.
+    È solo disegno: la gerarchia resta ``RuoloOperativo.riporta_a`` e una
+    sezione non dà né toglie permessi. Le tessere entrano con
+    :class:`OrganigrammaSezioneMembro`.
+    """
+    nome = models.CharField(max_length=80)
+    colore = models.CharField(max_length=7, default="#2563eb", help_text="Colore esadecimale es. #1d4ed8")
+    ruolo_padre = models.ForeignKey(
+        RuoloOperativo, on_delete=models.CASCADE, related_name="sezioni_organigramma",
+        verbose_name="Sotto il ruolo",
+    )
+    ordine = models.IntegerField(default=100)
+    creata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
+    creata_il = models.DateTimeField(auto_now_add=True)
+    aggiornata_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Sezione dell'organigramma"
+        verbose_name_plural = "Sezioni dell'organigramma"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class OrganigrammaSezioneMembro(models.Model):
+    """Una tessera dentro una sezione.
+
+    La tessera è il ruolo (``legacy_anagrafica_id = 0``) oppure, per i ruoli
+    con più titolari disegnati come tessere fratelle, la singola persona.
+    Una tessera sta in una sezione sola.
+    """
+    sezione = models.ForeignKey(OrganigrammaSezione, on_delete=models.CASCADE, related_name="membri")
+    ruolo = models.ForeignKey(RuoloOperativo, on_delete=models.CASCADE, related_name="+")
+    legacy_anagrafica_id = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = [("ruolo", "legacy_anagrafica_id")]
+        verbose_name = "Tessera in una sezione dell'organigramma"
+        verbose_name_plural = "Tessere nelle sezioni dell'organigramma"
+
+    def __str__(self) -> str:
+        return f"{self.sezione} ← {self.ruolo_id}/{self.legacy_anagrafica_id}"
+
+
 # ---------------------------------------------------------------------------
 # Layout widget statistiche scheda dipendente (personalizzabile per utente)
 # ---------------------------------------------------------------------------

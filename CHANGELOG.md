@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Organigramma a diagramma: un ambito alla volta, ricerca, sezioni (team) e modifica dalla tela
+
+- **Tolta la vista «Tutti gli ambiti»** (e «Ruoli senza ambito») dal diagramma: si apre sull'ambito con «alimenta il Ruolo aziendale», che comprende i ruoli non classificati, e la sessione ricorda l'ultimo scelto (`anagrafica/views/struttura.py` `_ambito_diagramma`, `organigramma_diagramma`; `services/organigramma_albero.py` `build_ruolo_albero(includi_senza=)`). L'Albero resta com'era.
+- **Cerca persona o ruolo** nella barra (evidenzia, apre i rami, centra la tela) e **vista ricordata** nel browser: zoom, rami chiusi, posizione, per ambito (`templates/anagrafica/pages/organigramma_diagramma.html`).
+- **Sezioni («team»)**: riquadri colorati con nome sotto un responsabile, che raccolgono alcuni suoi riporti; solo disegno, niente permessi (`models.py` `OrganigrammaSezione`, `OrganigrammaSezioneMembro`, migrazione `0247_organigramma_sezioni.py`; raggruppamento `gruppi` in `build_posizioni_albero`; `partials/_org_posizione.html`).
+- **Modalità «✎ Modifica»** solo per admin anagrafica: si trascina una tessera su un'altra per cambiare «riporta a» (con conferma, i cerchi vengono rifiutati), o dentro una sezione. Cliccando la tessera si apre un modale con «Togli» (chiude il ruolo con la data di ieri, lo storico resta), «Assegna», «Riporta a», sezione e «Nuova sezione». Drag & drop nativo, nessuna libreria esterna. Endpoint JSON `POST /anagrafica/organigramma/diagramma/azione/` (`organigramma_diagramma_azione`, `urls.py`, binding ACL copiato dal diagramma nella 0247), logica in `services/organigramma_modifica.py`, `log_action` per ogni azione.
+- Guide: link «? Guida» sulla pagina; Centro guide `core/guide_moduli/contenuti/anagrafica.py` («organigramma-viste», nuova «organigramma-modifica»). Scheda `docs/moduli/anagrafica.md`, `hub_tools/schema_db.py`. Test: `anagrafica/tests_organigramma_diagramma.py`.
+- **Deploy:** `migrate anagrafica` (0247).
+
 ### Assistente AI: «Il tuo brief di oggi» pronto all'alba
 
 - **Brief preparato alle 6:10 dal cluster** per chi lo ha aperto negli ultimi 14 giorni (`ai_assistant/daily_brief_notturno.py`, task `ai_assistant.tasks.run_daily_brief_notturno`, schedule `ai_daily_brief_notturno`). Prima si generava alla prima apertura della home: 20-25 s di Ollama a persona, ogni mattina. Usa gli stessi dati e permessi della persona e va nella stessa cache della pagina. Chi non è in elenco lo genera come prima; ↻ lo rigenera con i dati di adesso.

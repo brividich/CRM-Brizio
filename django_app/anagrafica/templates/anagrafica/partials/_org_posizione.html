@@ -1,18 +1,25 @@
 {# Nodo ricorsivo dell'organigramma: tessera + riporti affiancati sotto, ad albero genealogico. Riceve: nodo (only). #}
-<li class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}">
+<li class="ogd-node{% if nodo.gruppi %} ogd-has-children{% endif %}"
+    data-nodo="{{ nodo.ruolo.id }}-{{ nodo.chiave_persona }}">
   {% comment %}
     Con una sola persona si clicca tutta la tessera (il JS risale a `data-persona`);
     il nome resta comunque un `button`, che e' il comando raggiungibile da tastiera.
     Niente `role=button` sulla tessera: dentro c'e' gia' il pulsante di collasso.
+    `data-ruolo`/`data-chiave` servono alla modalita' «Modifica» e alla ricerca;
+    `data-cerca` e' il testo su cui cerca la casella della barra.
   {% endcomment %}
   <div class="ogd-card ogd-card--{{ nodo.tipo }}{% if nodo.titolari|length == 1 %} ogd-card--apribile{% endif %}"
+       data-ruolo="{{ nodo.ruolo.id }}" data-chiave="{{ nodo.chiave_persona }}"
+       data-ruolo-nome="{{ nodo.ruolo.nome }}"
+       data-titolari="{% for t in nodo.titolari %}{{ t.legacy_id }}|{{ t.nome|default:t.legacy_id }}{% if not forloop.last %};{% endif %}{% endfor %}"
+       data-cerca="{{ nodo.ruolo.nome|lower }}{% for t in nodo.titolari %} {{ t.nome|lower }}{% endfor %}"
        {% if nodo.titolari|length == 1 %}data-persona="{{ nodo.titolari.0.legacy_id }}"{% endif %}>
     {% if nodo.titolari|length > 1 %}
       <span class="ogd-avatar ogd-avatar--gruppo" aria-hidden="true">{{ nodo.titolari|length }}</span>
     {% elif nodo.titolari %}
       {% with t=nodo.titolari.0 %}
         {% if t.ha_foto %}
-          <img class="ogd-avatar" src="{% url 'anagrafica:foto_dipendente' t.legacy_id %}?m={{ t.foto_v|default:'1' }}" alt="" loading="lazy">
+          <img class="ogd-avatar" src="{% url 'anagrafica:foto_dipendente' t.legacy_id %}?m={{ t.foto_v|default:'1' }}" alt="" loading="lazy" draggable="false">
         {% else %}
           <span class="ogd-avatar ogd-avatar--ph" aria-hidden="true">{{ t.nome|slice:":1"|upper|default:"?" }}</span>
         {% endif %}
@@ -35,15 +42,44 @@
 
     {% if nodo.figli %}
       <span class="ogd-count-badge" title="riporti diretti">{{ nodo.figli|length }}</span>
+    {% endif %}
+    <button type="button" class="ogd-edit-btn" data-ogd-gestisci title="Modifica questa posizione" aria-label="Modifica la posizione {{ nodo.ruolo.nome }}">⋯</button>
+    {% if nodo.gruppi %}
       <button type="button" class="ogd-toggle" data-ogd-toggle aria-expanded="true"
               title="Comprimi / espandi i riporti">−</button>
     {% endif %}
   </div>
 
-  {% if nodo.figli %}
+  {% if nodo.gruppi %}
     <ul class="ogd-level">
-      {% for figlio in nodo.figli %}
-        {% include "anagrafica/partials/_org_posizione.html" with nodo=figlio only %}
+      {% for gruppo in nodo.gruppi %}
+        {% if gruppo.sezione %}
+          {# Sezione («team»): un riquadro agganciato al tronco come un riporto, con le sue tessere dentro. #}
+          <li class="ogd-node ogd-sez-node{% if not gruppo.figli %} ogd-sez-node--vuota{% endif %}">
+            <div class="ogd-sez" data-sezione="{{ gruppo.sezione.id }}" data-sez-padre="{{ nodo.ruolo.id }}"
+                 data-sez-nome="{{ gruppo.sezione.nome }}" data-sez-colore="{{ gruppo.sezione.colore }}"
+                 style="--sez:{{ gruppo.sezione.colore }};">
+              <div class="ogd-sez-head">
+                <span class="ogd-sez-nome">{{ gruppo.sezione.nome }}</span>
+                <span class="ogd-sez-n">{{ gruppo.figli|length }}</span>
+                <button type="button" class="ogd-edit-btn ogd-edit-btn--sez" data-ogd-sezione title="Rinomina, colore, elimina" aria-label="Modifica la sezione {{ gruppo.sezione.nome }}">⋯</button>
+              </div>
+              {% if gruppo.figli %}
+                <ul class="ogd-level ogd-sez-list">
+                  {% for figlio in gruppo.figli %}
+                    {% include "anagrafica/partials/_org_posizione.html" with nodo=figlio only %}
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p class="ogd-sez-vuota">Trascina qui le tessere</p>
+              {% endif %}
+            </div>
+          </li>
+        {% else %}
+          {% for figlio in gruppo.figli %}
+            {% include "anagrafica/partials/_org_posizione.html" with nodo=figlio only %}
+          {% endfor %}
+        {% endif %}
       {% endfor %}
     </ul>
   {% endif %}

@@ -1293,6 +1293,29 @@ def organigramma_albero(request):
     })
 
 
+_SESSIONE_AMBITO_DIAGRAMMA = "anagrafica_diagramma_ambito"
+
+
+def _ambito_diagramma(request) -> tuple[AmbitoRuolo | None, list[AmbitoRuolo]]:
+    """Ambito da disegnare nel diagramma: non esiste più «tutti gli ambiti».
+
+    Ordine: ``?ambito=<id>`` → l'ultimo scelto in questa sessione → l'ambito
+    della scheda (``alimenta_scheda``) → il primo per ordine. ``None`` solo se
+    non esiste alcun ambito: allora si disegnano tutti i ruoli.
+    """
+    ambiti = list(AmbitoRuolo.objects.filter(is_active=True).order_by("ordine", "nome"))
+    per_id = {a.pk: a for a in ambiti}
+    raw = (request.GET.get("ambito") or "").strip()
+    if not (raw.isdigit() and len(raw) < 10 and int(raw) in per_id):
+        raw = str(request.session.get(_SESSIONE_AMBITO_DIAGRAMMA) or "")
+    scelto = per_id.get(int(raw)) if raw.isdigit() and len(raw) < 10 else None
+    if scelto is None and ambiti:
+        scelto = next((a for a in ambiti if a.alimenta_scheda), ambiti[0])
+    if scelto is not None:
+        request.session[_SESSIONE_AMBITO_DIAGRAMMA] = scelto.pk
+    return scelto, ambiti
+
+
 @login_required
 def organigramma_diagramma(request):
     """Organigramma a diagramma: un riquadro per POSIZIONE (ruolo + persona).
@@ -1302,20 +1325,117 @@ def organigramma_diagramma(request):
     riporti si affiancano sotto, agganciati alla traversa. I ruoli con più
     titolari diventano riquadri fratelli; vedi
     :func:`anagrafica.services.organigramma_albero.build_posizioni_albero`.
+
+    Un ambito alla volta; quello della scheda comprende i ruoli senza ambito.
+    Gli admin anagrafica hanno la modalità «Modifica»
+    (:func:`organigramma_diagramma_azione`).
     """
     from anagrafica.services.organigramma_albero import build_posizioni_albero
 
-    ambito_id = _parse_ambito_filtro(request)
-    albero = build_posizioni_albero(ambito_id)
+    ambito, ambiti = _ambito_diagramma(request)
+    if ambito is None:
+        albero = build_posizioni_albero(None)
+    else:
+        albero = build_posizioni_albero(ambito.pk, includi_senza=bool(ambito.alimenta_scheda))
+
+    ruoli_vista: dict[int, str] = {}
 
     def _conta(nodi):
         tot = 0
         for n in nodi:
+            ruoli_vista.setdefault(n["ruolo"].id, n["ruolo"].nome)
             tot += 1 + _conta(n["figli"])
         return tot
 
-    return render(request, "anagrafica/pages/organigramma_diagramma.html", {
+    n_posizioni = _conta(albero)
+    is_admin = _helpers._is_anagrafica_admin(request)
+    contesto = {
         "albero": albero,
-        "n_posizioni": _conta(albero),
-        **_ambito_filtro_context(ambito_id),
-    })
+        "n_posizioni": n_posizioni,
+        "ambiti_filtro": ambiti,
+        "ambito_sel": str(ambito.pk) if ambito else "",
+        "is_anagrafica_admin": is_admin,
+    }
+    if is_admin:
+        from core.persone_tendine import anagrafica_in_forza
+
+        contesto["ruoli_vista"] = sorted(
+            ({"id": rid, "nome": nome} for rid, nome in ruoli_vista.items()),
+            key=lambda r: (r["nome"] or "").casefold(),
+        )
+        contesto["persone_in_forza"] = [
+            {"id": p.id, "nome": naming.nome_completo(p.nome, p.cognome)}
+            for p in anagrafica_in_forza().only("id", "nome", "cognome")
+        ]
+    return render(request, "anagrafica/pages/organigramma_diagramma.html", contesto)
+
+
+@require_POST
+def organigramma_diagramma_azione(request):
+    """Azioni della modalità «Modifica» del diagramma, in JSON (solo admin anagrafica).
+
+    ``azione``: ``sposta`` · ``assegna`` · ``togli`` · ``sezione_crea`` ·
+    ``sezione_modifica`` · ``sezione_elimina`` · ``sezione_metti``. Gli errori
+    sono JSON 401/403/400, mai un redirect: la chiama il JavaScript della pagina.
+    """
+    from django.http import JsonResponse
+
+    from ..services import organigramma_modifica as om
+
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "errore": "Sessione scaduta: accedi di nuovo."}, status=401)
+    if not _helpers._is_anagrafica_admin(request):
+        return JsonResponse({"ok": False, "errore": "Non hai i permessi per modificare l'organigramma."},
+                            status=403)
+
+    p = request.POST
+    azione = (p.get("azione") or "").strip()
+    ruolo_id = _parse_role_id(p.get("ruolo"))
+    legacy_id = _parse_role_id(p.get("persona")) or 0
+    try:
+        if azione == "sposta":
+            ruolo, padre = om.sposta(ruolo_id, _parse_role_id(p.get("padre")))
+            log_action(request, "organigramma_sposta", "anagrafica",
+                       {"ruolo": ruolo.nome, "riporta_a": padre.nome if padre else ""}, oggetto=ruolo)
+            msg = (f"«{ruolo.nome}» ora riporta a «{padre.nome}»." if padre
+                   else f"«{ruolo.nome}» ora è in cima, senza nessuno sopra.")
+        elif azione == "assegna":
+            ruolo, _ = om.assegna(ruolo_id, legacy_id, user=request.user)
+            log_action(request, "organigramma_assegna", "anagrafica",
+                       {"ruolo": ruolo.nome, "persona": legacy_id}, oggetto=ruolo)
+            msg = f"Persona assegnata a «{ruolo.nome}»."
+        elif azione == "togli":
+            ruolo = om.togli(ruolo_id, legacy_id, user=request.user)
+            log_action(request, "organigramma_togli", "anagrafica",
+                       {"ruolo": ruolo.nome, "persona": legacy_id}, oggetto=ruolo)
+            msg = f"Persona tolta da «{ruolo.nome}»: il periodo resta nello storico."
+        elif azione == "sezione_crea":
+            sezione = om.sezione_crea(ruolo_id, p.get("nome"), p.get("colore"), user=request.user)
+            log_action(request, "organigramma_sezione_crea", "anagrafica",
+                       {"sezione": sezione.nome, "sotto": sezione.ruolo_padre.nome}, oggetto=sezione)
+            msg = f"Sezione «{sezione.nome}» creata: trascinaci dentro le tessere."
+        elif azione == "sezione_modifica":
+            sezione = om.sezione_modifica(_parse_role_id(p.get("sezione")), p.get("nome"), p.get("colore"))
+            log_action(request, "organigramma_sezione_modifica", "anagrafica",
+                       {"sezione": sezione.nome, "colore": sezione.colore}, oggetto=sezione)
+            msg = f"Sezione «{sezione.nome}» aggiornata."
+        elif azione == "sezione_elimina":
+            nome = om.sezione_elimina(_parse_role_id(p.get("sezione")))
+            log_action(request, "organigramma_sezione_elimina", "anagrafica", {"sezione": nome})
+            msg = f"Sezione «{nome}» eliminata: le sue tessere tornano libere."
+        elif azione == "sezione_metti":
+            sezione, spostato = om.metti_in_sezione(_parse_role_id(p.get("sezione")), ruolo_id, legacy_id)
+            log_action(request, "organigramma_sezione_metti", "anagrafica",
+                       {"ruolo": ruolo_id, "persona": legacy_id,
+                        "sezione": sezione.nome if sezione else "", "spostato": spostato})
+            if sezione is None:
+                msg = "Tessera tolta dalla sezione."
+            elif spostato:
+                msg = f"Tessera spostata sotto «{sezione.ruolo_padre.nome}», nella sezione «{sezione.nome}»."
+            else:
+                msg = f"Tessera nella sezione «{sezione.nome}»."
+        else:
+            return JsonResponse({"ok": False, "errore": "Azione sconosciuta."}, status=400)
+    except om.ModificaNonValida as exc:
+        return JsonResponse({"ok": False, "errore": str(exc)}, status=400)
+    return JsonResponse({"ok": True, "messaggio": msg})

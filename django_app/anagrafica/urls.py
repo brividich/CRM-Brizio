@@ -464,6 +464,7 @@ urlpatterns = [
          name="coerenza_capi_eccezione"),
     path("organigramma/albero/", views.organigramma_albero, name="organigramma_albero"),
     path("organigramma/diagramma/", views.organigramma_diagramma, name="organigramma_diagramma"),
+    path("organigramma/diagramma/azione/", views.organigramma_diagramma_azione, name="organigramma_diagramma_azione"),
 
     # Report conformità "idoneità alla mansione" (semaforo per dominio)
     path("conformita/", views.conformita_report, name="conformita_report"),

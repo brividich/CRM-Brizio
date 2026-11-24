@@ -487,6 +487,7 @@ from .struttura import (
     organigramma,
     organigramma_albero,
     organigramma_diagramma,
+    organigramma_diagramma_azione,
     ruoli_aziendali_list,
     ruoli_operativi_list,
     ruolo_aziendale_create,

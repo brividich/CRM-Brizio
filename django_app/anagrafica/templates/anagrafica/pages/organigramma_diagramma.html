@@ -205,7 +205,81 @@
 .ogp-apri { margin-top:18px; width:100%; justify-content:center; }
 .ogp-vuoto { font-size:var(--fs-sm); color:var(--text-light); font-style:italic; margin:0; }
 
+/* ── Sezioni («team»): riquadro agganciato al tronco come un riporto ───── */
+.ogd-sez {
+  position:relative; border:1px solid var(--border); border-top:3px solid var(--sez, var(--primary-mid));
+  border-radius:14px; background:color-mix(in srgb, var(--sez, #2563eb) 6%, var(--surface));
+  padding:8px 10px 12px; min-width:248px;
+}
+.ogd-sez-head { display:flex; align-items:center; gap:8px; padding:0 2px 2px; }
+.ogd-sez-nome { font-size:var(--fs-xs); font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--sez, var(--text)); }
+.ogd-sez-n { font-size:var(--fs-2xs); font-weight:800; color:var(--text-mid); background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:0 6px; }
+.ogd-sez-head .ogd-edit-btn { position:static; margin-left:auto; }
+/* dentro la sezione le tessere stanno in fila senza traversa: le tiene insieme il riquadro */
+.ogd-sez-list { flex-wrap:wrap; justify-content:center; gap:0; max-width:calc(4 * 264px); }
+.ogd-sez-list > .ogd-node { padding-top:10px; }
+.ogd-sez-list > .ogd-node::before, .ogd-sez-list > .ogd-node::after { display:none; }
+.ogd-sez-vuota { margin:8px 0 0; padding:14px; text-align:center; font-size:var(--fs-xs); color:var(--text-light); border:1px dashed var(--border); border-radius:10px; }
+/* fuori dalla modalità Modifica una sezione vuota non si disegna */
+.ogd-panel:not(.is-edit) .ogd-sez-node--vuota { display:none; }
+
+/* ── Modalità «Modifica» ───────────────────────────────────────────────── */
+.ogd-edit-btn {
+  display:none; position:absolute; bottom:6px; right:6px; width:22px; height:20px; min-height:0; padding:0;
+  border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text-mid);
+  font-size:var(--fs-sm); font-weight:800; line-height:1; cursor:pointer;
+}
+.ogd-edit-btn:hover { color:var(--primary); border-color:var(--primary-mid); }
+.ogd-panel.is-edit .ogd-edit-btn { display:inline-flex; align-items:center; justify-content:center; }
+.ogd-panel.is-edit { cursor:default; background-color:color-mix(in srgb, var(--primary-mid) 4%, var(--surface)); }
+.ogd-panel.is-edit .ogd-card { cursor:grab; }
+/* da un <button> il browser non avvia il trascinamento: in Modifica il nome è testo della tessera */
+.ogd-panel.is-edit .ogd-person--link { pointer-events:none; }
+.ogd-panel.is-edit .ogd-card.is-trascinata { opacity:.45; }
+.ogd-panel.is-edit .ogd-card.is-bersaglio,
+.ogd-panel.is-edit .ogd-sez.is-bersaglio { outline:3px solid var(--primary-mid); outline-offset:3px; }
+.ogd-panel.is-edit .ogd-card.is-vietato { outline:3px dashed var(--danger, #dc2626); outline-offset:3px; }
+.ogd-editbar { display:none; align-items:center; gap:8px; padding:8px 12px; border-radius:10px;
+  background:color-mix(in srgb, var(--primary-mid) 10%, var(--surface)); border:1px solid var(--primary-mid);
+  font-size:var(--fs-sm); color:var(--text); }
+.ogd-editbar.is-on { display:flex; }
+.hr-btn.is-on { background:var(--primary); color:#fff; border-color:var(--primary); }
+
+/* ── Ricerca ───────────────────────────────────────────────────────────── */
+.ogd-cerca { display:inline-flex; align-items:center; gap:4px; }
+.ogd-cerca input { width:220px; padding:7px 10px; border:1px solid var(--border); border-radius:9px;
+  font:inherit; font-size:var(--fs-sm); background:var(--surface); color:var(--text); }
+.ogd-cerca-esito { font-size:var(--fs-xs); color:var(--text-light); min-width:44px; font-variant-numeric:tabular-nums; }
+.ogd-card.is-trovata { outline:3px solid var(--accent, #f59e0b); outline-offset:3px; }
+.ogd-card.is-trovata-corrente { box-shadow:0 0 0 7px color-mix(in srgb, var(--accent, #f59e0b) 35%, transparent); }
+
+/* ── Modale di modifica ────────────────────────────────────────────────── */
+.ogd-modal-box--edit { width:min(480px,100%); }
+.oge-tit { margin:0 30px 4px 0; font-size:var(--fs-lg); font-weight:800; color:var(--text); }
+.oge-sub { margin:0 0 14px; font-size:var(--fs-sm); color:var(--text-light); }
+.oge-blocco { border-top:1px solid var(--border); padding:12px 0 4px; }
+.oge-blocco h3 { margin:0 0 8px; font-size:var(--fs-2xs); font-weight:800; letter-spacing:.055em; text-transform:uppercase; color:var(--text-light); }
+.oge-riga { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.oge-riga > select, .oge-riga > input[type=text], .oge-riga > .ts-wrapper { flex:1 1 220px; min-width:0; }
+.oge-riga input[type=text] { padding:7px 10px; border:1px solid var(--border); border-radius:9px; font:inherit; background:var(--surface); color:var(--text); }
+.oge-riga input[type=color] { width:42px; height:34px; padding:2px; border:1px solid var(--border); border-radius:8px; background:var(--surface); }
+.oge-persone { list-style:none; margin:0 0 8px; padding:0; display:flex; flex-direction:column; gap:4px; }
+.oge-persone li { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:var(--fs-sm); font-weight:600; }
+.oge-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.oge-chip { border:1px solid var(--border); border-left:4px solid var(--sez,#64748b); border-radius:8px; padding:4px 10px;
+  background:var(--surface); font:inherit; font-size:var(--fs-xs); font-weight:700; color:var(--text-mid); cursor:pointer; }
+.oge-chip.is-sel { background:var(--primary); border-color:var(--primary); color:#fff; }
+.oge-msg { margin:10px 0 0; font-size:var(--fs-sm); font-weight:600; }
+.oge-msg.is-err { color:var(--danger, #dc2626); }
+.oge-azioni { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+.oge-pericolo { color:var(--danger, #dc2626) !important; }
+.ogd-avviso { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:1300;
+  background:var(--primary); color:#fff; padding:10px 16px; border-radius:10px; font-size:var(--fs-sm); font-weight:600;
+  box-shadow:0 12px 30px -12px rgba(8,20,45,.7); }
+.ogd-avviso[hidden] { display:none; }
+
 @media (max-width:640px) {
+  .ogd-cerca input { width:150px; }
   .ogd-panel { padding:20px 12px; height:calc(calc(100 * var(--vh, 1vh)) - 260px); }
   .ogd-node { padding:18px 6px 0; }
   .ogd-node::after { height:18px; }
@@ -227,13 +301,16 @@
   .ogd-card, .ogd-level--top { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .ogd-level--top { break-inside:avoid; box-shadow:none; }
   .ogd-card { box-shadow:none; }
-  .ogd-toggle, .ogd-count-badge { display:none !important; }
+  .ogd-toggle, .ogd-count-badge, .ogd-edit-btn, .ogd-editbar, .ogd-sez-node--vuota { display:none !important; }
+  .ogd-sez { -webkit-print-color-adjust:exact; print-color-adjust:exact; break-inside:avoid; }
+  .ogd-card.is-trovata { outline:0; box-shadow:none; }
 }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .ogd-level--top > .ogd-node > .ogd-card .ogd-count-badge{background:rgba(255,255,255,.06)}
 body.theme-dark .ogd-avatar--ph,body.theme-dark .ogd-avatar--vac,body.theme-dark .ogd-avatar--gruppo{color:#93c5fd}
 body.theme-dark .ogp-foto--ph{color:#93c5fd}
+body.theme-dark .ogd-edit-btn:hover{color:#93c5fd}
 </style>
 {% endblock %}
 
@@ -248,10 +325,11 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
     <div>
       <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
       <h1 class="hr-pagehead-title">Organigramma a diagramma</h1>
-      <p class="hr-pagehead-desc">Una tessera per posizione (persona + ruolo), disegnata ad albero: il genitore sta al centro e i riporti si affiancano sotto. La gerarchia resta tra ruoli, e gli ex dipendenti non occupano posizioni. Clicca una tessera per la scheda sintetica della persona; la tela si trascina, si zooma, va a schermo intero e si stampa.</p>
+      <p class="hr-pagehead-desc">Una tessera per posizione (persona + ruolo), disegnata ad albero: il genitore sta al centro e i riporti si affiancano sotto. La gerarchia resta tra ruoli, e gli ex dipendenti non occupano posizioni. Un organigramma per ambito; i riporti si possono raccogliere in sezioni (team). Clicca una tessera per la scheda sintetica della persona; la tela si trascina, si zooma, va a schermo intero e si stampa.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       {% include "anagrafica/components/organigramma_viste.html" with attiva="diagramma" %}
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="hr-btn hr-btn-outline" href="{{ guida_url }}#{% if is_anagrafica_admin %}organigramma-modifica{% else %}organigramma-viste{% endif %}">? Guida</a>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
     </div>
   </div>
@@ -260,16 +338,22 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
     <div class="ogd-toolbar">
       {# Un organigramma per ambito: produttivo, ISO 45001, ISO 27001… #}
       <form method="get" style="display:inline-flex;align-items:center;gap:6px;">
-        <select name="ambito" class="hr-btn hr-btn-outline" onchange="this.form.submit()"
-                title="Organigramma da disegnare" style="font-family:inherit;cursor:pointer;">
-          <option value="">🗂 Tutti gli ambiti</option>
+        {% if ambiti_filtro %}
+        <select name="ambito" class="hr-btn hr-btn-outline" onchange="this.form.submit()" data-no-search
+                title="Organigramma da disegnare" aria-label="Organigramma da disegnare" style="font-family:inherit;cursor:pointer;">
           {% for a in ambiti_filtro %}
             <option value="{{ a.pk }}" {% if ambito_sel == a.pk|stringformat:"s" %}selected{% endif %}>{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}</option>
           {% endfor %}
-          <option value="senza" {% if ambito_sel == "senza" %}selected{% endif %}>Ruoli senza ambito</option>
         </select>
         <noscript><button type="submit" class="hr-btn hr-btn-outline">Applica</button></noscript>
+        {% endif %}
       </form>
+      <span class="ogd-cerca" id="ogdCerca" hidden>
+        <input type="search" id="ogdCercaInput" placeholder="Cerca persona o ruolo…" aria-label="Cerca persona o ruolo nel diagramma" autocomplete="off">
+        <button type="button" class="hr-btn hr-btn-outline" data-ogd-cerca="-1" title="Risultato precedente" aria-label="Risultato precedente">‹</button>
+        <button type="button" class="hr-btn hr-btn-outline" data-ogd-cerca="1" title="Risultato successivo (Invio)" aria-label="Risultato successivo">›</button>
+        <span class="ogd-cerca-esito" id="ogdCercaEsito" aria-live="polite"></span>
+      </span>
       <button type="button" class="hr-btn hr-btn-outline" data-ogd-expand="1">Espandi tutto</button>
       <button type="button" class="hr-btn hr-btn-outline" data-ogd-expand="0">Comprimi tutto</button>
       <span class="ogd-zoom" id="ogdZoom" hidden>
@@ -281,11 +365,22 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
         <button type="button" class="hr-btn hr-btn-outline" id="ogdFull" title="Schermo intero (Esc per uscire)">⛶ Schermo intero</button>
         <button type="button" class="hr-btn hr-btn-outline" id="ogdPrint" title="Stampa o salva in PDF">🖨 Stampa / PDF</button>
       </span>
+      {% if is_anagrafica_admin %}
+        <button type="button" class="hr-btn hr-btn-outline" id="ogdEditToggle" aria-pressed="false" title="Sposta tessere, assegna persone, crea sezioni">✎ Modifica</button>
+      {% endif %}
       <span class="ogd-count">{{ n_posizioni }} posizion{{ n_posizioni|pluralize:"e,i" }}</span>
     </div>
 
+    {% if is_anagrafica_admin %}
+    <div class="ogd-editbar" id="ogdEditbar" role="status">
+      <strong>Modalità Modifica:</strong> trascina una tessera su un'altra o dentro una sezione; clicca la tessera per persone e sezioni. Vale per tutto il portale.
+    </div>
+    {% endif %}
+
     <div class="ogd-panel" id="ogdPanel"
-         data-url-popup="{% url 'anagrafica:organigramma_persona_popup' 0 %}">
+         data-url-popup="{% url 'anagrafica:organigramma_persona_popup' 0 %}"
+         data-ambito="{{ ambito_sel }}"
+         {% if is_anagrafica_admin %}data-url-azione="{% url 'anagrafica:organigramma_diagramma_azione' %}"{% endif %}>
       {% if albero %}
         {# Un albero per radice, impilati: due organigrammi affiancati non si leggono. #}
         <div class="ogd-zoomwrap" id="ogdZoomWrap"><div class="ogd-scale" id="ogdScale">
@@ -302,7 +397,7 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
       {% endif %}
     </div>
 
-    <p class="ogd-hint">Trascina la tela per muoverti · <kbd>Ctrl</kbd> + rotella per lo zoom · clicca una tessera per la scheda della persona.</p>
+    <p class="ogd-hint">Trascina la tela per muoverti · <kbd>Ctrl</kbd> + rotella per lo zoom · clicca una tessera per la scheda della persona · zoom, rami chiusi e ambito restano come li lasci.</p>
 
     <div class="ogd-modal" id="ogdModal" hidden>
       <div class="ogd-modal-back" data-ogd-chiudi></div>
@@ -311,6 +406,84 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
         <div id="ogdModalBody"><p class="ogp-vuoto">Carico…</p></div>
       </div>
     </div>
+
+    {% if is_anagrafica_admin %}
+    {# Modale unico della modalità Modifica: il JS mostra solo il pannello che serve. #}
+    <div class="ogd-modal" id="ogdEdit" hidden>
+      <div class="ogd-modal-back" data-oge-chiudi></div>
+      <div class="ogd-modal-box ogd-modal-box--edit" role="dialog" aria-modal="true" aria-labelledby="ogeTit">
+        {% csrf_token %}
+        <button type="button" class="ogd-modal-x" data-oge-chiudi title="Chiudi" aria-label="Chiudi">×</button>
+        <h2 class="oge-tit" id="ogeTit"></h2>
+        <p class="oge-sub" id="ogeSub"></p>
+
+        {# Pannello posizione #}
+        <div data-oge-pannello="posizione" hidden>
+          <div class="oge-blocco">
+            <h3>Persone in questa posizione</h3>
+            <ul class="oge-persone" id="ogePersone"></ul>
+            <div class="oge-riga">
+              <select id="ogePersona" aria-label="Persona da assegnare">
+                <option value="">Assegna una persona…</option>
+                {% for p in persone_in_forza %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
+              </select>
+              <button type="button" class="hr-btn hr-btn-outline" data-oge-azione="assegna">Assegna</button>
+            </div>
+          </div>
+          <div class="oge-blocco">
+            <h3>Riporta a</h3>
+            <div class="oge-riga">
+              <select id="ogePadre" aria-label="Ruolo a cui riporta">
+                <option value="">— Nessuno: in cima all'organigramma —</option>
+                {% for r in ruoli_vista %}<option value="{{ r.id }}">{{ r.nome }}</option>{% endfor %}
+              </select>
+              <button type="button" class="hr-btn hr-btn-outline" data-oge-azione="sposta">Sposta</button>
+            </div>
+          </div>
+          <div class="oge-blocco" id="ogeBloccoSezione">
+            <h3>Sezione</h3>
+            <div class="oge-chips" id="ogeSezioni"></div>
+          </div>
+          <div class="oge-blocco">
+            <h3>Nuova sezione sotto questa tessera</h3>
+            <div class="oge-riga">
+              <input type="text" id="ogeNuovaNome" maxlength="80" placeholder="es. Team Saldatura" aria-label="Nome della nuova sezione">
+              <input type="color" id="ogeNuovaColore" value="#2563eb" aria-label="Colore della nuova sezione">
+              <button type="button" class="hr-btn hr-btn-outline" data-oge-azione="sezione_crea">Crea</button>
+            </div>
+          </div>
+        </div>
+
+        {# Pannello sezione #}
+        <div data-oge-pannello="sezione" hidden>
+          <div class="oge-blocco">
+            <h3>Nome e colore</h3>
+            <div class="oge-riga">
+              <input type="text" id="ogeSezNome" maxlength="80" aria-label="Nome della sezione">
+              <input type="color" id="ogeSezColore" aria-label="Colore della sezione">
+              <button type="button" class="hr-btn hr-btn-outline" data-oge-azione="sezione_modifica">Salva</button>
+            </div>
+          </div>
+          <div class="oge-blocco">
+            <h3>Elimina</h3>
+            <p class="oge-sub">Le tessere della sezione tornano libere sotto lo stesso ruolo: la gerarchia non cambia.</p>
+            <button type="button" class="hr-btn hr-btn-outline oge-pericolo" data-oge-conferma-elimina>Elimina la sezione</button>
+          </div>
+        </div>
+
+        {# Pannello conferma (spostamenti col trascinamento, eliminazioni) #}
+        <div data-oge-pannello="conferma" hidden>
+          <div class="oge-azioni">
+            <button type="button" class="hr-btn hr-btn-ghost" data-oge-chiudi>Annulla</button>
+            <button type="button" class="hr-btn hr-btn-primary" id="ogeConferma">Conferma</button>
+          </div>
+        </div>
+
+        <p class="oge-msg" id="ogeMsg" aria-live="polite"></p>
+      </div>
+    </div>
+    {% endif %}
+    <div class="ogd-avviso" id="ogdAvviso" role="status" hidden></div>
   </div>
 
 </div>
@@ -347,6 +520,7 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
     wrap.style.width = Math.ceil(scale.offsetWidth * zoom) + 'px';
     wrap.style.height = Math.ceil(scale.offsetHeight * zoom) + 'px';
     if (valore) { valore.textContent = Math.round(zoom * 100) + '%'; }
+    salva();
   }
 
   /* «Adatta» = ci entra TUTTO, larghezza E altezza: la vista d'insieme è il
@@ -471,6 +645,8 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
     if (ev.button !== 0) { return; }
     /* i comandi dentro la tela restano cliccabili */
     if (ev.target.closest('button, a, select, input, textarea')) { return; }
+    /* in Modifica le tessere si trascinano (drag & drop), non la tela */
+    if (inModifica() && ev.target.closest('.ogd-card, .ogd-sez-head')) { return; }
     pan = { x: ev.clientX, y: ev.clientY, sl: panel.scrollLeft, st: panel.scrollTop, mosso: false, id: ev.pointerId };
   });
   panel.addEventListener('pointermove', function (ev) {
@@ -494,7 +670,10 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
   }
   panel.addEventListener('pointerup', finePan);
   panel.addEventListener('pointercancel', finePan);
-  panel.addEventListener('dragstart', function (ev) { ev.preventDefault(); });
+  panel.addEventListener('dragstart', function (ev) {
+    if (inModifica() && ev.target.closest && ev.target.closest('.ogd-card')) { return; }
+    ev.preventDefault();
+  });
 
   function stato(btn, chiuso) {
     btn.textContent = chiuso ? '+' : '−';
@@ -508,9 +687,16 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
       var nodo = btn.closest('.ogd-node');
       stato(btn, nodo.classList.toggle('is-collapsed'));
       rimisura();
+      salva();
       return;
     }
     if (panAppenaMosso) { panAppenaMosso = false; return; }   /* era un trascinamento */
+    if (inModifica()) {
+      var sezBtn = ev.target.closest('[data-ogd-sezione]');
+      if (sezBtn) { apriSezione(sezBtn.closest('.ogd-sez')); return; }
+      var card = ev.target.closest('.ogd-card');
+      if (card && !ev.target.closest('.ogd-person--link')) { apriPosizione(card); return; }
+    }
     var persona = ev.target.closest('[data-persona]');
     if (persona) { apri(persona.getAttribute('data-persona')); }
   });
@@ -524,7 +710,401 @@ body.theme-dark .ogp-foto--ph{color:#93c5fd}
       });
       panel.querySelectorAll('[data-ogd-toggle]').forEach(function (t) { stato(t, comprimi); });
       rimisura();
+      salva();
     });
+  });
+
+  /* ── Ricorda la vista: zoom, rami chiusi e posizione, per ambito ───────── */
+  var CHIAVE = 'ogd:vista:' + (panel.getAttribute('data-ambito') || 'tutti');
+  var ripristinato = false;   /* finché non si è ripristinato, niente salvataggi */
+  function salva() {
+    if (!ripristinato) { return; }
+    try {
+      var chiusi = [];
+      panel.querySelectorAll('.ogd-node.is-collapsed[data-nodo]').forEach(function (n) {
+        chiusi.push(n.getAttribute('data-nodo'));
+      });
+      localStorage.setItem(CHIAVE, JSON.stringify({
+        zoom: zoom, fit: modoFit, chiusi: chiusi, sl: panel.scrollLeft, st: panel.scrollTop
+      }));
+    } catch (e) { /* storage pieno o disattivato: la vista riparte da zero */ }
+  }
+  var salvaScroll = null;
+  panel.addEventListener('scroll', function () {
+    clearTimeout(salvaScroll);
+    salvaScroll = setTimeout(salva, 250);
+  });
+
+  /* Un ramo con sole sezioni vuote non ha niente da aprire fuori dalla Modifica */
+  function aggiornaToggle() {
+    panel.querySelectorAll('[data-ogd-toggle]').forEach(function (t) {
+      var li = t.closest('.ogd-node');
+      var lv = li && li.querySelector(':scope > .ogd-level');
+      var visibili = lv ? Array.prototype.filter.call(lv.children, function (c) {
+        return inModifica() || !c.classList.contains('ogd-sez-node--vuota');
+      }).length : 0;
+      t.hidden = visibili === 0;
+    });
+  }
+
+  /* ── Cerca persona o ruolo ─────────────────────────────────────────────── */
+  var cerca = document.getElementById('ogdCerca');
+  var cercaIn = document.getElementById('ogdCercaInput');
+  var esito = document.getElementById('ogdCercaEsito');
+  var trovate = [], corrente = -1;
+  function normalizza(t) {
+    return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  }
+  function aggiornaRicerca() {
+    var q = normalizza(cercaIn.value);
+    panel.querySelectorAll('.ogd-card.is-trovata').forEach(function (c) {
+      c.classList.remove('is-trovata', 'is-trovata-corrente');
+    });
+    trovate = []; corrente = -1;
+    if (q.length >= 2) {
+      panel.querySelectorAll('.ogd-card[data-cerca]').forEach(function (c) {
+        if (normalizza(c.getAttribute('data-cerca')).indexOf(q) !== -1) {
+          c.classList.add('is-trovata'); trovate.push(c);
+        }
+      });
+    }
+    esito.textContent = q.length < 2 ? '' : (trovate.length ? trovate.length + (trovate.length === 1 ? ' trovata' : ' trovate') : 'nessuna');
+  }
+  function vaiA(passo) {
+    if (!trovate.length) { return; }
+    if (corrente >= 0) { trovate[corrente].classList.remove('is-trovata-corrente'); }
+    corrente = (corrente + passo + trovate.length) % trovate.length;
+    var c = trovate[corrente];
+    /* i rami chiusi che la nascondono si aprono */
+    var aperto = false;
+    var li = c.closest('.ogd-node');
+    while (li) {
+      var su = li.parentElement && li.parentElement.closest('.ogd-node');
+      if (su && su.classList.contains('is-collapsed')) {
+        su.classList.remove('is-collapsed');
+        var t = su.querySelector(':scope > .ogd-card [data-ogd-toggle]');
+        if (t) { stato(t, false); }
+        aperto = true;
+      }
+      li = su;
+    }
+    if (aperto) { rimisura(); salva(); }
+    c.classList.add('is-trovata-corrente');
+    var pr = panel.getBoundingClientRect(), cr = c.getBoundingClientRect();
+    panel.scrollLeft += (cr.left + cr.width / 2) - (pr.left + panel.clientWidth / 2);
+    panel.scrollTop += (cr.top + cr.height / 2) - (pr.top + panel.clientHeight / 2);
+    esito.textContent = (corrente + 1) + ' di ' + trovate.length;
+  }
+  if (cerca && cercaIn && scale) {
+    cerca.hidden = false;   /* senza JS la casella non servirebbe a niente */
+    cercaIn.addEventListener('input', aggiornaRicerca);
+    cercaIn.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); vaiA(ev.shiftKey ? -1 : 1); }
+      if (ev.key === 'Escape') { cercaIn.value = ''; aggiornaRicerca(); }
+    });
+    cerca.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-ogd-cerca]');
+      if (b) { vaiA(parseInt(b.getAttribute('data-ogd-cerca'), 10)); }
+    });
+  }
+
+  /* ── Avviso dopo un salvataggio (sopravvive al ricaricamento) ──────────── */
+  var avviso = document.getElementById('ogdAvviso');
+  function mostraAvviso(testo) {
+    if (!avviso || !testo) { return; }
+    avviso.textContent = testo;
+    avviso.hidden = false;
+    setTimeout(function () { avviso.hidden = true; }, 4500);
+  }
+  try {
+    var arretrato = sessionStorage.getItem('ogd:avviso');
+    if (arretrato) { sessionStorage.removeItem('ogd:avviso'); mostraAvviso(arretrato); }
+  } catch (e) { /* niente sessionStorage */ }
+
+  /* ── Modalità «Modifica» (solo admin: il server ricontrolla ogni azione) ── */
+  var urlAzione = panel.getAttribute('data-url-azione') || '';
+  var btnEdit = document.getElementById('ogdEditToggle');
+  var editbar = document.getElementById('ogdEditbar');
+  function inModifica() { return panel.classList.contains('is-edit'); }
+  function impostaModifica(on) {
+    panel.classList.toggle('is-edit', on);
+    if (btnEdit) { btnEdit.classList.toggle('is-on', on); btnEdit.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    if (editbar) { editbar.classList.toggle('is-on', on); }
+    panel.querySelectorAll('.ogd-card').forEach(function (c) { c.draggable = on; });
+    try { sessionStorage.setItem('ogd:modifica', on ? '1' : ''); } catch (e) { /* ok */ }
+    aggiornaToggle();
+    rimisura();
+  }
+
+  /* ripristino: rami chiusi, Modifica, poi zoom e posizione (dopo, perché cambiano l'ingombro) */
+  (function ripristina() {
+    var dati = null;
+    try { dati = JSON.parse(localStorage.getItem(CHIAVE) || 'null'); } catch (e) { dati = null; }
+    if (dati && Array.isArray(dati.chiusi)) {
+      dati.chiusi.forEach(function (id) {
+        var n = panel.querySelector('.ogd-node[data-nodo="' + String(id).replace(/[^0-9-]/g, '') + '"]');
+        var t = n && n.querySelector(':scope > .ogd-card [data-ogd-toggle]');
+        if (n && t) { n.classList.add('is-collapsed'); stato(t, true); }
+      });
+    }
+    var modifica = false;
+    try { modifica = !!urlAzione && sessionStorage.getItem('ogd:modifica') === '1'; } catch (e) { /* ok */ }
+    if (modifica) { impostaModifica(true); } else { aggiornaToggle(); }
+    if (dati && scale) {
+      if (dati.fit) { adatta(); }
+      else if (typeof dati.zoom === 'number') { applica(dati.zoom); }
+      panel.scrollLeft = dati.sl || 0;
+      panel.scrollTop = dati.st || 0;
+    }
+    ripristinato = true;
+  })();
+
+  if (!urlAzione || !btnEdit) { return; }
+  btnEdit.addEventListener('click', function () { impostaModifica(!inModifica()); });
+
+  var edit = document.getElementById('ogdEdit');
+  var eTit = document.getElementById('ogeTit');
+  var eSub = document.getElementById('ogeSub');
+  var eMsg = document.getElementById('ogeMsg');
+  var csrf = edit.querySelector('input[name=csrfmiddlewaretoken]');
+  var ctx = {};   /* tessera o sezione su cui lavora il modale */
+
+  function setSel(id, v) {
+    var s = document.getElementById(id);
+    if (!s) { return; }
+    if (s.tomselect) { s.tomselect.setValue(String(v || ''), true); } else { s.value = String(v || ''); }
+  }
+  function pannello(nome) {
+    edit.querySelectorAll('[data-oge-pannello]').forEach(function (p) {
+      p.hidden = p.getAttribute('data-oge-pannello') !== nome;
+    });
+    eMsg.textContent = ''; eMsg.classList.remove('is-err');
+    edit.hidden = false;
+  }
+  function chiudiEdit() { edit.hidden = true; ctx = {}; }
+  edit.addEventListener('click', function (ev) { if (ev.target.closest('[data-oge-chiudi]')) { chiudiEdit(); } });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !edit.hidden) { chiudiEdit(); } });
+
+  function errore(testo) {
+    if (!edit.hidden) { eMsg.textContent = testo; eMsg.classList.add('is-err'); }
+    else { mostraAvviso(testo); }
+  }
+  function invia(dati) {
+    var fd = new FormData();
+    Object.keys(dati).forEach(function (k) { fd.append(k, dati[k] == null ? '' : dati[k]); });
+    if (csrf) { fd.append('csrfmiddlewaretoken', csrf.value); }
+    return fetch(urlAzione, {
+      method: 'POST', body: fd, credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    }).then(function (r) {
+      return r.json().catch(function () { return { ok: false, errore: 'Risposta non valida (' + r.status + ').' }; });
+    }).then(function (j) {
+      if (!j.ok) { errore(j.errore || 'Operazione non riuscita.'); return; }
+      salva();
+      try { sessionStorage.setItem('ogd:avviso', j.messaggio || 'Salvato.'); } catch (e) { /* ok */ }
+      window.location.reload();
+    }).catch(function () { errore('Connessione non riuscita: riprova.'); });
+  }
+
+  /* genitore (tessera), sezione e persone di una tessera */
+  function cardPadre(card) {
+    var li = card.closest('.ogd-node');
+    var su = li && li.parentElement && li.parentElement.closest('.ogd-node:not(.ogd-sez-node)');
+    return su ? su.querySelector(':scope > .ogd-card') : null;
+  }
+  function sezioneDi(card) {
+    var li = card.closest('.ogd-node');
+    var lista = li && li.parentElement;
+    return lista && lista.classList.contains('ogd-sez-list') ? lista.closest('.ogd-sez') : null;
+  }
+  function titolari(card) {
+    return (card.getAttribute('data-titolari') || '').split(';').filter(Boolean).map(function (x) {
+      var i = x.indexOf('|');
+      return { id: x.slice(0, i), nome: x.slice(i + 1) };
+    });
+  }
+  function nuovo(tag, cls, testo) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (testo != null) { e.textContent = testo; }
+    return e;
+  }
+
+  function apriPosizione(card) {
+    var padre = cardPadre(card);
+    ctx = { card: card, ruolo: card.getAttribute('data-ruolo'), chiave: card.getAttribute('data-chiave') };
+    eTit.textContent = card.getAttribute('data-ruolo-nome');
+    eSub.textContent = padre ? 'Riporta a: ' + padre.getAttribute('data-ruolo-nome') : 'In cima all\'organigramma';
+    var ul = document.getElementById('ogePersone');
+    ul.innerHTML = '';
+    var tt = titolari(card);
+    if (!tt.length) { ul.appendChild(nuovo('li', '', 'Posizione scoperta')); }
+    tt.forEach(function (t) {
+      var li = nuovo('li');
+      li.appendChild(nuovo('span', '', t.nome));
+      var b = nuovo('button', 'hr-btn hr-btn-ghost oge-pericolo', 'Togli');
+      b.type = 'button';
+      b.setAttribute('data-oge-togli', t.id);
+      b.setAttribute('data-nome', t.nome);
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+    setSel('ogePersona', '');
+    setSel('ogePadre', padre ? padre.getAttribute('data-ruolo') : '');
+    /* sezioni disponibili: quelle del genitore */
+    var box = document.getElementById('ogeSezioni');
+    var blocco = document.getElementById('ogeBloccoSezione');
+    box.innerHTML = '';
+    var sezioni = padre ? panel.querySelectorAll('.ogd-sez[data-sez-padre="' + padre.getAttribute('data-ruolo') + '"]') : [];
+    blocco.hidden = !sezioni.length;
+    var attuale = sezioneDi(card);
+    var idAttuale = attuale ? attuale.getAttribute('data-sezione') : '';
+    function chip(id, nome, colore) {
+      var b = nuovo('button', 'oge-chip' + (idAttuale === id ? ' is-sel' : ''), nome);
+      b.type = 'button';
+      b.setAttribute('data-oge-sez', id);
+      if (colore) { b.style.setProperty('--sez', colore); }
+      box.appendChild(b);
+    }
+    chip('', 'Nessuna', '');
+    Array.prototype.forEach.call(sezioni, function (s) {
+      chip(s.getAttribute('data-sezione'), s.getAttribute('data-sez-nome'), s.getAttribute('data-sez-colore'));
+    });
+    document.getElementById('ogeNuovaNome').value = '';
+    pannello('posizione');
+  }
+
+  function apriSezione(sez) {
+    ctx = { sezione: sez.getAttribute('data-sezione') };
+    eTit.textContent = 'Sezione «' + sez.getAttribute('data-sez-nome') + '»';
+    var padre = panel.querySelector('.ogd-card[data-ruolo="' + sez.getAttribute('data-sez-padre') + '"]');
+    eSub.textContent = padre ? 'Sotto: ' + padre.getAttribute('data-ruolo-nome') : '';
+    document.getElementById('ogeSezNome').value = sez.getAttribute('data-sez-nome');
+    document.getElementById('ogeSezColore').value = sez.getAttribute('data-sez-colore') || '#2563eb';
+    pannello('sezione');
+  }
+
+  function conferma(titolo, testo, dati) {
+    eTit.textContent = titolo;
+    eSub.textContent = testo;
+    ctx = { conferma: dati };
+    pannello('conferma');
+    document.getElementById('ogeConferma').focus();
+  }
+  document.getElementById('ogeConferma').addEventListener('click', function () {
+    if (ctx.conferma) { invia(ctx.conferma); }
+  });
+
+  edit.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-oge-azione]');
+    if (b) {
+      var az = b.getAttribute('data-oge-azione');
+      if (az === 'assegna') {
+        var pid = document.getElementById('ogePersona').value;
+        if (!pid) { errore('Scegli la persona da assegnare.'); return; }
+        invia({ azione: 'assegna', ruolo: ctx.ruolo, persona: pid });
+      } else if (az === 'sposta') {
+        invia({ azione: 'sposta', ruolo: ctx.ruolo, padre: document.getElementById('ogePadre').value });
+      } else if (az === 'sezione_crea') {
+        invia({ azione: 'sezione_crea', ruolo: ctx.ruolo,
+                nome: document.getElementById('ogeNuovaNome').value,
+                colore: document.getElementById('ogeNuovaColore').value });
+      } else if (az === 'sezione_modifica') {
+        invia({ azione: 'sezione_modifica', sezione: ctx.sezione,
+                nome: document.getElementById('ogeSezNome').value,
+                colore: document.getElementById('ogeSezColore').value });
+      }
+      return;
+    }
+    var tg = ev.target.closest('[data-oge-togli]');
+    if (tg) {
+      conferma('Togliere ' + tg.getAttribute('data-nome') + '?',
+        'Lascia il ruolo «' + eTit.textContent + '» da oggi: il periodo resta nello storico della scheda.',
+        { azione: 'togli', ruolo: ctx.ruolo, persona: tg.getAttribute('data-oge-togli') });
+      return;
+    }
+    var sc = ev.target.closest('[data-oge-sez]');
+    if (sc) {
+      invia({ azione: 'sezione_metti', ruolo: ctx.ruolo, persona: ctx.chiave, sezione: sc.getAttribute('data-oge-sez') });
+      return;
+    }
+    if (ev.target.closest('[data-oge-conferma-elimina]')) {
+      conferma('Eliminare la sezione?', 'Le sue tessere tornano libere sotto lo stesso ruolo; la gerarchia non cambia.',
+        { azione: 'sezione_elimina', sezione: ctx.sezione });
+    }
+  });
+
+  /* ── Trascina e rilascia: su una tessera = «riporta a», su una sezione = ci entra ── */
+  var src = null;
+  function pulisci() {
+    panel.querySelectorAll('.is-bersaglio, .is-vietato, .is-trascinata').forEach(function (n) {
+      n.classList.remove('is-bersaglio', 'is-vietato', 'is-trascinata');
+    });
+  }
+  panel.addEventListener('dragstart', function (ev) {
+    if (!inModifica()) { return; }
+    var card = ev.target.closest && ev.target.closest('.ogd-card');
+    if (!card) { return; }
+    src = card;
+    card.classList.add('is-trascinata');
+    ev.dataTransfer.effectAllowed = 'move';
+    try { ev.dataTransfer.setData('text/plain', card.getAttribute('data-ruolo-nome')); } catch (e) { /* ok */ }
+  });
+  panel.addEventListener('dragend', function () { src = null; pulisci(); });
+  function bersaglio(ev) {
+    var card = ev.target.closest && ev.target.closest('.ogd-card');
+    var mioRamo = src.closest('.ogd-node');
+    if (card) {
+      /* sotto se stessa o sotto un proprio riporto: chiuderebbe un cerchio */
+      var vietato = card.getAttribute('data-ruolo') === src.getAttribute('data-ruolo') || mioRamo.contains(card);
+      return { el: card, tipo: 'card', vietato: vietato };
+    }
+    var sez = ev.target.closest && ev.target.closest('.ogd-sez');
+    if (sez) {
+      return { el: sez, tipo: 'sez', vietato: mioRamo.contains(sez) || sezioneDi(src) === sez };
+    }
+    return null;
+  }
+  panel.addEventListener('dragover', function (ev) {
+    if (!src) { return; }
+    var b = bersaglio(ev);
+    panel.querySelectorAll('.is-bersaglio, .is-vietato').forEach(function (n) {
+      if (!b || n !== b.el) { n.classList.remove('is-bersaglio', 'is-vietato'); }
+    });
+    if (!b) { return; }
+    b.el.classList.toggle('is-vietato', b.vietato);
+    b.el.classList.toggle('is-bersaglio', !b.vietato);
+    if (!b.vietato) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; }
+  });
+  panel.addEventListener('drop', function (ev) {
+    if (!src) { return; }
+    var b = bersaglio(ev);
+    var card = src;
+    src = null;
+    pulisci();
+    if (!b || b.vietato) { return; }
+    ev.preventDefault();
+    var nome = card.getAttribute('data-ruolo-nome');
+    var tutto = card.getAttribute('data-chiave') !== '0'
+      ? ' Si sposta il ruolo intero, con tutte le persone che lo ricoprono.' : '';
+    if (b.tipo === 'card') {
+      var dest = b.el.getAttribute('data-ruolo-nome');
+      conferma('Spostare «' + nome + '» sotto «' + dest + '»?',
+        '«' + nome + '» riporterà a «' + dest + '». Cambia anche nell\'Albero, nei capi e nei team.' + tutto,
+        { azione: 'sposta', ruolo: card.getAttribute('data-ruolo'), padre: b.el.getAttribute('data-ruolo') });
+      return;
+    }
+    var dati = { azione: 'sezione_metti', ruolo: card.getAttribute('data-ruolo'),
+                 persona: card.getAttribute('data-chiave'), sezione: b.el.getAttribute('data-sezione') };
+    var padre = cardPadre(card);
+    if (padre && padre.getAttribute('data-ruolo') === b.el.getAttribute('data-sez-padre')) {
+      invia(dati);   /* stesso genitore: cambia solo il disegno, nessuna conferma */
+      return;
+    }
+    var sotto = panel.querySelector('.ogd-card[data-ruolo="' + b.el.getAttribute('data-sez-padre') + '"]');
+    conferma('Spostare «' + nome + '» nella sezione «' + b.el.getAttribute('data-sez-nome') + '»?',
+      'La sezione sta sotto «' + (sotto ? sotto.getAttribute('data-ruolo-nome') : '') + '»: «' + nome
+        + '» riporterà a quel ruolo. Cambia anche nell\'Albero, nei capi e nei team.' + tutto, dati);
   });
 })();
 </script>
