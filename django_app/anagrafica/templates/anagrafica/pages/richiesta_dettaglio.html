@@ -55,7 +55,7 @@
       <div class="es-s-testa">
         <dl class="es-s-campi" style="grid-template-columns:minmax(0, 1fr)">
           <div class="es-s-campo"><dt>Tipo di richiesta:</dt><dd>{{ r.get_tipo_display }}</dd></div>
-          <div class="es-s-campo"><dt>Persona:</dt><dd>{{ persona }}</dd></div>
+          <div class="es-s-campo"><dt>{% if persone_gruppo %}Persone:{% else %}Persona:{% endif %}</dt><dd>{% if persone_gruppo %}{{ persone_gruppo|join:", " }}{% else %}{{ persona }}{% endif %}</dd></div>
           {% if r.mansione_id %}<div class="es-s-campo"><dt>Mansione:</dt><dd>{{ r.mansione.nome }}</dd></div>
           <div class="es-s-campo"><dt>Reparto della mansione:</dt><dd>{{ r.mansione.reparto_effettivo|default:"Nessuno" }}</dd></div>{% endif %}
           {% if r.competenza_id %}<div class="es-s-campo"><dt>Competenza:</dt><dd>{{ r.competenza.nome }}</dd></div>{% endif %}
