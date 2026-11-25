@@ -1,16 +1,23 @@
-<div class="kbf-card" draggable="{{ is_board_editor|yesno:'true,false' }}" data-project-id="{{ project.id }}">
-  <a class="kbf-card-name" href="{% url 'tasks:project_overview' project.id %}">{{ project.name }}</a>
-  {% if project.client_name %}<div class="kbf-card-client">{{ project.client_name }}</div>{% endif %}
-  {% if project.readiness %}<div class="kbf-card-badge">{% include "tasks/_readiness_badge.html" with readiness=project.readiness %}</div>{% endif %}
-  <div class="kbf-card-meta">
-    {% if project.data_inizio %}<span>dal {{ project.data_inizio|date:"d/m/y" }}</span><span>·</span>{% endif %}
-    <span>{{ project.task_open }} aperte</span><span>·</span><span>{{ project.task_total }} tot</span>
+{# Card della Board: stesso schema della riga dell'Elenco (P/N colorato per fase, riga di stato, avanzamento, capocommessa, «···»). #}
+<div class="kbf-card kbf-card--el" draggable="{{ is_board_editor|yesno:'true,false' }}" data-project-id="{{ project.id }}">
+  <div class="kbf-card-top">
+    <span class="kel-mini kel-mini--sm kel-mini--{{ project.phase|lower }}" aria-hidden="true">{% if project.part_number %}{{ project.part_number|slice:"-4:" }}{% else %}KO{% endif %}</span>
+    <div class="kbf-card-id">
+      <a class="kel-nome" href="{% url 'tasks:project_overview' project.id %}">{{ project.name|default:"Kickoff senza nome" }}</a>
+      <span class="kel-sub">{% if project.client_name %}{{ project.client_name }}{% else %}Cliente da indicare{% endif %}{% if project.part_number %} · {{ project.part_number }}{% endif %}</span>
+    </div>
+    {% include "tasks/_kickoff_menu.html" with project=project %}
   </div>
-  {% if is_board_editor %}
-    <select class="kbf-card-move js-phase-select" data-project-id="{{ project.id }}" aria-label="Sposta fase">
+  {% include "tasks/_kickoff_stato.html" with project=project %}
+  <span class="kel-pp" title="{{ project.task_done }} attività completate su {{ project.task_total }}"><span class="kel-bar-p"><i style="width:{{ project.progress_pct }}%"></i></span>{{ project.progress_pct }}%</span>
+  <div class="kbf-card-ft">
+    <span class="kel-sub">{{ project.team_display_pm|default:"Capocommessa da assegnare" }}</span>
+    {% if is_board_editor %}
+    <select class="kbf-card-move js-phase-select" data-project-id="{{ project.id }}" aria-label="Sposta fase" data-no-search>
       {% for key, label in phase_choices %}
         <option value="{{ key }}" {% if key == project.phase %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
-  {% endif %}
+    {% endif %}
+  </div>
 </div>

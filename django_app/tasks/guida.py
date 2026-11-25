@@ -35,8 +35,9 @@ SEZIONI: list[dict] = [
                 ("Problema", "criticità emersa in un incontro, seguita finché non è risolta."),
                 ("Decisione", "scelta presa in un incontro, conservata nel registro decisioni della commessa."),
             ]),
-            ("p", "In alto, le voci del modulo: «Dashboard» (il tuo quadro), «Da gestire» (cosa richiede intervento), "
-                  "«Kickoff» (l'elenco delle commesse), «Calendario» (gli incontri) e, per chi le gestisce, «Impostazioni». "
+            ("p", "In alto, le voci del modulo: «Dashboard» (il tuo quadro; da qui «Calendario incontri»), «Le mie attività», «Le mie commesse», "
+                  "«Da gestire» (cosa richiede intervento), «Kickoff» (l'elenco delle commesse), «Programmi e FAI» (con le schede Programmi, Registro FAI e Report FAI) "
+                  "e, per chi le gestisce, «Impostazioni». Elenco kickoff, Le mie commesse e Da gestire hanno la stessa barra: una sola ricerca e i filtri rapidi col conteggio. "
                   "Dentro una commessa le schede sono «Panoramica», «Attività», «Incontri», «Piano» e «VRF»."),
             ("nota", "Non vedi un pulsante descritto qui? Dipende dai permessi: vedi «Chi può fare cosa»."),
         ],
@@ -83,14 +84,14 @@ SEZIONI: list[dict] = [
                 "Una sola ricerca in alto (nome, P/N, cliente, descrizione pezzo): nell'Elenco filtra le righe mentre scrivi; con Invio vale anche per Board e Timeline.",
                 "Filtri rapidi col conteggio: «Tutti», «Da avviare», «In VRF», «In esecuzione», «Chiusi» e «Con problemi» (attività o altre voci scadute: problemi aperti, attività d'incontro, sotto-attività).",
                 "Tendine «Cliente», «VRF» (caricato, in attesa, bloccato, da caricare, N/A) e «Ordina» (nome, scadenza, avanzamento, criticità): si applicano appena scegli.",
-                "Ogni riga: P/N, nome, cliente, fase, una riga di stato (rossa se ci sono scadute, arancio se non è pronta, verde «In regola» con la prossima scadenza), avanzamento e PM.",
-                "«Apri» porta alla commessa; «···» ha Attività, Gantt, Incontri, Documento VRF, «Copia VRF» e «Copia senza P/N».",
+                "Ogni riga: P/N, nome, cliente, fase, una riga di stato (rossa se ci sono scadute, arancio se non è pronta, verde «In regola» con la prossima scadenza), avanzamento e capocommessa.",
+                "«Apri» porta alla commessa; «···» ha Attività, Gantt, Incontri, Documento VRF, «Copia VRF» e «Copia senza P/N». La riga di stato rossa è un link: apre le voci scadute della commessa.",
             ]),
             ("img", (_IMG + "portfolio.jpg", "Il portfolio nella vista Elenco")),
             ("p", "«Vista» cambia il modo di leggere le stesse commesse:"),
             ("def", [
                 ("Elenco", "una riga per commessa, la vista predefinita."),
-                ("Board", "una colonna per fase: Bozza, VRF, In esecuzione, Completata. Chi può modificare trascina la card, o usa il menu sulla card, per cambiare fase."),
+                ("Board", "una colonna per fase: Bozza, VRF, In esecuzione, Completata. Ogni card ha lo schema della riga dell'Elenco (P/N, riga di stato, avanzamento, capocommessa, «···»). Chi può modificare trascina la card, o usa la tendina della fase, per cambiarla."),
                 ("Timeline", "una barra per commessa sul calendario, colorata in base alla prontezza, con il segno di oggi."),
             ]),
             ("img", (_IMG + "board.jpg", "La vista Board: le commesse per fase")),
@@ -110,13 +111,13 @@ SEZIONI: list[dict] = [
                 "«Team»: un riquadro per ruolo. Clicca in «Cerca…», scrivi qualche lettera e scegli (frecce e Invio, o un clic); la persona diventa un'etichetta e × la toglie. «+ Io» aggiunge te. Ogni ruolo può avere più persone.",
                 "«Preventivo e dati di commessa»: preventivo, Esp, metodo di controllo, note (finiscono anche nella scheda VRF), impatto sulla sicurezza. Tutti facoltativi.",
                 "«Cosa serve a questa commessa» (chiuso, facoltativo): tipo di commessa, consegna al cliente e tappe che servono.",
-                "A destra il riepilogo segue quello che scrivi: «Anteprima» dell'oggetto, «Per creare il kickoff» (Cliente, Almeno una persona del team) e «Per risultare pronto all'avvio» (Project manager, Capocommessa, Programmatore). La barra in fondo, sempre in vista, dice cosa manca.",
+                "A destra il riepilogo segue quello che scrivi: «Anteprima» dell'oggetto, «Per creare il kickoff» (Cliente, Almeno una persona del team) e «Per risultare pronto all'avvio» (Capocommessa, Programmatore). La barra in fondo, sempre in vista, dice cosa manca.",
                 "Premi «Crea kickoff e passa alla VRF»: si apre la scheda VRF. La compili («Conferma e genera xlsx») o la rimandi («Prosegui e ricordami VRF»); anche qui i pulsanti restano in vista con il Totale Rischio.",
                 "Si apre «Attività e incontro»: attività, incontro e ordine del giorno in una pagina, poi la scelta di quando avvisare.",
             ]),
             ("img", (_IMG + "nuovo_kickoff.jpg", "Il form «Nuovo kickoff»")),
             ("ul", [
-                "Basta un referente del team per creare la commessa; per risultare pronta all'avvio servono Project manager, Capocommessa e Programmatore.",
+                "Basta un referente del team per creare la commessa; per risultare pronta all'avvio servono Capocommessa e Programmatore. Project manager e capocommessa sono un ruolo solo: «Capocommessa».",
                 "Revisione e versione valgono solo con un P/N.",
             ]),
             ("nota", "Se P/N, revisione e versione corrispondono a un kickoff che esiste già, non ne nasce uno doppio: il portale lo dice mentre scrivi (riquadro giallo con «Apri il kickoff»; il pulsante diventa «Riapri il kickoff esistente») e, proseguendo, apre quello esistente."),
@@ -212,7 +213,7 @@ SEZIONI: list[dict] = [
                 ("Incontri", "pianificare il primo incontro, convocarlo, condurlo se è oggi, registrarne l'esito se è passato, approvare e inviare la minuta, pianificare il successivo."),
                 ("Tappe del Percorso", "una riga per ogni tappa da assegnare, in corso o in ritardo; con più di tre tappe da assegnare c'è una riga sola che le elenca. «Assegna» apre il Percorso, «Apri» apre l'attività nel pannello laterale."),
                 ("VRF da compilare", "finché la scheda non è confermata, caricata o segnata come non richiesta."),
-                ("Team incompleto", "serve almeno un Project manager, un Capocommessa e un Programmatore."),
+                ("Team incompleto", "serve almeno un Capocommessa e un Programmatore."),
                 ("Nessuna attività con scadenza", "il piano non ha ancora date."),
                 ("Attività in ritardo", "le prime cinque fuori dal Percorso; le altre si aprono nel Piano con il filtro «In ritardo»."),
                 ("Consegna a rischio", "un'attività aperta finisce dopo la data di consegna."),
@@ -394,7 +395,7 @@ SEZIONI: list[dict] = [
         "id": "report-fai",
         "titolo": "Report FAI",
         "blocchi": [
-            ("p", "«Report FAI» del menu riassume il registro: articoli per situazione, per cliente, FAI per stato e per anno di invio, con i giorni medi fra invio e chiusura. Il filtro «Cliente» vale per tutta la pagina e per i file."),
+            ("p", "La scheda «Report FAI» (in «Programmi e FAI») riassume il registro: articoli per situazione, per cliente, FAI per stato e per anno di invio, con i giorni medi fra invio e chiusura. Il filtro «Cliente» vale per tutta la pagina e per i file."),
             ("def", [
                 ("Da ripetere e in scadenza", "articoli da ripetere o con la ripetizione entro 6 mesi, i più urgenti prima. Excel e PDF."),
                 ("Controllo trimestrale", "articoli oltre la soglia dall'ultima spedizione, da segnalare a IN1 e MSM (MT CN 15 §5.10). Excel e PDF; il Centro report può mandarlo in automatico."),
@@ -408,7 +409,7 @@ SEZIONI: list[dict] = [
         "id": "registro-fai",
         "titolo": "FAI e Registro FAI",
         "blocchi": [
-            ("p", "In «Programmi e FAI» la parte FAI dice cosa prevede la procedura per il P/N della commessa. Il «Registro FAI» del menu tiene una riga per articolo con il FAI più recente: in alto quello che richiede una decisione."),
+            ("p", "In «Programmi e FAI» la parte FAI dice cosa prevede la procedura per il P/N della commessa. La scheda «Registro FAI» (in «Programmi e FAI») tiene una riga per articolo con il FAI più recente: in alto quello che richiede una decisione."),
             ("p", "Tutti i FAI si gestiscono qui: la scheda «Tutti i FAI» del registro ha una riga per FAI, con filtri per cliente e stato, ricerca su P/N, piano, OP, OdA e FAI CN, ed esportazione CSV con le colonne del vecchio file «Situazione FAI-ISIR». "
                   "I FAI storici sono importati da quel file: nella scheda, in fondo, restano i dati originali. Un FAI storico si può salvare anche senza perché e senza tipo, che il file non indicava. Per la scadenza conta l'ultima produzione; finché non è indicata vale la chiusura del FAI e la nota lo dice."),
             ("passi", [
@@ -483,7 +484,7 @@ SEZIONI: list[dict] = [
                 "L'evento Outlook è un canale separato dalla mail: si attiva con «Calendario Outlook» nel form.",
                 "L'invito .ics allegato alla mail usa l'ora italiana e l'organizzatore dell'evento Outlook (campo «Email organizzatore», "
                 "altrimenti chi ha creato l'incontro); quello di annullamento elenca anche i convocati, così il calendario toglie l'evento.",
-                "Ogni convocato può proporre un punto dal dettaglio di un incontro non ancora svolto («Proponi un punto all'ordine del giorno», «Proponi»): Project manager e capocommessa ricevono la notifica e lo accettano o lo rifiutano dalla lista dell'ordine del giorno, con «Accetta» e «Rifiuta».",
+                "Ogni convocato può proporre un punto dal dettaglio di un incontro non ancora svolto («Proponi un punto all'ordine del giorno», «Proponi»): i capocommessa ricevono la notifica e lo accettano o lo rifiutano dalla lista dell'ordine del giorno, con «Accetta» e «Rifiuta».",
                 "Per cambiare solo l'ordine del giorno di un incontro pianificato non serve riaprire la convocazione: si fa dal dettaglio, vedi «Il dettaglio dell'incontro». «Modifica data, sala, convocati», nel riquadro «Convocazione», riapre questa pagina.",
                 "«Prepara con l'AI», in «Dalle commesse simili», cerca le commesse dello stesso cliente o P/N e propone punti da aggiungere: li scegli tu con «Aggiungi all'ordine del giorno» e compaiono subito nella lista.",
             ]),
@@ -611,7 +612,7 @@ SEZIONI: list[dict] = [
         "id": "cruscotto",
         "titolo": "Le mie commesse (cruscotto)",
         "blocchi": [
-            ("p", "«Le mie commesse», nella barra del modulo, elenca le commesse dove sei capocommessa o PM (o hai pieni poteri da Impostazioni), una riga ciascuna: tappe a posto su 9 con quelle in ritardo, consegna con «a rischio», scostamento dal piano, prossimo incontro, spostamenti da decidere e il passo più urgente. In cima le commesse con più problemi. Un clic apre la Panoramica."),
+            ("p", "«Le mie commesse», nella barra del modulo, elenca le commesse dove sei capocommessa (o hai pieni poteri da Impostazioni), una riga ciascuna: tappe a posto su 9 con quelle in ritardo, consegna con «a rischio», scostamento dal piano, prossimo incontro, spostamenti da decidere e il passo più urgente. In cima le commesse con più problemi. Un clic apre la Panoramica."),
             ("p", "Filtri: «Aperte» e «Chiuse»; chi amministra il modulo vede anche «Tutte le commesse»."),
         ],
     },
@@ -715,7 +716,7 @@ SEZIONI: list[dict] = [
         "titolo": "Chi può fare cosa",
         "blocchi": [
             ("p", "Vedi le commesse del tuo perimetro: quelle dove sei nel team o convocato a un incontro, più quelle che i tuoi permessi aprono."),
-            ("p", "Pieni poteri: il capocommessa e il project manager della commessa (i ruoli si scelgono in Impostazioni → «Poteri e avvisi») e le persone indicate lì modificano tutto, date comprese, senza chiedere a nessuno."),
+            ("p", "Pieni poteri: il capocommessa della commessa (i ruoli si scelgono in Impostazioni → «Poteri e avvisi») e le persone indicate lì modificano tutto, date comprese, senza chiedere a nessuno."),
             ("p", "Chi ha un'attività senza pieni poteri la porta avanti (Inizia, Fatta, avanzamento, note, programma), ma non cambia responsabile, priorità o commessa, non la annulla e non riapre un'attività annullata (lo fa il capocommessa); una sua attività completata la riapre con «Riapri». Dal Gantt l'incaricato chiede solo lo spostamento delle date: stato e avanzamento non cambiano da lì. Le date le chiede: cambia «Inizio» o «Fine richiesta» nella scheda (o trascina la barra nel Gantt), scrive il motivo e preme «Chiedi». Le date restano com'erano finché un capocommessa non decide dalla scheda o da «Le mie attività KICK-OFF» → «Spostamenti da decidere»: approva (anche con date diverse) o rifiuta, con una nota. Decide il primo che risponde; tutto resta nello «Storico» dell'attività."),
             ("p", "Spostamento date: chi lo chiede riceve l'esito in campanella e per mail; se ritira la richiesta, chi doveva decidere lo sa (campanella e mail)."),
             ("p", "Quando il capocommessa preme «Approva», le attività collegate che vengono dopo si spostano in avanti come se avesse trascinato lui la barra: solo in avanti (se la precedente viene anticipata restano ferme) e solo quelle ancora aperte. Prima di decidere lo vede: nel riquadro «Richiesta di spostamento» della scheda attività e in «Spostamenti da decidere» di «Le mie attività KICK-OFF» compare «Approvando si spostano in avanti anche:» con ogni attività, i giorni di slittamento e le date nuove. L'anteprima vale per le date chieste: approvando con date diverse lo slittamento si ricalcola. I responsabili delle attività spostate ricevono l'avviso di cambio data e la modifica resta nella Cronologia di ciascuna."),

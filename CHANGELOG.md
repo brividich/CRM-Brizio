@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: un ruolo solo per PM e capocommessa, menu più corto, stessa barra nelle liste
+
+- **Project manager e Capocommessa sono un ruolo solo, «Capocommessa»**, in tutto il modulo: team della commessa, form Nuovo/Modifica kickoff e Nuova attività, prontezza (capocommessa + programmatore), poteri e avvisi, Elenco, Board, Impostazioni, guide. Migrazione `tasks 0075_capocommessa_unico` (i PM diventano capocommessa senza doppioni; impostazioni PM → CC). Chi chiede ancora il «PM» (automazioni, AI) riceve i capocommessa.
+- **Menu del modulo da 10 a 7 voci**: «Programmi e FAI» riunisce Programmi, Registro FAI e Report FAI (schede in alto); «Calendario incontri» si apre dalla Dashboard; «Le mie attività KICK-OFF» diventa «Le mie attività». Migrazione `core 0117_tasks_subnav_meno_voci`.
+- **Portfolio kickoff**: tolte le ripetizioni in testa (conteggio e «Dashboard attività»); la riga di stato rossa apre le voci scadute della commessa; la **Board** usa lo schema dell'Elenco.
+- **Le mie commesse** e **Da gestire** hanno la stessa barra del Portfolio: una sola ricerca e filtri rapidi col conteggio.
+- File: `tasks/models.py`, `migrations/0075_capocommessa_unico.py`, `core/migrations/0117_tasks_subnav_meno_voci.py`, `tasks/forms.py`, `readiness.py`, `access.py`, `minute_email.py`, `project_alerts.py`, `services/avvisi.py`, `services/cosa_manca.py`, `views/projects.py`, `views/cruscotto.py`, `views/task.py`, `views/settings.py`, `views/meetings.py`, `views/import_excel.py`, `ai_assistant/tools.py`, template `projects.html`, `_board_card.html`, `_kickoff_stato.html`, `_kickoff_menu.html`, `_programmi_fai_schede.html`, `cruscotto.html`, `da_gestire.html`, `_da_gestire_section.html`, `project_create.html`, `form.html`, `list.html`, `programmi_registro.html`, `fai_registro.html`, `fai_report.html`, `project_meeting_form.html`, `impostazioni/_tab_record.html`, `static/tasks/js/barra_elenco.js`, `static/tasks/css/tasks.css`. Guide: `tasks/guida.py`, `tasks/guida_ruoli.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`. Test `tasks/tests_giro_menu_ruoli.py`. Deploy: **migrate** (tasks 0075, core 0117) + collectstatic.
+
 ### KICK-OFF: Portfolio kickoff come elenco
 
 - La pagina «Kickoff» (`/tasks/projects/`) passa dalle card a un **elenco**: una riga per commessa con P/N, nome, cliente, fase, una sola riga di stato (scadute, prontezza o prossima scadenza), avanzamento e PM; «Apri» e menu «···» al posto dei cinque pulsanti per card.

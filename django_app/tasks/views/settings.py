@@ -68,7 +68,6 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 SYSTEM_TASK_ROLE_DEFINITIONS = (
-    (TaskRoleType.PROJECT_MANAGER, "Project manager", "Ruolo collegato al campo Project manager del kickoff.", 10),
     (TaskRoleType.CAPO_COMMESSA, "Capocommessa", "Ruolo collegato al campo Capocommessa del kickoff.", 20),
     (TaskRoleType.PROGRAMMER, "Programmatore", "Ruolo collegato al campo Programmatore del kickoff.", 30),
 )
@@ -1761,8 +1760,8 @@ def _handle_tasks_catalogo_post(request):
     return redirect(target)
 
 
-RUOLI_POTERI = (("CC", "Capocommessa"), ("PM", "Project manager"), ("PRG", "Programmatore"), ("CR", "Caporeparto"))
-DESTINATARI_AVVISI = (("INCARICATO", "Incaricato"), ("CC", "Capocommessa"), ("PM", "Project manager"), ("CREATORE", "Chi ha creato l'incarico"))
+RUOLI_POTERI = (("CC", "Capocommessa"), ("PRG", "Programmatore"), ("CR", "Caporeparto"))
+DESTINATARI_AVVISI = (("INCARICATO", "Incaricato"), ("CC", "Capocommessa"), ("CREATORE", "Chi ha creato l'incarico"))
 
 
 def _handle_tasks_poteri_post(request, cfg):

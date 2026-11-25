@@ -659,7 +659,7 @@ def _cc_management(meeting, exclude: list[str]) -> list[str]:
                 cc.append(email)
         return cc
     project = meeting.project
-    for user in project.team_members("project_managers") + project.team_members("capi_commessa"):
+    for user in project.team_members("capi_commessa"):
         email = (getattr(user, "email", "") or "").strip()
         if email and email not in exclude and email not in cc:
             cc.append(email)

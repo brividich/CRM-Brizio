@@ -168,7 +168,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
                 "task_scope": "project",
                 "project_new_description": "Descrizione completa",
                 "project_new_client": "Cliente Alfa",
-                "project_new_manager": str(project_manager.id),
+                "project_new_manager": str(project_manager.id),  # campo tolto: ignorato
                 "project_new_capo_commessa": str(capo_commessa.id),
                 "project_new_programmer": str(programmatore.id),
                 "project_new_control_method": "Checklist e test collaudo",
@@ -183,7 +183,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertIsNotNone(task.project_id)
         project = task.project
         self.assertEqual(project.client_name, "Cliente Alfa")
-        self.assertEqual(project.team_members("project_managers"), [project_manager])
+        # PM e capocommessa sono un ruolo solo: il vecchio campo «Project manager» non esiste più.
         self.assertEqual(project.team_members("capi_commessa"), [capo_commessa])
         self.assertEqual(project.team_members("programmers"), [programmatore])
         self.assertEqual(project.control_method, "Checklist e test collaudo")
@@ -625,7 +625,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "vrf_quote_number": "Q-1",
                 "vrf_description": "",
                 "vrf_esp": "02",
-                "project_managers": [self.user.id],
+                "capi_commessa": [self.user.id],
             },
         )
         project = Project.objects.get(part_number="PN-NEW-001")
@@ -707,7 +707,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "vrf_quote_number": "Q-SAFE",
                 "vrf_description": "",
                 "vrf_esp": "",
-                "project_managers": [self.user.id],
+                "capi_commessa": [self.user.id],
             },
         )
 
@@ -738,7 +738,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "vrf_quote_number": project.vrf_quote_number,
                 "vrf_description": project.vrf_description,
                 "vrf_esp": project.vrf_esp,
-                "project_managers": [self.user.id],
+                "capi_commessa": [self.user.id],
             },
             instance=project,
             project_queryset=Project.objects.exclude(pk=project.pk),
@@ -752,7 +752,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("tasks:project_create"),
-            {"client_name": "X", "part_number": "", "revisione": "A", "versione": "", "project_managers": [self.user.id]},
+            {"client_name": "X", "part_number": "", "revisione": "A", "versione": "", "capi_commessa": [self.user.id]},
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(
@@ -774,7 +774,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "part_number": "DUP-001",
                 "revisione": "B",
                 "versione": "2.0",
-                "project_managers": [self.user.id],
+                "capi_commessa": [self.user.id],
             },
         )
         self.assertRedirects(
@@ -1044,7 +1044,7 @@ class KickoffEditAndQuickTaskTests(TasksBaseTestCase):
     def _payload(self, **extra):
         data = {
             "name": self.project.name, "client_name": "Cliente Nuovo", "part_number": "PN-1",
-            "description": "Flangia", "project_managers": [self.user.pk],
+            "description": "Flangia", "capi_commessa": [self.user.pk],
         }
         data.update(extra)
         return data
@@ -1053,7 +1053,7 @@ class KickoffEditAndQuickTaskTests(TasksBaseTestCase):
         self.project.set_team("project_managers", [self.user])
         response = self.client.get(reverse("tasks:project_edit", args=[self.project.id]))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["form"].initial["project_managers"], [self.user.pk])
+        self.assertEqual(response.context["form"].initial["capi_commessa"], [self.user.pk])
         self.assertContains(response, "Salva modifiche")
 
     def test_edit_saves_data_team_and_vrf_description(self):
@@ -1073,7 +1073,7 @@ class KickoffEditAndQuickTaskTests(TasksBaseTestCase):
         self.project.set_team("project_managers", [self.user])
         response = self.client.get(reverse("tasks:project_edit", args=[self.project.id]))
         self.assertEqual(response.status_code, 200)
-        scelte = set(response.context["form"].fields["project_managers"].queryset.values_list("pk", flat=True))
+        scelte = set(response.context["form"].fields["capi_commessa"].queryset.values_list("pk", flat=True))
         # Il mappato e chi è già nel team, anche senza ruolo.
         self.assertEqual(scelte, {self.collega.pk, self.user.pk})
 
@@ -1084,7 +1084,7 @@ class KickoffEditAndQuickTaskTests(TasksBaseTestCase):
         voce = AuditLog.objects.filter(azione="kickoff_edited").latest("created_at")
         modifiche = voce.dettaglio["modifiche"]
         self.assertEqual(modifiche["Cliente"], {"old": "Cliente", "new": "Cliente Nuovo"})
-        self.assertEqual(modifiche["Project manager"]["old"], "—")
+        self.assertEqual(modifiche["Capocommessa"]["old"], "—")
         self.assertEqual(modifiche["Note"], {"old": "Vecchia", "new": "Flangia"})
 
     def test_edit_rejects_identity_of_other_kickoff(self):
@@ -1846,10 +1846,10 @@ class ProjectTeamMembersTests(TestCase):
         self.project = make_project(name="Team", created_by=self.owner)
 
     def test_set_team_sostituisce_solo_il_ruolo_indicato(self):
-        self.project.set_team("project_managers", [self.anna, self.bruno])
+        self.project.set_team("programmers", [self.anna, self.bruno])
         self.project.set_team("capi_commessa", [self.anna])
-        self.project.set_team("project_managers", [self.bruno])
-        self.assertEqual(self.project.team_members("project_managers"), [self.bruno])
+        self.project.set_team("programmers", [self.bruno])
+        self.assertEqual(self.project.team_members("programmers"), [self.bruno])
         self.assertEqual(self.project.team_members("CC"), [self.anna])
         self.assertEqual(self.project.role_types_for_user(self.anna.pk), ["CC"])
 

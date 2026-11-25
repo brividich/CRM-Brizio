@@ -57,6 +57,8 @@
     {% if can_create %}
       <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
     {% endif %}
+    {# Il calendario non ha più una voce nel menu del modulo: si apre da qui. #}
+    <a class="ts-hero-action" href="{% url 'tasks:incontri_calendario' %}">Calendario incontri</a>
     <a class="ts-hero-action" href="{% url 'tasks:mie_azioni' %}">Le mie attività KICK-OFF</a>
     <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
     {% if tasks_shell_can_admin %}

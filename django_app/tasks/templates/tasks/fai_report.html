@@ -4,9 +4,10 @@
 {% block tasks_shell_guide_anchor %}#report-fai{% endblock %}
 {% block tasks_shell_title %}Report FAI{% endblock %}
 {% block tasks_shell_subtitle %}Situazione degli articoli, scadenze e controllo trimestrale, da leggere o scaricare.{% endblock %}
-{% block tasks_shell_actions %}<a class="ts-hero-action" href="{% url 'tasks:fai_registro' %}">Registro FAI</a>{% endblock %}
+
 
 {% block tasks_shell_content %}
+{% include "tasks/_programmi_fai_schede.html" with attiva="report" %}
 <section class="ts-panel">
   <div class="ts-panel-body fai-registro">
     {% include "tasks/_fai_schede_registro.html" with per_report=True %}

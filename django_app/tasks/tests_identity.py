@@ -351,7 +351,8 @@ class ProjectIdentitySuggestTests(TasksBaseTestCase):
 
         self.assertContains(response, reverse("tasks:identity_check"))
         self.assertContains(response, "tasks/js/kickoff_form.js")
-        self.assertContains(response, 'data-kn-check="project_managers"')
+        self.assertContains(response, 'data-kn-check="capi_commessa"')
+        self.assertNotContains(response, 'data-kn-check="project_managers"')
         self.assertContains(response, "data-kn-doppione")
 
     def test_identity_check_trova_solo_i_kickoff_visibili(self):

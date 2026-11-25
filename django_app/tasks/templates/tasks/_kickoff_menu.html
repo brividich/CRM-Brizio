@@ -1,0 +1,14 @@
+{# Menu «···» di un kickoff, uguale in Elenco e Board. Param: project. #}
+<details class="kel-menu">
+  <summary class="btn btn-secondary btn-sm" aria-label="Altre azioni per {{ project.name }}">&middot;&middot;&middot;</summary>
+  <div class="kel-menu-pop">
+    <a href="{% url 'tasks:list' %}?project={{ project.id }}">Attività</a>
+    <a href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
+    <a href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
+    <a href="{% url 'tasks:project_vrf_compile' project.id %}">Documento VRF</a>
+    {% if tasks_shell_can_create and project.can_manage %}
+    <form method="post" action="{% url 'tasks:copy_project_with_vrf' project.id %}">{% csrf_token %}<button type="submit">Copia VRF</button></form>
+    <form method="post" action="{% url 'tasks:copy_project_with_vrf_without_pn' project.id %}">{% csrf_token %}<button type="submit">Copia senza P/N</button></form>
+    {% endif %}
+  </div>
+</details>

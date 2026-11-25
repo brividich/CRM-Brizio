@@ -21,7 +21,7 @@ GUIDA = {
                 ("passi", [
                     "Apri KICK-OFF e clicca «+ Nuovo kickoff».",
                     "Compila «Di che pezzo si tratta»: cliente, P/N, «Descrizione pezzo», revisione. Ogni campo propone i valori già usati. L'oggetto si compone da solo come «Cliente · P/N rev. X · Descrizione pezzo», senza più il numero «KICK-OFF n».",
-                    "Scegli il team: in ogni ruolo cerca la persona e sceglila (o «+ Io»). Basta un referente per creare, ma per risultare pronta la commessa vuole PM, capo commessa e programmatore. Preventivo e dati di commessa sono facoltativi.",
+                    "Scegli il team: in ogni ruolo cerca la persona e sceglila (o «+ Io»). Basta un referente per creare, ma per risultare pronta la commessa vuole capocommessa e programmatore (Project manager e capocommessa sono un ruolo solo). Preventivo e dati di commessa sono facoltativi.",
                     "Il riepilogo a destra e la barra in fondo dicono cosa manca; se P/N, revisione e versione esistono già lo vedi subito, con «Apri il kickoff».",
                     "«Crea kickoff e passa alla VRF»: compili la scheda VRF o la rimandi, come prima.",
                     "«Attività e incontro»: scrivi le attività (responsabile, scadenza e nota facoltativi), collegale trascinando l'anello di quella che viene dopo su quella che viene prima, convoca l'incontro e componi l'ordine del giorno; «All'ODG» porta un'attività in riunione, da confermare.",
@@ -43,7 +43,7 @@ GUIDA = {
                 ("ul", [
                     "VRF (MOD.073) caricato, o segnato come non richiesto;",
                     "incontro di kickoff svolto (non solo pianificato);",
-                    "team assegnato: almeno un PM, un capo commessa e un programmatore;",
+                    "team assegnato: almeno un capocommessa e un programmatore;",
                     "piano attività con le scadenze.",
                 ]),
                 ("p", "Il link «Correggi» accanto a ogni voce porta a dove si sistema; il team si cambia da «Modifica kickoff»."),
@@ -98,7 +98,7 @@ GUIDA = {
             "titolo": "Dove guardare",
             "blocchi": [
                 ("def", [
-                    ("Portfolio", "le commesse in elenco (una riga per commessa), board per fase (Bozza, VRF, In esecuzione, Completata) o timeline. Una sola ricerca in alto, filtri rapidi per fase con il conteggio e «Con problemi». Ogni riga mostra l'avanzamento (attività completate sul totale, annullate escluse, come in Panoramica e nel Gantt) e una riga di stato: attività e altre voci scadute, prontezza o prossima scadenza fra le attività aperte."),
+                    ("Portfolio", "le commesse in elenco (una riga per commessa), board per fase (Bozza, VRF, In esecuzione, Completata) o timeline. Una sola ricerca in alto, filtri rapidi per fase con il conteggio e «Con problemi»; la riga di stato rossa apre le voci scadute. La Board usa lo stesso schema. Le mie commesse e Da gestire hanno la stessa barra. Menu del modulo: Dashboard, Le mie attività, Le mie commesse, Da gestire, Kickoff, Programmi e FAI, Impostazioni (il calendario si apre dalla Dashboard). Ogni riga mostra l'avanzamento (attività completate sul totale, annullate escluse, come in Panoramica e nel Gantt) e una riga di stato: attività e altre voci scadute, prontezza o prossima scadenza fra le attività aperte."),
                     ("Da gestire", "VRF mancanti, commesse non pronte, attività critiche, incontri con problemi aperti. «Le mie» filtra su di te."),
                     ("Calendario / Incontri", "tutti gli incontri del mese o in elenco, con i filtri per commessa, esito/minuta e prossimi 7 giorni."),
                     ("Percorso del kickoff", "in Panoramica e nell'incontro: Arrivo materiali, Programma CAM, Programma CMM, Macchina, Terzista, Processi speciali, FAI. È l'indice delle tappe, senza campi propri: «Assegna» crea l'attività del tipo giusto e la apre nel pannello laterale sul collegamento atteso; sotto la tappa si leggono i collegamenti dell'attività e lo stato dice «Manca: …» finché non ci sono. «Non serve» la toglie dal conteggio. Abilitati, assenze e impegni della macchina si leggono nella scheda dell'attività."),
@@ -137,7 +137,7 @@ GUIDA = {
                     ("Ruoli operativi e Accessi", "chi vede tutto, chi modifica solo le proprie attività, chi modifica tutto."),
                     ("Promemoria", "i promemoria automatici."),
                     ("Catalogo", "scheda «Catalogo»: le voci ricorrenti (punti ODG, attività d'incontro, attività del piano, problemi) raccolte da sole da quello che si scrive, con quante volte sono state usate. Si rinominano (rinominare in una voce già esistente le unisce), si uniscono i doppioni, si nascondono quelle da non suggerire; per i punti ODG anche la nota predefinita."),
-                    ("Poteri e avvisi", "Configurazione → «Poteri e avvisi»: ruoli del team con pieni poteri (di base capocommessa e PM), altre persone con pieni poteri, spostamenti di date con approvazione (decide il primo capocommessa che risponde), chi riceve gli avvisi sui cambiamenti (di base incaricato e capocommessa). La mail degli avvisi è il flusso «KICK-OFF — mail quando cambia un incarico» in Automazioni."),
+                    ("Poteri e avvisi", "Configurazione → «Poteri e avvisi»: ruoli del team con pieni poteri (di base capocommessa), altre persone con pieni poteri, spostamenti di date con approvazione (decide il primo capocommessa che risponde), chi riceve gli avvisi sui cambiamenti (di base incaricato e capocommessa). La mail degli avvisi è il flusso «KICK-OFF — mail quando cambia un incarico» in Automazioni."),
                     ("Menu delle impostazioni", "a sinistra, per argomento: Commesse (Generale, Modelli di commessa, Sale riunioni), Incontri (Modelli ordine del giorno, Catalogo voci), Persone e permessi (Poteri e avvisi, Ruoli operativi, Accessi), Attività (Tipi, Promemoria, FAI), Controllo (Riepilogo, Eliminazioni, Registro modifiche)."),
                     ("Modelli di commessa", "un modello per tipo di lavoro: tappe che servono e giorni prima della consegna per ciascuna. Nel nuovo kickoff il modello spunta le tappe e, con la consegna, propone le scadenze. Accanto a ogni tappa c'è la media reale delle commesse fatte con quel modello; «Usa i valori reali» la copia nei giorni."),
                     ("Sale riunioni", "«Sale riunioni»: nome, casella Microsoft 365 della sala, posti, attiva. Con la casella l'invito Outlook dell'incontro prenota la sala e il form ne mostra la disponibilità; servono una casella «sala» con accettazione automatica in Exchange e il permesso applicativo Graph Calendars.ReadWrite. Una sala con incontri si disattiva invece di eliminarsi."),

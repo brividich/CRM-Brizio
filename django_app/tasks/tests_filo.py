@@ -31,7 +31,7 @@ class FiloBase(TasksBaseTestCase):
         dati = {
             "client_name": "Cliente", "part_number": pn, "revisione": "A", "versione": "1.0", "description": "",
             "control_method": "", "vrf_quote_number": "", "vrf_description": "", "vrf_esp": "",
-            "project_managers": [self.user.id],
+            "capi_commessa": [self.user.id],
         }
         dati.update(extra)
         return self.client.post(reverse("tasks:project_create"), dati)
@@ -62,7 +62,7 @@ class CreazioneGuidataTests(FiloBase):
         dati = {
             "client_name": "Cliente", "part_number": "PN-FILO-3", "revisione": "A", "versione": "1.0",
             "description": "", "control_method": "", "vrf_quote_number": "", "vrf_description": "", "vrf_esp": "",
-            "project_managers": [self.user.id], "tappe_presenti": "1",
+            "capi_commessa": [self.user.id], "tappe_presenti": "1",
             "tappe_servono": ["MATERIALI", "CAM", "CMM", "MACCHINA", "ATTREZZATURA", "UTENSILI", "FAI"],
         }
         self.client.post(reverse("tasks:project_edit", args=[project.pk]), dati)

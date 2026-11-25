@@ -418,7 +418,7 @@ def utenti_pieni_poteri(project: Project) -> list:
 
 
 def ha_pieni_poteri(request, project: Project | None) -> bool:
-    """Capocommessa, PM (o i ruoli scelti) e le persone indicate in Impostazioni: modificano tutto."""
+    """Capocommessa (o i ruoli scelti) e le persone indicate in Impostazioni: modificano tutto."""
     if project is None:
         return False
     if has_task_permission(request, "tasks_admin"):
