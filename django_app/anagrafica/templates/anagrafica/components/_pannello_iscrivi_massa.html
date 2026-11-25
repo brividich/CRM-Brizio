@@ -1,0 +1,124 @@
+{% comment %}
+Pannello laterale «Aggiungi iscritti» (iscrizione in blocco a una sessione).
+Contesto: sessione, persone_iscrivibili, opz_reparti, opz_aree, opz_mansioni, conta_iscrivibili.
+Invia a formazione_iscrizione_bulk i campi «dipendenti_selezionati».
+{% endcomment %}
+<style>
+.pim-mask{position:fixed;inset:0;background:rgba(12,37,69,.35);z-index:900}
+.pim-side{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--surface,#fff);z-index:901;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(15,23,42,.15);font-size:13px}
+.pim-side[hidden],.pim-mask[hidden]{display:none}
+.pim-h{padding:16px 20px;border-bottom:1px solid var(--border,#e2e8f0);display:flex;justify-content:space-between;gap:10px}
+.pim-t{font-weight:700;font-size:16px;color:var(--hub-color-navy,#0c2545)}
+.pim-sub{color:var(--text-mid,#64748b);font-size:12.5px}
+.pim-f{padding:12px 20px;border-bottom:1px solid var(--border,#e2e8f0);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pim-f .full{grid-column:1/-1}
+.pim-f input[type=search],.pim-f select{width:100%;font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--border,#d7e0ea);border-radius:8px;background:var(--surface,#fff);color:var(--text,#1a202c)}
+.pim-col{min-width:0}
+.pim-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pim-chip{border:1px solid var(--border,#d7e0ea);background:var(--surface,#fff);border-radius:999px;padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--text,#1a202c)}
+.pim-chip[aria-pressed=true]{background:var(--hub-color-navy,#0c2545);border-color:var(--hub-color-navy,#0c2545);color:#fff}
+.pim-chip .n{opacity:.7;margin-left:3px}
+.pim-opz{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12.5px}
+.pim-opz label{display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.pim-b{flex:1;overflow:auto;padding:4px 12px}
+.pim-p{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px;border-radius:8px;cursor:pointer}
+.pim-p:hover{background:var(--surface-alt,#f4f7fa)}
+.pim-p[hidden]{display:none}
+.pim-p small{display:block;color:var(--text-mid,#64748b);font-size:11.5px}
+.pim-tag{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.pim-tag.da_formare{background:#fff5f5;color:#b91c1c}.pim-tag.in_scadenza{background:#fffbeb;color:#92400e}.pim-tag.in_regola{background:#ecfdf5;color:#065f46}
+.pim-tag.ass{background:#eff6ff;color:#1f6fae}
+.pim-foot{padding:12px 20px;border-top:1px solid var(--border,#e2e8f0);display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.pim-x{width:32px;height:32px;border-radius:8px;border:0;background:#f1f5f9;font-size:18px;cursor:pointer;color:#334155}
+body.theme-dark .pim-x{background:rgba(255,255,255,.08);color:var(--text)}
+body.theme-dark .pim-chip[aria-pressed=true]{background:#93c5fd;border-color:#93c5fd;color:#0b1220}
+</style>
+<div class="pim-mask" id="pim-mask" hidden></div>
+<aside class="pim-side" id="pim-side" role="dialog" aria-label="Aggiungi iscritti" hidden>
+  <form method="post" action="{% url 'anagrafica:formazione_iscrizione_bulk' sessione.pk %}" style="display:flex;flex-direction:column;height:100%;">
+    {% csrf_token %}{% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+    <div class="pim-h">
+      <div><div class="pim-t">Aggiungi iscritti</div>
+        <div class="pim-sub">{{ sessione.codice_sessione }} · {{ sessione.corso.titolo }} · {{ persone_iscrivibili|length }} dipendenti attivi non ancora iscritti</div></div>
+      <button type="button" class="pim-x" data-pim-chiudi aria-label="Chiudi">×</button>
+    </div>
+    <div class="pim-f">
+      <div class="full pim-chips" role="group" aria-label="Rispetto al corso">
+        <button type="button" class="pim-chip" data-pim-stato="" aria-pressed="false">Tutti<span class="n">{{ persone_iscrivibili|length }}</span></button>
+        <button type="button" class="pim-chip" data-pim-stato="da_formare" aria-pressed="true">Da formare<span class="n">{{ conta_iscrivibili.da_formare }}</span></button>
+        <button type="button" class="pim-chip" data-pim-stato="in_scadenza" aria-pressed="false">In scadenza entro 90 gg<span class="n">{{ conta_iscrivibili.in_scadenza }}</span></button>
+        <button type="button" class="pim-chip" data-pim-stato="assegnato" aria-pressed="false">Assegnati al corso<span class="n">{{ conta_iscrivibili.assegnati }}</span></button>
+      </div>
+      <input type="search" class="full" id="pim-testo" placeholder="Cerca per nome…" aria-label="Cerca per nome">
+      <div class="pim-col"><select id="pim-reparto" aria-label="Reparto"><option value="">Tutti i reparti</option>{% for o in opz_reparti %}<option value="{{ o|lower }}">{{ o }}</option>{% endfor %}</select></div>
+      <div class="pim-col"><select id="pim-area" aria-label="Area"><option value="">Tutte le aree</option>{% for o in opz_aree %}<option value="{{ o|lower }}">{{ o }}</option>{% endfor %}</select></div>
+      <div class="pim-col"><select id="pim-mansione" aria-label="Mansione"><option value="">Tutte le mansioni</option>{% for o in opz_mansioni %}<option value="{{ o|lower }}">{{ o }}</option>{% endfor %}</select></div>
+      <div class="full pim-opz">
+        <label><input type="checkbox" id="pim-senzautente"> Solo chi non ha l'utente del portale</label>
+        <span style="flex:1;"></span>
+        <span style="display:flex;gap:6px;"><button type="button" class="pim-chip" id="pim-tutti">Seleziona tutti</button><button type="button" class="pim-chip" id="pim-nessuno">Nessuno</button></span>
+      </div>
+    </div>
+    <div class="pim-b">
+      {% for d in persone_iscrivibili %}
+      <label class="pim-p" data-nome="{{ d.nome|lower }}" data-reparto="{{ d.reparto|lower }}" data-area="{{ d.area|lower }}" data-mansione="{{ d.mansione|lower }}" data-utente="{% if d.ha_utente %}1{% endif %}" data-stato="{{ d.stato }}" data-assegnato="{% if d.assegnato %}1{% endif %}">
+        <input type="checkbox" name="dipendenti_selezionati" value="{{ d.legacy_id }}">
+        <span><strong>{{ d.nome }}</strong><small>{{ d.reparto|default:"—" }}{% if d.mansione %} · {{ d.mansione }}{% endif %}</small></span>
+        <span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+          {% if d.assegnato %}<span class="pim-tag ass">Assegnato</span>{% endif %}
+          {% if d.stato == "da_formare" %}<span class="pim-tag da_formare">Da formare</span>{% elif d.stato == "in_scadenza" %}<span class="pim-tag in_scadenza">Scade il {{ d.scadenza|date:"d-m-Y" }}</span>{% else %}<span class="pim-tag in_regola">In regola</span>{% endif %}
+        </span>
+      </label>
+      {% empty %}<p class="pim-sub" style="padding:12px;">Tutti i dipendenti attivi sono già iscritti.</p>{% endfor %}
+      <p class="pim-sub" id="pim-vuota" style="padding:12px;" hidden>Nessun dipendente con questi filtri.</p>
+    </div>
+    <div class="pim-foot">
+      <span class="pim-sub" id="pim-contatore" style="font-size:13px;">0 selezionati</span>
+      <span style="display:flex;gap:8px;">
+        <button type="button" class="hr-btn hr-btn-ghost" data-pim-chiudi>Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary" id="pim-iscrivi" disabled>Iscrivi</button>
+      </span>
+    </div>
+  </form>
+</aside>
+<script>
+(function () {
+  var side = document.getElementById('pim-side'), mask = document.getElementById('pim-mask');
+  if (!side) return;
+  function apri(v) { side.hidden = !v; mask.hidden = !v; if (v) document.getElementById('pim-testo').focus(); }
+  document.querySelectorAll('[data-pim-apri]').forEach(function (b) { b.addEventListener('click', function (e) { e.preventDefault(); apri(true); }); });
+  side.querySelectorAll('[data-pim-chiudi]').forEach(function (b) { b.addEventListener('click', function () { apri(false); }); });
+  mask.addEventListener('click', function () { apri(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !side.hidden) apri(false); });
+  var persone = side.querySelectorAll('.pim-p'), statoSel = 'da_formare';
+  var chips = side.querySelectorAll('[data-pim-stato]');
+  function conta() {
+    var n = side.querySelectorAll('.pim-p input:checked').length;
+    document.getElementById('pim-contatore').textContent = n + (n === 1 ? ' selezionato' : ' selezionati');
+    var b = document.getElementById('pim-iscrivi'); b.disabled = n === 0; b.textContent = n ? 'Iscrivi ' + n : 'Iscrivi';
+  }
+  function filtra() {
+    var t = document.getElementById('pim-testo').value.trim().toLowerCase(), vis = 0;
+    var rep = document.getElementById('pim-reparto').value, area = document.getElementById('pim-area').value, man = document.getElementById('pim-mansione').value;
+    var soloSenza = document.getElementById('pim-senzautente').checked;
+    persone.forEach(function (p) {
+      var okStato = !statoSel || (statoSel === 'assegnato' ? p.dataset.assegnato === '1' : p.dataset.stato === statoSel);
+      var ok = okStato && (!t || p.dataset.nome.indexOf(t) !== -1) && (!rep || p.dataset.reparto === rep)
+            && (!area || p.dataset.area === area) && (!man || p.dataset.mansione === man) && !(soloSenza && p.dataset.utente === '1');
+      p.hidden = !ok; if (ok) vis++;
+    });
+    var v = document.getElementById('pim-vuota'); if (v) v.hidden = vis > 0 || !persone.length;
+  }
+  chips.forEach(function (c) { c.addEventListener('click', function () {
+    statoSel = c.dataset.pimStato; chips.forEach(function (x) { x.setAttribute('aria-pressed', x === c ? 'true' : 'false'); }); filtra();
+  }); });
+  ['pim-testo', 'pim-reparto', 'pim-area', 'pim-mansione', 'pim-senzautente'].forEach(function (id) {
+    var el = document.getElementById(id); el.addEventListener(el.type === 'search' ? 'input' : 'change', filtra);
+  });
+  document.getElementById('pim-tutti').addEventListener('click', function () { persone.forEach(function (p) { if (!p.hidden) p.querySelector('input').checked = true; }); conta(); });
+  document.getElementById('pim-nessuno').addEventListener('click', function () { persone.forEach(function (p) { p.querySelector('input').checked = false; }); conta(); });
+  side.addEventListener('change', function (e) { if (e.target.name === 'dipendenti_selezionati') conta(); });
+  filtra();
+  if (location.hash === '#aggiungi-iscritti') apri(true);
+})();
+</script>

@@ -129,7 +129,7 @@
 
         <div style="border:1px solid var(--border,#d7e0ea);border-radius:10px;">
           <div class="so-head" style="padding:10px 14px;"><strong>{{ righe|length }} partecipant{{ righe|length|pluralize:"e,i" }}</strong>
-            <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}">Aggiungi o togli iscritti</a></div>
+            <a class="hr-btn hr-btn-primary hr-btn-sm" href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}?next={{ qui|urlencode }}#aggiungi-iscritti">+ Aggiungi iscritti</a></div>
           <div class="so-scroll" style="max-height:340px;overflow:auto;">
             <table class="so-table">
               <thead><tr><th>Partecipante</th><th>Reparto</th><th>Come riceve il link</th><th>Stato</th></tr></thead>

@@ -213,6 +213,57 @@ def persone_assegnabili(corso) -> list[dict]:
     return out
 
 
+def persone_iscrivibili(sessione) -> list[dict]:
+    """Dipendenti attivi non ancora iscritti alla sessione, con lo stato rispetto al corso.
+
+    ``stato``: ``da_formare`` (nessun completamento valido), ``in_scadenza`` (scade entro 90
+    giorni), ``in_regola``. ``assegnato`` = ha un'assegnazione aperta del corso."""
+    from datetime import timedelta
+
+    from ..models import DipendenteAnagraficaAziendale
+    from ..models_formazione import TrainingAssignment, TrainingEmployeeRecord, TrainingEnrollment
+
+    corso = sessione.corso
+    attivi = list(DipendenteAnagraficaAziendale.objects.filter(data_cessazione__isnull=True)
+                  .values_list("legacy_anagrafica_id", flat=True))
+    anag, azi = _anagrafica(attivi), _aziendale(attivi)
+    iscritti = set(TrainingEnrollment.objects.filter(sessione=sessione).values_list("legacy_anagrafica_id", flat=True))
+    assegnati = set(TrainingAssignment.objects.filter(corso=corso).exclude(stato__in=("COMPLETATO", "ESONERATO"))
+                    .values_list("legacy_anagrafica_id", flat=True))
+    oggi = timezone.localdate()
+    tra90 = oggi + timedelta(days=90)
+    migliore: dict[int, object] = {}
+    for lid, scad in TrainingEmployeeRecord.objects.filter(corso=corso).values_list("legacy_anagrafica_id", "data_scadenza"):
+        attuale = migliore.get(lid, "assente")
+        if scad is None or attuale is None:
+            migliore[lid] = None  # una tantum o senza scadenza: in regola per sempre
+        elif attuale == "assente" or scad > attuale:
+            migliore[lid] = scad
+    out = []
+    for lid in attivi:
+        r = anag.get(lid)
+        if r is None or lid in iscritti:
+            continue
+        scad = migliore.get(lid, "assente")
+        if scad == "assente" or (scad is not None and scad < oggi):
+            stato = "da_formare"
+        elif scad is not None and scad <= tra90:
+            stato = "in_scadenza"
+        else:
+            stato = "in_regola"
+        out.append({
+            "legacy_id": lid, "nome": _nome(r, lid),
+            "reparto": azi.get(lid, {}).get("reparto") or r.get("reparto") or "",
+            "area": azi.get(lid, {}).get("area") or "",
+            "mansione": r.get("mansione") or "",
+            "ha_utente": bool(r.get("utente_id")),
+            "stato": stato, "scadenza": scad if scad not in ("assente", None) else None,
+            "assegnato": lid in assegnati,
+        })
+    out.sort(key=lambda x: x["nome"])
+    return out
+
+
 def opzioni(persone: list[dict], chiave: str) -> list[str]:
     return sorted({p[chiave] for p in persone if p[chiave]}, key=str.lower)
 

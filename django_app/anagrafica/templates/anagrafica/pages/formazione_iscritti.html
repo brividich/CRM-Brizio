@@ -63,8 +63,10 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
               title="Candidati pertinenti al corso (scaduti, in scadenza o mai frequentati), con controllo prerequisiti">↻ Candidati ({{ candidati.idonei|length }})</button>
       {% endif %}
       {% if puo_iscrivere %}
-      <button class="hr-btn hr-btn-primary"
-              onclick="togglePanel('panel-add-iscritto')">+ Aggiungi iscritto</button>
+      <button class="hr-btn hr-btn-ghost" type="button"
+              onclick="togglePanel('panel-add-iscritto')" title="Iscrivi una sola persona, con una nota">Uno alla volta</button>
+      <button class="hr-btn hr-btn-primary" type="button" data-pim-apri
+              title="Scegli più persone insieme, con filtri per reparto, area, mansione e stato sul corso">+ Aggiungi iscritti</button>
       {% endif %}
     </div>
     {% endif %}
@@ -418,7 +420,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
       Nessun dipendente iscritto a questa sessione.
       {% if is_editor %}
       <br><span style="margin-top:6px;display:inline-block;">
-        Usa il pulsante <strong>Aggiungi iscritto</strong> per iscrivere dipendenti.
+        Usa <strong>+ Aggiungi iscritti</strong> per iscrivere più dipendenti insieme.
       </span>
       {% endif %}
     </div>
@@ -603,4 +605,5 @@ function openAttestatoIscrizione(pk, nome) {
 }
 </script>
 {% endif %}
+{% if puo_iscrivere %}{% include "anagrafica/components/_pannello_iscrivi_massa.html" %}{% endif %}
 {% endblock %}
