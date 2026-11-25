@@ -87,8 +87,10 @@ def _peggiore(situazioni: list):
     return min(situazioni, key=lambda s: _GRAVITA.get(s.codice, 9)) if situazioni else None
 
 
-def url_pn(pn: str) -> str:
-    return f"{reverse('produzione:pn_scheda')}?{urlencode({'pn': pn})}"
+def url_pn(pn: str, sezione: str = "") -> str:
+    """Indirizzo stabile della scheda del P/N (``/produzione/pn/<P/N>/``), con la sezione se serve."""
+    url = reverse("produzione:pn", args=[pn])
+    return f"{url}?{urlencode({'sez': sezione})}" if sezione else url
 
 
 def url_nuovo_fai(pn: str, op: str = "") -> str:
@@ -272,7 +274,70 @@ def scheda_pn(request, pn: str) -> dict | None:
         p["n"], p["in_tabella"] = n, in_tabella[p["chiave"]]
     dati["passi"] = passi
     dati["prossimo"] = prossimo_passo(passi)
+    dati["da_fare"] = da_fare_pn(dati)
+    dati["pezzi_mese"] = pezzi_per_mese(pn_norm)
     return dati
+
+
+SEZIONI_PN = (("", "Panoramica"), ("op", "OP"), ("report", "Report CMM"), ("programmi", "Programmi"), ("fai", "FAI"))
+
+
+def da_fare_pn(dati: dict) -> list[dict]:
+    """Una sola lista per la Panoramica, dalla più urgente: quote fuori nell'ultimo report o in deriva, anomalie
+    aperte, OP senza documenti. I passi del percorso (KICK-OFF, programmi, FAI) stanno nella striscia sopra e non si
+    ripetono qui. Ogni voce: gravità, testo, dove, azione."""
+    voci = []
+    for c in dati.get("quote_critiche") or []:
+        url = (f"{reverse('produzione:pn_quote')}?{urlencode({'pn': dati['pn'], 'prog': c['prog'], 'q': c['quota']['id']})}")
+        if c["fuori_ultimo"]:
+            voci.append({"livello": "allerta", "testo": f"{c['quota']['nome']} fuori nell'ultimo report",
+                         "dove": f"{c['n_fuori']} volte su {c['n']} · {c['prog']}", "azione": "Andamento", "url": url})
+        elif c["deriva"]:
+            voci.append({"livello": "dafare", "testo": f"{c['quota']['nome']} in deriva verso il limite",
+                         "dove": c["prog"], "azione": "Andamento", "url": url})
+    if dati["n_anomalie_aperte"]:
+        n = dati["n_anomalie_aperte"]
+        op = next((o for o in dati["ops"] if o["n_anomalie_aperte"]), None)
+        voci.append({"livello": "allerta", "testo": f"{n} anomali{'a' if n == 1 else 'e'} apert{'a' if n == 1 else 'e'}",
+                     "dove": "Gestione anomalie", "azione": "Apri",
+                     "url": url_anomalie(op["op"]) if op else ""})
+    if dati["senza_documenti"]:
+        n = dati["senza_documenti"]
+        voci.append({"livello": "attesa", "testo": f"{n} OP senza documenti di produzione", "dove": "sezione OP",
+                     "azione": "Vedi", "url": url_pn(dati["pn"], "op")})
+    ordine = {"allerta": 0, "dafare": 1, "attesa": 2}
+    voci.sort(key=lambda v: ordine.get(v["livello"], 3))
+    return voci
+
+
+def pezzi_per_mese(pn: str, mesi: int = 6) -> list[dict]:
+    """Report CMM validi per mese (ultimi ``mesi`` mesi, anche quelli a zero) e quanti con quote fuori."""
+    from datetime import date
+
+    from django.db.models import Count, Q
+    from django.db.models.functions import TruncMonth
+
+    from .models import ReportCMM
+
+    oggi = date.today()
+    inizio = date(oggi.year - (1 if oggi.month <= mesi - 1 else 0), (oggi.month - mesi) % 12 + 1, 1)
+    righe = (ReportCMM.objects.filter(pn=pn, righe__gt=0, escluso=False, data__gte=inizio)
+             .annotate(mese=TruncMonth("data")).values("mese")
+             .annotate(n=Count("id"), fuori=Count("id", filter=Q(fuori__gt=0))))
+    per_mese = {(r["mese"].year, r["mese"].month): r for r in righe if r["mese"]}
+    nomi = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
+    out, a, m = [], inizio.year, inizio.month
+    for _ in range(mesi):
+        r = per_mese.get((a, m), {})
+        out.append({"etichetta": f"{nomi[m - 1]} {str(a)[2:]}", "n": r.get("n", 0), "fuori": r.get("fuori", 0)})
+        m += 1
+        if m > 12:
+            a, m = a + 1, 1
+    massimo = max((x["n"] for x in out), default=0) or 1
+    for x in out:
+        x["h"] = round(x["n"] / massimo * 100)
+        x["hf"] = round(x["fuori"] / massimo * 100)
+    return out
 
 
 # --- Filo conduttore: i passi di un OP, nell'ordine in cui si lavora ---------------------------------

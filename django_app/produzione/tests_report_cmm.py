@@ -151,7 +151,7 @@ class PagineTests(ArchivioBase):
         critiche = cmm.quote_critiche("PN-ALFA-1")
         self.assertEqual({c["quota"]["nome"] for c in critiche}, {"196,00", "163,00 Dia F"})
         self.assertTrue(all(c["fuori_ultimo"] for c in critiche))
-        pagina = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"})
+        pagina = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"}, follow=True)
         self.assertContains(pagina, "Quote da tenere d", html=False)
 
     def test_report_fuori_e_link_anomalia(self):
@@ -177,7 +177,7 @@ class PagineTests(ArchivioBase):
     def test_schede_op_e_pn_mostrano_i_report(self):
         scheda = self.client.get(reverse("produzione:scheda", args=[self.pk]))
         self.assertEqual(len(scheda.context["report_cmm"]), 2)
-        pn = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"})
+        pn = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"}, follow=True)
         self.assertEqual(pn.context["report_cmm"]["n"], 2)
         self.assertContains(pn, "Analisi quote")
 

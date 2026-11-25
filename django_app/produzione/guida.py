@@ -49,14 +49,21 @@ SEZIONI: list[dict] = [
                   "i suoi OP. La ricerca trova il P/N anche da un suo OP, capocommessa o CAR, e conta comunque tutti i suoi OP."),
             ("p", "«Da sistemare» filtra i P/N «Con anomalie aperte», quelli «Senza FAI» e quelli con «FAI da ripetere o "
                   "verificare»."),
-            ("p", "La scheda del P/N è un percorso in quattro passi:"),
+            ("p", "La scheda del P/N ha un indirizzo fisso, /produzione/pn/<P/N>/, che si può salvare o mandare. In alto la "
+                  "striscia del percorso (KICK-OFF del P/N, Programmi CAM e CMM, FAI del P/N, OP del P/N) con lo stato di ogni "
+                  "passo: ✓ fatto, numero arancione da fare, giallo in attesa, rosso da sistemare; il titolo apre il passo. "
+                  "Sotto, le sezioni:"),
             ("def", [
-                ("1 · KICK-OFF del P/N", "come nella scheda dell'OP."),
-                ("2 · Programmi CAM e CMM", "come nella scheda dell'OP."),
-                ("3 · FAI del P/N", "la situazione per cliente (con la data «entro» cui ripeterlo) e tutti i FAI del P/N con il "
-                 "loro OP; «+ Nuovo FAI per questo P/N» apre la scheda FAI col P/N già scritto."),
-                ("4 · OP del P/N", "tutti gli OP con CAR, stato, documenti e anomalie aperte; «Manca» e il numero delle "
-                 "anomalie portano al passo della scheda dell'OP."),
+                ("Panoramica", "«Da fare», una sola lista dalla più urgente (quote fuori nell'ultimo report, quote in deriva, "
+                 "anomalie aperte, OP senza documenti, ognuna col suo pulsante); «Pezzi misurati per mese» (report CMM validi "
+                 "degli ultimi 6 mesi, in rosso quelli con quote fuori); «Quote da tenere d'occhio» e gli OP."),
+                ("OP", "tutti gli OP con CAR, stato, documenti e anomalie aperte; «Manca» e il numero delle anomalie portano "
+                 "alla scheda dell'OP."),
+                ("Report CMM", "le quote da tenere d'occhio, i programmi CMM letti (con «Analisi quote») e gli ultimi 60 "
+                 "report, da spuntare per il confronto."),
+                ("Programmi", "i programmi CAM e CMM del KICK-OFF."),
+                ("FAI", "la situazione per cliente (con la data «entro» cui ripeterlo), tutti i FAI del P/N con il loro OP e "
+                 "il report CMM del primo articolo; «+ Nuovo FAI» apre la scheda FAI col P/N già scritto."),
             ]),
             ("p", "Il P/N nell'elenco degli OP e nella scheda dell'OP porta alla scheda del P/N."),
         ],
