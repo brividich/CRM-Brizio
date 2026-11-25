@@ -69,16 +69,17 @@ GUIDA = {
         },
         {
             "id": "quote",
-            "titolo": "Andamento quote dai report CMM",
+            "titolo": "Analisi quote dai report CMM",
             "blocchi": [
                 ("p", "I report CMM in PDF della cartella Collaudo si leggono da soli ogni ora. Dalla scheda del P/N, "
-                      "«Andamento quote»: scegli programma (senza revisione) e quota, vedi la quota in tutti i S/N con "
-                      "il grafico di rilevato, nominale e limiti. L'elenco delle quote dice quante volte ognuna è "
-                      "andata fuori."),
-                ("p", "Il S/N apre il report con le sole quote fuori, «Andamento» per ciascuna, «Apri il PDF» e «Apri "
-                      "segnalazione anomalia»: Gestione anomalie si apre sull'OP e, avviato il controllo, il pannello "
-                      "«📄 Dal report CMM (PDF)» ha già le righe del report. «Leggi i report» rilegge subito la cartella "
-                      "del P/N."),
+                      "«Analisi quote»: filtri per programma, periodo, OP e S/N da evidenziare; elenco delle quote con "
+                      "filtri (andate fuori, Cpk < 1,33, vicine al limite, da verificare) e ordinamenti; quattro viste: "
+                      "Quota (statistiche Cp/Cpk, grafico con zona di tolleranza, zoom, distribuzione, tabella), Mappa "
+                      "(tutte le quote × tutti i report, colore = tolleranza usata), Confronto (fino a 6 quote in % "
+                      "della tolleranza) e Pezzo (tutte le quote di un S/N, confrontabile con un altro). «Esporta CSV» "
+                      "con i filtri attivi; l'indirizzo conserva la vista."),
+                ("p", "La scheda del P/N mostra le «Quote da tenere d'occhio». Dal report di un S/N: quote fuori, "
+                      "«Apri il PDF», «Apri segnalazione anomalia» con il pannello «📄 Dal report CMM (PDF)» già pronto."),
             ],
         },
     ],
@@ -104,7 +105,7 @@ GUIDA = {
     ],
     "problemi": [
         {
-            "sintomo": "«Andamento quote» non mostra report o dice «Cartella non leggibile»",
+            "sintomo": "«Analisi quote» non mostra report o dice «Cartella non leggibile»",
             "perche": "la cartella del P/N non è ancora stata letta, ha un nome diverso dal P/N, oppure l'utente del "
                       "portale non ha la lettura sulla share Collaudo.",
             "fare": ["Premi «Leggi i report» e ricarica dopo qualche minuto.",

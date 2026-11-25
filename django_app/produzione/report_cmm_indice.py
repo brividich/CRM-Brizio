@@ -300,84 +300,6 @@ def id_quota(chiave: str, nominale: float) -> str:
     return f"{chiave}|{nominale:.4f}"
 
 
-def quote_del_programma(pn: str, prog: str) -> list[dict]:
-    """Una riga per quota (nome + nominale): nome e gruppo più recenti, in quanti report c'è e quante volte è fuori."""
-    righe: dict[str, dict] = {}
-    for m in (MisuraCMM.objects.filter(report__pn=pn, report__programma_base=prog)
-              .order_by("report__data", "report_id", "indice")
-              .values("chiave", "nominale", "nome", "sezione", "tipo", "indice", "fuori", "report_id")):
-        k = id_quota(m["chiave"], m["nominale"])
-        r = righe.get(k)
-        if r is None:
-            r = righe[k] = {"id": k, "chiave": m["chiave"], "nominale": m["nominale"], "report": set(), "n_fuori": 0}
-        r.update(nome=m["nome"], sezione=m["sezione"], tipo=m["tipo"], indice=m["indice"])
-        r["report"].add(m["report_id"])
-        r["n_fuori"] += 1 if m["fuori"] else 0
-    out = []
-    nomi_doppi = {c for c in (r["chiave"] for r in righe.values()) if sum(1 for x in righe.values() if x["chiave"] == c) > 1}
-    for r in righe.values():
-        r["n"] = len(r.pop("report"))
-        r["doppio"] = r["chiave"] in nomi_doppi
-        out.append(r)
-    out.sort(key=lambda r: (r["indice"], r["nome"]))
-    return out
-
-
-def andamento(pn: str, prog: str, quota: dict) -> list[dict]:
-    """La quota (nome + nominale) in tutti i report del programma, dal più vecchio."""
-    out = []
-    for m in (MisuraCMM.objects.filter(report__pn=pn, report__programma_base=prog, chiave=quota["chiave"],
-                                       nominale__gte=quota["nominale"] - 0.00005, nominale__lte=quota["nominale"] + 0.00005)
-              .select_related("report").order_by("report__data", "report__id", "indice")):
-        out.append({
-            "report": m.report, "misura": m, "inf": m.nominale + m.tol_inf, "sup": m.nominale + m.tol_sup,
-        })
-    return out
-
-
-def grafico(punti: list[dict], larghezza: int = 760, altezza: int = 260) -> dict | None:
-    """Coordinate SVG dell'andamento: rilevato, nominale e limiti, un punto per report.
-
-    Le coordinate decimali vanno al template già come testo col punto: con la localizzazione
-    italiana un float diventerebbe «226,0», che l'SVG non accetta."""
-    if not punti:
-        return None
-    sx, dx, su, giu = 48, 16, 16, 34
-    valori = [p["misura"].misurato for p in punti] + [p["inf"] for p in punti] + [p["sup"] for p in punti]
-    lo, hi = min(valori), max(valori)
-    if hi - lo < 1e-9:
-        lo, hi = lo - 1, hi + 1
-    margine = (hi - lo) * 0.08
-    lo, hi = lo - margine, hi + margine
-    n = len(punti)
-    passo = (larghezza - sx - dx) / max(n - 1, 1)
-
-    def x(i):
-        return round(sx + (i * passo if n > 1 else (larghezza - sx - dx) / 2), 1)
-
-    def y(v):
-        return round(su + (hi - v) / (hi - lo) * (altezza - su - giu), 1)
-
-    def linea(chiave):
-        return " ".join(f"{x(i)},{y(chiave(p))}" for i, p in enumerate(punti))
-
-    tacche = [lo + (hi - lo) * k / 4 for k in range(5)]
-    return {
-        "w": larghezza, "h": altezza, "sx": sx, "sx_testo": sx - 4, "dx": larghezza - dx,
-        "y_etichette": altezza - giu + 16,
-        "rilevato": linea(lambda p: p["misura"].misurato),
-        "nominale": linea(lambda p: p["misura"].nominale),
-        "sup": linea(lambda p: p["sup"]), "inf": linea(lambda p: p["inf"]),
-        "punti": [{"x": f"{x(i)}", "y": f"{y(p['misura'].misurato)}", "fuori": p["misura"].fuori, "id": p["report"].pk,
-                   "testo": f"{p['report'].seriale or p['report'].file} · {p['misura'].misurato:.4f}"}
-                  for i, p in enumerate(punti)],
-        "tacche": [{"y": f"{y(v)}", "v": f"{v:.4f}".replace(".", ",")} for v in tacche],
-        "raggio": "4.5" if n <= 40 else ("3" if n <= 120 else "2"),
-        "etichette": [{"x": f"{x(i)}", "t": (p["report"].seriale or "")[:12]} for i, p in enumerate(punti)]
-        if n <= 30 else [],
-    }
-
-
 def percorso_sicuro(percorso: str) -> str:
     """Il percorso, se è un PDF che esiste sotto la cartella dei report; altrimenti ``""``."""
     if not attivo() or not percorso or not percorso.lower().endswith(".pdf"):
@@ -411,3 +333,123 @@ def conteggi_per_pn() -> dict[str, dict]:
         for r in ReportCMM.objects.filter(righe__gt=0).values("pn")
         .annotate(n=Count("id"), con_fuori=Count("id", filter=Q(fuori__gt=0)))
     }
+
+
+# --- Analisi quote (pagina interattiva) ----------------------------------------------------------------
+
+LIMITE_REPORT = 800
+
+
+def _round(v):
+    return None if v is None else round(float(v), 6)
+
+
+def dati_programma(pn: str, prog: str, da: date | None = None, a: date | None = None,
+                   limite: int = LIMITE_REPORT) -> dict:
+    """Tutte le misure del programma, compatte, per la pagina «Analisi quote».
+
+    ``report``: ``[id, S/N, OP, data ISO, file, n fuori]`` dal più vecchio (al massimo ``limite``, i più recenti);
+    ``quote``: ``{id, nome, sezione, tipo, nominale}`` nell'ordine del report più recente;
+    ``valori[i]``: per la quota i, ``[indice report, rilevato, tol+, tol-, fuori 0/1, fuori di, da verificare 0/1]``.
+    """
+    qs = ReportCMM.objects.filter(pn=pn, programma_base=prog, righe__gt=0)
+    if da:
+        qs = qs.filter(data__gte=da)
+    if a:
+        qs = qs.filter(data__lte=a)
+    totale = qs.count()
+    righe = list(qs.order_by("-data", "-id").values_list("id", "seriale", "op", "data", "file", "fuori")[:limite])[::-1]
+    indice = {r[0]: i for i, r in enumerate(righe)}
+    quote: dict[str, dict] = {}
+    valori: dict[str, list] = {}
+    if righe:
+        misure = MisuraCMM.objects.filter(report__pn=pn, report__programma_base=prog, report__righe__gt=0)
+        primo = righe[0][3]
+        if primo:
+            misure = misure.filter(report__data__gte=primo)
+        if a:
+            misure = misure.filter(report__data__lte=a)
+        for rid, chiave, nom, nome, sezione, tipo, ind, x, ts, ti, fuori, fdi, dv in misure.values_list(
+                "report_id", "chiave", "nominale", "nome", "sezione", "tipo", "indice", "misurato", "tol_sup",
+                "tol_inf", "fuori", "fuori_di", "da_verificare").order_by("report__data", "report_id", "indice"):
+            ri = indice.get(rid)
+            if ri is None:
+                continue
+            k = id_quota(chiave, nom)
+            q = quote.get(k)
+            if q is None:
+                q = quote[k] = {"id": k, "nominale": round(nom, 6)}
+                valori[k] = []
+            q.update(nome=nome, sezione=sezione, tipo=tipo, ordine=ind, ultimo=ri)
+            valori[k].append([ri, _round(x), _round(ts), _round(ti), 1 if fuori else 0, _round(fdi), 1 if dv else 0])
+    # Ordine delle righe nel report più recente che ha la quota (le quote sparite finiscono dove stavano).
+    elenco = sorted(quote.values(), key=lambda q: (q["ordine"], q["nome"]))
+    for q in elenco:
+        q.pop("ultimo", None)
+    return {
+        "pn": pn, "prog": prog, "totale": totale, "limite": limite, "tagliati": max(0, totale - len(righe)),
+        "report": [[r[0], r[1] or r[4], r[2], r[3].isoformat() if r[3] else "", r[4], r[5]] for r in righe],
+        "quote": elenco,
+        "valori": [valori[q["id"]] for q in elenco],
+    }
+
+
+def unilaterale(nominale: float, lsl: float, usl: float) -> bool:
+    """Forma, posizione, concentricità…: nominale 0 e limite inferiore 0, conta solo il superiore."""
+    return abs(nominale) < 1e-12 and abs(lsl) < 1e-12 and usl > 0
+
+
+def usata(x: float, nominale: float, lsl: float, usl: float) -> float | None:
+    """Tolleranza usata: 0 = ideale, ±1 = limite. Unilaterali: rilevato / limite superiore; le altre dal centro."""
+    if unilaterale(nominale, lsl, usl):
+        return x / usl
+    banda = usl - lsl
+    return (x - (usl + lsl) / 2) / (banda / 2) if banda > 0 else None
+
+
+def statistiche(punti: list[tuple[float, float, float]], nominale: float | None = None) -> dict:
+    """``punti`` = ``[(rilevato, limite inferiore, limite superiore)]`` dal più vecchio.
+
+    Media, deviazione standard (campione), Cp e Cpk sui limiti dell'ultima misura (servono almeno 5 punti),
+    tolleranza usata dall'ultima misura (``u``, vedi ``usata``). Con il nominale, una quota unilaterale
+    (nominale 0, limite inferiore 0) ha Cpk = (limite superiore − media) / 3σ e nessun Cp."""
+    n = len(punti)
+    if not n:
+        return {"n": 0}
+    xs = [p[0] for p in punti]
+    media = sum(xs) / n
+    sd = (sum((x - media) ** 2 for x in xs) / (n - 1)) ** 0.5 if n > 1 else 0.0
+    x, lsl, usl = punti[-1]
+    banda = usl - lsl
+    uni = nominale is not None and unilaterale(nominale, lsl, usl)
+    out = {"n": n, "media": media, "sd": sd, "min": min(xs), "max": max(xs), "ultimo": x, "cp": None, "cpk": None,
+           "u": usata(x, nominale, lsl, usl) if nominale is not None
+           else ((x - (usl + lsl) / 2) / (banda / 2) if banda > 0 else None)}
+    if n >= 5 and sd > 0 and banda > 0:
+        if uni:
+            out["cpk"] = (usl - media) / (3 * sd)
+        else:
+            out["cp"] = banda / (6 * sd)
+            out["cpk"] = min(usl - media, media - lsl) / (3 * sd)
+    return out
+
+
+def quote_critiche(pn: str, ultimi: int = 30, quante: int = 6) -> list[dict]:
+    """Le quote da guardare del P/N: sugli ultimi ``ultimi`` report di ogni programma, prima quelle fuori
+    nell'ultimo report, poi Cpk sotto 1,33 dal peggiore. Per il riquadro della scheda P/N."""
+    out = []
+    for p in programmi_del_pn(pn):
+        d = dati_programma(pn, p["programma_base"], limite=ultimi)
+        if not d["report"]:
+            continue
+        ultimo = len(d["report"]) - 1
+        for q, vals in zip(d["quote"], d["valori"]):
+            punti = [(v[1], q["nominale"] + v[3], q["nominale"] + v[2]) for v in vals if v[1] is not None]
+            s = statistiche(punti, q["nominale"])
+            fuori_ultimo = bool(vals and vals[-1][0] == ultimo and vals[-1][4])
+            if fuori_ultimo or (s.get("cpk") is not None and s["cpk"] < 1.33):
+                out.append({"prog": p["programma_base"], "quota": q, "fuori_ultimo": fuori_ultimo,
+                            "n_fuori": sum(v[4] for v in vals), "n": len(vals), **{k: s.get(k) for k in ("cpk", "u")},
+                            "u_abs": abs(s["u"]) if s.get("u") is not None else None})
+    out.sort(key=lambda r: (not r["fuori_ultimo"], r["cpk"] if r["cpk"] is not None else 9))
+    return out[:quante]

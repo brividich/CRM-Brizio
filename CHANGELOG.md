@@ -9,6 +9,18 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: «Analisi quote» interattiva (filtri, Cp/Cpk, mappa, confronto, pezzo)
+
+La pagina dell'andamento quote diventa uno strumento di analisi (`/produzione/pn/quote/?pn=`), disegnato nel browser senza librerie con i dati di `GET /produzione/api/quote/`.
+
+- **Filtri** in una riga, validi per tutte le viste: programma, periodo (Tutto, 12 mesi, 90 e 30 giorni, «Dal… al…»), uno o più OP, S/N da evidenziare. Numeri del programma: report, quote, misure fuori, quote andate fuori, quote con Cpk sotto 1,33 (un clic filtra), ultimo report.
+- **Elenco quote** con mini linea degli ultimi 30 valori, filtri (Andate fuori, Cpk < 1,33, Vicine al limite, Da verificare), ricerca e ordinamenti (volte fuori, Cpk peggiore, vicinanza al limite, nome).
+- **Viste**: Quota (media, σ, Cp, Cpk con Capace / Al limite / Non capace, grafico con zona di tolleranza, ±3σ, colori per OP, «% tolleranza», zoom trascinando, distribuzione allineata, tabella), Mappa (tutte le quote × tutti i report, colore = tolleranza usata, clic apre la quota), Confronto (fino a 6 quote in % della tolleranza, «Le 4 più critiche»), Pezzo (tutte le quote di un S/N, confronto con un secondo S/N).
+- Passaggio del mouse con valori, S/N, OP e data; clic evidenzia il S/N, doppio clic apre il report; tastiera sui grafici. L'indirizzo conserva filtri e vista. «Esporta CSV» con i filtri attivi.
+- **Tolleranze di forma e posizione** (nominale 0, solo limite superiore): la tolleranza usata conta da 0 al limite e il Cpk è (limite − media) / 3σ; prima risultavano «−100%» se perfette.
+- Scheda del P/N: riquadro «Quote da tenere d'occhio» (ultimi 30 report per programma: fuori nell'ultimo report, poi Cpk < 1,33) e pulsante «Analisi quote».
+- File: `django_app/produzione/` (`report_cmm_indice.py`: `dati_programma`, `usata`, `statistiche`, `quote_critiche`; `views.py`, `urls.py`, `acl_bootstrap.py` v5, `services.py`, `guida.py`, `templates/produzione/quote.html`, `pn_scheda.html`, `scheda.html`, `static/produzione/js/analisi_quote.js`, `static/produzione/css/analisi_quote.css`, `produzione.css`, `tests_report_cmm.py`; tolto `static/produzione/js/quote.js`), `django_app/core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`. Nessuna migrazione; `collectstatic`.
+
 ### Ordini di produzione: andamento quote dai report CMM, collegato ad anomalie, FAI, KICK-OFF e Ctrl+K
 
 Porta nel portale il file Excel «Analizza Reports» del Collaudo: i report CMM non si caricano più a mano, il portale legge da solo la cartella `\\novisrv\Area Controllo\Collaudo` (sola lettura) e tiene le misure per P/N.
