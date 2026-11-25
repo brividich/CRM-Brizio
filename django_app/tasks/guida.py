@@ -37,7 +37,7 @@ SEZIONI: list[dict] = [
             ]),
             ("p", "In alto, le voci del modulo: «Dashboard» (il tuo quadro; da qui «Calendario incontri»), «Le mie attività», «Le mie commesse», "
                   "«Da gestire» (cosa richiede intervento), «Kickoff» (l'elenco delle commesse), «Programmi e FAI» (con le schede Programmi, Registro FAI e Report FAI) "
-                  "e, per chi le gestisce, «Impostazioni». Elenco kickoff, Le mie commesse e Da gestire hanno la stessa barra: una sola ricerca e i filtri rapidi col conteggio. "
+                  "e, per chi le gestisce, «Impostazioni». Elenco kickoff, Le mie commesse e Programmi hanno la stessa barra: una sola ricerca e i filtri rapidi col conteggio. "
                   "Dentro una commessa le schede sono «Panoramica», «Attività», «Incontri», «Piano» e «VRF»."),
             ("nota", "Non vedi un pulsante descritto qui? Dipende dai permessi: vedi «Chi può fare cosa»."),
         ],
@@ -676,13 +676,11 @@ SEZIONI: list[dict] = [
         "id": "da-gestire",
         "titolo": "Da gestire",
         "blocchi": [
-            ("p", "«Da gestire» riunisce quello che richiede un intervento. In alto scegli «Portfolio» (tutte le commesse) o «Le mie». Ogni riga porta dove si risolve."),
+            ("p", "«Da gestire» ha una riga per commessa, le più urgenti in cima (contano soprattutto scadute e problemi aperti). In alto la ricerca e «Portfolio» (tutte le commesse) o «Le mie» (attività tue o che segui, problemi e attività d'incontro a tuo nome)."),
             ("def", [
-                ("Attività d'incontro e problemi aperti", "quelli assegnati a te."),
-                ("VRF da compilare", "commesse con il VRF non ancora a posto."),
-                ("Commesse non pronte", "commesse con il semaforo di prontezza incompleto."),
-                ("Attività critiche", "scadute, non assegnate, senza data o ferme."),
-                ("Incontri da chiudere", "esito da registrare, minuta da approvare, problemi aperti."),
+                ("Etichette rosse", "«N scadute» (attività, problemi e attività d'incontro oltre la scadenza) e «N problemi aperti»."),
+                ("Etichette arancio", "«N non assegnate», «N senza data», «N ferme da più di 7 giorni» e «manca VRF / Incontro kickoff / Team / Piano attività» (quello che serve per l'avvio)."),
+                ("Vedi N", "apre la riga con l'elenco delle voci: un clic porta dove si risolve. Di base è aperta la prima commessa; il nome apre la Panoramica."),
             ]),
             ("img", (_IMG + "da_gestire.jpg", "La pagina «Da gestire»")),
         ],

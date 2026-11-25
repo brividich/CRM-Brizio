@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: «Da gestire» più semplice
+
+- **Una riga per commessa** al posto di quattro sezioni che ripetevano le stesse commesse: in cima le più urgenti, con i soli conteggi di quello che non va («5 scadute», «2 problemi aperti», «4 non assegnate», «manca VRF»…; prima le etichette rosse). «Vedi N» apre l'elenco delle voci, ognuna col link dove si risolve. In alto restano la ricerca e Portfolio / Le mie.
+- Anche le schede di «Programmi e FAI» ora hanno la loro larghezza invece di tutta la riga.
+- File: `tasks/da_gestire.py`, `views/task.py`, `templates/tasks/da_gestire.html` (tolto `_da_gestire_section.html`), `static/tasks/css/tasks.css`, `templates/tasks/base.html`, `base_shell.html`, `static/tasks/guida/da_gestire.jpg`. Guide: `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`. Test `tests_projects.py`, `tests_meeting_alerts.py`, `tests_giro_menu_ruoli.py`. Deploy: collectstatic, nessuna migrazione.
+
 ### E-learning: pagina del corso più chiara, assegnazione con filtri, risultati con export; conferma RSPP non più obbligatoria
 
 - **Segnalazione:** il corso 26054 risultava «Pubblicato» ma non era visibile ai dipendenti e il link aperto dava «Not Found»: mancava la conferma RSPP delle regole FAD. **Ora la conferma è facoltativa**: un corso e-learning attivo e pubblicato è online (`services/elearning_fruizione.py`, pubblicazione in `views/formazione.py`, testi in `elearning_regola_corso.html`, `elearning_impostazioni_corsi.html`, guida e-learning).

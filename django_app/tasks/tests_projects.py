@@ -1481,76 +1481,61 @@ class KickoffDaGestireTests(TestCase):
         # settati dal middleware, quindi NON usare RequestFactory.
         return self.client.get(reverse("tasks:list")).wsgi_request
 
-    def _sections(self, data):
-        return {s["key"]: s for s in data["sections"]}
+    def _righe(self, scope="portfolio"):
+        from tasks.da_gestire import build_da_gestire_per_commessa
 
-    def test_vrf_pending_section(self):
-        # NB: Project.save() sovrascrive il name con "KICK-OFF <n>" per i nuovi
-        # progetti senza kickoff_number → verificare via id/url, non via name.
+        return {r["project"].pk: r for r in build_da_gestire_per_commessa(self._req(), scope)["righe"]}
+
+    def test_commessa_non_pronta_mostra_cosa_manca(self):
+        # Una riga per commessa: il VRF da compilare è un'etichetta «manca VRF» col link alla VRF.
         from tasks.models import VRFDocStatus
-        from tasks.da_gestire import build_kickoff_da_gestire
 
-        p_pending = make_project(name="x", created_by=self.admin)  # PENDING
-        make_project(
-            name="y", created_by=self.admin, vrf_status=VRFDocStatus.UPLOADED
-        )
-        secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
-        # Una sezione sola per le commesse: il VRF da compilare è un'etichetta e il primo link.
-        assert "vrf" not in secs
-        righe = {i["label"]: i for i in secs["commesse"]["items"]}
-        assert "VRF" in righe["x"]["tags"]
-        assert f"/tasks/projects/{p_pending.id}/vrf/" in righe["x"]["url"]
-        assert "VRF" not in righe.get("y", {"tags": []})["tags"]
+        p = make_project(name="x", created_by=self.admin)  # PENDING, 0/4
+        ok = make_project(name="y", created_by=self.admin, vrf_status=VRFDocStatus.UPLOADED)
+        righe = self._righe()
+        manca = {m["testo"]: m["url"] for m in righe[p.pk]["manca"]}
+        assert {"VRF", "Incontro kickoff", "Team"} <= set(manca)
+        assert f"/tasks/projects/{p.id}/vrf/" in manca["VRF"]
+        assert "VRF" not in {m["testo"] for m in righe.get(ok.pk, {"manca": []})["manca"]}
 
-    def test_not_ready_section(self):
-        from tasks.da_gestire import build_kickoff_da_gestire
-
-        p = make_project(name="x", created_by=self.admin)  # 0/4 -> notready
-        secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
-        riga = next(i for i in secs["commesse"]["items"] if i["label"] == "x")
-        assert set(riga["tags"]) >= {"Incontro kickoff", "Team"}
-        assert riga["meta"].endswith("/4")
-        assert p.id
-
-    def test_critical_tasks_section_reasons(self):
+    def test_attivita_contate_per_motivo_e_commesse_in_ordine_di_urgenza(self):
         from tasks.models import Task, TaskStatus
-        from tasks.da_gestire import build_kickoff_da_gestire
 
-        p = make_project(name="C", created_by=self.admin)
+        calma = make_project(name="Calma", created_by=self.admin)
+        urgente = make_project(name="Urgente", created_by=self.admin)
         Task.objects.create(
-            title="Scaduta", created_by=self.admin, project=p,
-            due_date=timezone.localdate() - timedelta(days=2),
-            status=TaskStatus.TODO, assigned_to=self.admin,
-        )
-        Task.objects.create(
-            title="NonAssegnata", created_by=self.admin, project=p,
+            title="NonAssegnata", created_by=self.admin, project=calma,
             due_date=timezone.localdate() + timedelta(days=5), status=TaskStatus.TODO,
         )
-        secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
-        titles = [i["label"] for i in secs["critical"]["items"]]
-        assert "Scaduta" in titles and "NonAssegnata" in titles
+        for n in range(2):
+            Task.objects.create(
+                title=f"Scaduta {n}", created_by=self.admin, project=urgente,
+                due_date=timezone.localdate() - timedelta(days=2), status=TaskStatus.TODO, assigned_to=self.admin,
+            )
+        from tasks.da_gestire import build_da_gestire_per_commessa
 
-    def test_meetings_open_issues_section(self):
+        righe = build_da_gestire_per_commessa(self._req(), "portfolio")["righe"]
+        assert righe[0]["project"].pk == urgente.pk
+        per = {r["project"].pk: r for r in righe}
+        assert [c["testo"] for c in per[urgente.pk]["chip"]] == ["2 scadute"]
+        assert per[urgente.pk]["chip"][0]["tono"] == "danger"
+        assert [c["testo"] for c in per[calma.pk]["chip"]] == ["1 non assegnata"]
+        assert [v["label"] for v in per[calma.pk]["voci"]] == ["NonAssegnata"]
+
+    def test_problema_aperto_conta_e_porta_al_registro(self):
         from tasks.models import KickoffMeeting, MeetingIssue, MeetingIssueStatus
-        from tasks.da_gestire import build_kickoff_da_gestire
 
         p = make_project(name="M", created_by=self.admin)
-        m = KickoffMeeting.objects.create(
-            project=p, titolo="Inc1", data=timezone.localdate(), created_by=self.admin
-        )
-        MeetingIssue.objects.create(
-            project=p, source_meeting=m, title="Problema", status=MeetingIssueStatus.OPEN
-        )
-        secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
-        assert len(secs["meetings"]["items"]) == 1
-        assert f"/tasks/projects/{p.id}/incontri/{m.id}/" in secs["meetings"]["items"][0]["url"]
+        m = KickoffMeeting.objects.create(project=p, titolo="Inc1", data=timezone.localdate(), created_by=self.admin)
+        MeetingIssue.objects.create(project=p, source_meeting=m, title="Problema", status=MeetingIssueStatus.OPEN)
+        r = self._righe()[p.pk]
+        assert "1 problema aperto" in [c["testo"] for c in r["chip"]]
+        assert r["voci"][0]["url"].endswith(f"/tasks/projects/{p.id}/azioni/")
 
-    def test_total_and_scope_normalized(self):
-        from tasks.da_gestire import build_kickoff_da_gestire
+    def test_scope_normalizzato(self):
+        from tasks.da_gestire import build_da_gestire_per_commessa
 
-        data = build_kickoff_da_gestire(self._req(), "garbage")
-        assert data["scope"] == "portfolio"
-        assert data["total"] == sum(len(s["items"]) for s in data["sections"])
+        assert build_da_gestire_per_commessa(self._req(), "garbage")["scope"] == "portfolio"
 
 
 class KickoffDaGestireRenderTests(TestCase):
@@ -1570,8 +1555,7 @@ class KickoffDaGestireRenderTests(TestCase):
     def test_page_renders_with_sections_and_toggle(self):
         r = self.client.get(reverse("tasks:da_gestire"))
         assert r.status_code == 200
-        assert b"dg-section" in r.content
-        assert b"Commesse da completare" in r.content
+        assert b"dgc" in r.content
         assert b"?scope=mine" in r.content
 
     def test_scope_mine_renders(self):

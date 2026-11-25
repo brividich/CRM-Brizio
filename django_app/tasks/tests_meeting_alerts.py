@@ -103,15 +103,15 @@ class MeetingAlertsTests(TasksBaseTestCase):
 
     def test_da_gestire_scope_personale_non_solleva_field_error(self):
         """Lo scope «mine» filtrava su FK di team che non esistono piu' (M2M)."""
-        from tasks.da_gestire import build_kickoff_da_gestire
+        from tasks.da_gestire import build_da_gestire_per_commessa
 
         self._meeting(offset_days=-1, stato=MeetingStatus.PIANIFICATO, titolo="Avanzamento")
         response = self.client.get(reverse("tasks:da_gestire"), {"scope": "mine"})
         self.assertEqual(response.status_code, 200)
-        data = build_kickoff_da_gestire(response.wsgi_request, "mine")
-        # Quattro sezioni costruite: nessuna persa per eccezione inghiottita.
-        # Azioni e problemi assegnati, VRF, commesse non pronte, attivita' critiche, incontri.
-        self.assertEqual(len(data["sections"]), 4)  # VRF e commesse non pronte unite
+        # Nessuna parte persa per un'eccezione: finirebbe nel log come errore.
+        with self.assertNoLogs("tasks.da_gestire", level="ERROR"):
+            data = build_da_gestire_per_commessa(response.wsgi_request, "mine")
+        self.assertEqual(data["scope"], "mine")
 
 
 class ProjectListRoutingTests(TasksBaseTestCase):
