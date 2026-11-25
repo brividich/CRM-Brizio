@@ -23,13 +23,14 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "produzione"
-_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v8"  # v8: scheda P/N a indirizzo stabile
+_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v9"  # v9: anagrafica P/N e catalogo
 
 PERM_VIEW = "produzione.op.view"
 PERM_DOCUMENTI = "produzione.documenti.manage"
 PERM_IMPOSTAZIONI = "produzione.impostazioni.manage"
 PERM_OP = "produzione.op.manage"
 PERM_QUOTE = "produzione.quote.manage"
+PERM_ARTICOLI = "produzione.articoli.manage"
 
 _CANONICAL = {
     PERM_VIEW: {"label": "Ordini di produzione - Elenco e scheda OP",
@@ -42,6 +43,8 @@ _CANONICAL = {
               "description": "Creare un OP dall'elenco degli OP e dalla scheda FAI."},
     PERM_QUOTE: {"label": "Ordini di produzione - Gestire le quote CMM",
                  "description": "Escludere e riammettere report CMM, unire quote con nomi diversi."},
+    PERM_ARTICOLI: {"label": "Ordini di produzione - Anagrafica P/N",
+                    "description": "Cambiare descrizione, cliente, disegno, materiale e stato dei P/N; aggiornare il catalogo."},
 }
 
 _ROUTE_BINDINGS = {
@@ -50,6 +53,8 @@ _ROUTE_BINDINGS = {
     "produzione:pn_elenco": PERM_VIEW,
     "produzione:pn_scheda": PERM_VIEW,
     "produzione:pn": PERM_VIEW,
+    "produzione:pn_anagrafica": PERM_ARTICOLI,
+    "produzione:pn_sincronizza": PERM_ARTICOLI,
     "produzione:pn_quote": PERM_VIEW,
     "produzione:api_quote": PERM_VIEW,
     "produzione:api_quote_candidati": PERM_VIEW,
@@ -78,6 +83,7 @@ _DEFAULT_TUTTI = {
     PERM_IMPOSTAZIONI: False,
     PERM_OP: False,
     PERM_QUOTE: False,
+    PERM_ARTICOLI: False,
 }
 
 _NAV_CODE = "produzione_op"

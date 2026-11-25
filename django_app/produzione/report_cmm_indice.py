@@ -316,6 +316,15 @@ def giro(minuti: int | None = None) -> dict:
             tot[k] += s[k]
         if not s["completa"]:
             tot["da_finire"] += 1
+    # Anagrafica dei P/N: articoli nuovi dalla share e dagli OP, riepilogo del catalogo; Cpk dei P/N letti ora.
+    try:
+        from . import articoli
+
+        tot["articoli"] = articoli.sincronizza(cartelle)
+        lette_ora = [pn for pn, _p, _m in cartelle[: tot["cartelle"]]]   # le cartelle lette in questo giro
+        articoli.aggiorna_cpk(max(30.0, scadenza - time.monotonic() + 60), pn=lette_ora)
+    except Exception:  # pragma: no cover - il catalogo non deve fermare la lettura dei report
+        logger.exception("report CMM: sincronizzazione degli articoli")
     return tot
 
 

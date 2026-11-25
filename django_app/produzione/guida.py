@@ -44,11 +44,23 @@ SEZIONI: list[dict] = [
         "id": "pn",
         "titolo": "P/N",
         "blocchi": [
-            ("p", "La scheda «P/N» elenca i P/N degli OP: il P/N è l'articolo principale e ha più OP. Per ogni P/N: quanti OP, "
-                  "l'ultimo OP con il suo stato, il capocommessa, quanti FAI, la «Situazione FAI» e le anomalie aperte di tutti "
-                  "i suoi OP. La ricerca trova il P/N anche da un suo OP, capocommessa o CAR, e conta comunque tutti i suoi OP."),
-            ("p", "«Da sistemare» filtra i P/N «Con anomalie aperte», quelli «Senza FAI» e quelli con «FAI da ripetere o "
-                  "verificare»."),
+            ("p", "La scheda «P/N» è il catalogo di tutti i P/N: quelli degli OP, dei KICK-OFF e delle cartelle della share "
+                  "Collaudo, anche senza OP nel portale. Per ogni P/N: descrizione e revisione, cliente, stato, OP (e quanti "
+                  "aperti), ultimo OP, report CMM degli ultimi 12 mesi con la linea dei report per mese, Cpk peggiore, quote non "
+                  "capaci (Cpk sotto 1,33), report con quote fuori negli ultimi 30 giorni, anomalie aperte, FAI e ultimo report. "
+                  "I numeri dei report si aggiornano ogni ora con il giro dei report CMM; OP, anomalie e FAI sono sempre attuali."),
+            ("p", "Stato: «Attivo» con report o OP aperti negli ultimi 12 mesi, «Fermo» senza attività recente, «Solo archivio» "
+                  "se c'è solo la cartella Collaudo; si può fissare a mano (anche «Obsoleto») nell'anagrafica."),
+            ("p", "«Mostra»: Tutti, Attivi, «Da guardare» (quote non capaci, report con fuori nell'ultimo mese, anomalie aperte, "
+                  "FAI da ripetere o verificare; segnati con una riga rossa a sinistra), Con OP, «Con OP senza FAI», «Solo "
+                  "archivio Collaudo». In più il filtro per cliente e l'ordine (più problemi prima, attività più recente, P/N). "
+                  "La ricerca trova P/N, descrizione, cliente e anche un OP del P/N. I riquadri in alto sono cliccabili."),
+            ("p", "«Aggiorna il catalogo» (con il permesso «Anagrafica P/N») crea subito gli articoli nuovi e ricalcola i "
+                  "numeri, senza aspettare il giro."),
+            ("p", "Anagrafica: nella scheda del P/N il pulsante «Anagrafica» apre il pannello con descrizione, cliente, "
+                  "disegno, revisione, materiale, famiglia, stato e note. Descrizione, cliente e revisione vuoti si completano "
+                  "da soli dal KICK-OFF e il cliente anche dal Registro FAI; quello scritto a mano non viene mai sovrascritto. "
+                  "Ogni modifica finisce nel registro delle azioni."),
             ("p", "La scheda del P/N ha un indirizzo fisso, /produzione/pn/<P/N>/, che si può salvare o mandare. In alto la "
                   "striscia del percorso (KICK-OFF del P/N, Programmi CAM e CMM, FAI del P/N, OP del P/N) con lo stato di ogni "
                   "passo: ✓ fatto, numero arancione da fare, giallo in attesa, rosso da sistemare; il titolo apre il passo. "
