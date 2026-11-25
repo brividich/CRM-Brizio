@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+{% block title %}QR d'aula | {{ sessione.codice_sessione }} | Formazione{% endblock %}
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.au-grid{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.au-qr{flex:1 1 380px;display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.au-qr img{width:min(300px,100%);height:auto;border-radius:12px;background:#fff;padding:8px;border:1px solid #e2e8f0}
+.au-big{font-size:22px;font-weight:800;color:#0c2545;margin:0 0 6px}
+.au-url{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all;color:#475569}
+.au-side{flex:1 1 340px;min-width:0}
+body.theme-dark .au-big{color:#e2e8f0}
+</style>
+{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow"><a href="{% url 'anagrafica:formazione_sessioni_list' %}" style="color:#94a3b8;text-decoration:none;">Sessioni</a> &rsaquo; <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}" style="color:#94a3b8;text-decoration:none;">{{ sessione.codice_sessione }}</a> &rsaquo; QR d'aula</div>
+      <h2 class="hr-pagehead-title">QR d'aula · {{ sessione.corso.titolo }}</h2>
+      <p class="hr-pagehead-desc">Mostralo a schermo o stampalo: chi è iscritto inquadra, scrive matricola e cognome e firma ingresso e uscita. Vale da mezz'ora prima a mezz'ora dopo l'orario della lezione. Nessuna email ai partecipanti.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_guida' %}#aula">? Guida</a>
+      {% if lezione %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_lezione_presenze' sessione.pk lezione.pk %}">Presenze di oggi</a>{% endif %}
+    </div>
+  </div>
+  <div class="au-grid">
+    <div class="hr-card au-qr" style="padding:18px 20px;">
+      <img src="{% url 'anagrafica:formazione_aula_qr_png' sessione.pk %}" alt="QR d'aula della sessione {{ sessione.codice_sessione }}" width="300" height="300">
+      <div style="flex:1;min-width:220px;">
+        {% if lezione %}<p class="au-big">Giornata {{ lezione.numero }} · {{ lezione.ora_inizio|time:"H:i" }}–{{ lezione.ora_fine|time:"H:i" }}</p>
+          {% if aperta %}<span class="fm-pill fm-pill-valid">Firma aperta adesso</span>{% else %}<span class="fm-pill fm-pill-warning">Firma chiusa: si apre mezz'ora prima della lezione</span>{% endif %}
+        {% else %}<p class="au-big">Oggi non ci sono lezioni</p><span class="fm-pill fm-pill-missing">Il QR funziona nei giorni delle lezioni</span>{% endif %}
+        <p class="au-url" style="margin-top:12px;">{{ url }}</p>
+        <button type="button" class="hr-btn hr-btn-ghost" id="au-copia" data-url="{{ url }}">Copia il link</button>
+      </div>
+    </div>
+    <div class="au-side" style="display:flex;flex-direction:column;gap:16px;">
+      <div class="hr-card" style="padding:16px 18px;">
+        <div class="hr-card-head"><div class="hr-card-title">Test finale dal telefono</div>
+          {% if test_aperto %}<span class="fm-pill fm-pill-valid">Aperto</span>{% else %}<span class="fm-pill fm-pill-missing">Chiuso</span>{% endif %}</div>
+        <p style="font-size:13px;color:#64748b;margin:6px 0 12px;">Con lo stesso QR, dopo la firma compare «Fai il test». Usa le domande della sessione o, se non ce ne sono, quelle del corso.{% if n_domande %} Domande pronte: {{ n_domande }}.{% endif %}</p>
+        {% if not bloccata %}
+        <form method="post" action="{% url 'anagrafica:formazione_aula_test' sessione.pk %}" style="display:flex;gap:8px;flex-wrap:wrap;">{% csrf_token %}
+          {% if test_aperto %}<button class="hr-btn hr-btn-outline" name="aperto" value="0">Chiudi il test</button>
+          {% else %}<button class="hr-btn hr-btn-primary" name="aperto" value="1">Apri il test ora</button>{% endif %}
+          <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}?passo=test">Domande</a>
+        </form>
+        {% endif %}
+      </div>
+      <div class="hr-card" style="padding:16px 18px;">
+        {% include "anagrafica/components/_aula_qr_presenze.html" %}
+      </div>
+    </div>
+  </div>
+</div>
+<script nonce="{{ csp_nonce }}">
+document.getElementById("au-copia").addEventListener("click", function () {
+  var b = this, u = b.getAttribute("data-url");
+  (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { b.textContent = "Copiato"; })
+    .catch(function () { window.prompt("Copia il link", u); });
+});
+</script>
+{% endblock %}

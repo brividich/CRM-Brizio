@@ -457,6 +457,47 @@ def _safety_scadenze(request) -> list[dict] | None:
         return []
 
 
+def _my_efficacia(request) -> list[dict]:
+    """Valutazioni di efficacia della formazione (MT CN 06 §9.5) delle persone di cui l'utente è il capo."""
+    lid = _anagrafica_id(request)
+    if not lid:
+        return []
+    try:
+        from anagrafica.services.formazione_aula import efficacie_da_valutare
+        from anagrafica.views import _helpers as hh
+        elenco = efficacie_da_valutare(lid)
+        nomi = hh._build_nomi_map() if elenco else {}
+    except Exception:
+        return []
+    url = _safe_url("anagrafica:formazione_efficacia") + "?mie=1"
+    return [{
+        "title": nomi.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}"),
+        "meta": (v.record.course_title_snapshot or "")[:60],
+        "status": f"entro {v.attesa_dal:%d/%m/%Y}",
+        "url": url,
+    } for v in elenco[:12]]
+
+
+def _my_mod040(request) -> list[dict]:
+    """Edizioni chiuse da approvare e verifiche «assenza NC» a 6 mesi (MSM/MSO, MT CN 06 §9.3)."""
+    try:
+        from anagrafica.views.formazione import _can_approve_formazione
+        if not _can_approve_formazione(request):
+            return []
+        from anagrafica.services.formazione_aula import edizioni_da_approvare, verifiche_nc_dovute
+        out = [{"code": s.codice_sessione, "title": s.corso.titolo[:60], "meta": "Approvazione MOD.040",
+                "status": f"chiusa il {s.chiusa_il:%d/%m/%Y}",
+                "url": _safe_url("anagrafica:formazione_sessione_detail", s.pk) + "#chiusura-edizione"}
+               for s in edizioni_da_approvare()[:10]]
+        out += [{"code": s.codice_sessione, "title": s.corso.titolo[:60], "meta": "Verifica assenza NC (6 mesi)",
+                 "status": f"finita il {s.data_fine:%d/%m/%Y}",
+                 "url": _safe_url("anagrafica:formazione_sessione_detail", s.pk) + "#chiusura-edizione"}
+                for s in verifiche_nc_dovute()[:10]]
+        return out
+    except Exception:
+        return []
+
+
 def _my_skm_refresh(legacy_user_id) -> list[dict]:
     """Refresh abilitazioni macchina da gestire per il CAR (campagne aperte del suo reparto)."""
     if not legacy_user_id:
@@ -686,6 +727,24 @@ def _build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "items": _my_elearning(request),
             "all_url": _safe_url("anagrafica:formazione_online_catalog"),
             "empty": "Nessun corso e-learning da completare.",
+        },
+        {
+            "key": "efficacia",
+            "label": "Efficacia della formazione",
+            "tone": "warning",
+            "icon": "🎯",
+            "items": _my_efficacia(request),
+            "all_url": _safe_url("anagrafica:formazione_efficacia") + "?mie=1",
+            "empty": "Nessuna valutazione di efficacia da fare.",
+        },
+        {
+            "key": "mod040",
+            "label": "Corsi da approvare (MOD.040)",
+            "tone": "warning",
+            "icon": "✅",
+            "items": _my_mod040(request),
+            "all_url": _safe_url("anagrafica:formazione_sessioni_list") + "?stato=COMPLETATA",
+            "empty": "Nessuna edizione da approvare.",
         },
         {
             "key": "skm_refresh",

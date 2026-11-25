@@ -62,6 +62,9 @@ def formazione_tipi_corso_azione(request):
             colore = (p.get("colore") or "").strip()
             if len(colore) == 7 and colore.startswith("#"):
                 tipo.colore = colore
+            mesi = (p.get("efficacia_mesi") or "").strip()
+            if mesi.isdigit():
+                tipo.efficacia_mesi = min(int(mesi), 36)
             tipo.save()
             messages.success(request, f"Tipo «{tipo.nome}» salvato.")
         elif azione == "elimina":

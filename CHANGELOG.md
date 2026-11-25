@@ -9,6 +9,20 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Sessioni in aula: fasi, presenze in un tocco, firma e test dal telefono, chiusura in un passo, Da chiudere, efficacia
+
+Analisi dei dati di produzione (25/11/2026): 92 sessioni finite mai chiuse, 11 firme su 5.834 presenze, 0 valutazioni di efficacia, 0 approvazioni MOD.040, 0 esiti di verifica.
+
+- **Sessione a fasi** «Prima · Durante · Dopo» con le azioni della fase; il riquadro MOD.040 solo nella fase Dopo; l'avviso GuestPortal solo se il collegamento è configurato; il riquadro della lezione online non compare per le sessioni in aula che usano solo il test dal telefono.
+- **Presenze in un tocco**: «Tutti presenti» e pulsanti Presente / Ritardo-uscita / Assente su ogni riga; orari di firma visibili.
+- **QR d'aula** (`/corso-aperto/aula/<token>/`, senza login, già sotto il prefisso esente `/corso-aperto/`): firma d'ingresso e uscita con matricola e cognome, solo tra gli iscritti, da 30' prima a 30' dopo la lezione, telefono riconosciuto per 16 ore con un cookie firmato; ore calcolate da ingresso e uscita. Pagina del QR con elenco firme aggiornato ogni 15 secondi.
+- **Test finale in aula dal telefono**: «Apri il test ora», motore della lezione online senza slide; il test non tocca la presenza.
+- **Chiudi l'edizione**: esiti proposti da presenze e test, test su carta, completamenti e attestati, sessione «Completata» quando nessuno resta da decidere.
+- **Da chiudere** nell'elenco Sessioni con chiusura e annullamento in blocco.
+- **Efficacia** (MT CN 06 §9.5): `TrainingCourseType.efficacia_mesi` (predefinito 3) per i corsi in aula, pagina Formazione → Efficacia (voce di menu), sezioni «Efficacia della formazione» e «Corsi da approvare (MOD.040)» in «Le mie attività».
+- Migrazione anagrafica `0255` (campi `token_aula`, `chiusa_il`, `chiusa_da_nome`, `ora_ingresso`, `ora_uscita`, `test_in_aula`, `efficacia_mesi`; permessi delle pagine nuove copiati dalle rotte sorelle; voce di menu «Efficacia»).
+- File: `services/formazione_aula.py` (nuovo), `views_aula.py` (nuovo), `views_aula_pubblica.py` (nuovo), `services/formazione_efficacia.py`, `services/sessione_online.py`, `views/formazione.py`, `views_formazione_tipi.py`, `urls.py`, `urls_corso_aperto.py`, `dashboard/views_mie_attivita.py`, template della sessione, presenze, sessioni, tipi di corso, QR d'aula, chiusura, efficacia, pagine pubbliche `aula_firma`/`aula_test`. Guide: guida formazione (#aula, #efficacia), Centro guide. Test: `tests_formazione_aula.py`, `core/test_security_audit_fase3.py` (PUBLIC_VIEWS), `dashboard/tests.py`.
+
 ### E-learning, revisione strutturale: partecipazione sul server, video grandi, moduli, materiale del corso nelle sessioni, PIN e QR di reparto
 
 - **Link aperto, partecipazione registrata sul server** (fase A, `TrainingElearningPartecipazioneAperta`, migrazione `0252`): nasce alla registrazione (abbinamento con matricola subito), tiene avanzamento, video guardati e tempo effettivo misurato dal server (al massimo 2 minuti per pagina); **codice per riprendere** da un altro telefono (codice + cognome); l'HR vede «Chi lo sta facendo dal link aperto» (persona, matricola, abbinamento, slide, minuti, ultimo accesso, stato) e nei Risultati chi è abbinato compare «In corso · dal link aperto».

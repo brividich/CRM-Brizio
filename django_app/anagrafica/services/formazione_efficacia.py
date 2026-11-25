@@ -42,15 +42,21 @@ def aggiungi_mesi(quando: date, mesi: int) -> date:
     return quando
 
 
-def mesi_efficacia_richiesti(corso) -> int:
-    """Mesi previsti dalla regola di superamento del corso, 0 se non richiesta."""
+def mesi_efficacia_richiesti(corso, record=None) -> int:
+    """Mesi previsti: la regola del corso, se indicata; altrimenti, per i corsi in aula
+    (completamento da una sessione non online), quelli del tipo di corso. 0 = non richiesta."""
     try:
         regola = corso.regola_superamento
     except Exception:
+        regola = None
+    if regola is not None and getattr(regola, "is_active", True) and regola.valutazione_efficacia_mesi:
+        return int(regola.valutazione_efficacia_mesi)
+    if record is None or not getattr(record, "sessione_id", None) or getattr(corso, "is_elearning", False):
         return 0
-    if not getattr(regola, "is_active", True):
+    if getattr(record.sessione, "modalita", "") == "ONLINE":
         return 0
-    return int(getattr(regola, "valutazione_efficacia_mesi", 0) or 0)
+    tipo = getattr(corso, "tipo", None)
+    return int(getattr(tipo, "efficacia_mesi", 0) or 0) if tipo is not None else 0
 
 
 def pianifica_valutazione_efficacia(record) -> object | None:
@@ -71,7 +77,7 @@ def pianifica_valutazione_efficacia(record) -> object | None:
     if record.idoneo is False:
         return None
 
-    mesi = mesi_efficacia_richiesti(record.corso) if record.corso_id else 0
+    mesi = mesi_efficacia_richiesti(record.corso, record) if record.corso_id else 0
     if not mesi:
         return None
 

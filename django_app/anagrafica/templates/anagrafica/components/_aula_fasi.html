@@ -1,0 +1,56 @@
+{# Sessione in aula a fasi: Prima · Durante · Dopo (25/11/2026). Le azioni di ogni fase in un posto solo. #}
+<style>
+.af{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-bottom:12px}
+.af-step{border:1px solid #dbe3ec;border-radius:12px;padding:12px 14px;background:#fff;display:flex;flex-direction:column;gap:4px}
+.af-step.on{border-color:#ff6b00;background:#fff7ef}
+.af-t{font-weight:700;display:flex;gap:8px;align-items:center;color:#0c2545}
+.af-n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:#eef2f7;color:#475569;flex:none}
+.af-step.on .af-n{background:#ff6b00;color:#fff}.af-step.fatto .af-n{background:#16a34a;color:#fff}
+.af-d{font-size:12.5px;color:#64748b;line-height:1.45}
+.af-body{border:1px solid #dbe3ec;border-radius:14px;background:#fff;padding:14px 16px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.af-body h3{margin:0;font-size:15px;color:#0c2545}
+.af-body p{margin:2px 0 0;font-size:12.5px;color:#64748b}
+.af-az{display:flex;gap:8px;flex-wrap:wrap}
+body.theme-dark .af-step,body.theme-dark .af-body{background:#111c33;border-color:#334155}
+body.theme-dark .af-step.on{background:rgba(255,107,0,.12)}
+body.theme-dark .af-t,body.theme-dark .af-body h3{color:#e2e8f0}
+</style>
+<div class="af" role="list" aria-label="Fasi della sessione">
+  <div class="af-step{% if aula_fase == 'prima' %} on{% else %} fatto{% endif %}" role="listitem">
+    <span class="af-t"><span class="af-n">{% if aula_fase == 'prima' %}1{% else %}✓{% endif %}</span>Prima</span>
+    <span class="af-d">{{ n_iscritti }} iscritt{{ n_iscritti|pluralize:"o,i" }} · {{ lezioni|length }} giornat{{ lezioni|length|pluralize:"a,e" }}{% if programma %} · programma di {{ programma|length }} voci{% endif %}</span>
+  </div>
+  <div class="af-step{% if aula_fase == 'durante' %} on{% elif aula_fase == 'dopo' %} fatto{% endif %}" role="listitem">
+    <span class="af-t"><span class="af-n">{% if aula_fase == 'dopo' %}✓{% else %}2{% endif %}</span>Durante</span>
+    <span class="af-d">Presenze, firma e test dal telefono con il QR d'aula</span>
+  </div>
+  <div class="af-step{% if aula_fase == 'dopo' %} on{% endif %}{% if sessione.is_approvata %} fatto{% endif %}" role="listitem">
+    <span class="af-t"><span class="af-n">{% if sessione.is_approvata %}✓{% else %}3{% endif %}</span>Dopo</span>
+    <span class="af-d">Esiti, attestati, approvazione MOD.040, efficacia</span>
+  </div>
+</div>
+<div class="af-body">
+  {% if aula_fase == "prima" %}
+    <div><h3>Prepara la sessione</h3><p>Iscrivi i partecipanti e genera le giornate; il giorno della lezione qui compaiono presenze e QR d'aula.</p></div>
+    <div class="af-az">
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}">Iscritti</a>
+      {% if lezioni %}<a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_lezione_registro' sessione.pk lezioni.0.pk %}">Foglio firme</a>{% endif %}
+      {% if is_editor %}<a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_aula_qr' sessione.pk %}">QR d'aula</a>{% endif %}
+    </div>
+  {% elif aula_fase == "durante" %}
+    <div><h3>{% if aula_lezione_oggi %}Giornata {{ aula_lezione_oggi.numero }} · oggi {{ aula_lezione_oggi.ora_inizio|time:"H:i" }}–{{ aula_lezione_oggi.ora_fine|time:"H:i" }}{% else %}Sessione in corso{% endif %}</h3>
+      <p>{% if aula_lezione_oggi %}{{ aula_firme_oggi }} di {{ n_iscritti }} hanno firmato l'ingresso{% if aula_test_aperto %} · test aperto{% endif %}{% else %}Oggi non ci sono giornate: le presenze si segnano dalla tabella delle lezioni.{% endif %}</p></div>
+    <div class="af-az">
+      {% if aula_lezione_oggi %}<a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:formazione_lezione_presenze' sessione.pk aula_lezione_oggi.pk %}">Presenze di oggi</a>{% endif %}
+      {% if is_editor %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_aula_qr' sessione.pk %}">QR d'aula e test</a>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_aula_chiudi' sessione.pk %}">Chiudi l'edizione</a>{% endif %}
+    </div>
+  {% else %}
+    <div><h3>{% if sessione.is_approvata %}Edizione approvata{% elif sessione.stato == "COMPLETATA" %}Edizione chiusa: manca l'approvazione MOD.040{% else %}La sessione è finita: chiudila{% endif %}</h3>
+      <p>{% if sessione.stato == "COMPLETATA" %}{% if sessione.chiusa_il %}Chiusa da {{ sessione.chiusa_da_nome|default:"—" }} il {{ sessione.chiusa_il|date:"d/m/Y" }}. {% endif %}Approvazione e verifica NC qui sotto.{% else %}Esiti proposti da presenze e test: una conferma registra completamenti e attestati.{% endif %}</p></div>
+    <div class="af-az">
+      {% if gestore and not sessione.is_approvata %}<a class="hr-btn {% if sessione.stato == 'COMPLETATA' %}hr-btn-outline{% else %}hr-btn-primary{% endif %}" href="{% url 'anagrafica:formazione_aula_chiudi' sessione.pk %}">{% if sessione.stato == "COMPLETATA" %}Rivedi gli esiti{% else %}Chiudi l'edizione{% endif %}</a>{% endif %}
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_sessione_mod040' sessione.pk %}">MOD.040</a>
+    </div>
+  {% endif %}
+</div>

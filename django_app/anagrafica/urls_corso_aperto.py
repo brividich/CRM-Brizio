@@ -1,11 +1,15 @@
 """Corso e-learning dal link aperto (``/corso-aperto/``, senza login). Vedi views_corso_aperto."""
 from django.urls import path
 
+from . import views_aula_pubblica as va
 from . import views_corso_aperto as v
 
 app_name = "corso_aperto"
 
 urlpatterns = [
+    # QR d'aula delle sessioni in presenza: prima del token del corso.
+    path("aula/<str:token>/", va.firma, name="aula"),
+    path("aula/<str:token>/test/", va.test, name="aula_test"),
     path("<str:token>/", v.corso, name="corso"),
     path("<str:token>/registrati/", v.registrati, name="registrati"),
     path("<str:token>/materiale/", v.materiale, name="materiale"),

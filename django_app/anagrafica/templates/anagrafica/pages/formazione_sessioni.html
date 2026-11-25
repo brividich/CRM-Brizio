@@ -58,11 +58,43 @@
         </select>
         <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a href="{% url 'anagrafica:formazione_sessioni_list' %}" class="fmd-btn fmd-btn-ghost">Reset</a>
+        {% if n_da_chiudere %}<a href="{% if da_chiudere %}{% url 'anagrafica:formazione_sessioni_list' %}{% else %}?da_chiudere=1{% endif %}" class="fmd-btn {% if da_chiudere %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %}" title="Sessioni finite che risultano ancora pianificate o in corso">Da chiudere <span class="fmd-badge fmd-b-amber">{{ n_da_chiudere }}</span></a>{% endif %}
+        {% if da_chiudere %}<input type="hidden" name="da_chiudere" value="1">{% endif %}
         <span class="fmd-spacer"></span>
         {% include "anagrafica/partials/_export_buttons.html" with export_key="formazione_sessioni" %}
       </form>
 
-      {% if page_obj %}
+      {% if da_chiudere and page_obj %}
+      <form method="post" action="{% url 'anagrafica:formazione_da_chiudere_azione' %}" id="dc-form">{% csrf_token %}
+      <p class="fmd-muted" style="margin:4px 0 10px;">Sessioni finite che risultano ancora pianificate o in corso. «Chiudi» applica gli esiti che il portale sa proporre dalle presenze e dai test; chi non ha un esito proponibile tiene aperta la sessione (aprila e decidi). «Annulla» vale solo per le sessioni senza completamenti.</p>
+      {% if is_editor %}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="fmd-btn fmd-btn-primary" name="azione" value="chiudi" type="submit">Chiudi le selezionate</button>
+        <button class="fmd-btn fmd-btn-ghost" name="azione" value="annulla" type="submit">Annulla le selezionate</button>
+      </div>{% endif %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr>{% if is_editor %}<th style="width:34px;"><input type="checkbox" id="dc-tutte" aria-label="Seleziona tutte"></th>{% endif %}<th>Codice</th><th>Corso</th><th>Finita il</th><th>Stato</th><th style="text-align:right;">Iscritti</th><th>Cosa manca</th><th></th></tr></thead>
+          <tbody>
+          {% for s in page_obj %}
+            <tr>
+              {% if is_editor %}<td><input type="checkbox" name="sel" value="{{ s.pk }}" class="dc-sel" aria-label="Seleziona {{ s.codice_sessione }}"></td>{% endif %}
+              <td><span class="fmd-code">{{ s.codice_sessione }}</span></td>
+              <td>{{ s.corso.titolo|truncatechars:45 }}</td>
+              <td class="fmd-nowrap">{{ s.data_fine|date:"d-m-Y" }}</td>
+              <td><span class="fmd-badge {% if s.stato == 'IN_CORSO' %}fmd-b-amber{% else %}fmd-b-cyan{% endif %}">{{ s.get_stato_display }}</span></td>
+              <td style="text-align:right;">{{ s.n_iscritti_tot }}</td>
+              <td><span class="fmd-badge {% if s.manca_tono == 'ok' %}fmd-b-green{% elif s.manca_tono == 'warn' %}fmd-b-amber{% else %}fmd-b-grey{% endif %}">{{ s.manca_testo }}</span></td>
+              <td class="fmd-nowrap"><a href="{% url 'anagrafica:formazione_aula_chiudi' s.pk %}" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;">Apri esiti</a></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      </form>
+      <script nonce="{{ csp_nonce }}">
+      (function(){var t=document.getElementById("dc-tutte"); if(!t)return; t.addEventListener("change",function(){document.querySelectorAll(".dc-sel").forEach(function(c){c.checked=t.checked;});});})();
+      </script>
+      {% elif page_obj %}
       <div class="fmd-tablewrap">
         <table class="fmd-table" data-table-id="formazione.sessioni.list">
           <thead>
@@ -109,9 +141,9 @@
         <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} sessioni</span>
         {% if page_obj.paginator.num_pages > 1 %}
         <div class="fmd-pager">
-          {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&corso={{ filtro_corso }}&stato={{ filtro_stato }}&anno={{ filtro_anno }}&q={{ q_search }}">‹</a>{% endif %}
+          {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&corso={{ filtro_corso }}&stato={{ filtro_stato }}&anno={{ filtro_anno }}&q={{ q_search }}{% if da_chiudere %}&da_chiudere=1{% endif %}">‹</a>{% endif %}
           <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
-          {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&corso={{ filtro_corso }}&stato={{ filtro_stato }}&anno={{ filtro_anno }}&q={{ q_search }}">›</a>{% endif %}
+          {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&corso={{ filtro_corso }}&stato={{ filtro_stato }}&anno={{ filtro_anno }}&q={{ q_search }}{% if da_chiudere %}&da_chiudere=1{% endif %}">›</a>{% endif %}
         </div>
         {% endif %}
       </div>

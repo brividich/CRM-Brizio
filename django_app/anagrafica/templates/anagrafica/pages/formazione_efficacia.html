@@ -1,0 +1,64 @@
+{% extends "core/base.html" %}
+{% block title %}Efficacia della formazione | Formazione{% endblock %}
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.ef-row{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(160px,1fr) 120px minmax(280px,2fr);gap:12px;align-items:start;padding:12px 4px;border-top:1px solid #e2e8f0}
+.ef-row:first-child{border-top:0}
+.ef-f{display:flex;flex-direction:column;gap:6px}
+.ef-f select,.ef-f textarea{border:1px solid #d1d9e3;border-radius:8px;padding:6px 8px;font:inherit;font-size:13px;background:#fff;color:inherit}
+.ef-esiti{display:flex;gap:6px;flex-wrap:wrap}
+.ef-esiti label{border:1px solid #d1d9e3;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:600;cursor:pointer;display:flex;gap:6px;align-items:center}
+.ef-muted{font-size:12px;color:#64748b}
+@media (max-width:900px){.ef-row{grid-template-columns:1fr}}
+body.theme-dark .ef-row{border-color:#334155}
+body.theme-dark .ef-f select,body.theme-dark .ef-f textarea,body.theme-dark .ef-esiti label{background:#0f172a;border-color:#334155;color:#e2e8f0}
+</style>
+{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Formazione &rsaquo; Efficacia</div>
+      <h2 class="hr-pagehead-title">Efficacia della formazione</h2>
+      <p class="hr-pagehead-desc">MT CN 06 §9.5: il responsabile di reparto o il tutor verifica, dopo il periodo previsto, che il corso abbia prodotto competenza. Qui le valutazioni dovute o in arrivo entro 15 giorni{% if not tutte %} per le persone di cui sei il capo{% endif %}.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_guida' %}#efficacia">? Guida</a>
+      {% if puo_tutte %}{% if tutte %}<a class="hr-btn hr-btn-outline" href="?mie=1">Solo le mie</a>{% else %}<a class="hr-btn hr-btn-outline" href="?">Tutte</a>{% endif %}{% endif %}
+    </div>
+  </div>
+  <div class="hr-card" style="padding:12px 18px;">
+    {% for v in elenco %}
+    <form method="post" class="ef-row">{% csrf_token %}<input type="hidden" name="id" value="{{ v.pk }}">
+      <div><strong>{{ v.nome }}</strong><div class="ef-muted">{{ v.record.course_title_snapshot|default:v.record.corso.titolo }}</div></div>
+      <div class="ef-muted">Completato il {{ v.record.data_completamento|date:"d/m/Y" }}<br>{{ v.record.session_code_snapshot }}</div>
+      <div>{% if v.dovuta %}<span class="fm-pill fm-pill-expired">dal {{ v.attesa_dal|date:"d/m/Y" }}</span>{% else %}<span class="fm-pill fm-pill-warning">entro {{ v.attesa_dal|date:"d/m/Y" }}</span>{% endif %}</div>
+      <div class="ef-f">
+        <div class="ef-esiti" role="radiogroup" aria-label="Esito per {{ v.nome }}">
+          {% for val, lbl in ESITI %}<label><input type="radio" name="esito" value="{{ val }}" required> {{ lbl }}</label>{% endfor %}
+        </div>
+        <select name="metodo" aria-label="Come è stata verificata"><option value="">Come l'hai verificata…</option>{% for val, lbl in METODI %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}</select>
+        <textarea name="azione" rows="2" placeholder="Se non è pieno: cosa si fa (affiancamento, nuovo addestramento, livello nella Skill Matrix)" aria-label="Azione"></textarea>
+        <div><button class="hr-btn hr-btn-primary" type="submit">Salva</button></div>
+      </div>
+    </form>
+    {% empty %}
+    <p style="color:#94a3b8;margin:10px 0;">Nessuna valutazione da fare adesso.</p>
+    {% endfor %}
+  </div>
+  {% if fatte %}
+  <div class="hr-card">
+    <div class="hr-card-head"><div class="hr-card-title">Ultime valutazioni</div></div>
+    <div style="overflow-x:auto;"><table class="hr-table"><thead><tr><th>Persona</th><th>Corso</th><th>Esito</th><th>Valutata</th><th>Azione</th></tr></thead><tbody>
+      {% for v in fatte %}<tr><td>{{ v.nome }}</td><td>{{ v.record.course_title_snapshot|default:v.record.corso.titolo }}</td>
+        <td><span class="fm-pill {% if v.esito == 'EFFICACE' %}fm-pill-valid{% elif v.esito == 'PARZIALE' %}fm-pill-warning{% else %}fm-pill-expired{% endif %}">{{ v.get_esito_display }}</span></td>
+        <td>{{ v.valutata_il|date:"d/m/Y" }} · {{ v.valutatore_nome }}</td><td style="font-size:12.5px;">{{ v.azione|default:"—" }}</td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
