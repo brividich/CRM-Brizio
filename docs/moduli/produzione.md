@@ -27,6 +27,13 @@ Ogni OP con i suoi documenti di produzione. Gli OP sono la tabella legacy `ordin
 
 Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KICK-OFF rispettano i permessi del modulo KICK-OFF.
 
+### Anagrafica e catalogo dei P/N (26/11/2026)
+
+- Tabella `produzione_articolopn` (`ArticoloPN`, migrazione `produzione 0005`): P/N unico, descrizione, cliente, disegno, revisione, materiale, famiglia, stato (vuoto = dall'attività), note, origine, cartella Collaudo, chi ha modificato; riepilogo precalcolato (OP, OP aperti, report, report 12 mesi, fuori 30 giorni, ultimo report, Cpk peggiore, quote non capaci, andamento per mese).
+- `produzione/articoli.py`: `sincronizza()` crea gli articoli da OP, KICK-OFF (`tasks.Project`) e cartelle della share, completa i campi vuoti da KICK-OFF e Registro FAI, ricalcola il riepilogo; `aggiorna_cpk()` per i P/N letti. Lo chiama la fine di ogni giro dei report CMM; «Aggiorna il catalogo» (POST `/produzione/pn/sincronizza/`) lo lancia a mano.
+- `/produzione/pn/`: catalogo (`services.catalogo`) con «Mostra», cliente, ordine; `/produzione/pn/<P/N>/anagrafica/` (POST) salva il pannello «Anagrafica». La scheda del P/N si apre anche per i P/N senza OP.
+- Permesso nuovo `produzione.articoli.manage` (di default solo admin). Deploy: `migrate produzione`, sincronizzazione dei permessi; il catalogo si riempie al primo giro o al primo «Aggiorna il catalogo».
+
 ### Scheda OP a sezioni con pezzi × fasi (26/11/2026)
 
 - Sezioni con `?sez=`: Pezzi (vuota), `report`, `documenti`, `fai`, `programmi` (gli ultimi due per chi vede i KICK-OFF). `?aggiungi=1` e `?documento=<id>` aprono Documenti; dopo il salvataggio si torna a Documenti.

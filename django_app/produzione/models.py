@@ -183,3 +183,58 @@ class ImpostazioniQuoteCMM(models.Model):
     def attuali(cls) -> "ImpostazioniQuoteCMM":
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class ArticoloPN(models.Model):
+    """Anagrafica del P/N: una riga per articolo, creata da sola dagli OP, dai KICK-OFF e dalle cartelle della share
+    Collaudo, completata a mano. In fondo il riepilogo precalcolato (report, OP, Cpk) che tiene veloce il catalogo:
+    lo aggiornano il giro dei report CMM e la sincronizzazione (``produzione/articoli.py``)."""
+
+    STATI = [("attivo", "Attivo"), ("fermo", "Fermo"), ("obsoleto", "Obsoleto")]
+    ORIGINI = [("op", "OP"), ("kickoff", "KICK-OFF"), ("collaudo", "Cartella Collaudo"), ("manuale", "A mano")]
+
+    pn = models.CharField(max_length=100, unique=True, verbose_name="P/N")
+    descrizione = models.CharField(max_length=200, blank=True, default="")
+    cliente = models.CharField(max_length=180, blank=True, default="")
+    disegno = models.CharField(max_length=80, blank=True, default="")
+    revisione = models.CharField(max_length=40, blank=True, default="", verbose_name="Revisione")
+    materiale = models.CharField(max_length=80, blank=True, default="")
+    famiglia = models.CharField(max_length=80, blank=True, default="")
+    stato = models.CharField(max_length=10, choices=STATI, blank=True, default="",
+                             help_text="Vuoto = deciso dall'attività (report e OP degli ultimi 12 mesi).")
+    note = models.TextField(blank=True, default="", max_length=2000)
+    origine = models.CharField(max_length=10, choices=ORIGINI, default="op")
+    cartella_collaudo = models.CharField(max_length=500, blank=True, default="")
+    creato_il = models.DateTimeField(auto_now_add=True)
+    modificato_il = models.DateTimeField(auto_now=True)
+    modificato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    # Riepilogo precalcolato
+    n_op = models.PositiveIntegerField(default=0)
+    op_aperti = models.PositiveIntegerField(default=0)
+    n_report = models.PositiveIntegerField(default=0)
+    n_report_12m = models.PositiveIntegerField(default=0)
+    fuori_30g = models.PositiveIntegerField(default=0, help_text="Report degli ultimi 30 giorni con quote fuori.")
+    ultimo_report = models.DateField(null=True, blank=True)
+    cpk_peggiore = models.FloatField(null=True, blank=True)
+    quote_non_capaci = models.PositiveIntegerField(default=0, help_text="Quote con Cpk sotto 1,33 sugli ultimi 30 pezzi.")
+    andamento = models.CharField(max_length=200, blank=True, default="",
+                                 help_text="Report per mese degli ultimi 12 mesi, separati da virgola.")
+    riepilogo_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["pn"]
+        verbose_name = "Articolo (P/N)"
+        verbose_name_plural = "Articoli (P/N)"
+
+    def __str__(self) -> str:
+        return self.pn
+
+    @property
+    def stato_effettivo(self) -> str:
+        """Lo stato scelto a mano, altrimenti dall'attività: attivo con report o OP aperti negli ultimi 12 mesi."""
+        if self.stato:
+            return self.stato
+        if self.n_report_12m or self.op_aperti:
+            return "attivo"
+        return "fermo" if (self.n_report or self.n_op) else "archivio"

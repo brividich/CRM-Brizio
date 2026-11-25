@@ -269,3 +269,33 @@ a.prod-cella:hover{outline:2px solid var(--accent);outline-offset:1px}
 @media (max-width:1100px){.prod-dati-6{grid-template-columns:repeat(3,minmax(0,1fr))}.prod-griglia-op{grid-template-columns:1fr}}
 .prod-griglia-op .prod-scorri{max-height:640px;overflow:auto}
 .prod-matrice thead th{position:sticky;top:0;background:var(--surface);z-index:1}
+/* Catalogo P/N */
+.prod-dati-5{grid-template-columns:repeat(5,minmax(0,1fr))}
+a.prod-dato{text-decoration:none;color:var(--text)}
+a.prod-dato:hover{border-color:var(--accent)}
+.prod-cerca-largo{flex:1;min-width:260px}
+.prod-catalogo td{white-space:nowrap}
+.prod-catalogo td:first-child{white-space:normal;min-width:180px}
+.prod-catalogo .prod-sub{display:block;font-size:12px;color:var(--text-mid);font-weight:500}
+.prod-catalogo tr.is-guardare td:first-child{box-shadow:inset 3px 0 0 var(--danger)}
+.prod-catalogo td small{color:var(--text-mid);font-weight:600}
+.prod-spark{vertical-align:middle}
+.prod-spark polyline{fill:none;stroke:var(--accent);stroke-width:1.6}
+.prod-stato.is-attivo{background:color-mix(in srgb,var(--success,#16a34a) 18%,transparent);color:color-mix(in srgb,var(--success,#16a34a) 75%,var(--text))}
+.prod-stato.is-obsoleto{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}
+.prod-num.is-warn{color:color-mix(in srgb,var(--warning,#f59e0b) 70%,var(--text));font-weight:700}
+@media (max-width:1100px){.prod-dati-5{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.prod-meta{display:flex;flex-wrap:wrap;gap:4px 16px;margin:4px 0 0;font-size:13px;color:var(--text-mid)}
+.prod-meta b{color:var(--text)}
+.prod-pannello{width:min(480px,94vw)}
+.prod-pannello form{display:flex;flex-direction:column;gap:10px}
+.prod-pannello h2{margin:0}
+.prod-pannello-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.prod-pannello input,.prod-pannello select,.prod-pannello textarea{box-sizing:border-box;width:100%}
+/* Le finestre native restano al centro anche col reset dei margini del tema; l'anagrafica è un pannello laterale */
+.prod-dialogo{margin:auto}
+.prod-dialogo.prod-pannello{margin:0 0 0 auto;height:100vh;max-height:100vh;box-sizing:border-box;border-radius:16px 0 0 16px;overflow:auto}
+.prod-filtri select{min-width:180px}
+.prod-filtri select[name=ordina]{min-width:240px}
+.prod-filtri .ts-wrapper{min-width:180px}
+.prod-filtri select[name=ordina]+.ts-wrapper{min-width:250px}

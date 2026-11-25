@@ -214,9 +214,8 @@ class CollegamentiTests(PagineTests):
 
     def test_elenco_pn_conta_i_report(self):
         pagina = self.client.get(reverse("produzione:pn_elenco"))
-        riga = next(r for r in pagina.context["pagina"] if r["pn"] == "PN-ALFA-1")
-        self.assertEqual(riga["cmm"], {"n": 2, "con_fuori": 2})
-        self.assertContains(pagina, "2/2")
+        riga = next(r for r in pagina.context["pagina"] if r["a"].pn == "PN-ALFA-1")
+        self.assertEqual(riga["a"].n_report, 2)
 
     def test_scheda_fai_porta_ai_report_del_pn(self):
         f = self._fai("OP/2026/100")

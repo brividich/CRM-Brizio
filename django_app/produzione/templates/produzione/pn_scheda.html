@@ -2,16 +2,18 @@
 {% load static %}
 
 {% block title %}{{ pn }} · Ordini di produzione{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126b">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126d">{% endblock %}
 
 {% block content %}
 <div class="prod">
   <div class="prod-head">
     <div>
       <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">P/N</a>{% if ultimo_op.capocommessa %} · Capocommessa {{ ultimo_op.capocommessa }}{% endif %}</span>
-      <h1>{{ pn }}{% if situazione_fai %} <span class="prod-stato is-{{ situazione_fai.classe }}">FAI: {{ situazione_fai.etichetta }}</span>{% endif %}</h1>
+      <h1>{{ pn }}{% if articolo %} <span class="prod-stato is-{{ articolo.stato_effettivo }}">{% if articolo.stato_effettivo == "attivo" %}Attivo{% elif articolo.stato_effettivo == "fermo" %}Fermo{% elif articolo.stato_effettivo == "obsoleto" %}Obsoleto{% else %}Solo archivio{% endif %}</span>{% endif %}{% if situazione_fai %} <span class="prod-stato is-{{ situazione_fai.classe }}">FAI: {{ situazione_fai.etichetta }}</span>{% endif %}</h1>
+      {% if articolo %}<p class="prod-meta">{% if articolo.descrizione %}<span>{{ articolo.descrizione }}</span>{% endif %}{% if articolo.cliente %}<span>Cliente <b>{{ articolo.cliente }}</b></span>{% endif %}{% if articolo.disegno or articolo.revisione %}<span>Disegno <b>{{ articolo.disegno|default:"—" }}{% if articolo.revisione %} rev. {{ articolo.revisione }}{% endif %}</b></span>{% endif %}{% if articolo.materiale %}<span>Materiale <b>{{ articolo.materiale }}</b></span>{% endif %}{% if articolo.famiglia %}<span>Famiglia <b>{{ articolo.famiglia }}</b></span>{% endif %}{% if articolo.cartella_collaudo %}<span>Cartella <code class="prod-percorso" title="{{ articolo.cartella_collaudo }}">{{ articolo.cartella_collaudo|truncatechars:60 }}</code></span>{% endif %}{% if not articolo.descrizione and not articolo.cliente and puo_articoli %}<span>Anagrafica da completare</span>{% endif %}</p>{% endif %}
     </div>
     <div class="prod-filtri">
+      {% if puo_articoli %}<button type="button" class="prod-btn" data-apri-dialogo="anagrafica">Anagrafica</button>{% endif %}
       {% if report_cmm.attivo %}<a class="prod-btn" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}">Analisi quote</a>{% endif %}
       {% if vede_kickoff %}<a class="prod-btn" href="{{ url_nuovo_fai }}">+ Nuovo FAI</a>{% endif %}
     </div>
@@ -80,6 +82,7 @@
     {% endif %}
     <section class="prod-card">
       <div class="prod-card-head"><h2>OP</h2><a class="prod-btn prod-btn-piccolo" href="?sez=op">Tutti</a></div>
+      {% if not ops %}<p class="prod-vuoto">Nessun OP nel portale per questo P/N.</p>{% else %}
       <div class="prod-scorri">
         <table class="prod-tab">
           <thead><tr><th>OP</th><th>CAR</th><th>Stato</th><th class="prod-n">Documenti</th><th class="prod-n">Anomalie aperte</th></tr></thead>
@@ -96,7 +99,8 @@
             {% endfor %}
           </tbody>
         </table>
-      </div>    </section>
+      </div>      {% endif %}
+    </section>
   </div>
 
   {% elif sezione == "op" %}
@@ -217,5 +221,34 @@
   </section>
   {% endif %}
 </div>
+{% if puo_articoli %}
+<dialog class="prod-dialogo prod-pannello" id="dialogo-anagrafica" aria-labelledby="anagrafica-titolo">
+  <form method="post" action="{% url 'produzione:pn_anagrafica' pn %}">
+    {% csrf_token %}
+    <span class="prod-eyebrow">Anagrafica P/N</span>
+    <h2 id="anagrafica-titolo">{{ pn }}</h2>
+    <label class="prod-avvisi-campo">Descrizione<input name="descrizione" maxlength="200" value="{{ form_articolo.descrizione.value|default_if_none:'' }}" placeholder="es. Flangia lato motore"></label>
+    <label class="prod-avvisi-campo">Cliente<input name="cliente" maxlength="180" value="{{ form_articolo.cliente.value|default_if_none:'' }}"></label>
+    <div class="prod-pannello-2">
+      <label class="prod-avvisi-campo">Disegno<input name="disegno" maxlength="80" value="{{ form_articolo.disegno.value|default_if_none:'' }}"></label>
+      <label class="prod-avvisi-campo">Revisione<input name="revisione" maxlength="40" value="{{ form_articolo.revisione.value|default_if_none:'' }}"></label>
+    </div>
+    <div class="prod-pannello-2">
+      <label class="prod-avvisi-campo">Materiale<input name="materiale" maxlength="80" value="{{ form_articolo.materiale.value|default_if_none:'' }}"></label>
+      <label class="prod-avvisi-campo">Famiglia<input name="famiglia" maxlength="80" value="{{ form_articolo.famiglia.value|default_if_none:'' }}"></label>
+    </div>
+    <label class="prod-avvisi-campo">Stato<select name="stato" data-no-search>
+      <option value=""{% if not form_articolo.stato.value %} selected{% endif %}>Dall'attività (report e OP degli ultimi 12 mesi)</option>
+      <option value="attivo"{% if form_articolo.stato.value == "attivo" %} selected{% endif %}>Attivo</option>
+      <option value="fermo"{% if form_articolo.stato.value == "fermo" %} selected{% endif %}>Fermo</option>
+      <option value="obsoleto"{% if form_articolo.stato.value == "obsoleto" %} selected{% endif %}>Obsoleto</option>
+    </select></label>
+    <label class="prod-avvisi-campo">Note<textarea name="note" rows="3" maxlength="2000">{{ form_articolo.note.value|default_if_none:'' }}</textarea></label>
+    {% if articolo %}<p class="prod-nota">Creato il {{ articolo.creato_il|date:"d/m/Y" }} da {{ articolo.get_origine_display }}{% if articolo.modificato_da %} · modificato da {% firstof articolo.modificato_da.get_full_name articolo.modificato_da.username %} il {{ articolo.modificato_il|date:"d/m/Y H:i" }}{% endif %}. Descrizione, cliente e revisione vuoti si completano dal KICK-OFF.</p>{% endif %}
+    <div class="prod-dialogo-azioni"><button type="button" class="prod-btn" data-chiudi-dialogo>Annulla</button><button type="submit" class="prod-btn prod-btn-primary">Salva</button></div>
+  </form>
+</dialog>
+<script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
+{% endif %}
 <script src="{% static 'produzione/js/confronta.js' %}?v=20261126a" defer></script>
 {% endblock %}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from django.db import connection
+from django.test import override_settings
 from django.urls import reverse
 
 from core.legacy_utils import legacy_table_columns
@@ -178,6 +179,7 @@ class PercorsoTest(ProduzioneBase):
         self.assertEqual(pagina.context["totale_tutti"], 3)
 
 
+@override_settings(PRODUZIONE_REPORT_CMM_ROOT="")   # mai la share vera nei test
 class PartNumberTest(ProduzioneBase):
     """Sezione P/N: il P/N ha più OP e i FAI sono suoi."""
 
@@ -185,22 +187,24 @@ class PartNumberTest(ProduzioneBase):
         self._fai("")
         pagina = self.client.get(reverse("produzione:pn_elenco"))
         self.assertEqual(pagina.status_code, 200)
-        righe = {r["pn"]: r for r in pagina.context["pagina"]}
-        self.assertEqual(list(righe), ["PN-BETA-2", "PN-ALFA-1"])
+        righe = {r["a"].pn: r for r in pagina.context["pagina"]}
+        self.assertEqual(list(righe), ["PN-ALFA-1", "PN-BETA-2"])               # da guardare (anomalia aperta) prima
         alfa = righe["PN-ALFA-1"]
-        self.assertEqual((alfa["n_op"], alfa["n_fai"], alfa["n_anomalie_aperte"]), (2, 1, 1))
-        self.assertEqual(alfa["ultimo_op"]["op"], "OP/2026/100")
+        self.assertEqual((alfa["a"].n_op, alfa["n_fai"], alfa["anomalie"]), (2, 1, 1))
+        self.assertTrue(alfa["guardare"])
+        self.assertEqual(alfa["op"]["ultimo_op"]["op"], "OP/2026/100")
         self.assertEqual(alfa["situazione"].codice, "in_corso")
-        self.assertEqual({c["chiave"]: c["n"] for c in pagina.context["chips"]}, {"anomalie": 1, "fai": 1, "scadenza": 0})
+        conta = {c["chiave"]: c["n"] for c in pagina.context["chips_mostra"]}
+        self.assertEqual((conta[""], conta["guardare"], conta["senza_fai"], conta["con_op"]), (2, 1, 1, 2))
 
     def test_ricerca_per_op_conta_tutti_gli_op_del_pn(self):
         pagina = self.client.get(reverse("produzione:pn_elenco"), {"q": "2025/900"})
-        self.assertEqual([(r["pn"], r["n_op"]) for r in pagina.context["pagina"]], [("PN-ALFA-1", 2)])
+        self.assertEqual([(r["a"].pn, r["a"].n_op) for r in pagina.context["pagina"]], [("PN-ALFA-1", 2)])
 
     def test_filtro_senza_fai(self):
         self._fai("")
-        pagina = self.client.get(reverse("produzione:pn_elenco"), {"manca": "fai"})
-        self.assertEqual([r["pn"] for r in pagina.context["pagina"]], ["PN-BETA-2"])
+        pagina = self.client.get(reverse("produzione:pn_elenco"), {"manca": "fai"})       # link del vecchio elenco
+        self.assertEqual([r["a"].pn for r in pagina.context["pagina"]], ["PN-BETA-2"])
 
     def test_scheda_pn(self):
         DocumentoOP.objects.create(op="OP/2026/100", tipo=self.tipo, titolo="Ciclo 1")
@@ -375,3 +379,47 @@ class NuovoOpTest(ProduzioneBase):
         risposta = self.client.post(reverse("produzione:op_nuovo"), self.DATI, HTTP_ACCEPT="application/json")
         self.assertEqual(risposta.status_code, 403)
         self.assertEqual(risposta["Content-Type"], "application/json")
+
+
+@override_settings(PRODUZIONE_REPORT_CMM_ROOT="")
+class AnagraficaPNTest(ProduzioneBase):
+    """Anagrafica e catalogo dei P/N."""
+
+    def test_sincronizza_da_op_kickoff_e_share(self):
+        from . import articoli
+        from .models import ArticoloPN
+
+        make_project(name="Kickoff Alfa", created_by=self.admin, part_number="PN-ALFA-1", client_name="Cliente Prova",
+                     descrizione_pezzo="Flangia di prova", revisione="B")
+        ArticoloPN.objects.create(pn="PN-ALFA-1", descrizione="Scritta a mano")
+        esito = articoli.sincronizza(cartelle=[("PN-SOLO-SHARE", "C:/finto/PN-SOLO-SHARE", 0)])
+        self.assertEqual(esito["creati"], 2)                                   # PN-BETA-2 dagli OP, PN-SOLO-SHARE dalla share
+        alfa = ArticoloPN.objects.get(pn="PN-ALFA-1")
+        self.assertEqual((alfa.descrizione, alfa.cliente, alfa.revisione), ("Scritta a mano", "Cliente Prova", "B"))
+        self.assertEqual(alfa.n_op, 2)
+        solo = ArticoloPN.objects.get(pn="PN-SOLO-SHARE")
+        self.assertEqual((solo.origine, solo.cartella_collaudo, solo.stato_effettivo), ("collaudo", "C:/finto/PN-SOLO-SHARE", "archivio"))
+
+    def test_scheda_senza_op_e_anagrafica(self):
+        from .models import ArticoloPN
+
+        ArticoloPN.objects.create(pn="PN-SOLO-SHARE", origine="collaudo")
+        r = self.client.get(reverse("produzione:pn", args=["PN-SOLO-SHARE"]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "dialogo-anagrafica")
+        r = self.client.post(reverse("produzione:pn_anagrafica", args=["PN-SOLO-SHARE"]),
+                             {"descrizione": "Staffa", "cliente": "Cliente Beta", "stato": "obsoleto"})
+        self.assertRedirects(r, "/produzione/pn/PN-SOLO-SHARE/", fetch_redirect_response=False)
+        a = ArticoloPN.objects.get(pn="PN-SOLO-SHARE")
+        self.assertEqual((a.descrizione, a.stato_effettivo, a.modificato_da), ("Staffa", "obsoleto", self.admin))
+        r = self.client.get(reverse("produzione:pn_elenco"), {"mostra": "archivio"})
+        self.assertEqual([x["a"].pn for x in r.context["pagina"]], ["PN-SOLO-SHARE"])
+        r = self.client.get(reverse("produzione:pn_elenco"), {"q": "staffa"})
+        self.assertEqual([x["a"].pn for x in r.context["pagina"]], ["PN-SOLO-SHARE"])
+
+    def test_aggiorna_catalogo(self):
+        r = self.client.post(reverse("produzione:pn_sincronizza"))
+        self.assertRedirects(r, reverse("produzione:pn_elenco"), fetch_redirect_response=False)
+        from .models import ArticoloPN
+
+        self.assertEqual(set(ArticoloPN.objects.values_list("pn", flat=True)), {"PN-ALFA-1", "PN-BETA-2"})

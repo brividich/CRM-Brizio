@@ -26,8 +26,9 @@ from . import guida as guida_mod
 from . import nuovo_op, services
 from . import report_cmm_indice as cmm
 from . import report_cmm_pagine as pagine_cmm
-from .acl_bootstrap import PERM_DOCUMENTI, PERM_IMPOSTAZIONI, PERM_QUOTE
+from .acl_bootstrap import PERM_ARTICOLI, PERM_DOCUMENTI, PERM_IMPOSTAZIONI, PERM_QUOTE
 from .models import (
+    ArticoloPN,
     AliasQuotaCMM, CartellaReportCMM, DocumentoOP, ImpostazioniQuoteCMM, NotaQuotaCMM, ReportCMM, TipoDocumento,
 )
 
@@ -72,20 +73,65 @@ def elenco(request):
 @login_required
 @require_GET
 def pn_elenco(request):
-    """Una riga per P/N: il P/N è l'articolo principale, con i suoi OP e i suoi FAI."""
+    """Catalogo dei P/N: tutti gli articoli (OP, KICK-OFF, cartelle Collaudo) con riepilogo, filtri e ordine."""
     testo = (request.GET.get("q") or "").strip()
-    disponibile = op_db.disponibile()
-    manca = (request.GET.get("manca") or "").strip()
-    righe = services.righe_pn(request, testo) if disponibile else []
     vede_kickoff = services._vede_kickoff(request)
-    chips = services.conteggi_manca_pn(righe, vede_kickoff)
-    if manca not in {c["chiave"] for c in chips}:
-        manca = ""
-    righe_filtrate = services.filtra_manca_pn(righe, manca)
+    dati = services.catalogo(request, testo, request.GET.get("mostra") or request.GET.get("manca", ""),
+                             request.GET.get("cliente", ""), request.GET.get("ordina", ""))
+    from datetime import timedelta
+
+    report_mese = ReportCMM.objects.filter(righe__gt=0, escluso=False, data__gte=timezone.localdate() - timedelta(days=30)).count()
+    filtro = {k: v for k, v in (("q", testo), ("mostra", dati["mostra"]), ("cliente", dati["cliente"]), ("ordina", dati["ordina"])) if v}
     return render(request, "produzione/pn_elenco.html", _ctx(
-        request, "pn", disponibile=disponibile, pagina=pagina_elenco(request, righe_filtrate),
-        totale=len(righe_filtrate), chips=chips, manca=manca, vede_kickoff=vede_kickoff, q=testo,
+        request, "pn", pagina=pagina_elenco(request, dati["righe"]), totale=len(dati["righe"]), q=testo,
+        conta=dati["conta"], mostra=dati["mostra"], clienti=dati["clienti"], cliente=dati["cliente"], ordina=dati["ordina"],
+        aggiornato=dati["aggiornato"], report_mese=report_mese, vede_kickoff=vede_kickoff,
+        chips_mostra=[{"chiave": k, "nome": v, "n": dati["conta"][k]} for k, v in services.MOSTRA_CATALOGO
+                      if k != "senza_fai" or vede_kickoff],
+        scelte_ordina=services.ORDINA_CATALOGO,
+        query_filtri=urlencode({k: v for k, v in filtro.items() if k != "mostra"}), query_pagina=urlencode(filtro),
+        puo_articoli=request_has_permission_code(request, PERM_ARTICOLI),
     ))
+
+
+@login_required
+@require_POST
+def pn_sincronizza(request):
+    """«Aggiorna il catalogo»: articoli nuovi dalle fonti e riepilogo (Cpk per 60 secondi al massimo)."""
+    _richiede(request, PERM_ARTICOLI)
+    from . import articoli
+
+    esito = articoli.sincronizza(con_cpk_secondi=60)
+    log_action(request, "produzione_articoli_sincronizza", "produzione", esito)
+    messages.success(request, f"Catalogo aggiornato: {esito['articoli']} P/N, {esito['creati']} nuovi.")
+    return redirect("produzione:pn_elenco")
+
+
+class ArticoloForm(forms.ModelForm):
+    class Meta:
+        model = ArticoloPN
+        fields = ("descrizione", "cliente", "disegno", "revisione", "materiale", "famiglia", "stato", "note")
+
+
+@login_required
+@require_POST
+def pn_anagrafica(request, pn: str):
+    """Salva l'anagrafica del P/N dal pannello «Anagrafica» della scheda."""
+    _richiede(request, PERM_ARTICOLI)
+    pn = normalize_part_number(pn)
+    articolo, _ = ArticoloPN.objects.get_or_create(pn=pn, defaults={"origine": "manuale"})
+    prima = {f: getattr(articolo, f) for f in ArticoloForm.Meta.fields}
+    form = ArticoloForm(request.POST, instance=articolo)
+    if not form.is_valid():
+        messages.error(request, "Anagrafica non salvata: " + "; ".join(f"{k}: {' '.join(v)}" for k, v in form.errors.items()))
+        return redirect(services.url_pn(pn))
+    articolo = form.save(commit=False)
+    articolo.modificato_da = request.user
+    articolo.save()
+    cambi = {f: [prima[f], getattr(articolo, f)] for f in prima if prima[f] != getattr(articolo, f)}
+    log_action(request, "produzione_articolo_salva", "produzione", {"pn": pn, "cambi": cambi})
+    messages.success(request, "Anagrafica del P/N salvata.")
+    return redirect(services.url_pn(pn))
 
 
 @login_required
@@ -114,7 +160,9 @@ def pn_scheda(request, pn: str | None = None):
         dati["programmi_cmm"] = cmm.programmi_del_pn(dati["pn"])
     tab = [{"chiave": k, "nome": v, "n": conta.get(k), "url": services.url_pn(dati["pn"], k)}
            for k, v in services.SEZIONI_PN if k in ("", "op", "report") or dati["vede_kickoff"]]
-    return render(request, "produzione/pn_scheda.html", _ctx(request, "pn", sezione=sezione, sezioni=tab, **dati))
+    return render(request, "produzione/pn_scheda.html", _ctx(
+        request, "pn", sezione=sezione, sezioni=tab, puo_articoli=request_has_permission_code(request, PERM_ARTICOLI),
+        form_articolo=ArticoloForm(instance=dati["articolo"]) if dati["articolo"] else ArticoloForm(), **dati))
 
 
 @login_required
