@@ -37,6 +37,8 @@ PUBLIC_VIEWS = frozenset({
     # Corso e-learning dal link aperto: 404 senza token valido di un corso pubblicato; slide in ordine,
     # media solo delle slide aperte, limiti di invio, campo trappola (anagrafica/views_corso_aperto.py).
     "anagrafica.views_corso_aperto.corso",
+    "anagrafica.views_corso_aperto.registrati",
+    "anagrafica.views_corso_aperto.materiale",
     "anagrafica.views_corso_aperto.quiz_finale",
     "anagrafica.views_corso_aperto.immagine",
     "anagrafica.views_corso_aperto.video",

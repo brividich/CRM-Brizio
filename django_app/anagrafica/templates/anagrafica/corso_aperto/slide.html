@@ -1,7 +1,11 @@
 {% extends "anagrafica/corso_aperto/_base.html" %}
 {% block corpo %}
+{% if consulta %}
+<div class="pb-meta">Consultazione · {{ indice }} di {{ n_slide }} · <a href="{% url 'corso_aperto:materiale' link.token %}">indice del materiale</a></div>
+{% else %}
 <div class="pb-bar"><span style="width:{{ progress_pct }}%"></span></div>
-<div class="pb-meta">Slide {{ indice }} di {{ n_slide }}</div>
+<div class="pb-meta">Slide {{ indice }} di {{ n_slide }} · <a href="{% url 'corso_aperto:materiale' link.token %}">consulta il materiale</a></div>
+{% endif %}
 {% if not slide.is_immagine %}<h2>{{ slide.titolo }}</h2>{% endif %}
 <div class="pb-corpo">
   {% if slide.tipo == "VIDEO" and slide.video %}
@@ -12,6 +16,13 @@
     {{ contenuto_html }}
   {% endif %}
 </div>
+{% if consulta %}
+<div class="pb-nav">
+  {% if prec %}<a class="pb-btn pb-btn-ghost" href="?c={{ prec }}">Precedente</a>{% else %}<span></span>{% endif %}
+  <a class="pb-btn pb-btn-ghost" href="{% url 'corso_aperto:corso' link.token %}">Torna al percorso</a>
+  {% if succ %}<a class="pb-btn pb-btn-ghost" href="?c={{ succ }}">Successiva</a>{% else %}<span></span>{% endif %}
+</div>
+{% else %}
 <div class="pb-nav">
   {% if prec %}<a class="pb-btn pb-btn-ghost" href="?s={{ prec }}">Indietro</a>{% else %}<span></span>{% endif %}
   {% if secondi_mancanti %}<span class="pb-attesa" role="status" aria-live="polite">Puoi andare avanti tra <strong id="pb-secondi">{{ secondi_mancanti }}</strong> secondi.</span>{% endif %}
@@ -23,8 +34,9 @@
     <span class="pb-attesa">Fine del corso.</span>
   {% endif %}
 </div>
+{% endif %}
 {% endblock %}
-{% block script %}{% if secondi_mancanti %}
+{% block script %}{% if secondi_mancanti and not consulta %}
 <script nonce="{{ csp_nonce }}">
 (function () {
   var n = {{ secondi_mancanti }}, el = document.getElementById("pb-secondi"), btn = document.querySelector(".js-avanti");

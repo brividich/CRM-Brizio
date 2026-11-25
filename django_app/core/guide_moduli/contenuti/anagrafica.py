@@ -467,8 +467,13 @@ GUIDA = {
             "blocchi": [
                 ("p", "Gestione e-learning → pagina del corso → riquadro «Link aperto» (serve il permesso di modifica della formazione): "
                       "«Attiva il link aperto» crea un indirizzo e un QR da stampare o mandare all'officina. Il link si apre anche da "
-                      "internet senza login, solo con il corso pubblicato: slide e video in ordine, poi il quiz con «Nome» e «Cognome»."),
-                ("p", "Se nome e cognome corrispondono a un solo dipendente attivo (ordine, accenti e maiuscole non contano) il quiz si "
+                      "internet senza login, solo con il corso pubblicato. Prima la persona si registra con «Nome», «Cognome» e "
+                      "«Matricola» (il tempo parte da lì), poi slide e video in ordine e il quiz; «consulta il materiale» apre "
+                      "liberamente presentazioni e video, senza sbloccare il quiz. Il link è in evidenza nella scheda del corso e "
+                      "nelle sue sessioni."),
+                ("p", "Se matricola e cognome indicano lo stesso dipendente attivo (maiuscole, spazi e zeri iniziali della matricola "
+                      "non contano) il quiz si abbina da solo; con la matricola di un'altra persona resta «Da abbinare» con il motivo. "
+                      "Senza matricola riconosciuta vale nome e cognome solo per chi non ha matricole registrate. Il quiz si "
                       "abbina da solo e, se superato, il corso va sulla scheda come un e-learning con login. Altrimenti la riga resta "
                       "«Da abbinare»: «Abbina» sceglie la persona; «Correggi» sposta un abbinamento sbagliato (il completamento "
                       "precedente viene annullato con motivo); «Scarta» butta una risposta non valida."),

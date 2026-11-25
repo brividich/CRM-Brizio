@@ -7,7 +7,10 @@ internet (Entra Application Proxy, come ``/richiesta-visita/``). Protezioni:
 - slide servite solo in ordine e dopo i secondi minimi della slide precedente; immagini e
   video solo delle slide già aperte in questa sessione del browser;
 - quiz solo dopo l'ultima slide e il tempo minimo del corso, entrambi misurati dal server;
-- limite di invii per IP e globale, campo trappola, nome e cognome obbligatori;
+- prima di iniziare la persona si registra (nome, cognome, matricola): il tempo parte da lì;
+  chi è registrato può consultare liberamente tutto il materiale, ma il quiz si apre solo
+  dopo il percorso guidato;
+- limite di invii per IP e globale, campo trappola;
 - la pagina non mostra mai l'elenco dei dipendenti né a chi è stato abbinato il quiz.
 
 La logica (correzione, abbinamento, completamento) è in ``services/elearning_link_aperto.py``.
@@ -88,6 +91,59 @@ def _slide_ammessa(stato, slides, pos: int, regola) -> bool:
     return str(prec.ordine) in stato["viste"] and _secondi_mancanti(stato, prec, regola) == 0
 
 
+def _registrato(stato) -> bool:
+    return isinstance(stato.get("chi"), dict) and bool(stato["chi"].get("cognome"))
+
+
+@require_http_methods(["GET", "POST"])
+@risposta_pubblica_con_form
+def registrati(request, token: str):
+    """Prima di iniziare: nome, cognome e matricola. Il tempo del corso parte da qui."""
+    link = _link(token)
+    corso_obj = link.corso
+    stato = _stato(request, link)
+    if request.method == "GET" and _registrato(stato) and request.GET.get("cambia") != "1":
+        return redirect("corso_aperto:corso", token=token)
+    dati, errori = {"nome": "", "cognome": "", "matricola": ""}, []
+    if request.method == "POST":
+        if request.POST.get("sito_web"):
+            raise Http404
+        dati = {"nome": _testo(request.POST.get("nome"), 100), "cognome": _testo(request.POST.get("cognome"), 100),
+                "matricola": _testo(request.POST.get("matricola"), 40)}
+        if not dati["nome"] or not dati["cognome"]:
+            errori.append("Scrivi nome e cognome.")
+        if not servizio.norm_matricola(dati["matricola"]):
+            errori.append("Scrivi la tua matricola (per esempio T138, A012, CNO 1234).")
+        if not errori:
+            _salva(request, link, {"avvio": time.time(), "viste": {}, "chi": dati})
+            return redirect("corso_aperto:corso", token=token)
+    return render(request, "anagrafica/corso_aperto/registrati.html",
+                  {"link": link, "corso": corso_obj, "dati": dati, "errori": errori,
+                   "n_slide": len(_slides(corso_obj))}, status=400 if errori else 200)
+
+
+@require_GET
+@risposta_pubblica
+def materiale(request, token: str):
+    """Indice del materiale (presentazioni e video) da consultare liberamente dopo la registrazione."""
+    link = _link(token)
+    stato = _stato(request, link)
+    if not _registrato(stato):
+        return redirect("corso_aperto:registrati", token=token)
+    slides = _slides(link.corso)
+    gruppi, attuale = [], None
+    for pos, s in enumerate(slides, start=1):
+        titolo = s.modulo.titolo if s.modulo_id else "Materiale del corso"
+        if attuale is None or attuale["titolo"] != titolo:
+            attuale = {"titolo": titolo, "voci": []}
+            gruppi.append(attuale)
+        attuale["voci"].append({"pos": pos, "slide": s, "vista": str(s.ordine) in stato["viste"]})
+    return render(request, "anagrafica/corso_aperto/materiale.html", {
+        "link": link, "corso": link.corso, "gruppi": gruppi, "chi": stato["chi"],
+        "n_viste": sum(1 for s in slides if str(s.ordine) in stato["viste"]), "n_slide": len(slides),
+    })
+
+
 @require_GET
 @risposta_pubblica
 def corso(request, token: str):
@@ -98,6 +154,22 @@ def corso(request, token: str):
         raise Http404
     regola = regola_corso(corso_obj)
     stato = _stato(request, link)
+    if not _registrato(stato):
+        return redirect("corso_aperto:registrati", token=token)
+    from .services.elearning_markdown import render_markdown
+    if request.GET.get("c"):
+        # Consultazione libera: nessun tempo minimo, non conta per il percorso del quiz.
+        try:
+            pos = max(min(int(request.GET.get("c")), len(slides)), 1) - 1
+        except ValueError:
+            pos = 0
+        slide = slides[pos]
+        return render(request, "anagrafica/corso_aperto/slide.html", {
+            "link": link, "corso": corso_obj, "slide": slide, "indice": pos + 1, "n_slide": len(slides),
+            "contenuto_html": render_markdown(slide.contenuto) if not slide.is_immagine and slide.tipo != "VIDEO" else "",
+            "consulta": True, "prec": pos if pos > 0 else None, "succ": pos + 2 if pos < len(slides) - 1 else None,
+            "progress_pct": round((pos + 1) / len(slides) * 100), "chi": stato["chi"],
+        })
     try:
         pos = max(min(int(request.GET.get("s") or 1), len(slides)), 1) - 1
     except ValueError:
@@ -110,7 +182,6 @@ def corso(request, token: str):
     slide = slides[pos]
     stato["viste"].setdefault(str(slide.ordine), time.time())
     _salva(request, link, stato)
-    from .services.elearning_markdown import render_markdown
     ultima = pos == len(slides) - 1
     return render(request, "anagrafica/corso_aperto/slide.html", {
         "link": link, "corso": corso_obj, "slide": slide, "indice": pos + 1, "n_slide": len(slides),
@@ -118,14 +189,16 @@ def corso(request, token: str):
         "prec": pos if pos > 0 else None, "succ": pos + 2 if not ultima else None, "ultima": ultima,
         "secondi_mancanti": _secondi_mancanti(stato, slide, regola),
         "progress_pct": round((pos + 1) / len(slides) * 100),
-        "ha_quiz": bool(quiz.domande_valide(corso_obj)),
+        "ha_quiz": bool(quiz.domande_valide(corso_obj)), "chi": stato["chi"],
     })
 
 
 def _slide_vista(request, token: str, slide_id: int, tipo_ok) -> TrainingSlide:
     link = _link(token)
     slide = TrainingSlide.objects.filter(pk=slide_id, corso=link.corso, is_active=True).first()
-    if slide is None or not tipo_ok(slide) or str(slide.ordine) not in _stato(request, link)["viste"]:
+    stato = _stato(request, link)
+    # Chi si è registrato può consultare tutto il materiale; altrimenti solo le slide già aperte.
+    if slide is None or not tipo_ok(slide) or not (_registrato(stato) or str(slide.ordine) in stato["viste"]):
         raise Http404
     return slide
 
@@ -213,6 +286,8 @@ def quiz_finale(request, token: str):
     slides = _slides(corso_obj)
     regola = regola_corso(corso_obj)
     stato = _stato(request, link)
+    if not _registrato(stato):
+        return redirect("corso_aperto:registrati", token=token)
     url_corso = reverse("corso_aperto:corso", args=[token])
     blocco = _blocco_quiz(stato, slides, regola) if slides else "Il corso non ha slide."
     if blocco:
@@ -244,14 +319,12 @@ def quiz_finale(request, token: str):
         _salva(request, link, stato)
         return render(request, "anagrafica/corso_aperto/esito.html",
                       {"link": link, "corso": corso_obj, "titolo": "Quiz inviato", "testo": ""})
-    dati = {"nome": _testo(request.POST.get("nome"), 100), "cognome": _testo(request.POST.get("cognome"), 100)}
+    dati = dict(stato["chi"])
     risposte = {}
     for chiave in request.POST:
         if chiave.startswith("q_") and chiave[2:].isdigit():
             risposte[int(chiave[2:])] = {int(x) for x in request.POST.getlist(chiave) if str(x).isdigit()}
     errori = []
-    if not dati["nome"] or not dati["cognome"]:
-        errori.append("Scrivi nome e cognome: servono a registrare il corso sulla tua scheda.")
     if errori:
         # Stesse domande, stesso ordine: si ricostruiscono da quelle servite.
         per_id = {d.id: d for d in _domande_da_servire(corso_obj, Regola(mescola=False))}
@@ -265,7 +338,7 @@ def quiz_finale(request, token: str):
     esito = servizio.correggi(corso_obj, domande_ids, risposte, regola.soglia_pct)
     avvio = stato.get("avvio")
     risposta = servizio.registra(
-        corso_obj, nome=dati["nome"], cognome=dati["cognome"], esito=esito,
+        corso_obj, nome=dati["nome"], cognome=dati["cognome"], matricola=dati.get("matricola", ""), esito=esito,
         avviato_il=timezone.make_aware(datetime.fromtimestamp(avvio)) if avvio else None,
         ip=ip if ip not in _LOOPBACK else "", user_agent=request.headers.get("User-Agent", "")[:500],
     )

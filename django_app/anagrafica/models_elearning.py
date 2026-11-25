@@ -248,6 +248,8 @@ class TrainingElearningRispostaAperta(models.Model):
     corso = models.ForeignKey("anagrafica.TrainingCourse", on_delete=models.CASCADE, related_name="risposte_aperte")
     nome = models.CharField(max_length=100)
     cognome = models.CharField(max_length=100)
+    matricola = models.CharField(max_length=40, blank=True, default="",
+                                 help_text="Matricola scritta dalla persona (es. T138, A012, CNO 1234).")
     punteggio_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     n_corrette = models.PositiveSmallIntegerField(default=0)
     n_totali = models.PositiveSmallIntegerField(default=0)

@@ -1,0 +1,16 @@
+{% extends "anagrafica/corso_aperto/_base.html" %}
+{% block corpo %}
+<h2>Prima di iniziare</h2>
+<p class="pb-help">Scrivi i tuoi dati come sul badge: servono a registrare il corso sulla tua scheda. Il tempo del corso parte da adesso; puoi interrompere e riprendere da questo telefono o computer.</p>
+{% if errori %}<div class="pb-errori" role="alert"><ul>{% for e in errori %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="pb-trappola" aria-hidden="true"><label for="r-sito">Lascia vuoto</label><input id="r-sito" name="sito_web" tabindex="-1" autocomplete="off"></div>
+  <div class="pb-grid">
+    <div class="pb-field"><label for="r-nome">Nome</label><input id="r-nome" name="nome" maxlength="100" autocomplete="given-name" value="{{ dati.nome }}" required></div>
+    <div class="pb-field"><label for="r-cognome">Cognome</label><input id="r-cognome" name="cognome" maxlength="100" autocomplete="family-name" value="{{ dati.cognome }}" required></div>
+    <div class="pb-field"><label for="r-matricola">Matricola</label><input id="r-matricola" name="matricola" maxlength="40" autocomplete="off" autocapitalize="characters" value="{{ dati.matricola }}" placeholder="es. T138, A012, CNO 1234" required></div>
+  </div>
+  <button class="pb-btn pb-btn-full" type="submit">Inizia il corso ({{ n_slide }} slide)</button>
+</form>
+{% endblock %}
