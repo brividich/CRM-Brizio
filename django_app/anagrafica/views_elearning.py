@@ -836,7 +836,12 @@ def elearning_link_aperto(request, corso_id: int):
         return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
     corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
     azione = request.POST.get("azione")
-    if azione == "spegni":
+    if azione in ("pin_si", "pin_no"):
+        TrainingElearningLinkAperto.objects.filter(corso=corso).update(chiedi_pin=azione == "pin_si",
+                                                                       aggiornato_il=timezone.now())
+        messages.success(request, "Alla registrazione si chiede il PIN a chi ce l'ha." if azione == "pin_si"
+                         else "PIN non più richiesto: basta la matricola.")
+    elif azione == "spegni":
         TrainingElearningLinkAperto.objects.filter(corso=corso).update(attivo=False, aggiornato_il=timezone.now())
         messages.info(request, "Link aperto spento: chi lo apre trova una pagina inesistente.")
     elif azione in ("attiva", "rigenera"):
@@ -867,7 +872,12 @@ def elearning_link_aperto_qr(request, corso_id: int):
         return HttpResponse(status=403)
     link = get_object_or_404(TrainingElearningLinkAperto, corso_id=corso_id, attivo=True)
     code = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=12, border=2)
-    code.add_data(url_link_aperto(request, link))
+    reparto = " ".join((request.GET.get("rep") or "").split())[:120]
+    url = url_link_aperto(request, link)
+    if reparto:
+        from urllib.parse import quote
+        url = f"{url}?rep={quote(reparto)}"
+    code.add_data(url)
     code.make(fit=True)
     buf = io.BytesIO()
     code.make_image(fill_color="black", back_color="white").save(buf, format="PNG")

@@ -4,7 +4,7 @@
 <div class="pb-meta">Consultazione · {{ indice }} di {{ n_slide }} · <a href="{% url 'corso_aperto:materiale' link.token %}">indice del materiale</a></div>
 {% else %}
 <div class="pb-bar"><span style="width:{{ progress_pct }}%"></span></div>
-<div class="pb-meta">Slide {{ indice }} di {{ n_slide }} · <a href="{% url 'corso_aperto:materiale' link.token %}">consulta il materiale</a></div>
+<div class="pb-meta">Slide {{ indice }} di {{ n_slide }} · <a href="{% url 'corso_aperto:materiale' link.token %}">consulta il materiale</a>{% if codice %} · codice per riprendere <strong>{{ codice }}</strong>{% endif %}</div>
 {% endif %}
 {% if not slide.is_immagine %}<h2>{{ slide.titolo }}</h2>{% endif %}
 <div class="pb-corpo">

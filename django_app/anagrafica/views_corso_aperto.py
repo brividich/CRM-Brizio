@@ -59,9 +59,36 @@ def _stato(request, link) -> dict:
     return stato
 
 
+CREDITO_MAX_SECONDI = 120  # oltre, la pagina è rimasta aperta senza nessuno davanti
+
+
 def _salva(request, link, stato: dict) -> None:
     request.session[_chiave(link)] = stato
     request.session.modified = True
+    _sincronizza(stato)
+
+
+def _partecipazione(stato):
+    from .models_elearning import TrainingElearningPartecipazioneAperta as P
+    pid = stato.get("pid")
+    return P.objects.filter(pk=pid).first() if pid else None
+
+
+def _sincronizza(stato) -> None:
+    """Copia sul server avanzamento e tempo effettivo della partecipazione (se registrata)."""
+    p = _partecipazione(stato)
+    if p is None:
+        return
+    adesso = timezone.now()
+    campi = ["slide_viste", "ultimo_accesso_il"]
+    if p.ultimo_accesso_il:
+        delta = (adesso - p.ultimo_accesso_il).total_seconds()
+        if 0 < delta:
+            p.secondi = (p.secondi or 0) + int(min(delta, CREDITO_MAX_SECONDI))
+            campi.append("secondi")
+    p.slide_viste = dict(stato.get("viste") or {})
+    p.ultimo_accesso_il = adesso
+    p.save(update_fields=campi)
 
 
 def _slides(corso) -> list:
@@ -105,20 +132,41 @@ def registrati(request, token: str):
     if request.method == "GET" and _registrato(stato) and request.GET.get("cambia") != "1":
         return redirect("corso_aperto:corso", token=token)
     dati, errori = {"nome": "", "cognome": "", "matricola": ""}, []
+    reparto = _testo(request.GET.get("rep") or request.POST.get("rep"), 120)
     if request.method == "POST":
         if request.POST.get("sito_web"):
             raise Http404
-        dati = {"nome": _testo(request.POST.get("nome"), 100), "cognome": _testo(request.POST.get("cognome"), 100),
-                "matricola": _testo(request.POST.get("matricola"), 40)}
-        if not dati["nome"] or not dati["cognome"]:
-            errori.append("Scrivi nome e cognome.")
-        if not servizio.norm_matricola(dati["matricola"]):
-            errori.append("Scrivi la tua matricola (per esempio T138, A012, CNO 1234).")
-        if not errori:
-            _salva(request, link, {"avvio": time.time(), "viste": {}, "chi": dati})
-            return redirect("corso_aperto:corso", token=token)
+        codice = _testo(request.POST.get("codice"), 12).upper().replace(" ", "")
+        if codice:
+            # Ripresa da un altro telefono: codice + cognome.
+            from .models_elearning import TrainingElearningPartecipazioneAperta as P
+            from core.naming import chiave_testo
+            p = P.objects.filter(corso=corso_obj, codice=codice).first()
+            if p is None or chiave_testo(p.cognome) != chiave_testo(request.POST.get("cognome_ripresa")):
+                errori.append("Codice o cognome non corretti.")
+            else:
+                _salva(request, link, {"avvio": p.registrato_il.timestamp(), "viste": dict(p.slide_viste or {}),
+                                       "chi": {"nome": p.nome, "cognome": p.cognome, "matricola": p.matricola},
+                                       "pid": p.pk})
+                return redirect("corso_aperto:corso", token=token)
+        else:
+            dati = {"nome": _testo(request.POST.get("nome"), 100), "cognome": _testo(request.POST.get("cognome"), 100),
+                    "matricola": _testo(request.POST.get("matricola"), 40)}
+            if not dati["nome"] or not dati["cognome"]:
+                errori.append("Scrivi nome e cognome.")
+            if not servizio.norm_matricola(dati["matricola"]):
+                errori.append("Scrivi la tua matricola (per esempio T138, A012, CNO 1234).")
+            if not errori:
+                errore_pin = servizio.controlla_pin(link, dati, request.POST.get("pin"))
+                if errore_pin:
+                    errori.append(errore_pin)
+            if not errori:
+                p = servizio.nuova_partecipazione(link, dati, reparto=reparto, ip=client_ip(request) or "")
+                _salva(request, link, {"avvio": time.time(), "viste": {}, "chi": dati, "pid": p.pk})
+                return redirect("corso_aperto:corso", token=token)
     return render(request, "anagrafica/corso_aperto/registrati.html",
-                  {"link": link, "corso": corso_obj, "dati": dati, "errori": errori,
+                  {"link": link, "corso": corso_obj, "dati": dati, "errori": errori, "reparto": reparto,
+                   "chiede_pin": servizio.chiede_pin(link),
                    "n_slide": len(_slides(corso_obj))}, status=400 if errori else 200)
 
 
@@ -155,7 +203,11 @@ def corso(request, token: str):
     regola = regola_corso(corso_obj)
     stato = _stato(request, link)
     if not _registrato(stato):
-        return redirect("corso_aperto:registrati", token=token)
+        url = reverse("corso_aperto:registrati", args=[token])
+        if request.GET.get("rep"):
+            from urllib.parse import quote
+            url += "?rep=" + quote(_testo(request.GET.get("rep"), 120))
+        return redirect(url)
     from .services.elearning_markdown import render_markdown
     if request.GET.get("c"):
         # Consultazione libera: nessun tempo minimo, non conta per il percorso del quiz.
@@ -190,6 +242,7 @@ def corso(request, token: str):
         "secondi_mancanti": _secondi_mancanti(stato, slide, regola),
         "progress_pct": round((pos + 1) / len(slides) * 100),
         "ha_quiz": bool(quiz.domande_valide(corso_obj)), "chi": stato["chi"],
+        "codice": getattr(_partecipazione(stato), "codice", ""),
     })
 
 
@@ -339,6 +392,7 @@ def quiz_finale(request, token: str):
     avvio = stato.get("avvio")
     risposta = servizio.registra(
         corso_obj, nome=dati["nome"], cognome=dati["cognome"], matricola=dati.get("matricola", ""), esito=esito,
+        partecipazione=_partecipazione(stato),
         avviato_il=timezone.make_aware(datetime.fromtimestamp(avvio)) if avvio else None,
         ip=ip if ip not in _LOOPBACK else "", user_agent=request.headers.get("User-Agent", "")[:500],
     )
