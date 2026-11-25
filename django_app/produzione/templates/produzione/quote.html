@@ -1,22 +1,32 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Andamento quote {{ pn }} · Ordini di produzione{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125a">{% endblock %}
+{% block title %}Analisi quote {{ pn }} · Ordini di produzione{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125b">
+<link rel="stylesheet" href="{% static 'produzione/css/analisi_quote.css' %}?v=20261125a">
+{% endblock %}
 
 {% block content %}
-<div class="prod">
+<div class="prod aq" data-analisi
+     data-api="{% url 'produzione:api_quote' %}"
+     data-pn="{{ pn }}"
+     data-url-report="{% url 'produzione:report_cmm' 0 %}"
+     data-url-pagina="{% url 'produzione:pn_quote' %}">
   <div class="prod-head">
     <div>
       <span class="prod-eyebrow"><a href="{% url 'produzione:pn_scheda' %}?pn={{ pn|urlencode }}">{{ pn }}</a></span>
-      <h1>Andamento quote{% if quota %} · {{ quota.nome }}{% endif %}</h1>
+      <h1>Analisi quote</h1>
     </div>
-    {% if attivo %}
-    <form method="post" action="{% url 'produzione:pn_leggi_report' %}">
-      {% csrf_token %}<input type="hidden" name="pn" value="{{ pn }}">
-      <button class="prod-btn" type="submit" title="Legge i PDF nuovi o cambiati della cartella del P/N">Leggi i report</button>
-    </form>
-    {% endif %}
+    <div class="prod-filtri">
+      <button type="button" class="prod-btn" data-azione="csv" disabled>Esporta CSV</button>
+      {% if attivo %}
+      <form method="post" action="{% url 'produzione:pn_leggi_report' %}">
+        {% csrf_token %}<input type="hidden" name="pn" value="{{ pn }}">
+        <button class="prod-btn" type="submit" title="Legge i PDF nuovi o cambiati della cartella del P/N">Leggi i report</button>
+      </form>
+      {% endif %}
+    </div>
   </div>
 
   {% include "produzione/_nav.html" %}
@@ -32,89 +42,73 @@
   {% if not programmi %}
   <div class="prod-card"><p class="prod-vuoto">{% if cartella.letta_il %}Nella cartella di questo P/N non ci sono report CMM leggibili.{% else %}I report di questo P/N non sono ancora stati letti: premi «Leggi i report».{% endif %}</p></div>
   {% else %}
-  <form class="prod-card prod-quote-filtri" method="get" data-quote-filtri>
-    <input type="hidden" name="pn" value="{{ pn }}">
-    <label>Programma
-      <select name="prog">
-        {% if not prog %}<option value="">Scegli il programma…</option>{% endif %}
+  {{ stato|json_script:"aq-stato" }}
+
+  <div class="aq-filtri" role="group" aria-label="Filtri dell'analisi">
+    <label class="aq-campo">Programma
+      <select data-filtro="prog">
         {% for p in programmi %}<option value="{{ p.programma_base }}"{% if p.programma_base == prog %} selected{% endif %}>{{ p.programma_base|default:"(senza nome)" }} · {{ p.n }} report</option>{% endfor %}
       </select>
     </label>
-    {% if quote %}
-    <label>Quota
-      <select name="q">
-        <option value="">Scegli la quota…</option>
-        {% for x in quote %}<option value="{{ x.id }}"{% if quota and x.id == quota.id %} selected{% endif %}>{{ x.nome }}{% if x.doppio %} (nom. {{ x.nominale|floatformat:4 }}){% endif %}{% if x.n_fuori %} · {{ x.n_fuori }} fuori{% endif %}</option>{% endfor %}
-      </select>
+    <div class="aq-campo">Periodo
+      <div class="aq-segmenti" data-filtro="per">
+        <button type="button" data-v="">Tutto</button>
+        <button type="button" data-v="365">12 mesi</button>
+        <button type="button" data-v="90">90 giorni</button>
+        <button type="button" data-v="30">30 giorni</button>
+        <button type="button" data-v="custom">Dal… al…</button>
+      </div>
+    </div>
+    <div class="aq-campo aq-date" data-date hidden>
+      <span>Dal / al</span>
+      <span class="aq-date-campi"><input type="date" data-filtro="da" aria-label="Dal"><input type="date" data-filtro="a" aria-label="Al"></span>
+    </div>
+    <details class="aq-campo aq-pop" data-pop="op">
+      <summary>OP <b data-op-etichetta>tutti</b></summary>
+      <div class="aq-pop-corpo" data-op-lista></div>
+    </details>
+    <label class="aq-campo">Evidenzia S/N
+      <input type="search" list="aq-sn" data-filtro="sn" placeholder="S/N…" autocomplete="off">
+      <datalist id="aq-sn"></datalist>
     </label>
-    {% endif %}
-    <noscript><button class="prod-btn" type="submit">Mostra</button></noscript>
-    {% if cartella.letta_il %}<span class="prod-nota">Report letti il {{ cartella.letta_il|date:"d/m/Y H:i" }}</span>{% endif %}
-  </form>
+    {% if cartella.letta_il %}<span class="aq-letti">Report letti il {{ cartella.letta_il|date:"d/m/Y H:i" }}</span>{% endif %}
+  </div>
 
-  {% if quota %}
-  <section class="prod-card">
-    <div class="prod-card-head">
-      <h2>{{ quota.nome }}</h2>
-      <span class="prod-nota">{{ quota.sezione|default:"" }}{% if quota.tipo %} · {{ quota.tipo }}{% endif %}</span>
-    </div>
-    {% if grafico %}
-    <svg class="prod-grafico" viewBox="0 0 {{ grafico.w }} {{ grafico.h }}" role="img" aria-label="Andamento di {{ quota.nome }}: {{ punti|length }} report">
-      {% for t in grafico.tacche %}<line class="g-griglia" x1="{{ grafico.sx }}" x2="{{ grafico.dx }}" y1="{{ t.y }}" y2="{{ t.y }}"/><text class="g-tacca" x="{{ grafico.sx_testo }}" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle">{{ t.v }}</text>{% endfor %}
-      <polyline class="g-limite" points="{{ grafico.sup }}"/>
-      <polyline class="g-limite" points="{{ grafico.inf }}"/>
-      <polyline class="g-nominale" points="{{ grafico.nominale }}"/>
-      <polyline class="g-rilevato" points="{{ grafico.rilevato }}"/>
-      {% for p in grafico.punti %}<a href="{% url 'produzione:report_cmm' p.id %}"><circle class="g-punto{% if p.fuori %} is-fuori{% endif %}{% if p.id == evidenzia %} is-scelto{% endif %}" cx="{{ p.x }}" cy="{{ p.y }}" r="{{ grafico.raggio }}"><title>{{ p.testo }}</title></circle></a>{% endfor %}
-      {% for e in grafico.etichette %}<text class="g-tacca" x="{{ e.x }}" y="{{ grafico.y_etichette }}" text-anchor="middle">{{ e.t }}</text>{% endfor %}
-    </svg>
-    <div class="prod-legenda"><span><i></i>Rilevato</span><span><i class="is-nominale"></i>Nominale</span><span><i class="is-limite"></i>Limiti di tolleranza</span></div>
-    {% endif %}
-    <div class="prod-scorri">
-      <table class="prod-tab">
-        <thead><tr><th>S/N</th><th>OP</th><th>Data</th><th class="prod-n">Rilevato</th><th class="prod-n">Nominale</th><th class="prod-n">Tol +</th><th class="prod-n">Tol −</th><th class="prod-n">Fuori di</th></tr></thead>
-        <tbody>
-          {% for p in punti %}
-          <tr{% if p.report.id == evidenzia %} class="is-scelto"{% endif %}>
-            <td><a class="prod-op" href="{% url 'produzione:report_cmm' p.report.id %}">{{ p.report.seriale|default:p.report.file }}</a></td>
-            <td>{{ p.report.op|default:"—" }}</td>
-            <td>{{ p.report.data|date:"d/m/Y"|default:"—" }}</td>
-            <td class="prod-num">{{ p.misura.misurato|floatformat:4 }}</td>
-            <td class="prod-num">{{ p.misura.nominale|floatformat:4 }}</td>
-            <td class="prod-num">{{ p.misura.tol_sup|floatformat:4 }}</td>
-            <td class="prod-num">{{ p.misura.tol_inf|floatformat:4 }}</td>
-            <td class="prod-num{% if p.misura.fuori %} is-fuori{% endif %}">{% if p.misura.fuori %}{{ p.misura.fuori_di|floatformat:4 }}{% else %}—{% endif %}{% if p.misura.da_verificare %} <span class="prod-stato is-warn" title="Il calcolo e l'eccedenza del report non coincidono">da verificare</span>{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-  {% elif quote %}
-  <section class="prod-card">
-    <div class="prod-card-head"><h2>Quote del programma</h2>
-      <a class="prod-btn prod-btn-piccolo" href="?pn={{ pn|urlencode }}&amp;prog={{ prog|urlencode }}{% if not solo_fuori %}&amp;fuori=1{% endif %}">{% if solo_fuori %}Tutte le quote{% else %}Solo quelle andate fuori{% endif %}</a>
-    </div>
-    <div class="prod-scorri">
-      <table class="prod-tab">
-        <thead><tr><th>Quota</th><th>Gruppo</th><th>Tipo</th><th class="prod-n">Nominale</th><th class="prod-n">Report</th><th class="prod-n">Fuori</th></tr></thead>
-        <tbody>
-          {% for x in quote %}{% if not solo_fuori or x.n_fuori %}
-          <tr>
-            <td><a class="prod-op" href="?pn={{ pn|urlencode }}&amp;prog={{ prog|urlencode }}&amp;q={{ x.id|urlencode }}">{{ x.nome }}</a></td>
-            <td>{{ x.sezione|default:"—"|truncatechars:70 }}</td>
-            <td>{{ x.tipo|default:"—" }}</td>
-            <td class="prod-num">{{ x.nominale|floatformat:4 }}</td>
-            <td class="prod-n">{{ x.n }}</td>
-            <td class="prod-n">{% if x.n_fuori %}<b class="prod-manca is-allerta">{{ x.n_fuori }}</b>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
-          </tr>
-          {% endif %}{% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-  {% endif %}
+  <div class="aq-kpi" data-kpi aria-live="polite"></div>
+  <p class="prod-avviso" data-avviso hidden></p>
+
+  <div class="aq-tabs" role="tablist" aria-label="Viste">
+    <button type="button" role="tab" data-tab="quota">Quota</button>
+    <button type="button" role="tab" data-tab="mappa">Mappa</button>
+    <button type="button" role="tab" data-tab="confronto">Confronto <span class="aq-conta" data-conta-cmp></span></button>
+    <button type="button" role="tab" data-tab="pezzo">Pezzo</button>
+  </div>
+
+  <div class="aq-layout" data-corpo>
+    <aside class="aq-lato" aria-label="Quote del programma">
+      <input type="search" class="aq-cerca" data-filtro="cerca" placeholder="Cerca quota o gruppo…" autocomplete="off">
+      <div class="aq-chips" data-chips role="group" aria-label="Filtra le quote"></div>
+      <label class="aq-ordina">Ordina
+        <select data-filtro="ord">
+          <option value="">come nel report</option>
+          <option value="fuori">più volte fuori</option>
+          <option value="cpk">Cpk peggiore</option>
+          <option value="limite">più vicine al limite</option>
+          <option value="nome">nome</option>
+        </select>
+      </label>
+      <div class="aq-lista" data-lista role="listbox" aria-label="Quote"></div>
+    </aside>
+
+    <section class="aq-main">
+      <div class="aq-pane" data-pane="quota"></div>
+      <div class="aq-pane" data-pane="mappa" hidden></div>
+      <div class="aq-pane" data-pane="confronto" hidden></div>
+      <div class="aq-pane" data-pane="pezzo" hidden></div>
+    </section>
+  </div>
+  <div class="aq-tooltip" data-tooltip role="tooltip" hidden></div>
   {% endif %}
 </div>
-<script src="{% static 'produzione/js/quote.js' %}?v=20261125a" defer></script>
+<script src="{% static 'produzione/js/analisi_quote.js' %}?v=20261125a" defer></script>
 {% endblock %}

@@ -104,27 +104,49 @@ SEZIONI: list[dict] = [
     },
     {
         "id": "quote",
-        "titolo": "Andamento quote dai report CMM",
+        "titolo": "Analisi quote dai report CMM",
         "blocchi": [
             ("p", "Il portale legge da solo i report CMM in PDF della cartella Collaudo (una cartella per P/N, dentro una "
                   "per OP) e ne tiene le misure: ogni ora i PDF nuovi o cambiati, senza toccare i file. Nella scheda del "
-                  "P/N il riquadro «Report CMM» mostra quanti report sono stati letti e gli ultimi; nella scheda dell'OP "
+                  "P/N il riquadro «Report CMM» mostra «Quote da tenere d'occhio» (sugli ultimi 30 report di ogni "
+                  "programma: fuori nell'ultimo report, poi Cpk sotto 1,33) e gli ultimi report; nella scheda dell'OP "
                   "ci sono i report di quell'OP."),
-            ("p", "«Andamento quote» (dalla scheda del P/N): scegli il programma, poi la quota. Il programma è il «Part "
-                  "Program Name» del report senza la revisione (REV0, REV1… finiscono insieme). La tabella elenca la "
-                  "quota in ogni report, dal più vecchio, con S/N, OP, data, rilevato, nominale, tolleranze e di quanto "
-                  "è fuori; il grafico mostra rilevato, nominale e limiti, i punti rossi sono fuori tolleranza. Senza "
-                  "quota scelta compare l'elenco delle quote del programma con quante volte sono andate fuori; "
-                  "«Solo quelle andate fuori» lo restringe."),
-            ("p", "Una quota è il nome scritto nel report (spazi e maiuscole non contano) col suo nominale: se il programma "
-                  "rinomina una quota è una quota diversa, e se riusa lo stesso nome con un altro nominale compaiono due "
-                  "righe (nella tendina con «nom.»)."),
-            ("p", "Un clic sul S/N apre il report: le quote fuori tolleranza (o «Tutte le quote»), «Andamento» per "
-                  "ciascuna con quel S/N evidenziato, «Apri il PDF» e «Apri segnalazione anomalia». Quest'ultimo apre "
-                  "Gestione anomalie sull'OP del report: avviato il controllo, il pannello «📄 Dal report CMM (PDF)» si "
-                  "apre da solo con le righe di quel report, senza caricare il file."),
-            ("p", "«Leggi i report» rilegge subito la cartella del P/N (in background: ricarica la pagina dopo qualche "
-                  "minuto). Serve quando un report è appena stato salvato e non si vuole aspettare il giro dell'ora."),
+            ("p", "«Analisi quote» (dalla scheda del P/N). In alto i filtri, che valgono per tutto quello che c'è sotto: "
+                  "Programma (il «Part Program Name» senza revisione), Periodo (Tutto, 12 mesi, 90 giorni, 30 giorni, "
+                  "«Dal… al…»), OP (uno o più, «Solo l'ultimo») ed «Evidenzia S/N», che segna un pezzo in tutte le viste. "
+                  "Sotto, i numeri del programma: report, quote, misure fuori, quote andate fuori, quote con Cpk sotto "
+                  "1,33 (un clic filtra l'elenco), ultimo report. Senza un periodo si vedono al massimo gli ultimi 800 "
+                  "report."),
+            ("p", "A sinistra l'elenco delle quote, raggruppate per titolo del report, con una mini linea degli ultimi 30 "
+                  "valori e quante volte sono andate fuori (o il Cpk). Filtri: Tutte, Andate fuori, Cpk < 1,33, Vicine al "
+                  "limite (ultima misura dentro ma oltre l'80% della tolleranza), Da verificare; «Cerca» per nome o "
+                  "gruppo; «Ordina» come nel report, per volte fuori, Cpk peggiore, vicinanza al limite o nome. La "
+                  "casella accanto a una quota la mette nel Confronto (fino a 6)."),
+            ("def", [
+                ("Quota", "statistiche (misure, fuori, media e scarto dal nominale, deviazione standard σ, Cp, Cpk con "
+                 "Capace ≥ 1,33 / Al limite 1–1,33 / Non capace < 1, min÷max, ultima misura) e grafico con zona di "
+                 "tolleranza, limiti, nominale e media; opzioni «% tolleranza», «±3σ», «Colori per OP» (i 3 OP più "
+                 "recenti). Passando sul grafico si leggono S/N, OP, data e valore; clic evidenzia il S/N, doppio clic apre "
+                 "il report, trascinare ingrandisce («Reimposta zoom»). Accanto la distribuzione dei valori, sotto la "
+                 "tabella delle misure."),
+                ("Mappa", "tutte le quote (con i filtri dell'elenco) per tutti i report: ogni casella è una misura, dal "
+                 "grigio (centro della tolleranza) al blu (sotto) o al rosso (sopra) man mano che si avvicina al limite; "
+                 "rosso pieno = fuori tolleranza. Clic su una casella: quella quota con quel S/N evidenziato."),
+                ("Confronto", "le quote scelte sullo stesso grafico in % della loro tolleranza (0 = centro, ±100% = "
+                 "limite), per vedere se si muovono insieme. «Le 4 più critiche» le sceglie da sé."),
+                ("Pezzo", "tutte le quote di un S/N come barre in % della tolleranza, rosse se fuori; «Confronta con» "
+                 "aggiunge un secondo S/N (rombo). Clic su una riga: l'andamento di quella quota."),
+            ]),
+            ("p", "Tolleranza usata: per le quote con nominale 0 e solo limite superiore (planarità, rotondità, "
+                  "posizione, concentricità…) conta da 0 al limite, e il Cpk è (limite − media) / 3σ; per le altre conta "
+                  "dal centro della zona di tolleranza. Una quota è il nome scritto nel report col suo nominale: se il "
+                  "programma riusa lo stesso nome con un altro nominale sono due quote."),
+            ("p", "«Esporta CSV» scarica le misure con i filtri attivi (la quota scelta nella vista Quota, altrimenti le "
+                  "quote dell'elenco). L'indirizzo della pagina conserva filtri e vista: si può copiare e mandare. "
+                  "«Leggi i report» rilegge subito la cartella del P/N (in background: ricarica dopo qualche minuto)."),
+            ("p", "Dal report (clic su un S/N): le quote fuori tolleranza, «Andamento» per ciascuna, «Apri il PDF» e "
+                  "«Apri segnalazione anomalia», che apre Gestione anomalie sull'OP con il pannello «📄 Dal report CMM "
+                  "(PDF)» già pronto."),
         ],
     },
     {
