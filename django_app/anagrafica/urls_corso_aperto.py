@@ -7,6 +7,8 @@ app_name = "corso_aperto"
 
 urlpatterns = [
     path("<str:token>/", v.corso, name="corso"),
+    path("<str:token>/registrati/", v.registrati, name="registrati"),
+    path("<str:token>/materiale/", v.materiale, name="materiale"),
     path("<str:token>/quiz/", v.quiz_finale, name="quiz"),
     path("<str:token>/slide/<int:slide_id>/immagine", v.immagine, name="immagine"),
     path("<str:token>/slide/<int:slide_id>/video", v.video, name="video"),

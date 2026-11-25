@@ -45,25 +45,38 @@ class _Base(TestCase):
     def url(self, nome="corso", *args):
         return reverse(f"corso_aperto:{nome}", args=[self.link.token, *args])
 
-    def segui_corso(self, client=None):
+    def registra(self, client=None, nome="mario", cognome="ROSSI  sintetico", matricola="T999"):
         c = client or self.anonimo
+        return c.post(self.url("registrati"), {"nome": nome, "cognome": cognome, "matricola": matricola})
+
+    def segui_corso(self, client=None, **chi):
+        c = client or self.anonimo
+        self.registra(c, **chi)
         self.assertEqual(c.get(self.url()).status_code, 200)
         self.assertEqual(c.get(self.url() + "?s=2").status_code, 200)
         return c
 
-    def consegna(self, opzione, nome="mario", cognome="ROSSI  sintetico", client=None):
+    def consegna(self, opzione, nome=None, cognome=None, client=None, matricola="T999"):
         c = client or self.anonimo
+        if nome is not None or cognome is not None:
+            # Un'altra persona sullo stesso browser: nuova registrazione e nuovo percorso.
+            self.segui_corso(c, nome=nome or "", cognome=cognome or "", matricola=matricola)
         self.assertEqual(c.get(self.url("quiz")).status_code, 200)
-        return c.post(self.url("quiz"), {f"q_{self.q.pk}": [opzione.pk], "nome": nome, "cognome": cognome})
+        return c.post(self.url("quiz"), {f"q_{self.q.pk}": [opzione.pk]})
 
 
 class AccessoPubblicoTests(_Base):
     def test_senza_login_si_apre(self):
         r = self.anonimo.get(self.url())
+        self.assertRedirects(r, self.url("registrati"), fetch_redirect_response=False)
+        r = self.anonimo.get(self.url("registrati"))
         self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Matricola")
+        self.assertIn("no-store", r["Cache-Control"])
+        self.registra()
+        r = self.anonimo.get(self.url())
         self.assertContains(r, "Slide 1")
         self.assertEqual(r["Referrer-Policy"], "no-referrer")
-        self.assertIn("no-store", r["Cache-Control"])
 
     def test_token_errato_spento_scaduto_o_bozza_404(self):
         self.assertEqual(self.anonimo.get(reverse("corso_aperto:corso", args=["sbagliato"])).status_code, 404)
@@ -81,6 +94,7 @@ class AccessoPubblicoTests(_Base):
         self.assertEqual(self.anonimo.get(self.url()).status_code, 404)
 
     def test_slide_in_ordine_e_quiz_solo_dopo_tutte(self):
+        self.registra()
         r = self.anonimo.get(self.url() + "?s=2")
         self.assertContains(r, "Slide 1")  # la 2 non si salta
         self.assertEqual(self.anonimo.get(self.url("quiz")).status_code, 409)
@@ -91,6 +105,7 @@ class AccessoPubblicoTests(_Base):
         regola = TrainingCompletionRule.objects.get(corso=self.corso)
         regola.el_secondi_minimi_slide = 60
         regola.save()
+        self.registra()
         self.anonimo.get(self.url())
         r = self.anonimo.get(self.url() + "?s=2")
         self.assertContains(r, "Slide 1")
@@ -129,11 +144,37 @@ class ConsegnaTests(_Base):
         self.assertEqual(list(R.objects.values_list("stato", flat=True)), [R.DA_ABBINARE, R.DA_ABBINARE])
         self.assertFalse(TrainingEmployeeRecord.objects.exists())
 
-    def test_nome_obbligatorio(self):
-        self.segui_corso()
-        r = self.consegna(self.giusta, nome="", cognome="")
+    def test_nome_e_matricola_obbligatori_prima_di_iniziare(self):
+        r = self.registra(nome="", cognome="", matricola="")
         self.assertEqual(r.status_code, 400)
+        r = self.registra(matricola="")
+        self.assertEqual(r.status_code, 400)
+        self.assertRedirects(self.anonimo.get(self.url("quiz")), self.url("registrati"), fetch_redirect_response=False)
         self.assertFalse(R.objects.exists())
+
+    def test_consultazione_libera_dopo_la_registrazione(self):
+        self.registra()
+        r = self.anonimo.get(self.url("materiale"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Materiale del corso")
+        r = self.anonimo.get(self.url() + "?c=2")
+        self.assertContains(r, "Consultazione")
+        # La consultazione non sblocca il quiz: serve il percorso guidato.
+        self.assertEqual(self.anonimo.get(self.url("quiz")).status_code, 409)
+
+    def test_matricola_di_un_altra_persona_non_abbina(self):
+        from unittest import mock
+        from .services import elearning_link_aperto as la
+        altro = AnagraficaDipendente.objects.create(nome="Luigi", cognome="Verdi Sintetico")
+        with mock.patch.object(la, "matricole_attive", return_value={altro.id: {"T138"}}):
+            self.segui_corso(matricola="000000t138")
+            self.consegna(self.giusta)
+        r = R.objects.get()
+        self.assertEqual(r.stato, R.DA_ABBINARE)
+        self.assertIn("altra persona", r.nota)
+        with mock.patch.object(la, "matricole_attive", return_value={self.dip.id: {"T138"}}):
+            self.consegna(self.giusta, nome="Mario", cognome="rossi sintetico", matricola="t 138")
+        self.assertEqual(R.objects.order_by("-pk").first().stato, R.AUTO)
 
     def test_campo_trappola_non_salva(self):
         self.segui_corso()

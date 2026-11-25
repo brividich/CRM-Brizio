@@ -15,12 +15,8 @@
   </fieldset>
   {% endfor %}
   <div class="pb-chi">
-    <h3>Chi sei?</h3>
-    <p class="pb-help">Scrivi nome e cognome come sul badge: servono a registrare il corso sulla tua scheda.</p>
-    <div class="pb-grid">
-      <div class="pb-field"><label for="q-nome">Nome</label><input id="q-nome" name="nome" maxlength="100" autocomplete="given-name" value="{{ dati.nome|default:'' }}" required></div>
-      <div class="pb-field"><label for="q-cognome">Cognome</label><input id="q-cognome" name="cognome" maxlength="100" autocomplete="family-name" value="{{ dati.cognome|default:'' }}" required></div>
-    </div>
+    <h3>{{ chi.cognome|upper }} {{ chi.nome }} · matricola {{ chi.matricola|upper }}</h3>
+    <p class="pb-help">Il quiz viene registrato con i dati che hai scritto all'inizio.</p>
   </div>
   <button class="pb-btn pb-btn-full" type="submit">Consegna il quiz</button>
 </form>

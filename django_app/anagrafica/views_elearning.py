@@ -789,6 +789,24 @@ def formazione_online_gradimento(request, corso_id: int):
 # Link aperto (chi non ha un utente del portale): attivazione e controllo HR
 # ═══════════════════════════════════════════════════════════════════════════
 
+def link_pubblico_info(request, corso) -> dict | None:
+    """Link pubblico (senza login) del corso, per metterlo in evidenza nelle pagine di corso e sessione."""
+    if corso is None or not corso.is_elearning:
+        return None
+    from .models_elearning import TrainingElearningLinkAperto
+    from .services.elearning_link_aperto import link_valido
+    link = TrainingElearningLinkAperto.objects.filter(corso=corso).first()
+    attivo = bool(link and link.attivo)
+    return {
+        "attivo": attivo,
+        "funziona": bool(attivo and link_valido(link.token)),
+        "url": url_link_aperto(request, link) if attivo else "",
+        "scade_il": link.scade_il if attivo else None,
+        "gestione": reverse("anagrafica:formazione_elearning_manage", args=[corso.pk]) + "?scheda=link",
+        "qr": reverse("anagrafica:elearning_link_aperto_qr", args=[corso.pk]) if attivo else "",
+    }
+
+
 def url_link_aperto(request, link) -> str:
     """Indirizzo completo del link aperto, sempre quello pubblico.
 

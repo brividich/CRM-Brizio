@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Link aperto: registrazione con matricola all'inizio, consultazione del materiale, link in evidenza
+
+- **Registrazione prima di iniziare** (`/corso-aperto/<token>/registrati/`): nome, cognome e **matricola** obbligatori; il tempo del corso parte dalla registrazione; il quiz non chiede più il nome (lo prende dalla registrazione) e mostra chi sta consegnando, con «non sei tu?».
+- **Abbinamento con la matricola** (controllo omonimi e errori di battitura): automatico solo se matricola e cognome indicano la stessa persona attiva; matricola normalizzata (maiuscole, spazi e zeri iniziali non contano); matricola di un'altra persona → «Da abbinare» con il motivo; matricola sconosciuta → nome e cognome solo per chi non ha matricole registrate. Matricole dall'anagrafica del portale e dai dati delle presenze (timbri). Nuovo campo `TrainingElearningRispostaAperta.matricola` (migrazione `anagrafica 0251`), mostrato nell'elenco delle risposte.
+- **Consulta il materiale** (`/corso-aperto/<token>/materiale/`): indice di presentazioni e video raggruppati per modulo, apribili liberamente dopo la registrazione (`?c=`); non conta per il percorso del quiz.
+- **Link pubblico in evidenza** nella scheda del corso e nella pagina della sessione: indirizzo, «Copia», «QR da stampare», stato (funziona, attivo ma non visibile, spento) e «Gestisci» (`components/_link_pubblico.html`, `views_elearning.link_pubblico_info`).
+- File: `views_corso_aperto.py`, `urls_corso_aperto.py`, `services/elearning_link_aperto.py` (`norm_matricola`, `matricole_attive`, `abbinamento_con_matricola`), template `corso_aperto/registrati.html`, `materiale.html`, `slide.html`, `quiz.html`, `_base.html`; viste pubbliche nuove in `core/test_security_audit_fase3.py` (`PUBLIC_VIEWS`), prefisso già esente. Guide: guida e-learning, Centro guide. Test: `tests_elearning_link_aperto.py`.
+
 ### E-learning: il corso fatto dal link aperto risulta completato
 
 - **Segnalazione:** corso fatto dal link aperto, abbinato in automatico e registrato a libretto, ma nelle pagine risultava ancora da fare. «I miei corsi online» e i Risultati del corso guardavano solo le iscrizioni e-learning (con login) e le assegnazioni.
