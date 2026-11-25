@@ -34,6 +34,9 @@ def _corso_elearning(codice="ELE1", titolo="Sicurezza base e-learning", is_activ
         is_elearning=True, stato="ATTIVO",
     )
     TrainingCompletionRule.objects.create(corso=corso, confermata_rspp_il=timezone.now())
+    # Un corso online è visibile solo con almeno una slide attiva.
+    from anagrafica.models_formazione import TrainingSlide
+    TrainingSlide.objects.create(corso=corso, ordine=1, titolo="Intro", contenuto="x")
     return corso
 
 

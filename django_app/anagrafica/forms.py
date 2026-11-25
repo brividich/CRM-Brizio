@@ -441,7 +441,7 @@ class TrainingCourseForm(forms.ModelForm):
     class Meta:
         model = TrainingCourse
         fields = [
-            "piano", "categoria", "qualifica", "titolo", "descrizione",
+            "piano", "tipo", "categoria", "qualifica", "titolo", "descrizione",
             "ente_formativo",
             "durata_ore_teorica", "validita_mesi",
             "obbligatorio", "obbligatoria_ccnl", "costo_unitario",
@@ -451,6 +451,7 @@ class TrainingCourseForm(forms.ModelForm):
         ]
         widgets = {
             "piano":              forms.Select(attrs=_FM_SELECT),
+            "tipo":               forms.Select(attrs=_FM_SELECT),
             "categoria":          forms.Select(attrs=_FM_SELECT),
             "qualifica":          forms.Select(attrs=_FM_SELECT),
             "ente_formativo":     forms.Select(attrs=_FM_SELECT),
@@ -474,6 +475,10 @@ class TrainingCourseForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["piano"].queryset = TrainingPlan.objects.filter(is_active=True).order_by("nome")
+        from .models_formazione import TrainingCourseType
+        self.fields["tipo"].queryset = TrainingCourseType.objects.filter(is_active=True).order_by("ordine", "nome")
+        self.fields["tipo"].empty_label = "— Nessun tipo —"
+        self.fields["tipo"].help_text = "Raggruppa i corsi nei filtri (Sicurezza, Normativo…). I tipi si gestiscono in «Tipi di corso»."
         # Categoria di rischio (deriva i fattori → pertinenza) e qualifica àncora
         # (competency management): entrambe opzionali, settabili in creazione/modifica.
         from .models import TipoQualifica

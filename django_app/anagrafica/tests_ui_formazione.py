@@ -89,7 +89,7 @@ class ElearningManageFormRenderTests(TestCase):
         body = self.client.get(reverse("anagrafica:formazione_elearning_manage",
                                        args=[self.corso.pk])).content.decode()
         self.assertIn("Assegna dipendenti", body)
-        self.assertIn("fm-assign-list", body)  # box renderizzato (assegnabili presenti)
+        self.assertIn('id="elg-assegna"', body)  # pannello laterale «Assegna dipendenti»
         # Marker: gli inline style grezzi del box sono sostituiti da classi
         self.assertNotIn('style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end', body)
 

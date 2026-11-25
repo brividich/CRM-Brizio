@@ -26,6 +26,7 @@ from . import views_mia_scheda
 from . import views_retention
 from . import views_elearning
 from . import views_sessione_online
+from . import views_formazione_tipi
 from . import views_sorveglianza
 from . import views_elenco
 from . import views_account
@@ -610,6 +611,9 @@ urlpatterns = [
 
     # ── Formazione HR — Piani formativi ────────────────────────────────────
     path("formazione/piani/", views.formazione_piani_list, name="formazione_piani_list"),
+    path("formazione/corsi/<int:corso_id>/online", views.formazione_corso_modo_online, name="formazione_corso_modo_online"),
+    path("formazione/tipi-corso/", views_formazione_tipi.formazione_tipi_corso, name="formazione_tipi_corso"),
+    path("formazione/tipi-corso/azione", views_formazione_tipi.formazione_tipi_corso_azione, name="formazione_tipi_corso_azione"),
     path("formazione/piani/nuovo", views.formazione_piano_create, name="formazione_piano_create"),
     path("formazione/piani/<int:piano_id>/", views.formazione_piano_detail, name="formazione_piano_detail"),
     path("formazione/piani/<int:piano_id>/modifica", views.formazione_piano_edit, name="formazione_piano_edit"),
