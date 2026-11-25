@@ -95,6 +95,8 @@
       </div>
       {% endif %}
 
+      {% if fai_cmm %}{% include "produzione/_fai_report_cmm.html" %}{% endif %}
+
     {% elif p.chiave == "op" %}
       <div class="prod-scorri">
         <table class="prod-tab">

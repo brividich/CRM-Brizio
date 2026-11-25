@@ -399,6 +399,20 @@ def fai_op(request):
     return JsonResponse({"ok": True, "disponibile": True, "risultati": ordini_produzione.cerca(request.GET.get("q", ""))})
 
 
+def _fai_cmm(request, record):
+    """Report CMM del primo articolo (Ordini di produzione), se c'è e l'utente lo vede."""
+    if record is None or not record.op:
+        return None
+    try:
+        from core.acl_v2 import request_has_permission_code
+        from produzione.acl_bootstrap import PERM_VIEW
+        from produzione.services import fai_cmm
+
+        return fai_cmm(record.op) if request_has_permission_code(request, PERM_VIEW) else None
+    except Exception:
+        return None
+
+
 def _url_report_cmm(request, articolo) -> str:
     """Andamento quote dei report CMM del P/N (Ordini di produzione), se ce ne sono e l'utente li vede."""
     if articolo is None or not articolo.part_number:
@@ -438,6 +452,7 @@ def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool)
         "valore_invio_cq": form["invio_cq"].value() or "",
         "fai_storico": bool(record and record.chiave_import),
         "url_report_cmm": _url_report_cmm(request, articolo),
+        "fai_cmm": _fai_cmm(request, record),
         "dati_originali": _dati_originali(record) if record else [],
         **_tasks_shell_context(request, active="tech_refs" if project else "fai", project=project, testata=False),
         "page_title": "Scheda FAI",

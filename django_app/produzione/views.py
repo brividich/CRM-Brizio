@@ -23,8 +23,10 @@ from tasks.tech_paths import normalizza_percorso
 from . import guida as guida_mod
 from . import nuovo_op, services
 from . import report_cmm_indice as cmm
-from .acl_bootstrap import PERM_DOCUMENTI, PERM_IMPOSTAZIONI
-from .models import CartellaReportCMM, DocumentoOP, ReportCMM, TipoDocumento
+from .acl_bootstrap import PERM_DOCUMENTI, PERM_IMPOSTAZIONI, PERM_QUOTE
+from .models import (
+    AliasQuotaCMM, CartellaReportCMM, DocumentoOP, ImpostazioniQuoteCMM, NotaQuotaCMM, ReportCMM, TipoDocumento,
+)
 
 
 def _richiede(request, codice: str) -> None:
@@ -39,6 +41,7 @@ def _ctx(request, corrente: str, **extra) -> dict:
         "prod_corrente": corrente,
         "prod_puo_documenti": request_has_permission_code(request, PERM_DOCUMENTI),
         "prod_puo_impostazioni": request_has_permission_code(request, PERM_IMPOSTAZIONI),
+        "prod_puo_quote": request_has_permission_code(request, PERM_QUOTE),
         **extra,
     }
 
@@ -106,7 +109,8 @@ def pn_quote(request):
     prog = (request.GET.get("prog") or "").strip()
     if prog not in {p["programma_base"] for p in programmi}:
         prog = programmi[0]["programma_base"] if programmi else ""
-    stato = {k: (request.GET.get(k) or "").strip()[:300] for k in ("q", "nom", "r", "tab", "per", "da", "a", "op", "cmp", "f", "ord")}
+    stato = {k: (request.GET.get(k) or "").strip()[:2000] for k in ("q", "nom", "r", "tab", "per", "da", "a", "op", "cmp", "f", "ord",
+                                                                   "rs", "tutte", "esclusi")}
     stato["prog"] = prog
     return render(request, "produzione/quote.html", _ctx(
         request, "pn", pn=pn, programmi=programmi, prog=prog, stato=stato,
@@ -137,6 +141,207 @@ def api_quote(request):
         return JsonResponse({"ok": False, "error": "Servono P/N e programma."}, status=400)
     dati = cmm.dati_programma(pn, prog, _data_get(request, "da"), _data_get(request, "a"))
     return JsonResponse({"ok": True, **dati})
+
+
+def _json_corpo(request) -> dict:
+    import json
+
+    try:
+        return json.loads(request.body or b"{}")
+    except ValueError:
+        return {}
+
+
+def _json_err(msg: str, status: int = 400):
+    return JsonResponse({"ok": False, "error": msg}, status=status)
+
+
+@require_GET
+def api_quote_candidati(request):
+    """Tutte le quote dei programmi del P/N, per «È la stessa quota di…»."""
+    from django.db.models import Max
+
+    from tasks.identity import normalize_part_number
+
+    if not request.user.is_authenticated:
+        return _json_err("Autenticazione richiesta.", 401)
+    pn = normalize_part_number(request.GET.get("pn") or "")
+    if not pn:
+        return _json_err("Serve il P/N.")
+    from .models import MisuraCMM
+
+    righe = (MisuraCMM.objects.filter(report__pn=pn, report__righe__gt=0)
+             .values("report__programma_base", "chiave", "nominale").annotate(nome=Max("nome"), tol_sup=Max("tol_sup"),
+                                                                             tol_inf=Max("tol_inf"))
+             .order_by("report__programma_base", "chiave")[:3000])
+    return JsonResponse({"ok": True, "quote": [
+        {"prog": r["report__programma_base"], "id": cmm.id_quota(r["chiave"], r["nominale"]), "nome": r["nome"],
+         "nominale": r["nominale"], "ts": r["tol_sup"], "ti": r["tol_inf"]} for r in righe]})
+
+
+@require_POST
+def api_quote_nota(request):
+    """Nota su una quota (evento sul grafico) dal report indicato."""
+    from tasks.identity import normalize_part_number
+
+    if not request.user.is_authenticated:
+        return _json_err("Autenticazione richiesta.", 401)
+    d = _json_corpo(request)
+    pn = normalize_part_number(d.get("pn") or "")
+    testo = str(d.get("testo") or "").strip()[:160]
+    report = ReportCMM.objects.filter(pk=d.get("report"), pn=pn).first() if str(d.get("report") or "").isdigit() else None
+    if not pn or not testo or report is None:
+        return _json_err("Servono il testo e il S/N da cui vale la nota.")
+    nota = NotaQuotaCMM.objects.create(pn=pn, programma_base=str(d.get("prog") or report.programma_base)[:200],
+                                       quota=str(d.get("quota") or "")[:230], report=report, testo=testo,
+                                       creato_da=request.user)
+    log_action(request, "produzione_quota_nota", "produzione", {"pn": pn, "quota": nota.quota, "testo": testo})
+    return JsonResponse({"ok": True, "id": nota.pk})
+
+
+@require_POST
+def api_quote_nota_elimina(request, pk: int):
+    if not request.user.is_authenticated:
+        return _json_err("Autenticazione richiesta.", 401)
+    nota = NotaQuotaCMM.objects.filter(pk=pk).first()
+    if nota is None:
+        return _json_err("Nota non trovata.", 404)
+    if nota.creato_da_id != request.user.pk and not request_has_permission_code(request, PERM_QUOTE):
+        return _json_err("Solo chi l'ha scritta (o chi gestisce le quote) può togliere la nota.", 403)
+    log_action(request, "produzione_quota_nota_elimina", "produzione", {"pn": nota.pn, "testo": nota.testo})
+    nota.delete()
+    return JsonResponse({"ok": True})
+
+
+@require_POST
+def api_quote_alias(request):
+    """Unisce la quota d'origine (anche di un altro programma del P/N) alla quota di destinazione."""
+    from tasks.identity import normalize_part_number
+
+    if not request.user.is_authenticated:
+        return _json_err("Autenticazione richiesta.", 401)
+    if not request_has_permission_code(request, PERM_QUOTE):
+        return _json_err("Serve il permesso «Gestire le quote CMM».", 403)
+    d = _json_corpo(request)
+    pn = normalize_part_number(d.get("pn") or "")
+    campi = {k: str(d.get(k) or "").strip()[:230] for k in ("prog_origine", "quota_origine", "prog_destinazione", "quota_destinazione")}
+    if not pn or not all(campi.values()):
+        return _json_err("Mancano le quote da unire.")
+    if (campi["prog_origine"], campi["quota_origine"]) == (campi["prog_destinazione"], campi["quota_destinazione"]):
+        return _json_err("È la stessa quota.")
+    if AliasQuotaCMM.objects.filter(pn=pn, prog_origine=campi["prog_destinazione"], quota_origine=campi["quota_destinazione"]).exists():
+        return _json_err("La quota di destinazione è già unita a un'altra: scegli quella.")
+    al, _ = AliasQuotaCMM.objects.update_or_create(
+        pn=pn, prog_origine=campi["prog_origine"], quota_origine=campi["quota_origine"],
+        defaults={"prog_destinazione": campi["prog_destinazione"], "quota_destinazione": campi["quota_destinazione"],
+                  "creato_da": request.user})
+    log_action(request, "produzione_quota_unisci", "produzione", {"pn": pn, **campi})
+    return JsonResponse({"ok": True, "id": al.pk})
+
+
+@require_POST
+def api_quote_alias_elimina(request, pk: int):
+    if not request.user.is_authenticated:
+        return _json_err("Autenticazione richiesta.", 401)
+    if not request_has_permission_code(request, PERM_QUOTE):
+        return _json_err("Serve il permesso «Gestire le quote CMM».", 403)
+    al = AliasQuotaCMM.objects.filter(pk=pk).first()
+    if al is None:
+        return _json_err("Unione non trovata.", 404)
+    log_action(request, "produzione_quota_separa", "produzione", {"pn": al.pn, "origine": al.quota_origine,
+                                                                   "destinazione": al.quota_destinazione})
+    al.delete()
+    return JsonResponse({"ok": True})
+
+
+MOTIVI_ESCLUSIONE = (
+    "Rilavorazione: conta la misura dopo",
+    "Misura di prova / programma in messa a punto",
+    "Doppione dello stesso report",
+    "Pezzo scartato",
+    "Altro",
+)
+
+
+@login_required
+@require_POST
+def report_escludi(request, pk: int):
+    """Esclude il report dall'analisi (o lo riammette). Il PDF resta dov'è."""
+    _richiede(request, PERM_QUOTE)
+    report = get_object_or_404(ReportCMM, pk=pk)
+    if request.POST.get("azione") == "riammetti":
+        report.escluso, report.escluso_motivo, report.escluso_nota = False, "", ""
+        report.escluso_da, report.escluso_il = request.user, timezone.now()
+        messages.success(request, f"{report.seriale or report.file} di nuovo nell'analisi.")
+    else:
+        motivo = (request.POST.get("motivo") or "").strip()
+        report.escluso = True
+        report.escluso_motivo = motivo if motivo in MOTIVI_ESCLUSIONE else "Altro"
+        report.escluso_nota = (request.POST.get("nota") or "").strip()[:300]
+        report.escluso_da, report.escluso_il = request.user, timezone.now()
+        messages.success(request, f"{report.seriale or report.file} escluso dall'analisi.")
+    report.save(update_fields=["escluso", "escluso_motivo", "escluso_nota", "escluso_da", "escluso_il"])
+    log_action(request, "produzione_report_cmm_escludi", "produzione",
+               {"id": report.pk, "file": report.file, "escluso": report.escluso, "motivo": report.escluso_motivo})
+    return redirect("produzione:report_cmm", report.pk)
+
+
+@login_required
+@require_GET
+def quote_cruscotto(request):
+    """Quote CMM di tutti i P/N, dalla situazione più grave."""
+    righe = cmm.cruscotto()
+    filtro = request.GET.get("f") or "guardare"
+    visibili = [r for r in righe if r["da_guardare"]] if filtro == "guardare" else righe
+    return render(request, "produzione/quote_cruscotto.html", _ctx(
+        request, "quote", righe=visibili, filtro=filtro, n_guardare=sum(1 for r in righe if r["da_guardare"]), n_tutti=len(righe),
+        tot={"pn": len(righe), "fuori": sum(1 for r in righe if r["fuori_rec"]), "cpk": sum(r["cpk_bassi"] for r in righe),
+             "deriva": sum(r["deriva"] for r in righe)},
+        oggi=ReportCMM.objects.filter(letto_il__date=timezone.localdate(), righe__gt=0).count(), attivo=cmm.attivo(),
+    ))
+
+
+@login_required
+@require_GET
+def quote_pdf(request):
+    """PDF «Studio di capacità» con i filtri della pagina Analisi quote."""
+    from datetime import date, timedelta
+
+    from tasks.identity import normalize_part_number
+
+    from . import pdf_capacita
+
+    pn = normalize_part_number(request.GET.get("pn") or "")
+    prog = (request.GET.get("prog") or "").strip()[:200]
+    if not pn or not prog:
+        raise Http404
+    da, a = _data_get(request, "da"), _data_get(request, "a")
+    per = request.GET.get("per") or ""
+    if per.isdigit():
+        da, a = timezone.localdate() - timedelta(days=int(per)), None
+    dati = cmm.dati_programma(pn, prog, da, a)
+    op = {x for x in (request.GET.get("op") or "").split("~") if x}
+    tieni = None
+    if request.GET.get("tutte") != "1":
+        tieni = set(cmm.ultima_per_seriale(dati["report"]))
+    scelti = [int(x) for x in (request.GET.get("rs") or "").split("~") if x.isdigit()]
+    if scelti:
+        ids = set(scelti)
+        tieni = {i for i in (tieni if tieni is not None else range(len(dati["report"]))) if dati["report"][i][0] in ids}
+    quote = {x for x in (request.GET.get("quote") or "").split("~") if x}
+    righe = pdf_capacita.righe_capacita(dati, quote or None, op, tieni)
+    date_rep = [r[3] for r in dati["report"] if r[3]]
+    filtri = " · ".join(filter(None, [
+        f"{date.fromisoformat(min(date_rep)):%d/%m/%Y}–{date.fromisoformat(max(date_rep)):%d/%m/%Y}" if date_rep else "",
+        f"OP {', '.join(sorted(op))}" if op else "tutti gli OP",
+        (f"{len(quote)} quote scelte" if len(quote) > 1 else "1 quota scelta") if quote else f"{len(righe)} quote",
+        "ultima misura per S/N" if request.GET.get("tutte") != "1" else "tutte le misure",
+    ]))
+    contenuto = pdf_capacita.genera(pn, dati, righe, filtri, request.user.get_full_name() or request.user.get_username())
+    log_action(request, "produzione_quote_pdf", "produzione", {"pn": pn, "prog": prog, "quote": len(righe)})
+    resp = HttpResponse(contenuto, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="Capacita_{pn}_{prog}.pdf"'
+    return resp
 
 
 @login_required
@@ -170,7 +375,7 @@ def report_cmm(request, pk: int):
     if op:
         url_anomalia = f"{reverse('apertura_segnalazione')}?{urlencode({'op_id': op['id'], 'report_cmm': report.pk})}"
     return render(request, "produzione/report_cmm.html", _ctx(
-        request, "pn", report=report, misure=list(misure.order_by("indice")), tutte=tutte, op=op,
+        request, "pn", report=report, misure=list(misure.order_by("indice")), tutte=tutte, op=op, motivi=MOTIVI_ESCLUSIONE,
         url_anomalia=url_anomalia, altri=ReportCMM.objects.filter(pn=report.pn, seriale=report.seriale)
         .exclude(pk=report.pk).exclude(seriale="")[:20] if report.seriale else [],
     ))
@@ -281,6 +486,16 @@ def impostazioni(request):
             else:
                 TipoDocumento.objects.create(etichetta=etichetta, descrizione=descrizione, ordine=ordine)
                 messages.success(request, f"Tipo «{etichetta}» aggiunto.")
+        elif azione == "avvisi":
+            imp = ImpostazioniQuoteCMM.attuali()
+            imp.avvisa_fuori = request.POST.get("avvisa_fuori") == "1"
+            imp.avvisa_deriva = request.POST.get("avvisa_deriva") == "1"
+            imp.save()
+            from django.contrib.auth import get_user_model
+
+            ids = [int(x) for x in request.POST.getlist("destinatari") if x.isdigit()]
+            imp.destinatari.set(get_user_model().objects.filter(pk__in=ids))
+            messages.success(request, "Avvisi delle quote CMM salvati.")
         elif azione == "salva" and (request.POST.get("id") or "").isdigit():
             tipo = get_object_or_404(TipoDocumento, pk=int(request.POST["id"]))
             if etichetta and not TipoDocumento.objects.filter(etichetta__iexact=etichetta).exclude(pk=tipo.pk).exists():
@@ -291,8 +506,14 @@ def impostazioni(request):
             messages.success(request, f"Tipo «{tipo.etichetta}» salvato.")
         log_action(request, "produzione_impostazioni", "produzione", {"azione": azione, "etichetta": etichetta})
         return redirect("produzione:impostazioni")
+    from core.persone_tendine import etichetta_utente, ordina_persone, utenti_in_forza
+
+    imp = ImpostazioniQuoteCMM.attuali()
+    scelti = set(imp.destinatari.values_list("id", flat=True))
+    persone = [{"id": u.pk, "nome": etichetta_utente(u), "scelto": u.pk in scelti}
+               for u in ordina_persone(utenti_in_forza(), etichetta_utente)]
     return render(request, "produzione/impostazioni.html", _ctx(
-        request, "impostazioni", tipi=TipoDocumento.objects.all(),
+        request, "impostazioni", tipi=TipoDocumento.objects.all(), avvisi=imp, persone=persone,
     ))
 
 

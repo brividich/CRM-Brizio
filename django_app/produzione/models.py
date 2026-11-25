@@ -90,6 +90,13 @@ class ReportCMM(models.Model):
     da_verificare = models.PositiveIntegerField(default=0)
     errore = models.CharField(max_length=300, blank=True, default="")
     letto_il = models.DateTimeField(auto_now=True)
+    # Escluso dall'analisi (prova, rilavorazione, doppione): il PDF resta, il report non conta.
+    escluso = models.BooleanField(default=False, db_index=True)
+    escluso_motivo = models.CharField(max_length=120, blank=True, default="")
+    escluso_nota = models.CharField(max_length=300, blank=True, default="")
+    escluso_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    escluso_il = models.DateTimeField(null=True, blank=True)
+    avvisato = models.BooleanField(default=False, help_text="Avviso dei fuori tolleranza già inviato.")
 
     class Meta:
         ordering = ["-data", "-id"]
@@ -126,3 +133,53 @@ class MisuraCMM(models.Model):
 
     def __str__(self) -> str:
         return self.nome
+
+
+class NotaQuotaCMM(models.Model):
+    """Evento scritto a mano su una quota («cambiato inserto»): linea verticale sul grafico dal report indicato."""
+
+    pn = models.CharField(max_length=100, db_index=True)
+    programma_base = models.CharField(max_length=200)
+    quota = models.CharField(max_length=230, help_text="chiave|nominale; vuoto = tutte le quote del programma")
+    report = models.ForeignKey(ReportCMM, on_delete=models.CASCADE, related_name="note_quote")
+    testo = models.CharField(max_length=160)
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["report__data", "id"]
+        verbose_name = "Nota su una quota CMM"
+        verbose_name_plural = "Note sulle quote CMM"
+
+
+class AliasQuotaCMM(models.Model):
+    """«È la stessa quota di…»: la quota d'origine (anche di un altro programma del P/N) va nella quota di destinazione."""
+
+    pn = models.CharField(max_length=100, db_index=True)
+    prog_origine = models.CharField(max_length=200)
+    quota_origine = models.CharField(max_length=230)
+    prog_destinazione = models.CharField(max_length=200)
+    quota_destinazione = models.CharField(max_length=230)
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["pn", "prog_origine", "quota_origine"], name="prod_alias_quota_unico")]
+        verbose_name = "Quote CMM unite"
+        verbose_name_plural = "Quote CMM unite"
+
+
+class ImpostazioniQuoteCMM(models.Model):
+    """Una sola riga: chi riceve gli avvisi delle quote CMM e quando."""
+
+    avvisa_fuori = models.BooleanField(default=True, verbose_name="Avvisa quando un report nuovo ha quote fuori tolleranza")
+    avvisa_deriva = models.BooleanField(default=True, verbose_name="Avvisa quando una quota va in deriva")
+    destinatari = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="+", verbose_name="Chi riceve gli avvisi")
+
+    class Meta:
+        verbose_name = "Impostazioni avvisi quote CMM"
+
+    @classmethod
+    def attuali(cls) -> "ImpostazioniQuoteCMM":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

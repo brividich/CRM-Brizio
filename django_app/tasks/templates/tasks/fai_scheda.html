@@ -11,6 +11,7 @@
 {% endif %}{% endblock %}
 {% block tasks_shell_actions %}{% if url_report_cmm %}<a class="ts-hero-action" href="{{ url_report_cmm }}">Report CMM del P/N</a>{% endif %}<a class="ts-hero-action" href="{% url 'tasks:fai_registro' %}">Registro FAI</a>{% endblock %}
 
+{% block tasks_shell_head %}{% if fai_cmm %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125c">{% endif %}{% endblock %}
 {% block tasks_shell_content %}
 <form method="post" class="fai-scheda" data-fai-form>
   {% csrf_token %}
@@ -190,6 +191,13 @@
     {% if puo_eliminare %}<button type="submit" class="btn btn-secondary fai-elimina" name="azione" value="elimina" formnovalidate data-hub-confirm="Eliminare questo FAI?">Elimina</button>{% endif %}
   </div>
 </form>
+
+{% if fai_cmm %}
+<section class="fai-blocco fai-cmm">
+  <h2 class="fai-titolo">Report CMM del primo articolo</h2>
+  {% include "produzione/_fai_report_cmm.html" with senza_titolo=True %}
+</section>
+{% endif %}
 
 {% if dati_originali %}
 <details class="fai-blocco fai-piega fai-origine">
