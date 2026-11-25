@@ -339,15 +339,15 @@
     const tile = (et, val, sub, opts = {}) => el(opts.onclick ? 'button' : 'div', { class: `aq-tile${opts.allerta ? ' is-allerta' : ''}`, type: opts.onclick ? 'button' : null, onclick: opts.onclick, title: opts.title },
       el('span', { text: et }), el('b', { text: val }), sub ? el('small', { text: sub }) : null);
     box.replaceChildren(
-      tile('Report', `${rv.length}`, D.tagliati ? `ultimi ${D.limite} di ${D.totale}: restringi il periodo` : `${sn.size} S/N`),
+      tile('Report', `${rv.length}`, D.tagliati ? `ultimi ${D.limite} di ${D.totale}` : `${sn.size} S/N`, { title: D.tagliati ? 'Scegli un periodo per vedere i più vecchi' : null }),
       tile('Quote', `${info.filter(x => x.pts.length).length}`, `${mis} misure`),
       tile('Misure fuori', mis ? pct(fuori / mis) : '—', `${fuori} su ${mis}`, { allerta: fuori > 0 }),
-      tile('Quote andate fuori', `${conFuori}`, 'almeno una volta', { allerta: conFuori > 0, onclick: () => scegliFiltro('fuori'), title: 'Mostra solo queste' }),
-      tile('Cpk sotto 1,33', `${nonCap}`, 'processo non capace o al limite', { allerta: nonCap > 0, onclick: () => scegliFiltro('cpk'), title: 'Mostra solo queste' }),
-      tile('In deriva', `${info.filter(x => x.deriva).length}`, 'verso un limite', { allerta: info.some(x => x.deriva), onclick: () => scegliFiltro('deriva'), title: 'Mostra solo queste' }),
-      tile('Ultimo report', ult ? dataIt(ult[3]) : '—', ult ? `${ult[1]} · ${ult[2] || ''}` : ''),
+      tile('Andate fuori', `${conFuori}`, 'quote, almeno una volta', { allerta: conFuori > 0, onclick: () => scegliFiltro('fuori'), title: 'Mostra solo queste' }),
+      tile('Cpk < 1,33', `${nonCap}`, 'quote non capaci o al limite', { allerta: nonCap > 0, onclick: () => scegliFiltro('cpk'), title: 'Mostra solo queste' }),
+      tile('In deriva', `${info.filter(x => x.deriva).length}`, 'quote verso un limite', { allerta: info.some(x => x.deriva), onclick: () => scegliFiltro('deriva'), title: 'Mostra solo queste' }),
+      tile('Ultimo report', ult ? dataIt(ult[3]) : '—', ult ? ult[1] : '', { title: ult ? `${ult[1]} · ${ult[2] || ''}` : null }),
     );
-    if (rimisurati.length) box.append(tile('Rimisurati', `${rimisurati.length} S/N`, S.tutte ? 'contano tutte le misure' : 'conta l\'ultima misura', { title: rimisurati.join(', ') }));
+    if (rimisurati.length) box.append(tile('Rimisurati', `${rimisurati.length} S/N`, S.tutte ? 'tutte le misure' : 'conta l\'ultima', { title: rimisurati.join(', ') }));
     const av = $('[data-avviso]');
     av.hidden = !D.tagliati;
     if (D.tagliati) av.textContent = `Mostrati i ${D.limite} report più recenti su ${D.totale}: scegli un periodo per vedere i più vecchi.`;
@@ -505,14 +505,7 @@
         svg.append(c);
       });
       // etichette in basso: S/N se pochi, altrimenti alcune date
-      const ogni = Math.max(1, Math.ceil(n / Math.floor((W - L - R) / 70)));
-      pts.forEach((p, i) => {
-        if (i % ogni && i !== n - 1) return;
-        const rep = D.report[p.ri];
-        const t = sv('text', { x: X(i), y: H - B + 16, 'text-anchor': 'middle' });
-        t.textContent = n <= 30 ? (rep[1] || '').slice(0, 11) : dataIt(rep[3]).slice(0, 5);
-        svg.append(t);
-      });
+      etichetteX(svg, n, X, H - B + 16, i => { const rep = D.report[pts[i].ri]; return n <= 30 ? (rep[1] || '').slice(0, 11) : dataIt(rep[3]).slice(0, 5); });
       // eventi: cambio di revisione del programma e note sulla quota
       const eventi = [];
       for (let k = 1; k < n; k++) {
@@ -604,6 +597,23 @@
     }
     box.replaceChildren(svg);
     return { s, colori: S.perOp ? coloriOp() : null, dominio: n ? { lo, hi, val } : null };
+  }
+
+  /* Etichette sotto l'asse X: almeno 64 px fra l'una e l'altra, l'ultima sempre, una data ripetuta una volta sola. */
+  function etichetteX(svg, n, X, y, testo) {
+    const scelte = [];
+    let ultimoTesto = null;
+    for (let i = 0; i < n; i++) {
+      const t = testo(i);
+      if (t === ultimoTesto) continue;
+      if (scelte.length && X(i) - X(scelte[scelte.length - 1]) < 64) continue;
+      scelte.push(i); ultimoTesto = t;
+    }
+    if (n > 1 && scelte[scelte.length - 1] !== n - 1 && testo(n - 1) !== ultimoTesto) {
+      if (scelte.length && X(n - 1) - X(scelte[scelte.length - 1]) < 64) scelte.pop();
+      scelte.push(n - 1);
+    }
+    scelte.forEach(i => { const t = sv('text', { x: X(i), y, 'text-anchor': 'middle' }); t.textContent = testo(i); svg.append(t); });
   }
 
   /* croce che segue il puntatore sul punto più vicino in X; trascina per lo zoom */
@@ -740,7 +750,7 @@
       t('Cp', num(s.cp, 2), el('small', { text: s.cp !== null ? 'larghezza' : (s.n >= 5 && s.ultimo.uni ? 'solo limite superiore' : 'servono 5 misure') })),
       t('Cpk', num(s.cpk, 2), st ? el('span', { class: `aq-stato is-${st.c}`, text: st.t }) : el('small', { text: 'servono 5 misure' })),
       t('Min ÷ max', s.n ? `${num(s.min, 3)} ÷ ${num(s.max, 3)}` : '—'),
-      t('Ultima', s.n ? num(s.ultimo.x) : '—', s.n ? el('small', { text: `${D.report[s.ultimo.ri][1]} · tolleranza usata ${s.ultimo.u === null ? '—' : pct(Math.abs(s.ultimo.u))}` }) : null, s.n && s.ultimo.f ? 'is-allerta' : ''),
+      t('Ultima', s.n ? num(s.ultimo.x) : '—', s.n ? el('small', { text: `${D.report[s.ultimo.ri][1]} · ${s.ultimo.u === null ? '—' : pct(Math.abs(s.ultimo.u))} toll.`, title: 'S/N · tolleranza usata' }) : null, s.n && s.ultimo.f ? 'is-allerta' : ''),
     );
     legenda.append(el('span', {}, el('i'), 'Rilevato'), el('span', {}, el('i', { class: 'is-punto' }), 'Fuori tolleranza'),
       el('span', {}, el('i', { class: 'is-banda' }), 'Zona di tolleranza'), el('span', {}, el('i', { class: 'is-limite' }), 'Limiti'),
@@ -970,8 +980,7 @@
         svg.append(t);
       });
     }
-    const ogni = Math.max(1, Math.ceil(n / Math.floor((W - L - R) / 70)));
-    ri.forEach((r, k) => { if (k % ogni && k !== n - 1) return; const t = sv('text', { x: X(k), y: H - B + 16, 'text-anchor': 'middle' }); t.textContent = n <= 30 ? (D.report[r][1] || '').slice(0, 11) : dataIt(D.report[r][3]).slice(0, 5); svg.append(t); });
+    etichetteX(svg, n, X, H - B + 16, k => n <= 30 ? (D.report[ri[k]][1] || '').slice(0, 11) : dataIt(D.report[ri[k]][3]).slice(0, 5));
     box.append(svg);
     interattivo(svg, { W, H, L, R, T, B, n, X, onHover: (ev, k) => {
       const rep = D.report[ri[k]];

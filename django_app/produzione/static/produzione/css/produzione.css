@@ -156,6 +156,9 @@
 
 .prod-sottotitolo{margin:4px 0 6px;font-size:13px;font-weight:800;color:var(--text)}
 
+.prod-tipo td input[name="etichetta"]{width:100%;min-width:200px}
+.prod-tipo td input[name="descrizione"]{width:100%;min-width:260px}
+.prod-tipo td input[name="ordine"]{width:72px}
 .prod-avvisi{display:flex;flex-direction:column;gap:10px;max-width:640px}
 .prod-check{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600}
 .prod-avvisi-campo{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--text-mid)}
@@ -172,3 +175,7 @@
 .prod-fai-cmm{border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:10px;background:var(--surface)}
 .prod-fai-cmm-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .prod-rosso{color:var(--danger)}
+/* Tendine ricercabili (Tom Select) nel tema scuro: il portale non le colora */
+body.theme-dark .prod .ts-wrapper .ts-control,body.theme-dark .prod .ts-wrapper.single.input-active .ts-control{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important;box-shadow:none}
+body.theme-dark .prod .ts-wrapper .ts-control input{color:var(--text)!important}
+body.theme-dark .prod .ts-wrapper .ts-control .item{color:var(--text)}
