@@ -327,7 +327,7 @@
 
   /* ── tooltip ─────────────────────────────────────────────────────────── */
   function mostraTooltip(ev, righe) {
-    tooltip.replaceChildren(...righe);
+    tooltip.replaceChildren(...righe.filter(Boolean));   // le righe facoltative arrivano come null
     tooltip.hidden = false;
     const w = tooltip.offsetWidth, h = tooltip.offsetHeight;
     let x = ev.clientX + 14, y = ev.clientY + 14;
@@ -550,7 +550,7 @@
       t('Fuori', `${s.nFuori || 0}`, el('small', { text: s.n ? pct(s.nFuori / s.n) : '' }), s.nFuori ? 'is-allerta' : ''),
       t('Media', num(s.media), el('small', { text: s.n ? `scarto dal nom. ${segno(s.media - x.q.nominale)}` : '' })),
       t('Dev. std σ', num(s.sd)),
-      t('Cp', num(s.cp, 2), el('small', { text: s.cp === null ? 'servono 5 misure' : 'larghezza' })),
+      t('Cp', num(s.cp, 2), el('small', { text: s.cp !== null ? 'larghezza' : (s.n >= 5 && s.ultimo.uni ? 'solo limite superiore' : 'servono 5 misure') })),
       t('Cpk', num(s.cpk, 2), st ? el('span', { class: `aq-stato is-${st.c}`, text: st.t }) : el('small', { text: 'servono 5 misure' })),
       t('Min ÷ max', s.n ? `${num(s.min, 3)} ÷ ${num(s.max, 3)}` : '—'),
       t('Ultima', s.n ? num(s.ultimo.x) : '—', s.n ? el('small', { text: `${D.report[s.ultimo.ri][1]} · tolleranza usata ${s.ultimo.u === null ? '—' : pct(Math.abs(s.ultimo.u))}` }) : null, s.n && s.ultimo.f ? 'is-allerta' : ''),
