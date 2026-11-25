@@ -174,7 +174,7 @@ class AnalisiTests(QuoteBase):
         pagina = self.client.get(reverse("tasks:fai_scheda", args=[f.pk]))
         self.assertEqual(pagina.context["fai_cmm"]["report"].seriale, "SN1")
         self.assertContains(pagina, "Report CMM del primo articolo")
-        pn = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"})
+        pn = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"}, follow=True)
         self.assertIsNotNone(pn.context["fai_cmm"])
 
 

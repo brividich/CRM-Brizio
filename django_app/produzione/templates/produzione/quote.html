@@ -21,7 +21,7 @@
      data-puo-quote="{% if prod_puo_quote %}1{% endif %}">
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_scheda' %}?pn={{ pn|urlencode }}">{{ pn }}</a></span>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></span>
       <h1>Analisi quote</h1>
     </div>
     <div class="prod-filtri">
