@@ -21,10 +21,10 @@ from django.db import transaction
 STATI_ASSEGNAZIONE_ATTIVI = ("ASSEGNATO", "IN_CORSO", "COMPLETATO", "SCADUTO", "RIMANDATO")
 
 
-# Un corso è online solo con le regole FAD confermate dall'RSPP: l'interruttore
-# «online» o una modifica delle regole non bastano a renderlo fruibile.
-FILTRO_PUBBLICATI = {"is_elearning": True, "is_active": True, "stato": "ATTIVO",
-                     "regola_superamento__confermata_rspp_il__isnull": False}
+# Un corso è online quando è e-learning, attivo e pubblicato. Le regole FAD e la
+# loro conferma da parte dell'RSPP sono facoltative: non bloccano la fruizione
+# (decisione del 25/11/2026: «non complichiamo»).
+FILTRO_PUBBLICATI = {"is_elearning": True, "is_active": True, "stato": "ATTIVO"}
 
 
 def corsi_pubblicati():
@@ -37,10 +37,7 @@ def filtro_pubblicati(prefisso: str) -> dict:
 
 
 def corso_pubblicato(corso) -> bool:
-    if not (corso.is_elearning and corso.is_active and corso.stato == "ATTIVO"):
-        return False
-    from ..models_formazione import TrainingCompletionRule
-    return TrainingCompletionRule.objects.filter(corso=corso, confermata_rspp_il__isnull=False).exists()
+    return bool(corso.is_elearning and corso.is_active and corso.stato == "ATTIVO")
 
 
 @dataclass

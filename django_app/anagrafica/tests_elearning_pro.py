@@ -185,16 +185,12 @@ class RegoleFadEPubblicazioneTests(_Pro):
         self.hr = User.objects.create_user("hr.fad", "hr@example.invalid", "x")
         self.admin = User.objects.create_superuser("rspp.fad", "rspp@example.invalid", "x")
 
-    def test_pubblicazione_bloccata_senza_conferma_rspp(self):
+    def test_pubblicazione_senza_conferma_rspp(self):
+        # 25/11/2026: la conferma RSPP delle regole FAD è facoltativa, non blocca la pubblicazione.
         self.corso.stato = "BOZZA"
         self.corso.save()
         TrainingCompletionRule.objects.filter(corso=self.corso).update(confermata_rspp_il=None)
         self.client.force_login(self.admin)
-        self.client.post(reverse("anagrafica:formazione_elearning_publish_toggle", args=[self.corso.pk]))
-        self.corso.refresh_from_db()
-        self.assertEqual(self.corso.stato, "BOZZA")
-        url = reverse("anagrafica:elearning_regola_corso", args=[self.corso.pk])
-        self.client.post(url, {"azione": "conferma"})
         self.client.post(reverse("anagrafica:formazione_elearning_publish_toggle", args=[self.corso.pk]))
         self.corso.refresh_from_db()
         self.assertEqual(self.corso.stato, "ATTIVO")
@@ -320,7 +316,7 @@ class CorsoSenzaQuizTests(_Pro):
 
 
 class CorrezioniReviewTests(_Pro):
-    def test_interruttore_online_non_pubblica_senza_conferma(self):
+    def test_interruttore_online_rende_il_corso_erogabile(self):
         from .models_formazione import TrainingCourse
         from .services.elearning_fruizione import corso_pubblicato
         aula = TrainingCourse.objects.create(piano=self.corso.piano, codice="AULA1", titolo="Aula",
@@ -330,13 +326,12 @@ class CorrezioniReviewTests(_Pro):
         self.client.post(reverse("anagrafica:elearning_impostazioni_corsi"), {"corso_id": aula.pk, "azione": "online"})
         aula.refresh_from_db()
         self.assertTrue(aula.is_elearning)
-        self.assertFalse(corso_pubblicato(aula))
+        self.assertTrue(corso_pubblicato(aula))
 
-    def test_regola_modificata_toglie_il_corso_dall_online(self):
+    def test_regola_non_confermata_non_toglie_il_corso_dall_online(self):
         from .services.elearning_fruizione import corso_pubblicato
         TrainingCompletionRule.objects.filter(corso=self.corso).update(confermata_rspp_il=None)
-        self.assertFalse(corso_pubblicato(self.corso))
-        self.assertEqual(self._slide(1).status_code, 403)
+        self.assertTrue(corso_pubblicato(self.corso))
 
     def test_tentativo_scaduto_consuma_un_tentativo(self):
         self._regola(el_tempo_quiz_minuti=1, el_max_tentativi=2)

@@ -426,6 +426,24 @@ GUIDA = {
             ],
         },
         {
+            "id": "elearning-pagina-corso",
+            "titolo": "Pagina di un corso online: stato, risultati, assegnazioni",
+            "blocchi": [
+                ("p", "Gestione e-learning → corso. In alto «Visibile ai dipendenti» o «Non visibile ai dipendenti» con i controlli: "
+                      "slide, quiz (domande con la risposta giusta), pubblicazione e link aperto («funzionante» o perché no). Basta "
+                      "«Pubblica»: la conferma RSPP delle regole FAD è facoltativa."),
+                ("def", [
+                    ("Risultati", "una riga per persona, assegnata o no; «Da iniziare» = assegnata e mai aperto, «In ritardo» = oltre "
+                                  "la scadenza. Indicatori, filtri, ricerca, «Domande sbagliate più spesso» ed «Esporta» (Excel o PDF: "
+                                  "esiti, registro dei completamenti, analisi delle domande, risposte dal link aperto)."),
+                    ("Assegnazioni", "«Assegna dipendenti» apre il pannello laterale con filtri per reparto, area, mansione, "
+                                     "«Seleziona tutti» i filtrati, contatore e scadenza."),
+                    ("Link aperto", "indirizzo e QR per chi non ha l'utente; quiz da abbinare."),
+                    ("Versioni", "storico delle versioni fissate alla pubblicazione."),
+                ]),
+            ],
+        },
+        {
             "id": "corso-link-aperto",
             "titolo": "Corso online per chi non ha un utente (link aperto)",
             "blocchi": [
