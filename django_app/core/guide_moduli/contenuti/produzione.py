@@ -78,6 +78,11 @@ GUIDA = {
                       "(tutte le quote × tutti i report, colore = tolleranza usata), Confronto (fino a 6 quote in % "
                       "della tolleranza) e Pezzo (tutte le quote di un S/N, confrontabile con un altro). «Esporta CSV» "
                       "con i filtri attivi; l'indirizzo conserva la vista."),
+                ("p", "Filtri anche per misure (ultima per S/N o tutte), report scelti a mano ed esclusi. Quote in deriva "
+                      "(retta sugli ultimi 20 pezzi, stima dei pezzi al limite), segnali di controllo (oltre 3σ, 9 dallo stesso "
+                      "lato, 6 in salita/discesa), eventi (cambio revisione, note), bandierine delle anomalie, quote unite fra "
+                      "programmi, «PDF di capacità». «Quote CMM» elenca tutti i P/N dal più grave; Impostazioni › «Avvisi delle "
+                      "quote CMM» sceglie chi riceve gli avvisi."),
                 ("p", "La scheda del P/N mostra le «Quote da tenere d'occhio». Dal report di un S/N: quote fuori, "
                       "«Apri il PDF», «Apri segnalazione anomalia» con il pannello «📄 Dal report CMM (PDF)» già pronto."),
             ],
@@ -93,6 +98,8 @@ GUIDA = {
                      "(Accessi › permessi del modulo Ordini di produzione). FAI, programmi e KICK-OFF seguono i "
                      "permessi del KICK-OFF."),
                     ("Tipi di documento", "Ordini di produzione › Impostazioni: nome, descrizione, ordine, attivo."),
+                    ("Quote CMM", "permesso «Gestire le quote CMM» (escludere report, unire quote; di default solo admin); "
+                     "avvisi in Impostazioni (destinatari, fuori tolleranza, deriva)."),
                     ("Report CMM", "cartella PRODUZIONE_REPORT_CMM_ROOT (di default \\\\novisrv\\Area Controllo\\Collaudo), "
                      "letta ogni ora dal lavoro pianificato «produzione_report_cmm_giro» per al massimo "
                      "PRODUZIONE_REPORT_CMM_MINUTI minuti (15). L'utente del portale e quello di qcluster devono poter "
@@ -104,6 +111,12 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Gli avvisi delle quote CMM non arrivano",
+            "perche": "nessun destinatario scelto, interruttori spenti, oppure il report era già stato letto prima (avvisa solo i "
+                      "report nuovi; una quota in deriva al massimo una volta al mese).",
+            "fare": ["Ordini di produzione › Impostazioni › «Avvisi delle quote CMM»: scegli chi riceve gli avvisi."],
+        },
         {
             "sintomo": "«Analisi quote» non mostra report o dice «Cartella non leggibile»",
             "perche": "la cartella del P/N non è ancora stata letta, ha un nome diverso dal P/N, oppure l'utente del "

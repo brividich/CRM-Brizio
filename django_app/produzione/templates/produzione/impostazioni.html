@@ -9,7 +9,7 @@
   <div class="prod-head">
     <div>
       <h1>Impostazioni</h1>
-      <p>Tipi di documento di produzione. Un tipo spento non si propone più, ma i documenti già registrati lo tengono.</p>
+      <p>Tipi di documento di produzione e avvisi delle quote CMM.</p>
     </div>
   </div>
 
@@ -42,6 +42,22 @@
         </tr>
       </tbody>
     </table>
+  </section>
+
+  <section class="prod-card" id="avvisi-quote">
+    <div class="prod-card-head"><h2>Avvisi delle quote CMM</h2></div>
+    <form method="post" class="prod-avvisi">
+      {% csrf_token %}<input type="hidden" name="azione" value="avvisi">
+      <label class="prod-check"><input type="checkbox" name="avvisa_fuori" value="1"{% if avvisi.avvisa_fuori %} checked{% endif %}> Un report nuovo ha quote fuori tolleranza</label>
+      <label class="prod-check"><input type="checkbox" name="avvisa_deriva" value="1"{% if avvisi.avvisa_deriva %} checked{% endif %}> Una quota va in deriva verso un limite (al massimo un avviso al mese per quota)</label>
+      <label class="prod-avvisi-campo">Chi riceve gli avvisi (campanella del portale)
+        <select name="destinatari" multiple size="8" data-cerca-persone>
+          {% for p in persone %}<option value="{{ p.id }}"{% if p.scelto %} selected{% endif %}>{{ p.nome }}</option>{% endfor %}
+        </select>
+      </label>
+      <p class="prod-nota">Ctrl+clic per sceglierne più di una. Nessuno scelto = nessun avviso.</p>
+      <div class="prod-form-azioni"><button class="prod-btn prod-btn-primary" type="submit">Salva</button></div>
+    </form>
   </section>
 </div>
 {% endblock %}

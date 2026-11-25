@@ -9,6 +9,22 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: quote CMM, 12 migliorie (esclusi, rimisure, deriva, segnali, eventi, cruscotto, avvisi, PDF…)
+
+- **Escludere un report** (prova, rilavorazione, doppione) dalla pagina del report, con motivo e nota; resta chi e quando, «Riammetti». Permesso nuovo «Ordini di produzione - Gestire le quote CMM» (di default admin).
+- **Report scelti a mano** (filtro «Report»: spunte, Ultimi 10/30, Solo l'ultimo OP) e **«Ultima per S/N / Tutte»**: un S/N rimisurato conta una volta; riquadro «Rimisurati».
+- **Quote in deriva**: retta sugli ultimi 20 pezzi, avviso con la stima dei pezzi al limite, linea di tendenza, filtro e riquadro «In deriva».
+- **Segnali di controllo statistico** (oltre 3σ, 9 punti dallo stesso lato, 6 in salita/discesa) sul grafico e in tabella, filtro «Con segnali».
+- **Eventi sul grafico**: cambi di revisione del programma e note scritte a mano («Note sulla quota»).
+- **Unire quote** con nomi diversi, anche di altri programmi del P/N («Unisci un'altra quota a questa», separabili).
+- **Quote CMM**: nuova scheda con tutti i P/N dal più grave (fuori per settimana, fuori 30 gg, fuori ora, Cpk < 1,33, deriva, ultimo report).
+- **Avvisi**: notifica a chi è scelto in Impostazioni per i report nuovi con quote fuori e per le quote in deriva (una volta al mese per quota).
+- **Anomalie sul grafico**: bandierina sui pezzi con una segnalazione (stesso OP e S/N), dettagli al passaggio del mouse, clic su Gestione anomalie.
+- **FAI**: «Report CMM del primo articolo» con il Cpk sui pezzi dopo, nella scheda FAI e nel passo FAI della scheda P/N.
+- **PDF di capacità** con i filtri attivi (tabella Cp/Cpk e grafico per quota).
+- Al deploy: `migrate produzione` (0004: i report già letti risultano già avvisati), `collectstatic`, «Sincronizza i permessi delle pagine»; scegliere i destinatari degli avvisi in Impostazioni.
+- File: `django_app/produzione/` (`models.py`, `migrations/0004_quote_migliorie.py`, `report_cmm_indice.py`, `avvisi_cmm.py`, `pdf_capacita.py`, `views.py`, `urls.py`, `services.py`, `acl_bootstrap.py` v6, `registro_permessi.py`, `guida.py`, template `quote.html`, `quote_cruscotto.html`, `report_cmm.html`, `impostazioni.html`, `pn_scheda.html`, `_nav.html`, `_fai_report_cmm.html`, `static/produzione/js/analisi_quote.js`, `static/produzione/js/dialoghi.js`, `static/produzione/css/analisi_quote.css`, `produzione.css`, `tests_quote_migliorie.py`), `django_app/tasks/views/fai.py`, `django_app/tasks/templates/tasks/fai_scheda.html`, `django_app/core/guide_moduli/contenuti/produzione.py`, `django_app/hub_tools/schema_db.py`, `docs/moduli/produzione.md`.
+
 ### KICK-OFF: pulizia delle liste, nomi delle fasi, meno doppioni
 
 - **Barra su una riga** nell'Elenco kickoff e in Programmi: cliente, VRF e ordine (in Programmi tipo e macchina) nella tendina «Filtri ▾» col numero dei filtri attivi; tolta la seconda barra della tabella (si ordina cliccando le intestazioni) e il pulsante «Filtra» di Programmi.

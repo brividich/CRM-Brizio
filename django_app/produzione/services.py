@@ -205,6 +205,15 @@ def _fai_del_pn(request, pn_norm: str) -> tuple[list, object, list]:
     return fai, _peggiore([r["situazione"] for r in righe]), righe
 
 
+def fai_cmm(op: str, pn: str = "") -> dict | None:
+    """Report CMM del primo articolo dell'OP del FAI e capacità sui pezzi dopo (riquadro di scheda FAI e P/N)."""
+    rep = report_cmm_indice.report_primo_articolo(op)
+    if rep is None:
+        return None
+    return {"report": rep, "righe": report_cmm_indice.capacita_dopo(rep),
+            "url_analisi": f"{reverse('produzione:pn_quote')}?{urlencode({'pn': rep.pn, 'prog': rep.programma_base, 'r': rep.pk})}"}
+
+
 def collega_programmi_cmm(pn_norm: str, programmi: list) -> None:
     """Righe CMM del KICK-OFF -> ``url_quote``: andamento del programma dei report che contiene quel codice."""
     righe_cmm = [r for r in programmi if r.kind == "CMM" and (r.code or "").strip()]
@@ -251,6 +260,7 @@ def scheda_pn(request, pn: str) -> dict | None:
         "senza_documenti": sum(1 for o in ops if not o["n_documenti"]),
         "report_cmm": report_cmm_indice.riepilogo_pn(pn_norm),
         "quote_critiche": report_cmm_indice.quote_critiche(pn_norm),
+        "fai_cmm": next((x for x in (fai_cmm(f.op) for f in fai[:5] if f.op) if x), None) if fai else None,
     }
     collega_programmi_cmm(pn_norm, programmi)
     passi = _passi_kickoff(pn_norm, progetti, programmi) if kickoff else []

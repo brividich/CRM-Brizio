@@ -1,0 +1,25 @@
+{# Report CMM del primo articolo e capacità sui pezzi dopo. Contesto: fai_cmm = {report, righe, url_analisi} #}
+<div class="prod-fai-cmm">
+  <div class="prod-fai-cmm-head">
+    <b>{% if not senza_titolo %}Report CMM del primo articolo · {% endif %}S/N {{ fai_cmm.report.seriale|default:fai_cmm.report.file }}</b>
+    <span><a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:report_cmm_pdf' fai_cmm.report.id %}" target="_blank" rel="noopener">Apri il PDF</a>
+    <a class="prod-btn prod-btn-piccolo" href="{{ fai_cmm.url_analisi }}">Analisi quote</a></span>
+  </div>
+  <p class="prod-nota">{{ fai_cmm.report.programma_base }} · {{ fai_cmm.report.data|date:"d/m/Y" }} · {{ fai_cmm.report.righe }} quote{% if fai_cmm.report.fuori %}, <b class="prod-rosso">{{ fai_cmm.report.fuori }} fuori</b>{% endif %} · OP {{ fai_cmm.report.op }}</p>
+  {% if fai_cmm.righe %}
+  <table class="prod-tab">
+    <thead><tr><th>Quota</th><th class="prod-n">Primo articolo</th><th class="prod-n">Cpk sui pezzi dopo</th><th>Stato</th></tr></thead>
+    <tbody>
+      {% for r in fai_cmm.righe %}
+      <tr>
+        <td>{{ r.misura.nome }}</td>
+        <td class="prod-num{% if r.misura.fuori %} is-fuori{% endif %}">{{ r.misura.misurato|floatformat:4 }}</td>
+        <td class="prod-num">{% if r.cpk is not None %}{{ r.cpk|floatformat:2 }}{% else %}—{% endif %}</td>
+        <td>{% if r.cpk is None %}<span class="prod-zero">pochi pezzi</span>{% elif r.cpk >= 1.33 %}<span class="prod-stato is-ok">Capace</span>{% elif r.cpk >= 1 %}<span class="prod-stato is-warn">Al limite</span>{% else %}<span class="prod-stato is-danger">Non capace</span>{% endif %}{% if r.deriva %} <span class="prod-stato is-warn">in deriva</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="prod-nota prod-nota-sotto">Le quote fuori nel primo articolo e quelle con Cpk più basso sugli ultimi 60 pezzi dello stesso programma.</p>
+  {% endif %}
+</div>

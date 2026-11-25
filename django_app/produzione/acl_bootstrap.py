@@ -23,12 +23,13 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "produzione"
-_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v5"  # v5: API dell'analisi quote
+_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v6"  # v6: quote CMM (escludi, unisci, note, cruscotto, PDF)
 
 PERM_VIEW = "produzione.op.view"
 PERM_DOCUMENTI = "produzione.documenti.manage"
 PERM_IMPOSTAZIONI = "produzione.impostazioni.manage"
 PERM_OP = "produzione.op.manage"
+PERM_QUOTE = "produzione.quote.manage"
 
 _CANONICAL = {
     PERM_VIEW: {"label": "Ordini di produzione - Elenco e scheda OP",
@@ -39,6 +40,8 @@ _CANONICAL = {
                         "description": "Tipi di documento di produzione."},
     PERM_OP: {"label": "Ordini di produzione - Nuovo OP",
               "description": "Creare un OP dall'elenco degli OP e dalla scheda FAI."},
+    PERM_QUOTE: {"label": "Ordini di produzione - Gestire le quote CMM",
+                 "description": "Escludere e riammettere report CMM, unire quote con nomi diversi."},
 }
 
 _ROUTE_BINDINGS = {
@@ -48,6 +51,14 @@ _ROUTE_BINDINGS = {
     "produzione:pn_scheda": PERM_VIEW,
     "produzione:pn_quote": PERM_VIEW,
     "produzione:api_quote": PERM_VIEW,
+    "produzione:api_quote_candidati": PERM_VIEW,
+    "produzione:api_quote_nota": PERM_VIEW,
+    "produzione:api_quote_nota_elimina": PERM_VIEW,
+    "produzione:api_quote_alias": PERM_QUOTE,
+    "produzione:api_quote_alias_elimina": PERM_QUOTE,
+    "produzione:report_escludi": PERM_QUOTE,
+    "produzione:quote_cruscotto": PERM_VIEW,
+    "produzione:quote_pdf": PERM_VIEW,
     "produzione:pn_leggi_report": PERM_VIEW,
     "produzione:report_cmm": PERM_VIEW,
     "produzione:report_cmm_pdf": PERM_VIEW,
@@ -64,6 +75,7 @@ _DEFAULT_TUTTI = {
     PERM_DOCUMENTI: False,
     PERM_IMPOSTAZIONI: False,
     PERM_OP: False,
+    PERM_QUOTE: False,
 }
 
 _NAV_CODE = "produzione_op"

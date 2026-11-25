@@ -4,7 +4,7 @@
 {% block title %}Analisi quote {{ pn }} · Ordini di produzione{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125b">
-<link rel="stylesheet" href="{% static 'produzione/css/analisi_quote.css' %}?v=20261125a">
+<link rel="stylesheet" href="{% static 'produzione/css/analisi_quote.css' %}?v=20261125c">
 {% endblock %}
 
 {% block content %}
@@ -12,13 +12,20 @@
      data-api="{% url 'produzione:api_quote' %}"
      data-pn="{{ pn }}"
      data-url-report="{% url 'produzione:report_cmm' 0 %}"
-     data-url-pagina="{% url 'produzione:pn_quote' %}">
+     data-url-pagina="{% url 'produzione:pn_quote' %}"
+     data-url-pdf="{% url 'produzione:quote_pdf' %}"
+     data-url-anomalie="{% url 'gestione_anomalie_page' %}"
+     data-api-nota="{% url 'produzione:api_quote_nota' %}"
+     data-api-alias="{% url 'produzione:api_quote_alias' %}"
+     data-api-candidati="{% url 'produzione:api_quote_candidati' %}"
+     data-puo-quote="{% if prod_puo_quote %}1{% endif %}">
   <div class="prod-head">
     <div>
       <span class="prod-eyebrow"><a href="{% url 'produzione:pn_scheda' %}?pn={{ pn|urlencode }}">{{ pn }}</a></span>
       <h1>Analisi quote</h1>
     </div>
     <div class="prod-filtri">
+      <button type="button" class="prod-btn" data-azione="pdf" disabled title="Tabella Cp/Cpk e grafici con i filtri attivi">PDF di capacità</button>
       <button type="button" class="prod-btn" data-azione="csv" disabled>Esporta CSV</button>
       {% if attivo %}
       <form method="post" action="{% url 'produzione:pn_leggi_report' %}">
@@ -67,6 +74,20 @@
       <summary>OP <b data-op-etichetta>tutti</b></summary>
       <div class="aq-pop-corpo" data-op-lista></div>
     </details>
+    <details class="aq-campo aq-pop" data-pop="rs">
+      <summary>Report <b data-rs-etichetta>tutti</b></summary>
+      <div class="aq-pop-corpo aq-pop-report">
+        <div class="aq-pop-azioni aq-pop-in-alto"><button type="button" data-rs-modo="tutti">Tutti</button><button type="button" data-rs-modo="u10">Ultimi 10</button><button type="button" data-rs-modo="u30">Ultimi 30</button><button type="button" data-rs-modo="op">Solo l'ultimo OP</button></div>
+        <input type="search" class="aq-cerca" data-rs-cerca placeholder="Cerca S/N o OP…" autocomplete="off">
+        <div data-rs-lista></div>
+      </div>
+    </details>
+    <div class="aq-campo">Misure
+      <div class="aq-segmenti" data-filtro="misure" title="Un S/N rimisurato (es. dopo una rilavorazione) conta una volta sola, con l'ultima misura">
+        <button type="button" data-v="ultima">Ultima per S/N</button><button type="button" data-v="tutte">Tutte</button>
+      </div>
+    </div>
+    <button type="button" class="aq-toggle aq-esclusi" data-filtro="esclusi" hidden aria-pressed="false">Esclusi</button>
     <label class="aq-campo">Evidenzia S/N
       <input type="search" list="aq-sn" data-filtro="sn" placeholder="S/N…" autocomplete="off">
       <datalist id="aq-sn"></datalist>
@@ -110,5 +131,5 @@
   <div class="aq-tooltip" data-tooltip role="tooltip" hidden></div>
   {% endif %}
 </div>
-<script src="{% static 'produzione/js/analisi_quote.js' %}?v=20261125b" defer></script>
+<script src="{% static 'produzione/js/analisi_quote.js' %}?v=20261125c" defer></script>
 {% endblock %}
