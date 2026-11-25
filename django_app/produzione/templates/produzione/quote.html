@@ -4,7 +4,7 @@
 {% block title %}Analisi quote {{ pn }} · Ordini di produzione{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125b">
-<link rel="stylesheet" href="{% static 'produzione/css/analisi_quote.css' %}?v=20261125c">
+<link rel="stylesheet" href="{% static 'produzione/css/analisi_quote.css' %}?v=20261125d">
 {% endblock %}
 
 {% block content %}
@@ -52,6 +52,7 @@
   {{ stato|json_script:"aq-stato" }}
 
   <div class="aq-filtri" role="group" aria-label="Filtri dell'analisi">
+   <div class="aq-filtri-riga">
     <label class="aq-campo">Programma
       <select data-filtro="prog">
         {% for p in programmi %}<option value="{{ p.programma_base }}"{% if p.programma_base == prog %} selected{% endif %}>{{ p.programma_base|default:"(senza nome)" }} · {{ p.n }} report</option>{% endfor %}
@@ -70,6 +71,9 @@
       <span>Dal / al</span>
       <span class="aq-date-campi"><input type="date" data-filtro="da" aria-label="Dal"><input type="date" data-filtro="a" aria-label="Al"></span>
     </div>
+    {% if cartella.letta_il %}<span class="aq-letti">Report letti il {{ cartella.letta_il|date:"d/m/Y H:i" }}</span>{% endif %}
+   </div>
+   <div class="aq-filtri-riga">
     <details class="aq-campo aq-pop" data-pop="op">
       <summary>OP <b data-op-etichetta>tutti</b></summary>
       <div class="aq-pop-corpo" data-op-lista></div>
@@ -92,7 +96,7 @@
       <input type="search" list="aq-sn" data-filtro="sn" placeholder="S/N…" autocomplete="off">
       <datalist id="aq-sn"></datalist>
     </label>
-    {% if cartella.letta_il %}<span class="aq-letti">Report letti il {{ cartella.letta_il|date:"d/m/Y H:i" }}</span>{% endif %}
+   </div>
   </div>
 
   <div class="aq-kpi" data-kpi aria-live="polite"></div>
@@ -131,5 +135,5 @@
   <div class="aq-tooltip" data-tooltip role="tooltip" hidden></div>
   {% endif %}
 </div>
-<script src="{% static 'produzione/js/analisi_quote.js' %}?v=20261125c" defer></script>
+<script src="{% static 'produzione/js/analisi_quote.js' %}?v=20261125d" defer></script>
 {% endblock %}
