@@ -34,7 +34,7 @@
       {% if regola.confermata_rspp_il %}
         <strong>Confermate dall'RSPP</strong> il {{ regola.confermata_rspp_il|date:"d/m/Y H:i" }}{% if regola.confermata_rspp_da %} da {% firstof regola.confermata_rspp_da.get_full_name regola.confermata_rspp_da.username %}{% endif %}. Una modifica annulla la conferma.
       {% else %}
-        <strong>Da confermare.</strong> Senza conferma dell'RSPP il corso non si può pubblicare.
+        <strong>Non confermate.</strong> La conferma dell'RSPP è facoltativa: il corso si pubblica anche senza.
       {% endif %}
       {% if puo_confermare and not regola.confermata_rspp_il %}
       <form method="post" style="margin-top:10px;">{% csrf_token %}<input type="hidden" name="azione" value="conferma">

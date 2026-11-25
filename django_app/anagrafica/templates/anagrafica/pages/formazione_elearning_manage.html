@@ -7,17 +7,60 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
-/* Box "Assegna dipendenti": classi al posto degli inline style grezzi (stream 3, Task 5).
-   Token con fallback + override tema scuro per la label di sezione. */
-.fm-assign-form { margin-top:14px; }
-.fm-assign-title { font-size:13px; margin-bottom:10px; }
-.fm-assign-row { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; }
-.fm-assign-field { margin:0; }
-.fm-assign-field > span { display:block; font-size:12px; font-weight:700; color:var(--fmd-navy,#0c2545); margin-bottom:4px; }
-.fm-assign-date { max-width:180px; }
-.fm-assign-search { flex:1; min-width:220px; }
-.fm-assign-submit { margin-top:10px; }
-body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
+/* Pagina del corso e-learning: stato, schede, risultati, pannello «Assegna». */
+.elg-stato{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:16px 20px}
+.elg-stato-dot{width:12px;height:12px;border-radius:50%;flex:none;background:#f59e0b;box-shadow:0 0 0 4px rgba(245,158,11,.18)}
+.elg-stato-dot.on{background:#22a35a;box-shadow:0 0 0 4px rgba(34,163,90,.18)}
+.elg-stato-t{font-weight:700;font-size:15px;color:var(--fmd-navy,#0c2545)}
+.elg-checks{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.elg-check{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--surface-alt,#f4f7fa);color:var(--text-mid,#4a5568)}
+.elg-check b{font-weight:700}.elg-check.ok b{color:#16a34a}.elg-check.ko b{color:#d97706}
+.elg-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border,#e2e8f0);margin:4px 0 14px;overflow-x:auto}
+.elg-tab{background:none;border:0;border-bottom:2px solid transparent;padding:10px 14px;font:inherit;font-size:13.5px;font-weight:600;color:var(--text-mid,#64748b);cursor:pointer;white-space:nowrap}
+.elg-tab[aria-selected=true]{color:var(--fmd-navy,#0c2545);border-bottom-color:var(--accent,#ff6b00)}
+.elg-tab .fmd-count{margin-left:4px}
+.elg-pane[hidden]{display:none}
+.elg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.elg-kpi{background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px;padding:12px 14px}
+.elg-kpi-l{font-size:11.5px;color:var(--text-mid,#64748b)}
+.elg-kpi-v{font-size:22px;font-weight:700;color:var(--fmd-navy,#0c2545);line-height:1.2}
+.elg-kpi-v small{font-size:12px;font-weight:600;color:var(--text-mid,#64748b)}
+.elg-bar{height:5px;border-radius:3px;background:#e8edf3;overflow:hidden;margin-top:6px}
+.elg-bar>span{display:block;height:5px;background:#22a35a}
+.elg-bar.in>span{background:#3b82f6}
+.elg-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.elg-chip{border:1px solid var(--border,#d7e0ea);background:var(--surface,#fff);border-radius:999px;padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--text,#1a202c)}
+.elg-chip[aria-pressed=true]{background:var(--fmd-navy,#0c2545);border-color:var(--fmd-navy,#0c2545);color:#fff}
+.elg-chip .n{opacity:.7;margin-left:3px}
+.elg-menu{position:relative}
+.elg-menu>summary{list-style:none;cursor:pointer}
+.elg-menu>summary::-webkit-details-marker{display:none}
+.elg-menu-box{position:absolute;right:0;top:calc(100% + 6px);z-index:30;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.12);padding:8px;min-width:300px}
+.elg-menu-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 8px;border-radius:8px}
+.elg-menu-row:hover{background:var(--surface-alt,#f4f7fa)}
+.elg-menu-row a{font-size:12px;font-weight:600;text-decoration:none;padding:3px 8px;border-radius:6px;border:1px solid var(--border,#d7e0ea);color:var(--fmd-navy,#0c2545)}
+.elg-diff{display:grid;grid-template-columns:minmax(0,1fr) 160px 80px;gap:12px;align-items:center;padding:6px 0}
+.elg-diff .elg-bar>span{background:#f97316}
+.elg-side-mask{position:fixed;inset:0;background:rgba(12,37,69,.35);z-index:900}
+.elg-side{position:fixed;top:0;right:0;bottom:0;width:min(600px,100%);background:var(--surface,#fff);z-index:901;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(15,23,42,.15)}
+.elg-side[hidden],.elg-side-mask[hidden]{display:none}
+.elg-side-h{padding:16px 20px;border-bottom:1px solid var(--border,#e2e8f0);display:flex;justify-content:space-between;gap:10px}
+.elg-side-f{padding:12px 20px;border-bottom:1px solid var(--border,#e2e8f0);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.elg-side-f .full{grid-column:1/-1}
+.elg-f-col{min-width:0}
+.elg-f-opz{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12.5px}
+.elg-f-opz label{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.elg-side-f select,.elg-side-f input[type=search]{width:100%;font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--border,#d7e0ea);border-radius:8px;background:var(--surface,#fff);color:var(--text,#1a202c)}
+.elg-side-b{flex:1;overflow:auto;padding:4px 12px}
+.elg-pers{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px;border-radius:8px;cursor:pointer}
+.elg-pers:hover{background:var(--surface-alt,#f4f7fa)}
+.elg-pers small{display:block;color:var(--text-mid,#64748b);font-size:11.5px}
+.elg-pers[hidden]{display:none}
+.elg-side-foot{padding:12px 20px;border-top:1px solid var(--border,#e2e8f0);display:flex;gap:10px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+.elg-x{width:32px;height:32px;border-radius:8px;border:0;background:#f1f5f9;font-size:18px;cursor:pointer;color:#334155}
+body.theme-dark .elg-check,body.theme-dark .elg-x{background:rgba(255,255,255,.08);color:var(--text)}
+body.theme-dark .elg-bar{background:rgba(255,255,255,.12)}
+body.theme-dark .elg-chip[aria-pressed=true]{background:#93c5fd;border-color:#93c5fd;color:#0b1220}
 </style>
 {% endblock %}
 
@@ -30,7 +73,6 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
   {% include "anagrafica/components/flash_messages.html" %}
   <div class="fmd-wrap">
 
-    {# ── Page header ────────────────────────────────────────────────────── #}
     <div class="fmd-pagehead">
       <div>
         <template data-hub-percorso-gerarchia>
@@ -43,24 +85,20 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
           <span class="fmd-code" style="margin-left:6px;">{{ corso.codice }}</span>
         </h1>
         <p class="fmd-ph-sub">
-          {% if pubblicato %}<span class="fmd-badge fmd-b-green">Pubblicato</span>{% else %}<span class="fmd-badge fmd-b-amber">Bozza</span>{% endif %}
-          {% if salute.0 == "OK" %}<span class="fmd-badge fmd-b-green">{{ salute.1 }}</span>
-          {% elif salute.0 == "WARN" %}<span class="fmd-badge fmd-b-amber">{{ salute.1 }}</span>
-          {% elif salute.0 == "INFO" %}<span class="fmd-badge fmd-b-grey">{{ salute.1 }}</span>
-          {% else %}<span class="fmd-badge" style="background:#fde2e2;color:#c0392b;">{{ salute.1 }}</span>{% endif %}
+          {% if stato.visibile %}<span class="fmd-badge fmd-b-green">Online</span>{% else %}<span class="fmd-badge fmd-b-amber">Bozza</span>{% endif %}
           {% if corso.obbligatorio %}<span class="fmd-badge fmd-b-orange">Obbligatorio</span>{% endif %}
+          <span class="fmd-muted">Soglia {{ corso.quiz_punteggio_minimo }}% · validità {% if corso.validita_mesi %}{{ corso.validita_mesi }} mesi{% else %}una tantum{% endif %}</span>
         </p>
       </div>
       <div class="fmd-pagehead-actions">
         {% include "anagrafica/partials/_elearning_guida_link.html" with ancora="pubblicare" %}
         <a href="{% url 'anagrafica:formazione_online_player' corso.pk %}" target="_blank" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Anteprima</a>
         {% if is_editor %}
-        <a href="{% url 'anagrafica:formazione_corso_elearning' corso.pk %}" class="fmd-btn fmd-btn-navy"><svg class="fmd-ico"><use href="#i-edit"/></svg>Slide e quiz</a>
+        <a href="{% url 'anagrafica:formazione_corso_elearning' corso.pk %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-edit"/></svg>Slide e quiz</a>
         <form method="post" action="{% url 'anagrafica:formazione_elearning_publish_toggle' corso.pk %}" style="display:inline;">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.path }}">
-          {% if pubblicato %}
-          <button type="submit" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Ritira</button>
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+          {% if stato.visibile %}
+          <button type="submit" class="fmd-btn fmd-btn-ghost" data-hub-confirm="Ritirare il corso? Non sarà più visibile ai dipendenti e il link aperto smette di funzionare."><svg class="fmd-ico"><use href="#i-refresh"/></svg>Ritira</button>
           {% else %}
           <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Pubblica</button>
           {% endif %}
@@ -69,117 +107,135 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
       </div>
     </div>
 
-    {# ── KPI iscritti ───────────────────────────────────────────────────── #}
-    <section class="fmd-kpi">
-      <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}#elearning-iscritti" title="Apri l'elenco di tutti gli iscritti al corso">
-        <span class="fmd-ribbon"></span>
-        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ counts.iscritti }}</span></div>
-        <div class="fmd-mtr-lbl">Iscritti</div>
-      </a>
-      <a class="fmd-mtr fmd-t-yellow kpi-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}?esito=IN_CORSO#elearning-iscritti" title="Apri l'elenco filtrato: iscritti in corso">
-        <span class="fmd-ribbon"></span>
-        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ counts.in_corso }}</span></div>
-        <div class="fmd-mtr-lbl">In corso</div>
-      </a>
-      <a class="fmd-mtr fmd-t-green kpi-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}?esito=COMPLETATO#elearning-iscritti" title="Apri l'elenco filtrato: iscritti che hanno completato">
-        <span class="fmd-ribbon"></span>
-        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ counts.completati }}</span></div>
-        <div class="fmd-mtr-lbl">Completati</div>
-      </a>
-      <a class="fmd-mtr fmd-t-orange kpi-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}?esito=NON_SUPERATO#elearning-iscritti" title="Apri l'elenco filtrato: quiz non superato">
-        <span class="fmd-ribbon"></span>
-        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ counts.non_superato }}</span></div>
-        <div class="fmd-mtr-lbl">Non superato</div>
-      </a>
-    </section>
-
-    {# ── Contenuti (riepilogo) ──────────────────────────────────────────── #}
-    <section class="fmd-panel" style="padding:18px 22px;">
-      <div class="fmd-block-title" style="margin-bottom:12px;"><svg class="fmd-ico"><use href="#i-book"/></svg> Contenuti</div>
-      <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:center;">
-        <div><span class="fmd-mtr-val" style="font-size:22px;">{{ n_slide }}</span> <span class="fmd-muted">slide</span></div>
-        <div><span class="fmd-mtr-val" style="font-size:22px;">{{ n_domande }}</span> <span class="fmd-muted">domande quiz</span>
-          {% if n_invalid %}<span class="fmd-badge fmd-b-amber" style="margin-left:6px;">⚠ {{ n_invalid }} senza risposta corretta</span>{% endif %}
+    <section class="fmd-panel elg-stato" aria-label="Stato del corso">
+      <span class="elg-stato-dot{% if stato.visibile %} on{% endif %}" aria-hidden="true"></span>
+      <div style="flex:1;min-width:260px;">
+        <div class="elg-stato-t">{% if stato.visibile %}Visibile ai dipendenti{% else %}Non visibile ai dipendenti{% endif %}</div>
+        <div class="fmd-muted" style="font-size:13px;">{{ stato.frase }}</div>
+        <div class="elg-checks">
+          {% for c in stato.controlli %}<span class="elg-check {% if c.ok %}ok{% else %}ko{% endif %}" title="{{ c.aiuto }}"><b>{% if c.ok %}✓{% else %}!{% endif %}</b>{{ c.testo }}</span>{% endfor %}
+          <a class="elg-check {% if stato.link_stato == 'ok' %}ok{% elif stato.link_stato != 'spento' %}ko{% endif %}" href="?scheda=link" style="text-decoration:none;"><b>{% if stato.link_stato == 'ok' %}✓{% elif stato.link_stato == 'spento' %}–{% else %}!{% endif %}</b>{{ stato.link_testo }}</a>
         </div>
-        <div class="fmd-muted">Punteggio minimo: <strong>{{ corso.quiz_punteggio_minimo }}%</strong></div>
-        <div class="fmd-muted">Validità: <strong>{% if corso.validita_mesi %}{{ corso.validita_mesi }} mesi{% else %}una tantum{% endif %}</strong></div>
-        {% if is_editor %}
-        <span class="fmd-spacer" style="flex:1;"></span>
-        <a href="{% url 'anagrafica:formazione_corso_elearning' corso.pk %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica slide e quiz</a>
-        {% endif %}
       </div>
     </section>
 
-    {# ── Assegnazioni (obbligo) ─────────────────────────────────────────── #}
-    <section class="fmd-panel">
-      <div class="fmd-toolbar">
-        <span class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg> Assegnazioni (obbligo) <span class="fmd-count">{{ assegnazioni|length }}</span></span>
-      </div>
-      <p class="fmd-fhelp" style="margin:0 0 10px;">Chi è assegnato deve completare il corso: comparirà tra i «Corsi da completare» nella sua home e in cima al catalogo «Corsi online».</p>
+    <div class="elg-tabs" role="tablist" aria-label="Sezioni del corso">
+      <button class="elg-tab" role="tab" data-tab="risultati" aria-selected="true">Risultati <span class="fmd-count">{{ num.persone }}</span></button>
+      <button class="elg-tab" role="tab" data-tab="assegnazioni" aria-selected="false">Assegnazioni <span class="fmd-count">{{ assegnazioni|length }}</span></button>
+      <button class="elg-tab" role="tab" data-tab="link" aria-selected="false">Link aperto{% if n_da_abbinare %} <span class="fmd-badge fmd-b-amber">{{ n_da_abbinare }}</span>{% endif %}</button>
+      <button class="elg-tab" role="tab" data-tab="versioni" aria-selected="false">Versioni <span class="fmd-count">{{ versioni|length }}</span></button>
+    </div>
 
-      {% if assegnazioni %}
-      <div class="fmd-tablewrap">
-        <table class="fmd-table">
-          <thead><tr><th>Dipendente</th><th>Stato</th><th>Scadenza</th>{% if is_editor %}<th class="fmd-nowrap">Azioni</th>{% endif %}</tr></thead>
-          <tbody>
-            {% for a in assegnazioni %}
-            <tr>
-              <td><span class="fmd-data-link">{{ a.nome }}</span></td>
-              <td>
-                {% if a.stato == "COMPLETATO" %}<span class="fmd-badge fmd-b-green">Completato</span>
-                {% elif a.stato == "ESONERATO" %}<span class="fmd-badge fmd-b-grey">Esonerato</span>
-                {% else %}<span class="fmd-badge fmd-b-amber">{{ a.get_stato_display }}</span>{% endif %}
-              </td>
-              <td>{{ a.due_date|default:"—" }}</td>
-              {% if is_editor %}
-              <td class="fmd-nowrap">
-                {% if a.stato != "COMPLETATO" %}
-                <form method="post" action="{% url 'anagrafica:formazione_elearning_unassign' corso.pk a.pk %}" data-hub-confirm="Rimuovere l'assegnazione?" style="display:inline;">
-                  {% csrf_token %}
-                  <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;color:#c0392b;">Rimuovi</button>
-                </form>
-                {% else %}<span class="fmd-muted">—</span>{% endif %}
-              </td>
-              {% endif %}
-            </tr>
+    {# ── Risultati ─────────────────────────────────────────────────────── #}
+    <div class="elg-pane" data-pane="risultati" role="tabpanel">
+      <div class="elg-kpis">
+        <div class="elg-kpi"><div class="elg-kpi-l">Persone</div><div class="elg-kpi-v">{{ num.persone }} <small>{{ num.assegnati }} assegnat{{ num.assegnati|pluralize:"a,e" }}</small></div></div>
+        <div class="elg-kpi"><div class="elg-kpi-l">Completati</div><div class="elg-kpi-v">{{ num.conta.completato }} <small>{{ num.completati_pct }}%</small></div><div class="elg-bar"><span style="width:{{ num.completati_pct }}%"></span></div></div>
+        <div class="elg-kpi"><div class="elg-kpi-l">In corso</div><div class="elg-kpi-v">{{ num.conta.in_corso }}</div></div>
+        <div class="elg-kpi"><div class="elg-kpi-l">Da iniziare</div><div class="elg-kpi-v">{{ num.conta.da_iniziare }}{% if num.in_ritardo %} <small style="color:#c2410c;">{{ num.in_ritardo }} in ritardo</small>{% endif %}</div></div>
+        <div class="elg-kpi"><div class="elg-kpi-l">Non superato</div><div class="elg-kpi-v">{{ num.conta.non_superato }}</div></div>
+        <div class="elg-kpi"><div class="elg-kpi-l">Punteggio medio</div><div class="elg-kpi-v">{% if num.media_punteggio is not None %}{{ num.media_punteggio }}%{% else %}—{% endif %}</div></div>
+        <div class="elg-kpi"><div class="elg-kpi-l">Tentativi medi · tempo medio</div><div class="elg-kpi-v">{{ num.media_tentativi|default:"—" }} <small>· {% if num.media_minuti is not None %}{{ num.media_minuti }} min{% else %}—{% endif %}</small></div></div>
+      </div>
+
+      <section class="fmd-panel" style="padding:14px 16px;">
+        <div class="elg-toolbar">
+          <button type="button" class="elg-chip" data-filtro="" aria-pressed="true">Tutti<span class="n">{{ num.persone }}</span></button>
+          <button type="button" class="elg-chip" data-filtro="da_iniziare" aria-pressed="false">Da iniziare<span class="n">{{ num.conta.da_iniziare }}</span></button>
+          <button type="button" class="elg-chip" data-filtro="in_corso" aria-pressed="false">In corso<span class="n">{{ num.conta.in_corso }}</span></button>
+          <button type="button" class="elg-chip" data-filtro="completato" aria-pressed="false">Completati<span class="n">{{ num.conta.completato }}</span></button>
+          <button type="button" class="elg-chip" data-filtro="non_superato" aria-pressed="false">Non superati<span class="n">{{ num.conta.non_superato }}</span></button>
+          {% if num.in_ritardo %}<button type="button" class="elg-chip" data-filtro="ritardo" aria-pressed="false">In ritardo<span class="n">{{ num.in_ritardo }}</span></button>{% endif %}
+          <span class="fmd-search" style="flex:1;min-width:180px;"><svg class="fmd-ico"><use href="#i-search"/></svg><input type="search" id="elg-cerca" placeholder="Cerca persona o reparto…" aria-label="Cerca persona o reparto"></span>
+          <details class="elg-menu">
+            <summary class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta</summary>
+            <div class="elg-menu-box">
+              {% for chiave, nome in export_voci %}
+              <div class="elg-menu-row"><span>{{ nome }}</span><span style="display:flex;gap:6px;">
+                <a href="?export={{ chiave }}&formato=xlsx">Excel</a><a href="?export={{ chiave }}&formato=pdf">PDF</a></span></div>
+              {% endfor %}
+            </div>
+          </details>
+        </div>
+
+        {% if righe %}
+        <div class="fmd-tablewrap" data-fm-table-skip="1">
+          <table class="fmd-table" id="elg-risultati">
+            <thead><tr><th>Persona</th><th>Stato</th><th>Slide</th><th class="fmd-c">Punteggio</th><th class="fmd-c">Tentativi</th><th class="fmd-c">Tempo</th><th>Scadenza</th><th>Completato il</th></tr></thead>
+            <tbody>
+            {% for r in righe %}
+              <tr data-stato="{{ r.stato }}" data-ritardo="{% if r.in_ritardo %}1{% endif %}" data-cerca="{{ r.nome|lower }} {{ r.reparto|lower }}">
+                <td><strong>{{ r.nome }}</strong>{% if r.reparto %}<div class="fmd-muted" style="font-size:12px;">{{ r.reparto }}</div>{% endif %}</td>
+                <td><span class="fmd-badge fmd-b-{{ r.tono }}">{{ r.etichetta }}</span>{% if not r.assegnato %} <span class="fmd-muted" style="font-size:11.5px;">facoltativo</span>{% endif %}</td>
+                <td style="min-width:110px;"><span class="fmd-muted" style="font-size:12px;">{{ r.slide }}</span><div class="elg-bar{% if r.slide_pct < 100 %} in{% endif %}"><span style="width:{{ r.slide_pct }}%"></span></div></td>
+                <td class="fmd-c fmd-num">{% if r.best is not None %}{{ r.best|floatformat:0 }}%{% else %}—{% endif %}</td>
+                <td class="fmd-c fmd-num">{{ r.tentativi|default:"—" }}
+                  {% if r.esauriti and is_editor %}
+                  <details style="margin-top:4px;"><summary class="fmd-btn fmd-btn-ghost fmd-btn-mini">Sblocca</summary>
+                    <form method="post" action="{% url 'anagrafica:formazione_elearning_sblocca' corso.pk r.enrollment.pk %}" style="display:flex;gap:4px;margin-top:4px;">
+                      {% csrf_token %}<input name="motivo" class="fm-input" required maxlength="300" placeholder="Motivo" aria-label="Motivo dello sblocco" style="min-width:110px;">
+                      <button class="fmd-btn fmd-btn-ghost fmd-btn-mini" type="submit">OK</button>
+                    </form></details>
+                  {% endif %}</td>
+                <td class="fmd-c fmd-num">{% if r.minuti %}{{ r.minuti }} min{% else %}—{% endif %}</td>
+                <td class="fmd-nowrap">{% if r.scadenza %}<span{% if r.in_ritardo %} style="color:#c2410c;font-weight:600;"{% endif %}>{{ r.scadenza|date:"d-m-Y" }}</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+                <td class="fmd-nowrap">{{ r.completato_il|date:"d-m-Y"|default:"—" }}</td>
+              </tr>
             {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <p class="fmd-muted" style="margin:0;">Nessuna assegnazione: il corso è disponibile a tutti i dipendenti ma non obbligatorio per nessuno.</p>
-      {% endif %}
-
-      {% if is_editor %}
-      <form method="post" action="{% url 'anagrafica:formazione_elearning_assign' corso.pk %}" class="fm-add-box fm-assign-form">
-        {% csrf_token %}
-        <div class="fmd-block-title fm-assign-title"><svg class="fmd-ico"><use href="#i-plus"/></svg> Assegna dipendenti</div>
-        {% if assegnabili %}
-        <div class="fm-assign-row">
-          <label class="fmd-field fm-assign-field">
-            <span>Scadenza (opzionale)</span>
-            <input type="date" name="due_date" class="fm-input fm-assign-date">
-          </label>
-          <span class="fmd-search fm-assign-search">
-            <svg class="fmd-ico"><use href="#i-search"/></svg>
-            <input type="text" id="fm-assign-filter" placeholder="Filtra dipendenti…" autocomplete="off">
-          </span>
+            </tbody>
+          </table>
+          <p class="fmd-muted" id="elg-vuoto" style="margin:10px 0 0;" hidden>Nessuna persona con questi filtri.</p>
         </div>
-        <div class="fm-assign-list">
-          {% for d in assegnabili %}
-          <label class="fm-assign-item" data-nome="{{ d.nome|lower }}">
-            <input type="checkbox" name="dipendenti_selezionati" value="{{ d.legacy_id }}"> <span>{{ d.nome }}</span>
-          </label>
-          {% endfor %}
-        </div>
-        <button type="submit" class="fmd-btn fmd-btn-primary fm-assign-submit"><svg class="fmd-ico"><use href="#i-check"/></svg>Assegna selezionati</button>
         {% else %}
-        <p class="fmd-muted" style="margin:0;">Tutti i dipendenti attivi sono già assegnati (o l'elenco anagrafica non è disponibile in questo ambiente).</p>
+        <div class="fmd-empty">
+          <span class="fmd-et">Ancora nessun risultato</span>
+          <span class="fmd-em">Assegna il corso o aspetta che qualcuno lo apra da «Corsi online»: comparirà qui con stato e punteggio.</span>
+        </div>
         {% endif %}
-      </form>
-      {% endif %}
-    </section>
+      </section>
 
+      {% if difficili %}
+      <section class="fmd-panel" style="padding:14px 18px;">
+        <div class="fmd-block-title" style="margin-bottom:6px;"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg> Domande sbagliate più spesso</div>
+        {% for d in difficili %}
+        <div class="elg-diff"><span>{{ d.domanda|truncatechars:140 }}</span><div class="elg-bar"><span style="width:{{ d.pct }}%"></span></div><span class="fmd-muted" style="font-size:12px;">{{ d.errate }}/{{ d.totale }} errate</span></div>
+        {% endfor %}
+      </section>
+      {% endif %}
+    </div>
+
+    {# ── Assegnazioni ──────────────────────────────────────────────────── #}
+    <div class="elg-pane" data-pane="assegnazioni" role="tabpanel" hidden>
+      <section class="fmd-panel">
+        <div class="fmd-toolbar">
+          <span class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg> Assegnazioni (obbligo) <span class="fmd-count">{{ assegnazioni|length }}</span></span>
+          <span class="fmd-spacer" style="flex:1;"></span>
+          {% if is_editor %}<button type="button" class="fmd-btn fmd-btn-primary" data-apri-assegna><svg class="fmd-ico"><use href="#i-plus"/></svg>Assegna dipendenti</button>{% endif %}
+        </div>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">Chi è assegnato deve completare il corso: lo trova tra le sue attività e in cima a «Corsi online». Senza assegnazioni il corso resta disponibile a tutti, ma non è obbligatorio per nessuno.</p>
+        {% if assegnazioni %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Dipendente</th><th>Stato</th><th>Scadenza</th>{% if is_editor %}<th class="fmd-nowrap"></th>{% endif %}</tr></thead>
+            <tbody>
+              {% for a in assegnazioni %}
+              <tr>
+                <td>{{ a.nome }}</td>
+                <td>{% if a.stato == "COMPLETATO" %}<span class="fmd-badge fmd-b-green">Completato</span>{% elif a.stato == "ESONERATO" %}<span class="fmd-badge fmd-b-grey">Esonerato</span>{% else %}<span class="fmd-badge fmd-b-amber">{{ a.get_stato_display }}</span>{% endif %}</td>
+                <td>{{ a.due_date|date:"d-m-Y"|default:"—" }}</td>
+                {% if is_editor %}<td class="fmd-nowrap" style="text-align:right;">{% if a.stato != "COMPLETATO" %}
+                  <form method="post" action="{% url 'anagrafica:formazione_elearning_unassign' corso.pk a.pk %}" data-hub-confirm="Togliere l'assegnazione a {{ a.nome }}?" style="display:inline;">
+                    {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini" style="color:#c0392b;">Togli</button></form>{% endif %}</td>{% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </section>
+    </div>
+
+    <div class="elg-pane" data-pane="link" role="tabpanel" hidden>
     {# ── Link aperto: chi non ha un utente del portale (officina) ────────── #}
     <section class="fmd-panel" id="link-aperto" style="padding:18px 22px;">
       <div class="fmd-toolbar">
@@ -194,7 +250,7 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
         {% if is_editor %}<a href="{% url 'anagrafica:elearning_link_aperto_qr' corso.pk %}" target="_blank" title="Apri il QR da stampare"><img src="{% url 'anagrafica:elearning_link_aperto_qr' corso.pk %}" alt="QR del link aperto" width="120" height="120" style="border-radius:8px;border:1px solid var(--fmd-line,#d8e1ec);"></a>{% endif %}
         <div style="flex:1;min-width:240px;">
           <input type="text" readonly value="{{ link_aperto_url }}" class="fm-input" style="width:100%;font-family:monospace;font-size:13px;" aria-label="Link aperto">
-          <p class="fmd-muted" style="margin:6px 0 0;">{% if link_aperto.scade_il %}Valido fino al {{ link_aperto.scade_il|date:"d/m/Y" }}.{% else %}Senza scadenza.{% endif %}{% if not pubblicato %} <strong>Il corso è in bozza: il link si apre solo dopo la pubblicazione.</strong>{% endif %}</p>
+          <p class="fmd-muted" style="margin:6px 0 0;">{% if link_aperto.scade_il %}Valido fino al {{ link_aperto.scade_il|date:"d/m/Y" }}.{% else %}Senza scadenza.{% endif %}{% if not stato.visibile %} <strong>Il corso è in bozza: il link si apre solo dopo la pubblicazione.</strong>{% endif %}</p>
         </div>
       </div>
       {% endif %}
@@ -255,6 +311,9 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
       {% endif %}
     </section>
 
+    </div>
+
+    <div class="elg-pane" data-pane="versioni" role="tabpanel" hidden>
     {# ── Versioni (prompt 05, fase 2) ──────────────────────────────────── #}
     <section class="fmd-panel" style="padding:18px 22px;">
       <div class="fmd-block-title" style="margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-clipboard"/></svg> Versioni <span class="fmd-count">{{ versioni|length }}</span></div>
@@ -273,76 +332,122 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
       {% else %}<p class="fmd-muted" style="margin:0;">Nessuna versione: si crea alla pubblicazione.</p>{% endif %}
     </section>
 
-    {# ── Iscritti & esiti ───────────────────────────────────────────────── #}
-    <section class="fmd-panel" id="elearning-iscritti">
-      <div class="fmd-toolbar">
-        <span class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg> Iscritti & esiti <span class="fmd-count">{{ iscritti|length }}</span></span>
-        {% if filtro_esito %}<span class="fmd-muted" style="font-size:12.5px;">Solo esito «{% if filtro_esito == "IN_CORSO" %}In corso{% elif filtro_esito == "COMPLETATO" %}Completato{% else %}Non superato{% endif %}» · <a class="fmd-data-link" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}#elearning-iscritti">mostra tutti</a></span>{% endif %}
-        <span class="fmd-spacer" style="flex:1;"></span>
-        <a href="{% url 'anagrafica:formazione_elearning_iscritti_csv' corso.pk %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta CSV</a>
-      </div>
+    </div>
 
-      {% if iscritti %}
-      <div class="fmd-tablewrap">
-        <table class="fmd-table">
-          <thead>
-            <tr>
-              <th>Dipendente</th>
-              <th>Stato</th>
-              <th class="fmd-c">Avanzamento</th>
-              <th class="fmd-c">Miglior punteggio</th>
-              <th class="fmd-c">Tentativi</th>
-              <th>Completato il</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in iscritti %}
-            <tr>
-              <td><span class="fmd-data-link">{{ r.nome }}</span></td>
-              <td>
-                {% if r.stato == "COMPLETATO" %}<span class="fmd-badge fmd-b-green">{{ r.stato_disp }}</span>
-                {% elif r.stato == "IN_CORSO" %}<span class="fmd-badge fmd-b-amber">{{ r.stato_disp }}</span>
-                {% elif r.stato == "NON_SUPERATO" %}<span class="fmd-badge fmd-b-orange">{{ r.stato_disp }}</span>
-                {% else %}<span class="fmd-badge fmd-b-grey">{{ r.stato_disp }}</span>{% endif %}
-              </td>
-              <td class="fmd-c fmd-num">{{ r.avanzamento }}</td>
-              <td class="fmd-c fmd-num">{% if r.best is not None %}{{ r.best }}%{% else %}—{% endif %}</td>
-              <td class="fmd-c fmd-num">{{ r.n_tentativi }}{% if r.esauriti %}
-                <form method="post" action="{% url 'anagrafica:formazione_elearning_sblocca' corso.pk r.pk %}" style="display:flex;gap:4px;margin-top:4px;">
-                  {% csrf_token %}
-                  <input name="motivo" class="fm-input" required maxlength="300" placeholder="Motivo sblocco" aria-label="Motivo dello sblocco" style="min-width:120px;">
-                  <button class="fmd-btn fmd-btn-ghost fmd-btn-mini" type="submit">Sblocca</button>
-                </form>{% endif %}</td>
-              <td>{{ r.data_completamento|default:"—" }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="fmd-empty">
-        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-users"/></svg></span>
-        <span class="fmd-et">Nessun iscritto</span>
-        <span class="fmd-em">Quando i dipendenti apriranno il corso da «Corsi online» compariranno qui con stato e punteggio.</span>
-      </div>
-      {% endif %}
-    </section>
+  </div>
+</div>
 
-  </div>{# .fmd-wrap #}
-</div>{# .fmd #}
+{% if is_editor %}
+<div class="elg-side-mask" id="elg-mask" hidden></div>
+<aside class="elg-side" id="elg-assegna" role="dialog" aria-label="Assegna dipendenti" hidden>
+  <form method="post" action="{% url 'anagrafica:formazione_elearning_assign' corso.pk %}" style="display:flex;flex-direction:column;height:100%;">
+    {% csrf_token %}
+    <div class="elg-side-h">
+      <div><div class="fmd-block-title" style="font-size:16px;">Assegna dipendenti</div>
+        <div class="fmd-muted" style="font-size:12.5px;">{{ corso.titolo }} · {{ assegnabili_pannello|length }} dipendenti attivi non ancora assegnati</div></div>
+      <button type="button" class="elg-x" data-chiudi-assegna aria-label="Chiudi">×</button>
+    </div>
+    <div class="elg-side-f">
+      <input type="search" class="full" id="elg-f-testo" placeholder="Cerca per nome…" aria-label="Cerca per nome">
+      <div class="elg-f-col"><select id="elg-f-reparto" aria-label="Reparto"><option value="">Tutti i reparti</option>{% for o in opz_reparti %}<option value="{{ o|lower }}">{{ o }}</option>{% endfor %}</select></div>
+      <div class="elg-f-col"><select id="elg-f-area" aria-label="Area"><option value="">Tutte le aree</option>{% for o in opz_aree %}<option value="{{ o|lower }}">{{ o }}</option>{% endfor %}</select></div>
+      <div class="elg-f-col"><select id="elg-f-mansione" aria-label="Mansione"><option value="">Tutte le mansioni</option>{% for o in opz_mansioni %}<option value="{{ o|lower }}">{{ o }}</option>{% endfor %}</select></div>
+      <div class="full elg-f-opz">
+        <label><input type="checkbox" id="elg-f-completati" checked> Nascondi chi l'ha già completato</label>
+        <label><input type="checkbox" id="elg-f-senzautente"> Solo chi non ha l'utente</label>
+        <span style="flex:1;"></span>
+        <span style="display:flex;gap:6px;"><button type="button" class="elg-chip" id="elg-tutti">Seleziona tutti</button>
+        <button type="button" class="elg-chip" id="elg-nessuno">Nessuno</button></span>
+      </div>
+    </div>
+    <div class="elg-side-b" id="elg-lista">
+      {% for d in assegnabili_pannello %}
+      <label class="elg-pers" data-nome="{{ d.nome|lower }}" data-reparto="{{ d.reparto|lower }}" data-area="{{ d.area|lower }}" data-mansione="{{ d.mansione|lower }}" data-utente="{% if d.ha_utente %}1{% endif %}" data-completato="{% if d.completato %}1{% endif %}">
+        <input type="checkbox" name="dipendenti_selezionati" value="{{ d.legacy_id }}">
+        <span><strong>{{ d.nome }}</strong><small>{{ d.reparto|default:"—" }}{% if d.mansione %} · {{ d.mansione }}{% endif %}</small></span>
+        <span>{% if d.completato %}<span class="fmd-badge fmd-b-green">Già completato</span>{% elif not d.ha_utente %}<span class="fmd-badge fmd-b-grey" title="Senza utente: usa il link aperto">Senza utente</span>{% endif %}</span>
+      </label>
+      {% empty %}<p class="fmd-muted" style="padding:12px;">Tutti i dipendenti attivi sono già assegnati.</p>{% endfor %}
+      <p class="fmd-muted" id="elg-lista-vuota" style="padding:12px;" hidden>Nessun dipendente con questi filtri.</p>
+    </div>
+    <div class="elg-side-foot">
+      <label class="fmd-field" style="margin:0;"><span style="font-size:12px;font-weight:700;">Scadenza (facoltativa)</span><input type="date" name="due_date" class="fm-input"></label>
+      <span class="fmd-muted" id="elg-contatore" style="font-size:13px;">0 selezionati</span>
+      <button type="submit" class="fmd-btn fmd-btn-primary" id="elg-assegna-btn" disabled><svg class="fmd-ico"><use href="#i-check"/></svg>Assegna</button>
+    </div>
+  </form>
+</aside>
+{% endif %}
 
 <script>
-/* Filtro client-side della lista dipendenti assegnabili (per nome). */
-(function(){
-  var box = document.getElementById('fm-assign-filter');
-  if (!box) return;
-  box.addEventListener('input', function(){
-    var q = box.value.trim().toLowerCase();
-    document.querySelectorAll('.fm-assign-item').forEach(function(it){
-      var n = it.getAttribute('data-nome') || '';
-      it.classList.toggle('fm-hidden', q && n.indexOf(q) === -1);
+(function () {
+  // Schede: ricordate nell'indirizzo (?scheda=) e aperte dal link «stato del link aperto».
+  var tabs = document.querySelectorAll('.elg-tab'), panes = document.querySelectorAll('.elg-pane');
+  function apri(nome) {
+    tabs.forEach(function (t) { t.setAttribute('aria-selected', t.dataset.tab === nome ? 'true' : 'false'); });
+    panes.forEach(function (p) { p.hidden = p.dataset.pane !== nome; });
+  }
+  tabs.forEach(function (t) { t.addEventListener('click', function () {
+    apri(t.dataset.tab);
+    var u = new URL(location.href); u.searchParams.set('scheda', t.dataset.tab); history.replaceState(null, '', u);
+  }); });
+  var iniziale = "{{ scheda|escapejs }}" || (location.hash === '#link-aperto' ? 'link' : '');
+  if (iniziale && document.querySelector('.elg-tab[data-tab="' + iniziale + '"]')) apri(iniziale);
+
+  // Risultati: filtro per stato + ricerca.
+  var filtro = '', chips = document.querySelectorAll('.elg-chip[data-filtro]'), cerca = document.getElementById('elg-cerca');
+  function filtra() {
+    var q = (cerca && cerca.value || '').trim().toLowerCase(), visibili = 0;
+    document.querySelectorAll('#elg-risultati tbody tr').forEach(function (tr) {
+      var ok = (!filtro || (filtro === 'ritardo' ? tr.dataset.ritardo === '1' : tr.dataset.stato === filtro))
+            && (!q || tr.dataset.cerca.indexOf(q) !== -1);
+      tr.hidden = !ok; if (ok) visibili++;
     });
+    var v = document.getElementById('elg-vuoto'); if (v) v.hidden = visibili > 0;
+  }
+  chips.forEach(function (c) { c.addEventListener('click', function () {
+    filtro = c.dataset.filtro; chips.forEach(function (x) { x.setAttribute('aria-pressed', x === c ? 'true' : 'false'); }); filtra();
+  }); });
+  if (cerca) cerca.addEventListener('input', filtra);
+
+  // Pannello «Assegna».
+  var side = document.getElementById('elg-assegna'), mask = document.getElementById('elg-mask');
+  if (!side) return;
+  function apriSide(v) { side.hidden = !v; mask.hidden = !v; if (v) document.getElementById('elg-f-testo').focus(); }
+  document.querySelectorAll('[data-apri-assegna]').forEach(function (b) { b.addEventListener('click', function () { apriSide(true); }); });
+  document.querySelectorAll('[data-chiudi-assegna]').forEach(function (b) { b.addEventListener('click', function () { apriSide(false); }); });
+  mask.addEventListener('click', function () { apriSide(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !side.hidden) apriSide(false); });
+  var f = { testo: 'elg-f-testo', reparto: 'elg-f-reparto', area: 'elg-f-area', mansione: 'elg-f-mansione' };
+  var persone = side.querySelectorAll('.elg-pers');
+  function conta() {
+    var n = side.querySelectorAll('.elg-pers input:checked').length;
+    document.getElementById('elg-contatore').textContent = n + (n === 1 ? ' selezionato' : ' selezionati');
+    document.getElementById('elg-assegna-btn').disabled = n === 0;
+  }
+  function filtraPersone() {
+    var t = document.getElementById(f.testo).value.trim().toLowerCase(), vis = 0;
+    var rep = document.getElementById(f.reparto).value, area = document.getElementById(f.area).value, man = document.getElementById(f.mansione).value;
+    var nascondiCompl = document.getElementById('elg-f-completati').checked, soloSenza = document.getElementById('elg-f-senzautente').checked;
+    persone.forEach(function (p) {
+      var ok = (!t || p.dataset.nome.indexOf(t) !== -1) && (!rep || p.dataset.reparto === rep)
+            && (!area || p.dataset.area === area) && (!man || p.dataset.mansione === man)
+            && !(nascondiCompl && p.dataset.completato === '1') && !(soloSenza && p.dataset.utente === '1');
+      p.hidden = !ok; if (ok) vis++;
+    });
+    var v = document.getElementById('elg-lista-vuota'); if (v) v.hidden = vis > 0 || !persone.length;
+  }
+  ['elg-f-testo', 'elg-f-reparto', 'elg-f-area', 'elg-f-mansione', 'elg-f-completati', 'elg-f-senzautente'].forEach(function (id) {
+    var el = document.getElementById(id); el.addEventListener(el.tagName === 'INPUT' && el.type !== 'checkbox' ? 'input' : 'change', filtraPersone);
   });
+  document.getElementById('elg-tutti').addEventListener('click', function () {
+    persone.forEach(function (p) { if (!p.hidden) p.querySelector('input').checked = true; }); conta();
+  });
+  document.getElementById('elg-nessuno').addEventListener('click', function () {
+    persone.forEach(function (p) { p.querySelector('input').checked = false; }); conta();
+  });
+  side.addEventListener('change', function (e) { if (e.target.name === 'dipendenti_selezionati') conta(); });
+  filtraPersone();
 })();
 </script>
 {% endblock %}

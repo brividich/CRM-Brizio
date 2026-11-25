@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### E-learning: pagina del corso più chiara, assegnazione con filtri, risultati con export; conferma RSPP non più obbligatoria
+
+- **Segnalazione:** il corso 26054 risultava «Pubblicato» ma non era visibile ai dipendenti e il link aperto dava «Not Found»: mancava la conferma RSPP delle regole FAD. **Ora la conferma è facoltativa**: un corso e-learning attivo e pubblicato è online (`services/elearning_fruizione.py`, pubblicazione in `views/formazione.py`, testi in `elearning_regola_corso.html`, `elearning_impostazioni_corsi.html`, guida e-learning).
+- Pagina del corso (`templates/anagrafica/pages/formazione_elearning_manage.html`): riquadro **«Visibile / Non visibile ai dipendenti»** con frase e controlli (slide, quiz, pubblicazione, link aperto funzionante o perché no); schede Risultati · Assegnazioni · Link aperto · Versioni.
+- **Risultati**: una riga per persona (assegnati e iscritti insieme; chi è assegnato e non ha aperto il corso è «Da iniziare»), indicatori (persone, completati %, in corso, da iniziare e in ritardo, non superati, punteggio medio, tentativi e tempo medi), filtri a pulsante e ricerca, «Domande sbagliate più spesso», **Esporta** Excel/PDF: esiti per persona, registro dei completamenti, analisi delle domande, risposte dal link aperto (`services/elearning_corso_gestione.py`, `?export=` nella stessa pagina, con audit).
+- **Assegna dipendenti** in un pannello laterale: filtri per reparto, area e mansione, ricerca, «Nascondi chi l'ha già completato», «Solo chi non ha l'utente del portale», «Seleziona tutti» (i filtrati) / «Nessuno», contatore, scadenza.
+- Guide: guida e-learning in-app (`formazione_online_guida.html`), Centro guide `core/guide_moduli/contenuti/anagrafica.py`. Scheda `docs/moduli/anagrafica.md`. Test: `anagrafica/tests_elearning_gestione_corso.py`, `tests_elearning_pro.py` aggiornati. Nessuna migrazione.
+
 ### Ordini di produzione: «Analisi quote» interattiva (filtri, Cp/Cpk, mappa, confronto, pezzo)
 
 La pagina dell'andamento quote diventa uno strumento di analisi (`/produzione/pn/quote/?pn=`), disegnato nel browser senza librerie con i dati di `GET /produzione/api/quote/`.
