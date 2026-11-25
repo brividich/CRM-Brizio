@@ -1,0 +1,60 @@
+{% extends "core/base.html" %}
+
+{% block title %}Esito · {{ sessione.corso.titolo }} | Lezione online{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_sessione_online_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="so-player" style="max-width:660px;">
+    <div class="so-card" style="padding:28px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;">
+      {% if ultimo.superato %}
+        <span class="so-pill success" style="font-size:13px;padding:4px 14px;">Test superato</span>
+      {% else %}
+        <span class="so-pill danger" style="font-size:13px;padding:4px 14px;">Test non superato</span>
+      {% endif %}
+      <div style="font-size:42px;font-weight:700;color:{% if ultimo.superato %}#047857{% else %}#b91c1c{% endif %};">{{ ultimo.punteggio_pct|floatformat:0 }}%</div>
+      <div class="so-muted">{{ ultimo.n_corrette }} risposte giuste su {{ ultimo.n_totali }} · soglia {{ ultimo.soglia_pct }}% · tentativo {{ ultimo.numero }} del {{ ultimo.inviato_il|date:"d-m-Y H:i" }}</div>
+      <div style="max-width:460px;">
+        {% if ultimo.superato %}
+          {% if completata %}Il corso «{{ sessione.corso.titolo }}» è registrato nel tuo libretto formativo.
+          {% else %}Presenza ed esito sono registrati sulla sessione {{ sessione.codice_sessione }}. Il responsabile della formazione registra poi il completamento nel tuo libretto.{% endif %}
+        {% elif rimasti == 0 %}
+          Hai usato tutti i tentativi. Il responsabile della formazione vede il tuo risultato e può concedertene un altro.
+        {% else %}
+          Ripassa le slide e riprova{% if rimasti is not None %}: {% if rimasti == 1 %}ti resta 1 tentativo{% else %}ti restano {{ rimasti }} tentativi{% endif %}{% endif %}.
+        {% endif %}
+      </div>
+    </div>
+
+    {% if sbagliate %}
+    <div class="so-card">
+      <div class="so-head"><span class="so-title">Da rivedere</span></div>
+      <div class="so-body" style="display:flex;flex-direction:column;gap:10px;">
+        {% for v in sbagliate %}
+        <div><strong>{{ v.domanda }}</strong>
+          <div class="so-ko">La tua risposta: {{ v.scelte|join:", "|default:"—" }}</div>
+          {% if ultimo.superato or rimasti == 0 %}<div class="so-ok">Risposta giusta: {{ v.giuste|join:", " }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        {% if not ultimo.superato and rimasti != 0 %}<p class="so-muted" style="margin:0;">Le risposte giuste si vedono dopo aver superato il test.</p>{% endif %}
+      </div>
+    </div>
+    {% elif n_sbagliate and not ultimo.superato %}
+    <p class="so-muted" style="text-align:center;">{{ n_sbagliate }} risposte da rivedere.</p>
+    {% endif %}
+
+    <div class="so-actions" style="justify-content:center;">
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_player' sessione.pk %}?n=1">Rivedi le slide</a>
+      {% if not ultimo.superato and rimasti != 0 %}<a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:sessione_online_test' sessione.pk %}">Riprova il test</a>
+      {% else %}<a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:formazione_online_catalog' %}">I miei corsi online</a>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

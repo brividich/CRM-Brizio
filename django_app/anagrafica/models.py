@@ -3363,6 +3363,7 @@ from .models_rischi import *      # noqa: E402, F401, F403
 from .models_mansioni_rischio import *  # noqa: E402, F401, F403
 from .models_formazione import *  # noqa: E402, F401, F403
 from .models_elearning import *  # noqa: E402, F401, F403
+from .models_sessione_online import *  # noqa: E402, F401, F403
 # Skill Matrix MOD.187 — strato abilitazione macchina (bridge additivo).
 from .models_skillmatrix import *  # noqa: E402, F401, F403
 # MOD.128 MPQ — Mansionario Processi Qualificati (strato additivo).

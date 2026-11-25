@@ -47,6 +47,15 @@ class Command(BaseCommand):
             + (" [DRY-RUN]" if dry_run else "") + "."
         )
 
+        # Lezioni online delle sessioni: promemoria N giorni prima della scadenza.
+        if not dry_run:
+            from anagrafica.services.sessione_online import promemoria_in_scadenza
+            try:
+                n_so = promemoria_in_scadenza(today)
+                self.stdout.write(f"Lezioni online di sessione: {n_so} promemoria.")
+            except Exception as exc:  # non deve fermare il resto dei promemoria
+                self.stderr.write(f"Promemoria lezioni online non inviati: {exc}")
+
         iscrizioni = list(iter_corsi_da_completare())
         if not iscrizioni:
             self.stdout.write("Nessun micro-corso e-learning da completare.")

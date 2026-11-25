@@ -1,0 +1,85 @@
+{% comment %}
+Editor delle domande del test della lezione online.
+Parametri: sessione, online (contesto_gestione), prossimo (URL a cui tornare dopo ogni azione).
+{% endcomment %}
+{% if online.n_domande_ko %}
+<div class="so-banner">{{ online.n_domande_ko }} domand{{ online.n_domande_ko|pluralize:"a,e" }} da sistemare: restano fuori dal test finché non hanno almeno due risposte e quella giusta.</div>
+{% endif %}
+
+{% for d in online.domande %}
+<details class="so-q"{% if d.problema %} open{% endif %}>
+  <summary>
+    <span><strong>{{ forloop.counter }}.</strong> {{ d.testo|truncatechars:110 }}</span>
+    <span class="so-actions">
+      {% if d.problema %}<span class="so-pill danger">{{ d.problema }}</span>
+      {% else %}<span class="so-pill neutral">{{ d.lista_opzioni|length }} risposte{% if d.multipla %} · più giuste{% endif %}</span>{% endif %}
+    </span>
+  </summary>
+  <div class="so-q-body">
+    <form method="post" action="{% url 'anagrafica:sessione_online_domanda_azione' sessione.pk %}" class="so-actions" style="justify-content:flex-end;">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ prossimo }}"><input type="hidden" name="domanda_id" value="{{ d.pk }}">
+      {% if not forloop.first %}<button class="so-link" name="azione" value="su" type="submit">Sposta su</button>{% endif %}
+      {% if not forloop.last %}<button class="so-link" name="azione" value="giu" type="submit">Sposta giù</button>{% endif %}
+      <button class="so-link danger" name="azione" value="elimina" type="submit" data-hub-confirm="Togliere la domanda {{ forloop.counter }}?">Elimina</button>
+    </form>
+    <form method="post" action="{% url 'anagrafica:sessione_online_domanda_salva' sessione.pk %}" style="display:flex;flex-direction:column;gap:8px;">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ prossimo }}"><input type="hidden" name="domanda_id" value="{{ d.pk }}">
+      <label class="so-f">Domanda<textarea name="testo" rows="2" required>{{ d.testo }}</textarea></label>
+      <div class="so-muted">Risposte: spunta «Giusta» su quella corretta (se ne spunti più di una, la persona deve sceglierle tutte).</div>
+      {% for i, testo, giusta in d.righe %}
+      <div class="so-ans so-f">
+        <input type="text" name="risposta_{{ i }}" value="{{ testo }}" maxlength="500" placeholder="Risposta {{ forloop.counter }}" aria-label="Risposta {{ forloop.counter }}">
+        <label><input type="checkbox" name="giusta" value="{{ i }}"{% if giusta %} checked{% endif %}> Giusta</label>
+      </div>
+      {% endfor %}
+      <div style="display:flex;justify-content:flex-end;"><button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Salva domanda</button></div>
+    </form>
+  </div>
+</details>
+{% empty %}
+<p class="so-muted" style="margin:0 0 10px;">Ancora nessuna domanda. Scrivila qui sotto, incollala da Word o riprendi quelle del corso.</p>
+{% endfor %}
+
+<details class="so-q"{% if not online.domande %} open{% endif %}>
+  <summary><strong>+ Nuova domanda</strong></summary>
+  <form method="post" action="{% url 'anagrafica:sessione_online_domanda_salva' sessione.pk %}" class="so-q-body">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ prossimo }}">
+    <label class="so-f">Domanda<textarea name="testo" rows="2" required placeholder="Es. Chi deve segnalare un quasi incidente?"></textarea></label>
+    {% for i in online.righe_nuova %}
+    <div class="so-ans so-f">
+      <input type="text" name="risposta_{{ i }}" maxlength="500" placeholder="Risposta {{ forloop.counter }}" aria-label="Risposta {{ forloop.counter }}">
+      <label><input type="checkbox" name="giusta" value="{{ i }}"{% if forloop.first %} checked{% endif %}> Giusta</label>
+    </div>
+    {% endfor %}
+    <div style="display:flex;justify-content:flex-end;"><button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Aggiungi domanda</button></div>
+  </form>
+</details>
+
+<details class="so-q">
+  <summary><strong>Aggiungi più domande insieme</strong><span class="so-muted">dal corso, da Word o da Excel</span></summary>
+  <div class="so-q-body">
+    {% if online.domande_corso %}
+    <form method="post" action="{% url 'anagrafica:sessione_online_domande_importa' sessione.pk %}" class="so-actions">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ prossimo }}"><input type="hidden" name="origine" value="corso">
+      <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Riprendi le {{ online.domande_corso }} domande del corso {{ sessione.corso.codice }}</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{% url 'anagrafica:sessione_online_domande_importa' sessione.pk %}" style="display:flex;flex-direction:column;gap:6px;">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ prossimo }}"><input type="hidden" name="origine" value="testo">
+      <label class="so-f">Incolla da Word: una domanda per blocco, riga vuota tra un blocco e l'altro, <strong>*</strong> davanti alla risposta giusta
+        <textarea name="testo" rows="6" placeholder="Chi deve segnalare un quasi incidente?&#10;* Chiunque lo osservi&#10;- Solo il preposto&#10;- Solo l'RSPP&#10;&#10;Dove si trova la cassetta di primo soccorso?&#10;- Nell'ufficio del personale&#10;* Vicino all'uscita, segnalata dal cartello verde"></textarea></label>
+      <div style="display:flex;justify-content:flex-end;"><button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Aggiungi le domande incollate</button></div>
+    </form>
+    <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:sessione_online_domande_importa' sessione.pk %}" class="so-actions">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ prossimo }}"><input type="hidden" name="origine" value="excel">
+      <label class="so-f" style="flex:1;">Da Excel (stesso modello dei corsi online: Domanda, Risposta 1…8, Corrette)<input type="file" name="file" accept=".xlsx" required></label>
+      <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Importa</button>
+    </form>
+    {% if online.domande %}
+    <form method="post" action="{% url 'anagrafica:sessione_online_domanda_azione' sessione.pk %}" style="text-align:right;">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ prossimo }}">
+      <button class="so-link danger" name="azione" value="svuota" type="submit" data-hub-confirm="Togliere tutte le {{ online.n_domande }} domande?">Togli tutte le domande</button>
+    </form>
+    {% endif %}
+  </div>
+</details>

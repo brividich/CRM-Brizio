@@ -971,6 +971,7 @@ class TrainingSession(models.Model):
     MODALITA_CHOICES = [
         ("IN_SEDE",  "In sede"),
         ("REMOTO",   "Remoto / Online"),
+        ("ONLINE",   "Online: slide + test"),
         ("ESTERNO",  "Esterno (provider)"),
         ("MISTO",    "Misto"),
     ]

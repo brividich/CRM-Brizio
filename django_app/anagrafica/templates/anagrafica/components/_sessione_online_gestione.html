@@ -1,0 +1,233 @@
+{% comment %}
+Riquadro «Lezione online» nella pagina della sessione: stato, tre passi, numeri,
+avanzamento per persona con azioni, domande più sbagliate, pannelli laterali.
+Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, pannello, risposte_di.
+{% endcomment %}
+{% include "anagrafica/components/_sessione_online_style.html" %}
+{% with cfg=online.cfg num=online.numeri %}
+<section class="so-card" id="lezione-online">
+  <div class="so-head">
+    <div>
+      <h3 class="so-title">Lezione online
+        {% if not cfg %}<span class="so-pill neutral">Da preparare</span>
+        {% elif online.scaduta %}<span class="so-pill danger">Scaduta il {{ cfg.scadenza|date:"d-m-Y" }}</span>
+        {% elif cfg.pubblicata %}<span class="so-pill success">Pubblicata</span>
+        {% else %}<span class="so-pill warning">Bozza, non visibile agli iscritti</span>{% endif %}
+      </h3>
+      <p class="so-sub">
+        {% if cfg.pubblicata %}Pubblicata il {{ cfg.pubblicata_il|date:"d-m-Y H:i" }}{% if cfg.pubblicata_da_nome %} da {{ cfg.pubblicata_da_nome }}{% endif %} · {% endif %}
+        {% if cfg.disponibile_dal %}aperta dal {{ cfg.disponibile_dal|date:"d-m-Y" }}{% endif %}{% if cfg.scadenza %} fino al {{ cfg.scadenza|date:"d-m-Y" }}{% endif %}
+        {% if not cfg %}Gli iscritti ricevono un link, guardano le slide e fanno il test: l'esito va sull'iscrizione a questa sessione.{% endif %}
+      </p>
+    </div>
+    <div class="so-actions">
+      {% if cfg %}
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_player' sessione.pk %}?anteprima=1" target="_blank" rel="noopener">Prova come partecipante</a>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_export' sessione.pk %}">Avanzamento CSV</a>
+      {% endif %}
+      {% if gestore and not sessione.is_approvata %}
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}">{% if cfg %}Modifica{% else %}Prepara la lezione{% endif %}</a>
+      {% if cfg.pubblicata %}
+      <form method="post" action="{% url 'anagrafica:sessione_online_pubblica' sessione.pk %}" data-hub-confirm="Sospendere la lezione? Gli iscritti non potranno aprirla finché non la ripubblichi.">
+        {% csrf_token %}<button class="hr-btn hr-btn-ghost" name="azione" value="sospendi" type="submit">Sospendi</button>
+      </form>
+      {% elif cfg and not online.manca %}
+      <a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}?passo=invio">Pubblica e invia</a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="so-body">
+    {% if cfg and online.manca and not cfg.pubblicata %}
+    <div class="so-banner"><strong>Per pubblicare manca:</strong> {{ online.manca|join:"; " }}.</div>
+    {% endif %}
+
+    <div class="so-grid3">
+      <div class="so-step{% if not online.n_slide %} is-next{% endif %}">
+        <div class="so-actions"><span class="so-step-n {% if online.n_slide %}ok{% else %}cur{% endif %}">1</span><strong>Slide</strong></div>
+        <div class="so-big">{{ online.n_slide }} slide</div>
+        <div class="so-muted">{% if online.slides %}da «{{ online.slides.0.origine|default:"caricamento" }}»{% if cfg.secondi_minimi_slide %} · almeno {{ cfg.secondi_minimi_slide }}" per slide (≈ {{ online.minuti_previsti }} min){% endif %}{% else %}PowerPoint o PDF: ogni pagina diventa una slide{% endif %}</div>
+        {% if online.slides %}
+        <div class="so-mini">
+          {% for s in online.slides|slice:":4" %}{% if s.immagine %}<img src="{% url 'anagrafica:sessione_online_slide_img' s.pk %}" alt="Slide {{ s.ordine }}" loading="lazy">{% else %}<span>{{ s.ordine }}</span>{% endif %}{% endfor %}
+          {% if online.n_slide > 4 %}<span>+{{ online.n_slide|add:"-4" }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if gestore and not sessione.is_approvata %}<a class="hr-btn hr-btn-ghost hr-btn-sm" style="margin-top:auto;text-align:center;" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}?passo=slide">{% if online.n_slide %}Gestisci slide{% else %}Carica le slide{% endif %}</a>{% endif %}
+      </div>
+      <div class="so-step{% if online.n_slide and not online.n_domande %} is-next{% endif %}">
+        <div class="so-actions"><span class="so-step-n {% if online.n_domande and not online.n_domande_ko %}ok{% elif online.n_slide %}cur{% endif %}">2</span><strong>Test finale</strong></div>
+        <div class="so-big">{{ online.n_domande }} domand{{ online.n_domande|pluralize:"a,e" }}</div>
+        <div class="so-muted">{% if cfg %}Soglia {{ cfg.soglia_pct }}% · {% if cfg.max_tentativi %}{{ cfg.max_tentativi }} tentativ{{ cfg.max_tentativi|pluralize:"o,i" }}{% else %}tentativi senza limite{% endif %}{% endif %}
+          {% if online.n_domande_ko %}<br><span class="so-ko">{{ online.n_domande_ko }} da sistemare</span>{% endif %}</div>
+        {% if gestore and not sessione.is_approvata %}<a class="hr-btn hr-btn-ghost hr-btn-sm" style="margin-top:auto;text-align:center;" href="?pannello=test#lezione-online">Modifica domande</a>{% endif %}
+      </div>
+      <div class="so-step{% if online.n_slide and online.n_domande and not cfg.pubblicata %} is-next{% endif %}">
+        <div class="so-actions"><span class="so-step-n {% if cfg.pubblicata %}ok{% elif online.n_domande %}cur{% endif %}">3</span><strong>Invio agli iscritti</strong></div>
+        <div class="so-big">{{ num.totale|default:n_iscritti }} iscritt{{ num.totale|default:n_iscritti|pluralize:"o,i" }}</div>
+        <div class="so-muted">
+          {% if num.giorni_alla_scadenza is not None %}
+            {% if num.giorni_alla_scadenza > 1 %}{{ num.giorni_alla_scadenza }} giorni alla scadenza{% elif num.giorni_alla_scadenza == 1 %}scade domani{% elif num.giorni_alla_scadenza == 0 %}scade oggi{% else %}scaduta da {{ num.giorni_alla_scadenza|stringformat:"d"|slice:"1:" }} giorni{% endif %}
+          {% else %}senza scadenza{% endif %}
+          {% if cfg.promemoria_giorni %} · promemoria automatico {{ cfg.promemoria_giorni }} gg prima{% endif %}
+          {% if num.senza_contatto %}<br><span class="so-ko">{{ num.senza_contatto }} senza mail né utente del portale</span>{% endif %}
+        </div>
+        {% if gestore and not sessione.is_approvata %}<a class="hr-btn {% if cfg.pubblicata %}hr-btn-ghost{% else %}hr-btn-primary{% endif %} hr-btn-sm" style="margin-top:auto;text-align:center;" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}?passo=invio">{% if cfg.pubblicata %}Date e iscritti{% else %}Pubblica e invia{% endif %}</a>{% endif %}
+      </div>
+    </div>
+
+    {% if cfg and online.righe %}
+    <div class="so-kpis" style="margin-top:16px;">
+      <div class="so-kpi"><div class="so-kpi-l">Hanno finito</div><div class="so-kpi-v {% if num.finiti_pct >= 100 %}good{% endif %}">{{ num.finiti }}/{{ num.totale }} <small style="font-size:13px;">({{ num.finiti_pct }}%)</small></div>
+        <div class="so-bar ok"><span style="width:{{ num.finiti_pct }}%"></span></div></div>
+      <div class="so-kpi"><div class="so-kpi-l">Hanno iniziato</div><div class="so-kpi-v">{{ num.iniziati }}</div></div>
+      <div class="so-kpi"><div class="so-kpi-l">Punteggio medio (migliore)</div><div class="so-kpi-v">{% if num.media_punteggio is not None %}{{ num.media_punteggio }}%{% else %}—{% endif %}</div></div>
+      <div class="so-kpi"><div class="so-kpi-l">Superato al 1° tentativo</div><div class="so-kpi-v">{% if num.primo_tentativo_pct is not None %}{{ num.primo_tentativo_pct }}%{% else %}—{% endif %}</div></div>
+      <div class="so-kpi"><div class="so-kpi-l">Tempo medio sulle slide</div><div class="so-kpi-v">{% if num.media_minuti is not None %}{{ num.media_minuti }} min{% else %}—{% endif %}</div>{% if online.minuti_previsti %}<div class="so-muted">minimo previsto {{ online.minuti_previsti }} min</div>{% endif %}</div>
+      <div class="so-kpi"><div class="so-kpi-l">Da registrare a libretto</div><div class="so-kpi-v {% if num.da_registrare %}warn{% endif %}">{{ num.da_registrare }}</div></div>
+      <div class="so-kpi"><div class="so-kpi-l">Non superato (tentativi finiti)</div><div class="so-kpi-v {% if num.conta.non_superata %}bad{% endif %}">{{ num.conta.non_superata }}</div></div>
+    </div>
+
+    <div class="so-actions" style="margin:16px 0 8px;justify-content:space-between;">
+      <div class="so-actions">
+        {% if num.conta.non_superata %}<span class="so-pill danger">Non superata {{ num.conta.non_superata }}</span>{% endif %}
+        {% if num.conta.test_da_fare %}<span class="so-pill warning">Test da fare {{ num.conta.test_da_fare }}</span>{% endif %}
+        {% if num.conta.in_corso %}<span class="so-pill info">Slide in corso {{ num.conta.in_corso }}</span>{% endif %}
+        {% if num.conta.non_iniziata %}<span class="so-pill neutral">Non iniziata {{ num.conta.non_iniziata }}</span>{% endif %}
+        {% if num.conta.superata %}<span class="so-pill success">Superata {{ num.conta.superata }}</span>{% endif %}
+        {% if num.conta.registrata %}<span class="so-pill success">A libretto {{ num.conta.registrata }}</span>{% endif %}
+      </div>
+      {% if gestore and not sessione.is_approvata %}
+      <div class="so-actions">
+        {% if cfg.pubblicata and num.da_sollecitare %}
+        <button type="submit" form="so-bulk" class="hr-btn hr-btn-ghost" name="azione" value="sollecita"
+                data-hub-confirm="Mandare un promemoria (notifica e mail) a chi è selezionato, o a tutti i {{ num.da_sollecitare }} che non hanno finito se non selezioni nessuno?">Sollecita chi non ha finito ({{ num.da_sollecitare }})</button>
+        {% endif %}
+        {% if num.da_registrare %}
+        <button type="submit" form="so-bulk" class="hr-btn hr-btn-primary" name="azione" value="registra"
+                data-hub-confirm="Registrare a libretto il completamento di chi ha superato il test (i selezionati, o tutti i {{ num.da_registrare }} se non selezioni nessuno)? Valgono le regole del corso.">Registra completamenti ({{ num.da_registrare }})</button>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <form method="post" id="so-bulk" action="{% url 'anagrafica:sessione_online_iscritto' sessione.pk %}">{% csrf_token %}</form>
+    <div class="so-scroll" style="border:1px solid var(--border,#d7e0ea);border-radius:10px;">
+      <table class="so-table">
+        <thead><tr>
+          {% if gestore %}<th style="width:28px;"><span class="sr-only">Seleziona</span></th>{% endif %}
+          <th>Partecipante</th><th>Slide</th><th>Tempo</th><th>Test</th><th>Ultimo accesso</th><th>Link</th><th>Stato</th>
+          {% if gestore %}<th style="text-align:right;">Azioni</th>{% endif %}
+        </tr></thead>
+        <tbody>
+        {% for r in online.righe %}
+          <tr>
+            {% if gestore %}<td><input type="checkbox" form="so-bulk" name="enrollment_id" value="{{ r.enrollment.pk }}" aria-label="Seleziona {{ r.nome }}"></td>{% endif %}
+            <td><strong>{{ r.nome }}</strong>
+              <div class="so-muted">{{ r.reparto|default:"" }}{% if not r.ha_email and not r.ha_utente %} · <span class="so-ko">nessun contatto</span>{% elif not r.ha_email %} · solo notifica portale{% elif not r.ha_utente %} · solo mail{% endif %}</div></td>
+            <td><div class="so-actions" style="flex-wrap:nowrap;"><div class="so-bar{% if r.slide_pct >= 100 %} ok{% endif %}" style="width:80px;"><span style="width:{{ r.slide_pct }}%"></span></div><span class="so-muted">{{ r.slide_viste }}/{{ online.n_slide }}</span></div></td>
+            <td>{% if r.minuti %}{{ r.minuti }} min{% else %}<span class="so-muted">—</span>{% endif %}</td>
+            <td>{% if r.n_tentativi %}
+                <strong>{{ r.miglior_pct|floatformat:0 }}%</strong>
+                <div class="so-muted">{{ r.n_tentativi }} tentativ{{ r.n_tentativi|pluralize:"o,i" }}{% if r.rimasti is not None %} · {{ r.rimasti }} rimast{{ r.rimasti|pluralize:"o,i" }}{% endif %}{% if r.ultimo %} · ultimo {{ r.ultimo.inviato_il|date:"d-m H:i" }}{% endif %}</div>
+              {% else %}<span class="so-muted">—</span>{% endif %}</td>
+            <td>{% if r.ultimo_accesso %}{{ r.ultimo_accesso|date:"d-m-Y H:i" }}{% if r.inattivo_gg and r.inattivo_gg >= 3 and r.da_sollecitare %}<div class="so-muted so-ko">fermo da {{ r.inattivo_gg }} giorni</div>{% endif %}{% else %}<span class="so-muted">mai</span>{% endif %}</td>
+            <td>{% if r.link_inviato %}{{ r.link_inviato|date:"d-m" }}{% else %}<span class="so-muted">non inviato</span>{% endif %}{% if r.solleciti %}<div class="so-muted">{{ r.solleciti }} sollecit{{ r.solleciti|pluralize:"o,i" }}</div>{% endif %}</td>
+            <td><span class="so-pill {{ r.tono }}">{{ r.stato_label }}</span></td>
+            {% if gestore %}
+            <td><div class="so-rowbtns">
+              {% if r.n_tentativi %}<a class="so-link" href="?risposte={{ r.enrollment.pk }}#lezione-online">Risposte</a>{% endif %}
+              {% if not sessione.is_approvata %}
+              {% if cfg.pubblicata and r.da_sollecitare %}<button class="so-link" form="so-r{{ r.enrollment.pk }}" name="azione" value="sollecita" type="submit">Sollecita</button>{% endif %}
+              {% if cfg.pubblicata and not r.link_inviato and r.stato != "registrata" %}<button class="so-link" form="so-r{{ r.enrollment.pk }}" name="azione" value="invia_link" type="submit">Manda link</button>{% endif %}
+              {% if r.stato == "non_superata" %}<button class="so-link" form="so-r{{ r.enrollment.pk }}" name="azione" value="tentativo" type="submit">Tentativo in più</button>{% endif %}
+              {% if r.da_registrare %}<button class="so-link" form="so-r{{ r.enrollment.pk }}" name="azione" value="registra" type="submit">Registra</button>{% endif %}
+              {% if r.stato != "registrata" and r.stato != "non_iniziata" %}<button class="so-link danger" form="so-r{{ r.enrollment.pk }}" name="azione" value="azzera" type="submit" data-hub-confirm="Far ripartire {{ r.nome }} dalla prima slide? I tentativi fatti restano a registro.">Azzera</button>{% endif %}
+              {% endif %}
+            </div></td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if gestore %}{% for r in online.righe %}<form method="post" id="so-r{{ r.enrollment.pk }}" action="{% url 'anagrafica:sessione_online_iscritto' sessione.pk %}" hidden>{% csrf_token %}<input type="hidden" name="enrollment_id" value="{{ r.enrollment.pk }}"></form>{% endfor %}{% endif %}
+    <p class="so-muted" style="margin:10px 0 0;">Chi supera il test ha presenza 100% e verifica «Test scritto» col punteggio sull'iscrizione. «Registra» porta il completamento a libretto con le regole del corso (scadenza, attestato, skill matrix), come dalla pagina Iscritti.</p>
+
+    {% if online.difficili %}
+    <div style="margin-top:16px;">
+      <strong style="color:var(--hub-color-navy,#0c2545);">Domande sbagliate più spesso</strong>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+        {% for q in online.difficili %}
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 140px 90px;gap:10px;align-items:center;">
+          <span>{{ q.domanda|truncatechars:120 }}</span>
+          <div class="so-bar acc"><span style="width:{{ q.pct }}%"></span></div>
+          <span class="so-muted">{{ q.errate }}/{{ q.totale }} errate</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="so-muted" style="margin:6px 0 0;">Utile per capire quale slide spiegare meglio o quale domanda riscrivere.</p>
+    </div>
+    {% endif %}
+    {% elif cfg %}
+    <p class="so-muted" style="margin:14px 0 0;">Nessun iscritto: aggiungi i partecipanti da <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}">Iscritti &amp; presenze</a>.</p>
+    {% endif %}
+  </div>
+</section>
+
+{% if pannello == "test" and gestore and cfg and not sessione.is_approvata %}
+<a class="so-side-mask" href="{{ request.path }}#lezione-online" aria-label="Chiudi il pannello"></a>
+<aside class="so-side" role="dialog" aria-label="Test finale">
+  <div class="so-side-h">
+    <div><div class="so-title" style="font-size:17px;">Test finale</div>
+      <div class="so-sub">{{ sessione.codice_sessione }} · {{ sessione.corso.titolo }}</div></div>
+    <a class="so-x" href="{{ request.path }}#lezione-online" aria-label="Chiudi">×</a>
+  </div>
+  <div class="so-side-b">
+    <form method="post" action="{% url 'anagrafica:sessione_online_impostazioni' sessione.pk %}" class="so-grid3" style="margin-bottom:12px;align-items:end;">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}?pannello=test">
+      <label class="so-f">Soglia %<input type="number" name="soglia_pct" min="1" max="100" value="{{ cfg.soglia_pct }}"></label>
+      <label class="so-f">Tentativi (0 = liberi)<input type="number" name="max_tentativi" min="0" max="20" value="{{ cfg.max_tentativi }}"></label>
+      <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Salva</button>
+    </form>
+    {% with prossimo=request.path|add:"?pannello=test" %}{% include "anagrafica/components/_sessione_online_domande.html" %}{% endwith %}
+  </div>
+  <div class="so-foot">
+    <span class="so-muted">{{ online.n_domande }} domande{% if online.n_domande_ko %} · {{ online.n_domande_ko }} da sistemare{% endif %}</span>
+    <div class="so-actions">
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_player' sessione.pk %}?anteprima=1" target="_blank" rel="noopener">Prova come partecipante</a>
+      <a class="hr-btn hr-btn-primary" href="{{ request.path }}#lezione-online">Fatto</a>
+    </div>
+  </div>
+</aside>
+{% endif %}
+
+{% if risposte_di %}
+<a class="so-side-mask" href="{{ request.path }}#lezione-online" aria-label="Chiudi il pannello"></a>
+<aside class="so-side" role="dialog" aria-label="Risposte al test">
+  <div class="so-side-h">
+    <div><div class="so-title" style="font-size:17px;">Risposte di {{ risposte_di.nome }}</div>
+      <div class="so-sub">{{ risposte_di.tentativi|length }} tentativ{{ risposte_di.tentativi|length|pluralize:"o,i" }} · {{ sessione.codice_sessione }}</div></div>
+    <a class="so-x" href="{{ request.path }}#lezione-online" aria-label="Chiudi">×</a>
+  </div>
+  <div class="so-side-b">
+    {% for t in risposte_di.tentativi %}
+    <details class="so-q"{% if forloop.first %} open{% endif %}>
+      <summary><span><strong>Tentativo {{ t.numero }}</strong> · {{ t.inviato_il|date:"d-m-Y H:i" }}</span>
+        <span class="so-pill {% if t.superato %}success{% else %}danger{% endif %}">{{ t.punteggio_pct|floatformat:0 }}% · {{ t.n_corrette }}/{{ t.n_totali }} (soglia {{ t.soglia_pct }}%)</span></summary>
+      <div class="so-q-body">
+        {% for v in t.risposte_json %}
+        <div style="border-bottom:1px solid var(--border,#edf2f7);padding-bottom:8px;">
+          <div><strong>{{ forloop.counter }}.</strong> {{ v.domanda }}</div>
+          <div class="{% if v.ok %}so-ok{% else %}so-ko{% endif %}">{% if v.ok %}✓{% else %}✗{% endif %} Ha risposto: {{ v.scelte|join:", "|default:"—" }}</div>
+          {% if not v.ok %}<div class="so-ok">Giusta: {{ v.giuste|join:", " }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% empty %}<p class="so-muted">Nessun tentativo consegnato.</p>{% endfor %}
+  </div>
+</aside>
+{% endif %}
+{% endwith %}
