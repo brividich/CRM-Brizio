@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: Analisi quote, controllo visivo di campi, tendine e testi
+
+- Filtri su due righe ordinate (programma e periodo; OP, report, misure, esclusi, S/N); i menu non ereditano più il maiuscolo dell'etichetta; tendine ricercabili leggibili anche in tema scuro (in tutte le pagine di Ordini di produzione).
+- Riquadri con titoli corti e note su al massimo due righe, 8 per riga su schermo largo e 4 su quelli più stretti; etichette sotto il grafico senza sovrapposizioni né date ripetute; scritte sul grafico leggibili sopra i punti.
+- A 1024 px l'istogramma resta accanto al grafico (prima diventava grande come la pagina) e l'elenco delle quote ha un'altezza massima.
+- Impostazioni: campi «Descrizione» e «Ordine» dei tipi di documento leggibili.
+- Verificato a 1920, 1440, 1280 e 1024 px, chiaro e scuro. File: `django_app/produzione/static/produzione/css/analisi_quote.css`, `produzione.css`, `static/produzione/js/analisi_quote.js`, `templates/produzione/quote.html`.
+
 ### Formazione: corsi, tipi e modalità riordinati (il corso dice cosa, la sessione come)
 
 - **Modalità delle sessioni con nomi chiari** (i valori salvati non cambiano): In aula, in azienda · Presso ente esterno · Online in diretta · Online: slide + test · Misto: aula + test online. Nel modulo «Nuova sessione» la scelta è a schede con una riga di spiegazione (`models_formazione.py` `MODALITA_CHOICES`/`MODALITA_AIUTO`, `formazione_sessione_form.html`).
