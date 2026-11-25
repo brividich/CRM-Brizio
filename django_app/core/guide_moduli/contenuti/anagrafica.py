@@ -555,6 +555,9 @@ GUIDA = {
                       "viste, minuti, tentativi e miglior punteggio, ultimo accesso («fermo da N giorni» dopo 3 giorni), "
                       "link e solleciti. «Domande sbagliate più spesso» indica cosa spiegare meglio."),
                 ("ul", [
+                    "Iscritti: «+ Aggiungi iscritti» (pagina Iscritti, o dal passo 3) apre il pannello per iscrivere più "
+                    "persone insieme: «Da formare», «In scadenza entro 90 gg», «Assegnati al corso», filtri per reparto, "
+                    "area e mansione, «Seleziona tutti» i filtrati.",
                     "Azioni sulla riga: «Risposte» (pannello con ogni tentativo), «Sollecita», «Manda link», "
                     "«Tentativo in più», «Registra», «Azzera» (riparte dalla prima slide; i tentativi restano a registro).",
                     "Azioni in blocco sopra la tabella: «Sollecita chi non ha finito» e «Registra completamenti»; valgono "

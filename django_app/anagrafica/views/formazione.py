@@ -3639,7 +3639,27 @@ def formazione_sessione_iscritti(request, sessione_id: int):
         "candidati":         candidati,
         "candidati_rinnovo": candidati_rinnovo,
         "n_rinnovo_pre":     candidati["n_preselect"],
+        **_contesto_iscrivi_massa(sessione, is_editor and not sessione.is_chiusa),
     })
+
+
+def _contesto_iscrivi_massa(sessione, attivo: bool) -> dict:
+    """Dati del pannello «Aggiungi iscritti» (iscrizione in blocco)."""
+    if not attivo:
+        return {"persone_iscrivibili": []}
+    from ..services import elearning_corso_gestione as g
+    persone = g.persone_iscrivibili(sessione)
+    return {
+        "persone_iscrivibili": persone,
+        "opz_reparti": g.opzioni(persone, "reparto"),
+        "opz_aree": g.opzioni(persone, "area"),
+        "opz_mansioni": g.opzioni(persone, "mansione"),
+        "conta_iscrivibili": {
+            "da_formare": sum(1 for p in persone if p["stato"] == "da_formare"),
+            "in_scadenza": sum(1 for p in persone if p["stato"] == "in_scadenza"),
+            "assegnati": sum(1 for p in persone if p["assegnato"]),
+        },
+    }
 
 
 @login_required
@@ -3935,9 +3955,14 @@ def formazione_iscrizione_bulk(request, sessione_id: int):
         if created:
             n_new += 1
     if n_new:
-        messages.success(request, f"{n_new} dipendenti iscritti all'edizione di rinnovo.")
+        messages.success(request, f"{n_new} dipendent{'e' if n_new == 1 else 'i'} iscritt{'o' if n_new == 1 else 'i'} "
+                                  f"a {sessione.codice_sessione}.")
     else:
         messages.info(request, "I dipendenti selezionati erano già iscritti.")
+    nxt = request.POST.get("next") or ""
+    from django.utils.http import url_has_allowed_host_and_scheme
+    if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return redirect(nxt)
     return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
 
