@@ -1,0 +1,62 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Confronto report · {{ pn }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126a">{% endblock %}
+
+{% block content %}
+<div class="prod">
+  <div class="prod-head">
+    <div>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_scheda' %}?pn={{ pn|urlencode }}">{{ pn }}</a> · Report CMM</span>
+      <h1>Confronto report</h1>
+    </div>
+    <div class="prod-filtri">
+      <a class="prod-btn" href="?{{ query_ids }}&amp;formato=csv{% if solo %}&amp;solo=1{% endif %}">Esporta CSV</a>
+    </div>
+  </div>
+
+  {% include "produzione/_nav.html" %}
+
+  <section class="prod-card">
+    <div class="prod-card-head">
+      <h2>Report a confronto</h2>
+      <span class="prod-nota">Quote allineate per nome e nominale; quelle unite in Analisi quote stanno sulla stessa riga anche fra programmi diversi.</span>
+    </div>
+    <div class="prod-cmp-col">
+      {% for c in colonne %}
+      <a href="{% url 'produzione:report_cmm' c.r.id %}"><i style="background:{{ c.colore }}"></i><b>{{ c.r.seriale|default:c.r.file }}</b>{{ c.r.programma_base|default:"—" }} · {{ c.r.op|default:"—" }} · {{ c.r.data|date:"d/m/Y"|default:"—" }}</a>
+      {% endfor %}
+    </div>
+    <div class="prod-chips">
+      <span class="prod-chips-etichetta">Confronti pronti:</span>
+      {% if proposte.fasi %}<a class="prod-chip{% if proposte.fasi == ids %} is-on{% endif %}" href="?{% for i in proposte.fasi %}r={{ i }}&amp;{% endfor %}">Stesso S/N, tutte le fasi</a>{% endif %}
+      {% if proposte.primo %}<a class="prod-chip{% if proposte.primo == ids %} is-on{% endif %}" href="?{% for i in proposte.primo %}r={{ i }}&amp;{% endfor %}">Primo articolo e ultimi pezzi</a>{% endif %}
+      {% if proposte.vicini %}<a class="prod-chip{% if proposte.vicini == ids %} is-on{% endif %}" href="?{% for i in proposte.vicini %}r={{ i }}&amp;{% endfor %}">Pezzo prima e dopo</a>{% endif %}
+      <span class="prod-chips-etichetta" style="margin-left:auto">Mostra:</span>
+      <a class="prod-chip{% if not solo %} is-on{% endif %}" href="?{{ query_ids }}">Tutte <b>{{ totale }}</b></a>
+      <a class="prod-chip{% if solo %} is-on{% endif %}" href="?{{ query_ids }}&amp;solo=1" title="Differenza fra ultimo e primo oltre il {{ soglia }}% della tolleranza, o fuori">Che cambiano o fuori <b>{{ cambiate }}</b></a>
+    </div>
+    {% if righe %}
+    <div class="prod-scorri">
+      <table class="prod-tab">
+        <thead><tr><th>Quota</th>{% for c in colonne %}<th class="prod-n prod-cmp-th" style="color:{{ c.colore }}">{{ c.r.seriale|default:c.r.file|truncatechars:18 }}</th>{% endfor %}<th class="prod-n">Δ ultimo − primo</th><th>Nella tolleranza</th></tr></thead>
+        <tbody>
+          {% for riga in righe %}
+          <tr>
+            <td><b>{{ riga.nome }}</b><div class="prod-sub">{{ riga.lsl|floatformat:4 }} – {{ riga.usl|floatformat:4 }}</div></td>
+            {% for v, colore in riga.celle %}<td class="prod-num{% if v.fuori %} is-fuori{% endif %}">{% if v %}{% if v.fuori %}<b>{{ v.x|floatformat:4 }}</b>{% else %}{{ v.x|floatformat:4 }}{% endif %}{% else %}<span class="prod-zero">—</span>{% endif %}</td>{% endfor %}
+            <td class="prod-num">{% if riga.delta is not None %}<span class="{% if riga.cambia and riga.delta > 0 %}prod-cmp-su{% elif riga.cambia %}prod-cmp-giu{% endif %}">{% if riga.delta >= 0 %}+{% endif %}{{ riga.delta|floatformat:4 }}</span><div class="prod-sub">{% if riga.delta_pct is not None %}{% if riga.delta_pct >= 0 %}+{% endif %}{{ riga.delta_pct }}% toll.{% endif %}</div>{% else %}—{% endif %}</td>
+            <td><span class="prod-cmp-bar"><span class="prod-tolbar-zona"></span><span class="prod-tolbar-centro"></span>{% for v, colore in riga.celle %}{% if v and v.pos is not None %}<span class="prod-cmp-x" style="left:{{ v.pos|stringformat:'.0f' }}%;background:{{ colore }}"></span>{% endif %}{% endfor %}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="prod-nota-sotto">Prima le quote fuori, poi quelle che cambiano più del {{ soglia }}% della tolleranza fra il primo e l'ultimo report. Si confrontano da 2 a {{ massimo }} report: spunta le righe negli elenchi dei report (scheda P/N, scheda OP, report) e premi «Confronta».</p>
+    {% else %}
+    <p class="prod-vuoto">Nessuna quota cambia più del {{ soglia }}% della tolleranza. <a href="?{{ query_ids }}">Mostra tutte</a></p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -175,9 +175,29 @@ SEZIONI: list[dict] = [
             ("p", "Avvisi: in Impostazioni › «Avvisi delle quote CMM» si sceglie chi li riceve (campanella del portale) e se "
                   "avvisare per i report nuovi con quote fuori e per le quote che vanno in deriva (al massimo un avviso al mese per "
                   "quota). Il FAI mostra il «Report CMM del primo articolo» del suo OP con il Cpk sui pezzi dopo."),
-            ("p", "Dal report (clic su un S/N): le quote fuori tolleranza, «Andamento» per ciascuna, «Apri il PDF» e "
-                  "«Apri segnalazione anomalia», che apre Gestione anomalie sull'OP con il pannello «📄 Dal report CMM "
-                  "(PDF)» già pronto."),
+            ("p", "Dal report (clic su un S/N): tutte le quote, con le fuori in cima. Per ogni quota la barra «Nella "
+                  "tolleranza» (zona verde = tolleranza, linea al centro = valore ideale), «Usata» (quanto della metà "
+                  "tolleranza è consumato: 100% = al limite, gialla oltre l'80%), «Δ pezzo prima» (differenza dal report "
+                  "precedente dello stesso programma), il Cpk sugli ultimi 30 pezzi e «Andamento». I filtri «Tutte», «Fuori», "
+                  "«Al limite» e «Diverse dal pezzo prima» (oltre il 20% della tolleranza) restringono l'elenco. In alto "
+                  "«‹ Pezzo prima» e «Pezzo dopo ›», «Confronta», «Apri il PDF» e «Apri segnalazione anomalia», che apre "
+                  "Gestione anomalie sull'OP con il pannello «📄 Dal report CMM (PDF)» già pronto."),
+        ],
+    },
+    {
+        "id": "confronto",
+        "titolo": "Confronto report",
+        "blocchi": [
+            ("p", "Affianca da 2 a 6 report, quota per quota. Negli elenchi dei report (scheda del P/N, scheda dell'OP, «Altri "
+                  "report dello stesso S/N») spunta le righe: compare la barra «N report scelti» con «Confronta». Dal report "
+                  "ci sono anche «Confronta» (pezzo prima e dopo) e «Confronta le fasi» (stesso S/N in tutti i programmi)."),
+            ("p", "Ogni colonna è un report, con il suo colore; le quote si allineano per nome e nominale e quelle unite in "
+                  "Analisi quote stanno sulla stessa riga anche fra programmi diversi. «Δ ultimo − primo» è la differenza fra "
+                  "l'ultimo e il primo report che misurano la quota, anche in % della tolleranza; la barra mostra dove cade "
+                  "ogni report. Prima le quote fuori, poi quelle che cambiano più del 20% della tolleranza."),
+            ("p", "«Confronti pronti»: «Stesso S/N, tutte le fasi», «Primo articolo e ultimi pezzi» (il primo report dell'OP "
+                  "con gli ultimi tre dello stesso programma), «Pezzo prima e dopo». «Che cambiano o fuori» nasconde il resto; "
+                  "«Esporta CSV» scarica la tabella per Excel."),
         ],
     },
     {

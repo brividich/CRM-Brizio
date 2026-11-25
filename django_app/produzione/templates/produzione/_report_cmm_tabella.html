@@ -1,17 +1,22 @@
-<div class="prod-scorri">
-  <table class="prod-tab">
-    <thead><tr><th>S/N</th><th>OP</th><th>Programma</th><th>Data</th><th class="prod-n">Quote</th><th class="prod-n">Fuori</th></tr></thead>
-    <tbody>
-      {% for r in elenco_report %}
-      <tr>
-        <td><a class="prod-op" href="{% url 'produzione:report_cmm' r.id %}">{{ r.seriale|default:r.file }}</a></td>
-        <td>{{ r.op|default:"—" }}</td>
-        <td>{{ r.programma_base|default:"—" }}</td>
-        <td>{{ r.data|date:"d/m/Y"|default:"—" }}</td>
-        <td class="prod-n">{{ r.righe }}</td>
-        <td class="prod-n">{% if r.fuori %}<a class="prod-manca is-allerta" href="{% url 'produzione:report_cmm' r.id %}">{{ r.fuori }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<form class="prod-confronta" method="get" action="{% url 'produzione:report_confronta' %}" data-confronta>
+  <div class="prod-confronta-barra" hidden><span data-confronta-conta></span><button class="prod-btn prod-btn-piccolo" type="submit">Confronta</button><button class="prod-btn prod-btn-piccolo" type="button" data-confronta-annulla>Togli la scelta</button></div>
+  <div class="prod-scorri">
+    <table class="prod-tab">
+      <thead><tr><th class="prod-n"><span class="prod-sr">Scegli per il confronto</span></th><th>S/N</th><th>OP</th><th>Programma</th><th>Data</th><th class="prod-n">Quote</th><th class="prod-n">Fuori</th></tr></thead>
+      <tbody>
+        {% for r in elenco_report %}
+        <tr>
+          <td class="prod-n"><input type="checkbox" name="r" value="{{ r.id }}" aria-label="Confronta {{ r.seriale|default:r.file }}"></td>
+          <td><a class="prod-op" href="{% url 'produzione:report_cmm' r.id %}">{{ r.seriale|default:r.file }}</a></td>
+          <td>{{ r.op|default:"—" }}</td>
+          <td>{{ r.programma_base|default:"—" }}</td>
+          <td>{{ r.data|date:"d/m/Y"|default:"—" }}</td>
+          <td class="prod-n">{{ r.righe }}</td>
+          <td class="prod-n">{% if r.fuori %}<a class="prod-manca is-allerta" href="{% url 'produzione:report_cmm' r.id %}">{{ r.fuori }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <noscript><button class="prod-btn prod-btn-piccolo" type="submit">Confronta i report scelti</button></noscript>
+</form>
