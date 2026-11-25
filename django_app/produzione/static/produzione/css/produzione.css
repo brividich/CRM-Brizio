@@ -179,3 +179,29 @@
 body.theme-dark .prod .ts-wrapper .ts-control,body.theme-dark .prod .ts-wrapper.single.input-active .ts-control{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important;box-shadow:none}
 body.theme-dark .prod .ts-wrapper .ts-control input{color:var(--text)!important}
 body.theme-dark .prod .ts-wrapper .ts-control .item{color:var(--text)}
+
+/* Report CMM: posizione nella tolleranza (zona verde = tolleranza, linea = ideale) */
+.prod-tolbar{position:relative;display:inline-block;width:120px;height:12px;border-radius:3px;background:var(--surface-alt,var(--thead-bg));vertical-align:middle}
+.prod-tolbar-zona{position:absolute;left:15%;width:70%;top:0;bottom:0;border-radius:3px;background:color-mix(in srgb,var(--success,#16a34a) 28%,transparent)}
+.prod-tolbar-centro{position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--text-mid)}
+.prod-tolbar-x{position:absolute;top:-2px;width:3px;height:16px;margin-left:-1px;border-radius:2px;background:var(--text)}
+.prod-tolbar-x.is-fuori{background:var(--danger)}
+.prod-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* Scelta dei report da confrontare */
+.prod-confronta-barra{position:sticky;top:64px;z-index:5;display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:8px 12px;border-radius:10px;background:var(--text);color:var(--surface);font-size:13px;font-weight:700}
+.prod-confronta-barra [data-confronta-conta]{flex:1}
+.prod-confronta-barra .prod-btn{background:var(--surface);color:var(--text);border-color:var(--surface)}
+.prod-confronta-barra .prod-btn:disabled{opacity:.5}
+/* Confronto report */
+.prod-cmp-col{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.prod-cmp-col a,.prod-cmp-col span.prod-cmp-r{border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:12.5px;min-width:170px;background:var(--surface);color:var(--text-mid);text-decoration:none}
+.prod-cmp-col b{display:block;font-size:14px;color:var(--text)}
+.prod-cmp-col i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.prod-cmp-bar{position:relative;display:inline-block;width:150px;height:12px;border-radius:3px;background:var(--surface-alt,var(--thead-bg));vertical-align:middle}
+.prod-cmp-bar .prod-tolbar-zona{left:15%;width:70%}
+.prod-cmp-bar .prod-cmp-x{position:absolute;top:-2px;width:3px;height:16px;margin-left:-1px;border-radius:2px}
+.prod-cmp-su{color:var(--danger);font-weight:700}.prod-cmp-giu{color:#1d4ed8;font-weight:700}
+body.theme-dark .prod-cmp-giu{color:#93c5fd}
+.prod-tab th.prod-cmp-th{white-space:nowrap}
+.prod-stato.is-allerta{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
+.prod-cmp-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}

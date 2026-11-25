@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: report CMM con tutte le quote e confronto fra report
+
+- Report CMM: tutte le quote (prima solo le fuori), con barra «Nella tolleranza», tolleranza usata, differenza dal pezzo prima, Cpk della quota e segnale di deriva; filtri Tutte / Fuori / Al limite / Diverse dal pezzo prima; pulsanti «‹ Pezzo prima», «Pezzo dopo ›» e «Confronta». Corretto il titolo della pagina, che conteneva per errore il codice della finestra «Escludi».
+- Nuova pagina «Confronto report» (`/produzione/report-cmm/confronta/`): da 2 a 6 report affiancati quota per quota, allineati anche fra programmi con le quote unite; differenza ultimo − primo in % della tolleranza, barra con la posizione di ogni report, filtro «Che cambiano o fuori», confronti pronti (stesso S/N in tutte le fasi, primo articolo e ultimi pezzi, pezzo prima e dopo), export CSV.
+- Elenchi dei report (scheda P/N, scheda OP, «Altri report dello stesso S/N»): casella per scegliere i report e barra «Confronta».
+- File: `django_app/produzione/report_cmm_pagine.py` (nuovo), `views.py`, `urls.py`, `acl_bootstrap.py` (binding `report_confronta`, cache v7), `templates/produzione/report_cmm.html`, `report_confronta.html` (nuovo), `_report_cmm_tabella.html`, `pn_scheda.html`, `scheda.html`, `static/produzione/js/confronta.js` (nuovo), `static/produzione/css/produzione.css`, `guida.py`, `core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`, test `tests_report_pagine.py`, `tests_report_cmm.py`.
+
 ### E-learning, revisione strutturale: partecipazione sul server, video grandi, moduli, materiale del corso nelle sessioni, PIN e QR di reparto
 
 - **Link aperto, partecipazione registrata sul server** (fase A, `TrainingElearningPartecipazioneAperta`, migrazione `0252`): nasce alla registrazione (abbinamento con matricola subito), tiene avanzamento, video guardati e tempo effettivo misurato dal server (al massimo 2 minuti per pagina); **codice per riprendere** da un altro telefono (codice + cognome); l'HR vede «Chi lo sta facendo dal link aperto» (persona, matricola, abbinamento, slide, minuti, ultimo accesso, stato) e nei Risultati chi è abbinato compare «In corso · dal link aperto».
