@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: campi di ricerca più veloci, tempi delle fasi dell'accesso Windows
+
+- **Ricerca del modulo Asset** (campo in testa, suggerimenti mentre si scrive): da circa 310 a 17 query per ricerca, da 1,3-2 s a 0,7 s sui dati veri. Su SQL Server `functions.Replace` di mssql-django faceva una query per leggere la collation a ogni `REPLACE` e forzava il confronto case-sensitive. Il confronto «senza spazi e trattini» ora usa un `REPLACE` semplice, con la collation della colonna (`assets/services/ricerca_flessibile.py`). Vale per tutte le ricerche che usano `testo_q`: elenco asset, piani, scadenze, ticket. Nel campo, la richiesta precedente viene annullata e l'attesa dopo l'ultimo tasto passa a 300 ms (`assets/templates/assets/base_shell.html`).
+- **Esplora struttura:** da 1,5 a 0,6 s. Persone e mansioni per reparto sono indicizzate una volta sola, prima venivano ricalcolate scorrendo tutto circa 1.500 volte (`anagrafica/services/esplora_struttura.py`).
+- **Tempi delle patch (SOC):** tempi e andamento in cache come le altre statistiche SOC (`SOC_STATISTICHE_CACHE_SECONDS`). Cercare o filtrare le patch ferme non ricalcola più lo storico (`security/views_work.py`).
+- **Timbri:** la verifica delle tabelle viene fatta una volta per processo, non più a ogni pagina (`timbri/views.py`).
+- **Accesso Windows:** i tempi di negoziazione, Active Directory, utente e login vengono registrati nelle richieste lente (`core/accounts/windows_sso.py`, `fasi_ms` in `monitoring/middleware.py`), per capire da dove arrivano i ritardi di circa 6 s.
+
 ### E-learning: pagina del corso più chiara, assegnazione con filtri, risultati con export; conferma RSPP non più obbligatoria
 
 - **Segnalazione:** il corso 26054 risultava «Pubblicato» ma non era visibile ai dipendenti e il link aperto dava «Not Found»: mancava la conferma RSPP delle regole FAD. **Ora la conferma è facoltativa**: un corso e-learning attivo e pubblicato è online (`services/elearning_fruizione.py`, pubblicazione in `views/formazione.py`, testi in `elearning_regola_corso.html`, `elearning_impostazioni_corsi.html`, guida e-learning).

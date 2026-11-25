@@ -16,8 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from django.db.models import F, Q, Value
-from django.db.models.functions import Replace
+from django.db.models import CharField, F, Func, Q, Value
 from django.db.models.lookups import IContains
 
 # Separatori ignorati nel confronto «compatto».
@@ -33,10 +32,26 @@ def parole(testo: str) -> list[str]:
     return [p for p in _SPLIT.split((testo or "").strip()) if p]
 
 
+class _Sostituisci(Func):
+    """``REPLACE(testo, cerca, sostituisci)`` senza passare da ``functions.Replace``.
+
+    Su SQL Server mssql-django compila ``Replace`` con una query in piu' per
+    leggere la collation del database (``DATABASEPROPERTYEX``) a OGNI
+    ``REPLACE``, e la forza case-sensitive: la ricerca del modulo ne faceva
+    circa 300 per tasto premuto, e il confronto compatto distingueva maiuscole e
+    minuscole. ``REPLACE`` qui conserva la collation della colonna
+    (case-insensitive) e non interroga il database per compilarsi.
+    """
+
+    function = "REPLACE"
+    arity = 3
+    output_field = CharField()
+
+
 def _campo_compatto(campo: str):
     espressione = F(campo)
     for separatore in _SEPARATORI:
-        espressione = Replace(espressione, Value(separatore), Value(""))
+        espressione = _Sostituisci(espressione, Value(separatore), Value(""))
     return espressione
 
 

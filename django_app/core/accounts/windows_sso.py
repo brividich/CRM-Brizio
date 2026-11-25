@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import time
 import uuid
 from urllib.parse import quote
 
@@ -60,6 +61,16 @@ def _risposta_sfida(next_url: str) -> HttpResponse:
     return HttpResponse(body, status=401, content_type="text/html; charset=utf-8")
 
 
+def _fase(request, nome: str, inizio: float) -> float:
+    """Annota in ``request.fasi_ms`` la durata di una fase (vista nelle richieste lente)."""
+    adesso = time.perf_counter()
+    fasi = getattr(request, "fasi_ms", None)
+    if fasi is None:
+        fasi = request.fasi_ms = {}
+    fasi[nome] = fasi.get(nome, 0) + round((adesso - inizio) * 1000)
+    return adesso
+
+
 def _spnego_server_context(request, spnego_module):
     configured_hostname = str(getattr(settings, "WINDOWS_SSO_HOSTNAME", "") or "").strip()
     hostname = configured_hostname
@@ -109,6 +120,7 @@ def windows_sso_view(request):
         messages.error(request, "Schema di autenticazione non supportato.")
         return _login_con_ritorno(next_url)
 
+    t = time.perf_counter()
     ctx_id = request.COOKIES.get("_sso_ctx", "")
     ctx = _SPNEGO_CONTEXTS.get(ctx_id)
     if ctx is None:
@@ -118,6 +130,7 @@ def windows_sso_view(request):
     try:
         in_token = base64.b64decode(token_b64)
         out_token = ctx.step(in_token)
+        t = _fase(request, "negoziazione", t)
     except Exception as exc:
         logger.warning("Windows SSO: SPNEGO step fallito: %s", exc)
         _SPNEGO_CONTEXTS.pop(ctx_id, None)
@@ -147,6 +160,7 @@ def windows_sso_view(request):
     resolved_upn, resolved_full_name = resolve_ldap_identity(
         alias=principal, upn_hint=normalized_upn, groups_out=groups
     )
+    t = _fase(request, "active_directory", t)
     if not ldap_login_group_allowed(groups):
         logger.warning("Windows SSO negato per %s: nessun gruppo in LDAP_GROUP_ALLOWLIST", principal)
         messages.error(request, f"Utente {principal} non autorizzato.")
@@ -161,6 +175,7 @@ def windows_sso_view(request):
         return _login_con_ritorno(next_url)
 
     django_user = sync_django_user_from_legacy(legacy_user)
+    t = _fase(request, "utente", t)
     if django_user is None:
         messages.error(request, "Errore sincronizzazione utente. Contatta l'amministratore.")
         return _login_con_ritorno(next_url)
@@ -179,6 +194,7 @@ def windows_sso_view(request):
         })
     except Exception:
         logger.warning("audit login_ok SSO non registrato", exc_info=True)
+    _fase(request, "login", t)
     response = redirect(next_url)
     response.delete_cookie("_sso_ctx")
     return response
