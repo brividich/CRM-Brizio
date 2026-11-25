@@ -50,6 +50,8 @@ class TrainingSessionOnline(models.Model):
     promemoria_giorni = models.PositiveSmallIntegerField(
         default=0, help_text="Giorni prima della scadenza per la notifica di promemoria a chi non ha finito "
                              "(0 = nessuno). Solo notifica nel portale, mai email.")
+    test_in_aula = models.BooleanField(
+        default=False, help_text="Test aperto dal docente in aula: si fa dal telefono con il QR d'aula, senza slide.")
     materiale_corso = models.BooleanField(
         default=False, help_text="Usa slide, video e domande del corso (sempre aggiornati) invece di quelli propri.")
     mostra_correzioni = models.BooleanField(

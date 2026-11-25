@@ -447,7 +447,7 @@ def completa_slide(prog, ordine: int, cfg) -> int:
 def motivo_test_chiuso(cfg, prog, n_slide: int) -> str:
     if prog.superata_il:
         return "Hai già superato il test."
-    if prog.slide_viste < n_slide:
+    if prog.slide_viste < n_slide and not getattr(cfg, "test_in_aula", False):
         return "Il test si apre dopo l'ultima slide."
     if tentativi_rimasti(cfg, prog) == 0:
         return "Hai esaurito i tentativi: chiedi al responsabile della formazione di concedertene un altro."
@@ -508,7 +508,12 @@ def _riporta_su_iscrizione(enrollment, cfg, prog, tentativo) -> None:
     enrollment.punteggio_minimo = cfg.soglia_pct
     enrollment.modalita_verifica = "TEST"
     enrollment.data_verifica = timezone.localdate()
-    if tentativo.superato:
+    in_aula = enrollment.sessione.modalita != "ONLINE" and getattr(cfg, "test_in_aula", False)
+    if tentativo.superato and in_aula:
+        # In aula la presenza viene dal registro, non dal test.
+        enrollment.verifica_superata = True
+        campi.append("verifica_superata")
+    elif tentativo.superato:
         enrollment.verifica_superata = True
         enrollment.idoneo = True
         enrollment.percentuale_presenza = Decimal("100")

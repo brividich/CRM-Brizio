@@ -240,3 +240,32 @@ body.theme-dark .prod-cmp-giu{color:#93c5fd}
 .prod-sez{margin-bottom:14px}
 .prod-griglia-2+.prod-griglia-2{margin-top:14px}
 .prod-griglia-2>.prod-card+.prod-card{margin-top:0}
+
+/* Scheda OP: matrice pezzi × fasi e cronologia */
+.prod-dati-6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.prod-dato b small{font-size:12px;font-weight:600;color:var(--text-mid)}
+.prod-griglia-op{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+.prod-matrice{border-collapse:separate;border-spacing:3px;font-size:12.5px}
+.prod-matrice thead th{font-size:11px;font-weight:700;color:var(--text-mid);padding:2px 6px;text-align:center;white-space:nowrap}
+.prod-matrice .prod-matrice-sn{text-align:left;font-weight:800;padding-right:12px;white-space:nowrap}
+.prod-matrice td{padding:0}
+.prod-cella{display:flex;align-items:center;justify-content:center;gap:4px;min-width:92px;height:28px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;box-sizing:border-box}
+.prod-cella i{font-style:normal;opacity:.8}
+.prod-cella.is-ok{background:color-mix(in srgb,var(--success,#16a34a) 18%,transparent);color:color-mix(in srgb,var(--success,#16a34a) 75%,var(--text))}
+.prod-cella.is-limite{background:color-mix(in srgb,var(--warning,#f59e0b) 25%,transparent);color:color-mix(in srgb,var(--warning,#f59e0b) 55%,var(--text))}
+.prod-cella.is-fuori{background:color-mix(in srgb,var(--danger) 20%,transparent);color:var(--danger)}
+.prod-cella.is-vuota{background:var(--surface-alt,var(--thead-bg));color:var(--text-mid);font-weight:500}
+a.prod-cella:hover{outline:2px solid var(--accent);outline-offset:1px}
+.prod-legenda-celle{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text-mid)}
+.prod-legenda-celle .prod-cella{min-width:0;height:22px}
+.prod-cronologia{list-style:none;margin:0;padding:0 0 0 18px;position:relative}
+.prod-cronologia:before{content:"";position:absolute;left:5px;top:4px;bottom:4px;width:2px;background:var(--border)}
+.prod-cronologia li{position:relative;margin-bottom:12px;font-size:13px}
+.prod-cronologia li:before{content:"";position:absolute;left:-17px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--text-mid);border:2px solid var(--surface)}
+.prod-cronologia li.is-fuori:before{background:var(--danger)}
+.prod-cronologia li.is-ok:before{background:var(--success,#16a34a)}
+.prod-cronologia time{display:block;font-size:11.5px;font-weight:700;color:var(--text-mid)}
+.prod-cronologia small{display:block;color:var(--text-mid)}
+@media (max-width:1100px){.prod-dati-6{grid-template-columns:repeat(3,minmax(0,1fr))}.prod-griglia-op{grid-template-columns:1fr}}
+.prod-griglia-op .prod-scorri{max-height:640px;overflow:auto}
+.prod-matrice thead th{position:sticky;top:0;background:var(--surface);z-index:1}

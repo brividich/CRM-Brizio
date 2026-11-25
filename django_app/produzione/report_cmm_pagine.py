@@ -153,3 +153,75 @@ def confronta(reports: list[ReportCMM], solo_cambiate: bool = False) -> dict:
     if solo_cambiate:
         out = [r for r in out if r["cambia"] or r["fuori"]]
     return {"righe": out, "totale": totale, "cambiate": sum(1 for r in righe.values() if r["cambia"])}
+
+
+# --- Scheda OP: pezzi × fasi -----------------------------------------------------------------------------
+
+MAX_REPORT_OP = 1500
+
+
+def chiave_seriale(sn: str) -> str:
+    """S/N confrontabile: solo lettere e cifre, maiuscolo (come «ultima misura per S/N»)."""
+    import re
+
+    return re.sub(r"[^A-Z0-9]", "", str(sn or "").upper())
+
+
+def matrice_op(titolo: str, anomalie_sn: dict[str, int] | None = None) -> dict:
+    """I pezzi (S/N) dell'OP per fase di controllo (programma CMM senza revisione), dai report CMM letti.
+
+    Le fasi vanno nell'ordine in cui compaiono la prima volta. In ogni cella l'ultimo report valido di quel
+    pezzo in quella fase: «fuori» (quote fuori), «limite» (una quota oltre l'80% della tolleranza), «ok»;
+    ``n`` > 1 = rimisurato. I pezzi dal più recente."""
+    from .models import MisuraCMM
+
+    anomalie_sn = anomalie_sn or {}
+    righe = list(ReportCMM.objects.filter(op__iexact=titolo, righe__gt=0)
+                 .order_by("data", "id").values("id", "seriale", "programma_base", "data", "fuori", "escluso")[:MAX_REPORT_OP])
+    validi = [r for r in righe if not r["escluso"]]
+    massimo: dict[int, float] = {}
+    for m in MisuraCMM.objects.filter(report_id__in=[r["id"] for r in validi]).values_list(
+            "report_id", "misurato", "nominale", "tol_sup", "tol_inf").iterator():
+        u = usata(m[1], m[2], m[2] + m[4], m[2] + m[3])
+        if u is not None and abs(u) > massimo.get(m[0], 0):
+            massimo[m[0]] = abs(u)
+    fasi: list[str] = []
+    for r in validi:
+        f = r["programma_base"] or "—"
+        if f not in fasi:
+            fasi.append(f)
+    pezzi: dict[str, dict] = {}
+    for r in validi:
+        chiave = chiave_seriale(r["seriale"]) or f"#{r['id']}"
+        p = pezzi.setdefault(chiave, {"sn": r["seriale"] or "senza S/N", "celle": {}, "ultimo": r["data"], "anomalie": anomalie_sn.get(chiave, 0)})
+        f = r["programma_base"] or "—"
+        prima = p["celle"].get(f)
+        stato = "fuori" if r["fuori"] else ("limite" if massimo.get(r["id"], 0) > AL_LIMITE else "ok")
+        p["celle"][f] = {"id": r["id"], "stato": stato, "fuori": r["fuori"], "data": r["data"], "n": (prima["n"] + 1) if prima else 1}
+        if r["data"] and (not p["ultimo"] or r["data"] >= p["ultimo"]):
+            p["ultimo"] = r["data"]
+    elenco = sorted(pezzi.values(), key=lambda p: (p["ultimo"] or date.min, p["sn"]), reverse=True)
+    for p in elenco:
+        p["riga"] = [p["celle"].get(f) for f in fasi]
+        p["con_fuori"] = any(c and c["stato"] == "fuori" for c in p["riga"])
+        p["completo"] = bool(fasi) and p["riga"][-1] is not None and not p["con_fuori"]
+    return {
+        "fasi": fasi, "pezzi": elenco, "esclusi": len(righe) - len(validi), "troncato": len(righe) >= MAX_REPORT_OP,
+        "conta": {"pezzi": len(elenco), "con_fuori": sum(p["con_fuori"] for p in elenco),
+                  "completi": sum(p["completo"] for p in elenco), "anomalie": sum(1 for p in elenco if p["anomalie"])},
+    }
+
+
+def cronologia_op(titolo: str, documenti, quanti: int = 12) -> list[dict]:
+    """Cosa è successo sull'OP, dal più recente: report CMM (con le quote fuori) e documenti registrati."""
+    eventi = []
+    for r in ReportCMM.objects.filter(op__iexact=titolo, righe__gt=0).order_by("-data", "-id")[:quanti]:
+        eventi.append({"quando": r.data, "tipo": "fuori" if r.fuori else "ok", "id": r.id,
+                       "testo": f"{r.seriale or r.file} · {r.programma_base or '—'}",
+                       "esito": f"{r.fuori} quot{'a' if r.fuori == 1 else 'e'} fuori" if r.fuori else "tutto in tolleranza"})
+    for d in documenti:
+        eventi.append({"quando": d.creato_il.date() if d.creato_il else d.data, "tipo": "documento", "id": None,
+                       "testo": f"{d.tipo.etichetta}{' ' + d.titolo if d.titolo else ''}{' rev. ' + d.revisione if d.revisione else ''}",
+                       "esito": "documento registrato"})
+    eventi.sort(key=lambda e: e["quando"] or date.min, reverse=True)
+    return eventi[:quanti]

@@ -1,0 +1,41 @@
+{% extends "anagrafica/corso_aperto/_base.html" %}
+{% block title %}Firma · {{ corso.titolo }}{% endblock %}
+{% block sottotitolo %}<p>{% if lezione %}Giornata {{ lezione.numero }} · {{ lezione.data|date:"d/m/Y" }} · {{ lezione.ora_inizio|time:"H:i" }}–{{ lezione.ora_fine|time:"H:i" }}{% else %}{{ sessione.codice_sessione }}{% endif %}</p>{% endblock %}
+{% block corpo %}
+{% if errori %}<div class="pb-errori" role="alert"><ul>{% for e in errori %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+{% if esito %}<div class="pb-esito ok" role="status" style="margin-bottom:16px;"><strong>{{ esito }}</strong>{% if nome %}<br>{{ nome }}{% endif %}</div>{% endif %}
+
+{% if not lezione %}
+  <h2>Nessuna lezione aperta adesso</h2>
+  <p class="pb-help">La firma vale da mezz'ora prima a mezz'ora dopo l'orario della lezione. Riprova all'orario della giornata.</p>
+{% elif enr and presenza and presenza.firma_ingresso %}
+  <h2>{{ nome|default:"Presenza registrata" }}</h2>
+  <p class="pb-corpo">Ingresso alle <strong>{{ presenza.ora_ingresso|time:"H:i" }}</strong>{% if presenza.firma_uscita %} · uscita alle <strong>{{ presenza.ora_uscita|time:"H:i" }}</strong>{% endif %}.</p>
+  {% if not presenza.firma_uscita %}
+  <form method="post" novalidate>{% csrf_token %}
+    <div class="pb-trappola" aria-hidden="true"><label for="u-sito">Lascia vuoto</label><input id="u-sito" name="sito_web" tabindex="-1" autocomplete="off"></div>
+    <button class="pb-btn pb-btn-full" type="submit">Firma l'uscita</button>
+  </form>
+  <p class="pb-help" style="margin-top:8px;">L'uscita si firma a fine lezione, con questo stesso telefono.</p>
+  {% endif %}
+{% else %}
+  <h2>Firma la presenza</h2>
+  <p class="pb-help">Scrivi la matricola e il cognome come sul badge. Vale solo per chi è iscritto a questa sessione.</p>
+  <form method="post" novalidate>{% csrf_token %}
+    <div class="pb-trappola" aria-hidden="true"><label for="f-sito">Lascia vuoto</label><input id="f-sito" name="sito_web" tabindex="-1" autocomplete="off"></div>
+    <div class="pb-grid">
+      <div class="pb-field"><label for="f-mat">Matricola</label><input id="f-mat" name="matricola" maxlength="40" autocomplete="off" autocapitalize="characters" placeholder="es. T138, A012, CNO 1234" required></div>
+      <div class="pb-field"><label for="f-cog">Cognome</label><input id="f-cog" name="cognome" maxlength="100" autocomplete="family-name" required></div>
+    </div>
+    <button class="pb-btn pb-btn-full" type="submit">Firma l'ingresso · {{ adesso|time:"H:i" }}</button>
+  </form>
+{% endif %}
+
+{% if enr and test_aperto %}
+  <div class="pb-chi" style="margin-top:18px;">
+    <h3>Test finale aperto</h3>
+    <p class="pb-help">Il docente ha aperto il test: lo fai da questo telefono.</p>
+    <a class="pb-btn pb-btn-full" href="{% url 'corso_aperto:aula_test' sessione.token_aula %}">Fai il test</a>
+  </div>
+{% endif %}
+{% endblock %}

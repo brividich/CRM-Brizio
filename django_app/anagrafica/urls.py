@@ -26,6 +26,7 @@ from . import views_mia_scheda
 from . import views_retention
 from . import views_elearning
 from . import views_sessione_online
+from . import views_aula
 from . import views_formazione_tipi
 from . import views_sorveglianza
 from . import views_elenco
@@ -768,6 +769,15 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/elimina", views.formazione_lezione_delete, name="formazione_lezione_delete"),
     # Presenze per lezione
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/", views.formazione_lezione_presenze, name="formazione_lezione_presenze"),
+    # Sessioni in aula (25/11/2026): presenze in un tocco, QR d'aula, test dal telefono, chiusura, efficacia
+    path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/tutti", views_aula.presenze_tutti, name="formazione_presenze_tutti"),
+    path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/rapida", views_aula.presenza_rapida, name="formazione_presenza_rapida"),
+    path("formazione/sessioni/<int:sessione_id>/aula/qr", views_aula.qr, name="formazione_aula_qr"),
+    path("formazione/sessioni/<int:sessione_id>/aula/qr.png", views_aula.qr_png, name="formazione_aula_qr_png"),
+    path("formazione/sessioni/<int:sessione_id>/aula/test", views_aula.test_aula, name="formazione_aula_test"),
+    path("formazione/sessioni/<int:sessione_id>/chiudi", views_aula.chiudi, name="formazione_aula_chiudi"),
+    path("formazione/sessioni/da-chiudere/azione", views_aula.da_chiudere_azione, name="formazione_da_chiudere_azione"),
+    path("formazione/efficacia/", views_aula.efficacia, name="formazione_efficacia"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/set", views.formazione_presenza_set, name="formazione_presenza_set"),
     # Autocompila presenze dal registro firme firmato (firme ingresso/uscita -> DB)
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/da-registro", views.formazione_registro_autocompila, name="formazione_registro_autocompila"),

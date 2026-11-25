@@ -84,11 +84,11 @@ SEZIONI: list[dict] = [
                  "FAI positivo, da verificare; senza FAI, «Nuovo FAI» con OP e P/N compilati. I FAI annullati non contano."),
                 ("5 · Anomalie", "da gestire finché ci sono anomalie aperte sull'OP."),
             ]),
-            ("p", "In cima, «Prossimo passo» mostra il primo passo da fare (o da gestire) con il suo pulsante; se restano "
-                  "solo attese mostra la prima attesa; quando è tutto a posto compare «Percorso completo». FAI, programmi e "
-                  "KICK-OFF compaiono solo a chi ha i permessi del KICK-OFF."),
+            ("p", "I passi stanno nella striscia in alto della scheda: ✓ fatto, numero arancione da fare, giallo in attesa, "
+                  "rosso da gestire; il titolo apre l'azione. FAI, programmi e KICK-OFF compaiono solo a chi ha i permessi "
+                  "del KICK-OFF."),
             ("p", "Nell'elenco, «Da sistemare» filtra gli OP con anomalie aperte, senza documenti o il cui P/N è senza FAI; nelle colonne "
-                  "«Manca» e il numero delle anomalie aperte portano dritti al passo della scheda."),
+                  "«Manca» porta alla sezione Documenti della scheda o alla sezione FAI del P/N."),
         ],
     },
     {
@@ -96,14 +96,21 @@ SEZIONI: list[dict] = [
         "titolo": "La scheda dell'OP",
         "blocchi": [
             ("passi", [
-                "In alto: P/N, capocommessa, CAR e stato dell'OP, poi «Prossimo passo» e i cinque passi.",
-                "«Documenti registrati»: premi «Aggiungi documento», scegli il tipo e indica titolo o numero, revisione, "
+                "In alto: capocommessa, CAR e stato; i numeri dell'OP (P/N, pezzi misurati, pezzi arrivati all'ultima fase "
+                "senza quote fuori, pezzi con quote fuori, anomalie aperte, report CMM) e la striscia del percorso.",
+                "Sezione «Pezzi»: la tabella «Pezzi e fasi» ha una riga per S/N e una colonna per fase di controllo (il "
+                "programma CMM senza revisione, nell'ordine in cui compare la prima volta). Ogni cella è l'ultimo report "
+                "di quel pezzo in quella fase: «OK», «al limite» (una quota oltre l'80% della tolleranza), «N fuori», «—» "
+                "non misurato; ↻ vuol dire rimisurato. Un clic apre il report. Accanto al S/N le anomalie aperte. I report "
+                "esclusi dall'analisi non contano. A destra «Cosa è successo» (report e documenti dal più recente) e gli "
+                "altri OP dello stesso P/N.",
+                "Sezione «Report CMM»: tutti i report dell'OP, da spuntare per il confronto.",
+                "Sezione «Documenti»: premi «Aggiungi documento», scegli il tipo e indica titolo o numero, revisione, "
                 "data e cartella o file di rete (\\\\server\\cartella). «Modifica» e «Elimina» su ogni riga.",
-                "«FAI del P/N»: gli ultimi dieci FAI del P/N con l'OP su cui sono stati fatti; «Scheda del P/N» per tutti, "
-                "«+ Nuovo FAI del P/N» apre la scheda FAI con OP e P/N già compilati. Nella scheda FAI, "
-                "«+ Nuovo OP» accanto al campo OP apre lo stesso pannello col P/N del FAI e mette l'OP creato nel campo.",
-                "«Programmi CAM e CMM» e «KICK-OFF del P/N»: si aprono e si cambiano dal KICK-OFF.",
-                "«Altri OP dello stesso P/N»: per passare a un OP precedente o successivo.",
+                "Sezione «FAI»: gli ultimi dieci FAI del P/N con l'OP su cui sono stati fatti; «+ Nuovo FAI del P/N» apre "
+                "la scheda FAI con OP e P/N già compilati. Nella scheda FAI, «+ Nuovo OP» accanto al campo OP apre lo "
+                "stesso pannello col P/N del FAI e mette l'OP creato nel campo.",
+                "Sezione «Programmi»: i programmi CAM e CMM del KICK-OFF, che si cambiano dal KICK-OFF.",
             ]),
             ("p", "Aggiungere, cambiare ed eliminare i documenti richiede il permesso «Ordini di produzione - Documenti» "
                   "(di default solo admin, si assegna in Admin › ACL). Ogni modifica finisce nel registro delle azioni."),

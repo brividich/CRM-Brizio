@@ -99,7 +99,8 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
   {% if motivo_blocco %}
   <div class="fm-cache-banner" role="status">🔒 {{ motivo_blocco }}</div>
   {% endif %}
-  {% if gestore or can_approve %}{% include "anagrafica/components/_formazione_chiusura_panel.html" %}{% endif %}
+  {% if aula_fase %}{% include "anagrafica/components/_aula_fasi.html" %}{% endif %}
+  {% if gestore or can_approve %}{% if not aula_fase or aula_fase == "dopo" %}{% include "anagrafica/components/_formazione_chiusura_panel.html" %}{% endif %}{% endif %}
 
   {% include "anagrafica/components/_link_pubblico.html" %}
   {% if online %}{% include "anagrafica/components/_sessione_online_gestione.html" %}{% endif %}
@@ -498,7 +499,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
   </div>
 
   {# ── Ingressi del docente esterno dal chiosco della reception (GuestPortal) #}
-  {% if sessione.modalita != "REMOTO" and sessione.docente.tipo != "INTERNO" or sessione.ingressi_esterni.exists %}
+  {% if guestportal_ok and sessione.modalita != "REMOTO" and sessione.docente.tipo != "INTERNO" or sessione.ingressi_esterni.exists %}
   <div hx-get="{% url 'fornitori:presenze_intervento' 'formazione' sessione.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="muted" style="font-size:12px;">Caricamento presenze in azienda del docente…</p></div>
   {% endif %}
 

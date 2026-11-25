@@ -7,6 +7,8 @@ Qui si legge soltanto: gli OP si creano da Gestione anomalie.
 """
 from __future__ import annotations
 
+import re
+
 from django.db import DatabaseError, connections
 
 from core.legacy_utils import legacy_table_columns
@@ -124,11 +126,8 @@ def anomalie_aperte_per_op() -> dict[str, int]:
     return {r["op"]: int(r["n"] or 0) for r in righe if r["op"]}
 
 
-def conta_anomalie(op: dict) -> dict:
-    """Anomalie dell'OP, con lo stesso legame di Gestione anomalie: id SharePoint o titolo."""
-    colonne = legacy_table_columns("anomalie")
-    if not op or "ex_op_nominativo" not in colonne:
-        return {"totale": 0, "aperte": 0}
+def _legame_op(op: dict, colonne: set[str]) -> tuple[str, list]:
+    """Condizione SQL che lega un'anomalia all'OP, come Gestione anomalie: id SharePoint o titolo."""
     legame = "LOWER(ex_op_nominativo) = %s"
     parametri: list = [op["op"].lower()]
     try:
@@ -138,6 +137,32 @@ def conta_anomalie(op: dict) -> dict:
     if item_id is not None and "op_lookup_id" in colonne:
         legame = f"op_lookup_id = %s OR (op_lookup_id IS NULL AND {legame})"
         parametri.insert(0, item_id)
+    return legame, parametri
+
+
+def anomalie_aperte_per_seriale(op: dict) -> dict[str, int]:
+    """Anomalie aperte dell'OP per S/N (solo lettere e cifre, maiuscolo), per la matrice dei pezzi."""
+    colonne = legacy_table_columns("anomalie")
+    if not op or "ex_op_nominativo" not in colonne or "seriale" not in colonne:
+        return {}
+    legame, parametri = _legame_op(op, colonne)
+    aperte = "AND COALESCE(chiudere, 0) = 0" if "chiudere" in colonne else ""
+    righe = _righe(f"SELECT seriale AS sn FROM anomalie WHERE ({legame}) {aperte}", parametri)
+    out: dict[str, int] = {}
+    for r in righe:
+        for pezzo in re.split(r"[,;/\s]+", str(r["sn"] or "")):
+            chiave = re.sub(r"[^A-Z0-9]", "", pezzo.upper())
+            if len(chiave) >= 2:
+                out[chiave] = out.get(chiave, 0) + 1
+    return out
+
+
+def conta_anomalie(op: dict) -> dict:
+    """Anomalie dell'OP, con lo stesso legame di Gestione anomalie: id SharePoint o titolo."""
+    colonne = legacy_table_columns("anomalie")
+    if not op or "ex_op_nominativo" not in colonne:
+        return {"totale": 0, "aperte": 0}
+    legame, parametri = _legame_op(op, colonne)
     aperte = "COALESCE(chiudere, 0) = 0" if "chiudere" in colonne else "1 = 1"
     righe = _righe(
         f"SELECT COUNT(*) AS totale, SUM(CASE WHEN {aperte} THEN 1 ELSE 0 END) AS aperte "
