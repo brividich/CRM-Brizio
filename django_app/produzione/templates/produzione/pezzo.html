@@ -1,0 +1,70 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ sn }} · {{ pn }} · Pezzo{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126e">{% endblock %}
+
+{% block content %}
+<div class="prod">
+  <div class="prod-head">
+    <div>
+      <span class="prod-eyebrow"><a href="{{ url_pn }}">{{ pn }}</a>{% for o in ops %} · {% if op and op.op == o %}<a href="{% url 'produzione:scheda' op.id %}">{{ o }}</a>{% else %}{{ o }}{% endif %}{% endfor %} · Pezzo</span>
+      <h1>{{ sn }} <span class="prod-stato{% if stato == 'fuori' %} is-allerta{% else %} is-attivo{% endif %}">Ultimo report: {% if stato == "fuori" %}{{ ultimo.fuori }} fuori{% else %}in tolleranza{% endif %}</span></h1>
+      <p class="prod-meta"><span><b>{{ reports|length }}</b> report CMM</span>{% if esclusi %}<span>{{ esclusi }} esclusi dall'analisi</span>{% endif %}<span><b>{{ n_fuori }}</b> quote fuori almeno una volta</span>{% if anomalie %}<span><b>{{ anomalie|length }}</b> anomali{{ anomalie|length|pluralize:"a,e" }}{% if anomalie_aperte %} ({{ anomalie_aperte }} apert{{ anomalie_aperte|pluralize:"a,e" }}){% endif %}</span>{% endif %}{% if primo_articolo %}<span>Primo articolo del FAI</span>{% endif %}</p>
+    </div>
+    <div class="prod-filtri">
+      {% if colonne|length > 1 %}<a class="prod-btn" href="{% url 'produzione:report_confronta' %}?{{ ids_confronto }}">Confronta le fasi</a>{% endif %}
+      <a class="prod-btn" href="?{{ query_base }}&amp;formato=pdf">Scheda pezzo (PDF)</a>
+      {% if url_anomalia %}<a class="prod-btn prod-btn-primary" href="{{ url_anomalia }}">Apri segnalazione anomalia</a>{% endif %}
+    </div>
+  </div>
+
+  {% include "produzione/_nav.html" %}
+
+  <div class="prod-griglia-2 prod-griglia-op">
+    <section class="prod-card">
+      <div class="prod-card-head"><h2>Le quote del pezzo, report per report</h2><span class="prod-nota">Una colonna per report, dal più vecchio; la barra mostra dove cade ogni misura nella tolleranza</span></div>
+      <div class="prod-cmp-col">
+        {% for c in intestazioni %}<a href="{% url 'produzione:report_cmm' c.r.id %}"><i style="background:{{ c.colore }}"></i><b>{{ c.r.programma_base|default:"—"|truncatechars:26 }}</b>{{ c.r.data|date:"d/m/Y"|default:"—" }} · {% if c.r.fuori %}<span class="prod-cmp-su">{{ c.r.fuori }} fuori</span>{% else %}OK{% endif %}</a>{% endfor %}
+      </div>
+      {% if nascosti %}<p class="prod-nota">Qui gli ultimi {{ colonne|length }} report; i {{ nascosti }} più vecchi sono nella storia a destra.</p>{% endif %}
+      <div class="prod-chips">
+        <a class="prod-chip{% if not solo %} is-on{% endif %}" href="?{{ query_base }}">Tutte <b>{{ totale }}</b></a>
+        <a class="prod-chip{% if solo == 'fuori' %} is-on{% endif %}{% if n_fuori %} is-allerta{% endif %}" href="?{{ query_base }}&amp;solo=fuori">Fuori almeno una volta <b>{{ n_fuori }}</b></a>
+        {% if colonne|length > 1 %}<a class="prod-chip{% if solo == 'cambiate' %} is-on{% endif %}" href="?{{ query_base }}&amp;solo=cambiate" title="Differenza fra il primo e l'ultimo report oltre il 20% della tolleranza">Cambiate fra i report <b>{{ cambiate }}</b></a>{% endif %}
+      </div>
+      {% if righe %}
+      <div class="prod-scorri">
+        <table class="prod-tab" data-fm-table-skip="1">
+          <thead><tr><th>Quota</th>{% for c in intestazioni %}<th class="prod-n prod-cmp-th" style="color:{{ c.colore }}" title="{{ c.r.programma_base }}">{{ c.r.data|date:"d/m"|default:"—" }}</th>{% endfor %}{% if colonne|length > 1 %}<th class="prod-n">Δ ultimo − primo</th>{% endif %}<th>Nella tolleranza</th></tr></thead>
+          <tbody>
+            {% for riga in righe %}
+            <tr>
+              <td><b>{{ riga.nome }}</b><div class="prod-sub">{{ riga.lsl|floatformat:4 }} – {{ riga.usl|floatformat:4 }}</div></td>
+              {% for v, colore in riga.celle %}<td class="prod-num{% if v.fuori %} is-fuori{% endif %}">{% if v %}{% if v.fuori %}<b>{{ v.x|floatformat:4 }}</b>{% else %}{{ v.x|floatformat:4 }}{% endif %}{% else %}<span class="prod-zero">—</span>{% endif %}</td>{% endfor %}
+              {% if colonne|length > 1 %}<td class="prod-num">{% if riga.delta is not None %}<span class="{% if riga.cambia and riga.delta > 0 %}prod-cmp-su{% elif riga.cambia %}prod-cmp-giu{% endif %}">{% if riga.delta >= 0 %}+{% endif %}{{ riga.delta|floatformat:4 }}</span>{% if riga.delta_pct is not None %}<div class="prod-sub">{% if riga.delta_pct >= 0 %}+{% endif %}{{ riga.delta_pct }}% toll.</div>{% endif %}{% else %}—{% endif %}</td>{% endif %}
+              <td><span class="prod-cmp-bar"><span class="prod-tolbar-zona"></span><span class="prod-tolbar-centro"></span>{% for v, colore in riga.celle %}{% if v and v.pos is not None %}<span class="prod-cmp-x" style="left:{{ v.pos|stringformat:'.0f' }}%;background:{{ colore }}"></span>{% endif %}{% endfor %}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="prod-vuoto">Nessuna quota con questo filtro.</p>
+      {% endif %}
+    </section>
+    <section class="prod-card">
+      <div class="prod-card-head"><h2>Storia del pezzo</h2><span class="prod-nota">Report e anomalie, dal più recente</span></div>
+      <ol class="prod-cronologia">
+        {% for e in storia %}<li class="is-{{ e.tipo }}"><time>{{ e.quando|date:"d/m/Y"|default:"—" }}{% if e.op %} · {{ e.op }}{% endif %}</time><a href="{% url 'produzione:report_cmm' e.id %}">{{ e.testo }}</a><small>{{ e.esito }}</small></li>{% endfor %}
+      </ol>
+      {% if anomalie %}
+      <h3 class="prod-sottotitolo">Anomalie su questo S/N</h3>
+      <ul class="prod-dafare">
+        {% for a in anomalie %}<li class="{% if a.aperta %}is-allerta{% else %}is-attesa{% endif %}"><span class="prod-pallino"></span><b>{{ a.descrizione|default:"Anomalia"|truncatechars:70 }}</b><small>{% if a.op %}{{ a.op }} · {% endif %}{% if a.aperta %}aperta{% else %}chiusa{% endif %}</small></li>{% endfor %}
+      </ul>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
