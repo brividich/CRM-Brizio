@@ -59,11 +59,11 @@
               {% if c.is_elearning %}
               <a class="fmd-data-link" href="{% url 'anagrafica:elearning_regola_corso' c.pk %}">
                 {% if c.regola_fad and c.regola_fad.confermata_rspp_il %}<span class="fmd-badge fmd-b-green">Confermate {{ c.regola_fad.confermata_rspp_il|date:"d/m/Y" }}</span>
-                {% else %}<span class="fmd-badge fmd-b-amber">Da confermare</span>{% endif %}
+                {% else %}<span class="fmd-badge fmd-b-grey">Non confermate (facoltativo)</span>{% endif %}
               </a>
               {% else %}<span class="fmd-muted">—</span>{% endif %}
             </td>
-            <td>{% if c.is_elearning and c.stato == "ATTIVO" and c.regola_fad.confermata_rspp_il %}<span class="fmd-badge fmd-b-green">Online</span>{% elif c.is_elearning and c.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-amber">Non online: regole da confermare</span>{% elif c.is_elearning %}<span class="fmd-badge fmd-b-grey">Bozza</span>{% else %}<span class="fmd-muted">Aula</span>{% endif %}</td>
+            <td>{% if c.is_elearning and c.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-green">Online</span>{% elif c.is_elearning %}<span class="fmd-badge fmd-b-grey">Bozza</span>{% else %}<span class="fmd-muted">Aula</span>{% endif %}</td>
           </tr>
           {% empty %}
           <tr><td colspan="5" class="fmd-muted">Nessun corso.</td></tr>

@@ -5348,6 +5348,10 @@ def formazione_elearning_manage(request, corso_id: int):
         messages.error(request, "Non hai i permessi per la sezione formazione.")
         return redirect("anagrafica:index")
     corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    from ..services import elearning_corso_gestione as gestione
+    tipo_export = request.GET.get("export") or ""
+    if tipo_export in gestione.EXPORT:
+        return _elearning_export(request, corso, tipo_export, request.GET.get("formato") or "xlsx")
     slides = list(corso.slides.filter(is_active=True))
     domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
     n_invalid = sum(1 for d in domande if _problema_domanda(d))
@@ -5411,7 +5415,21 @@ def formazione_elearning_manage(request, corso_id: int):
             r.nome_abbinato = nomi_ra.get(r.legacy_anagrafica_id, "") if r.legacy_anagrafica_id else ""
     n_da_abbinare = sum(1 for r in risposte_aperte if r.stato == "DA_ABBINARE")
 
+    righe = gestione.righe_risultati(corso)
+    assegnabili_pannello = gestione.persone_assegnabili(corso) if is_editor else []
     return render(request, "anagrafica/pages/formazione_elearning_manage.html", {
+        "stato": gestione.stato_corso(corso, n_slide=len(slides), n_domande=len(domande),
+                                      n_invalid=n_invalid, link=link_aperto),
+        "righe": righe,
+        "num": gestione.numeri(righe),
+        "difficili": gestione.domande_difficili(corso),
+        "assegnabili_pannello": assegnabili_pannello,
+        "opz_reparti": gestione.opzioni(assegnabili_pannello, "reparto"),
+        "opz_aree": gestione.opzioni(assegnabili_pannello, "area"),
+        "opz_mansioni": gestione.opzioni(assegnabili_pannello, "mansione"),
+        "scheda": request.GET.get("scheda") or "",
+        "export_voci": [("esiti", "Esiti per persona"), ("registro", "Registro dei completamenti (audit)"),
+                        ("domande", "Analisi delle domande"), ("link", "Risposte dal link aperto")],
         "link_aperto": link_aperto,
         "link_aperto_url": url_link_aperto(request, link_aperto) if link_aperto and link_aperto.attivo else "",
         "risposte_aperte": risposte_aperte,
@@ -5431,6 +5449,25 @@ def formazione_elearning_manage(request, corso_id: int):
         "assegnazioni": assegnazioni,
         "assegnabili": assegnabili,
     })
+
+
+def _elearning_export(request, corso, tipo: str, formato: str):
+    """Export Excel/PDF della pagina del corso (stessa protezione della pagina)."""
+    from ..services import elearning_corso_gestione as gestione
+    titolo, colonne, righe = gestione.EXPORT[tipo](corso)
+    nome = f"{corso.codice}_{tipo}_{django_timezone.localdate():%Y%m%d}"
+    _helpers._audit_safe(request, "elearning_export_corso", "formazione",
+                         {"corso": corso.pk, "tipo": tipo, "formato": formato, "righe": len(righe)})
+    sottotitolo = f"{corso.codice} · {corso.titolo}"
+    if formato == "pdf":
+        from core.table_pdf import render_table_pdf
+        pdf = render_table_pdf(title=titolo, subtitle=sottotitolo, headers=colonne, rows=righe)
+        resp = HttpResponse(pdf, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="{nome}.pdf"'
+        return resp
+    from core.excel_export import make_xlsx_response
+    return make_xlsx_response(filename=f"{nome}.xlsx", columns=colonne, rows=righe,
+                              sheet_title=titolo[:31], title=titolo, subtitle=sottotitolo)
 
 
 @login_required
@@ -5453,9 +5490,6 @@ def formazione_elearning_publish_toggle(request, corso_id: int):
         from ..services.elearning_regole import regola_corso
         if n_slide == 0:
             messages.error(request, "Impossibile pubblicare: aggiungi almeno una slide.")
-        elif not regola_corso(corso).confermata_rspp:
-            messages.error(request, "Impossibile pubblicare: le regole di fruizione (FAD) del corso non sono "
-                                    "state confermate dall'RSPP. Impostazioni e-learning → Regole del corso.")
         elif domande and n_invalid:
             messages.error(request, "Impossibile pubblicare: il quiz ha domande incomplete (risposte corrette mancanti o non coerenti con il tipo). Completa le domande o disattivale.")
         else:
