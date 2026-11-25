@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: Analisi quote, due correzioni viste nell'anteprima
+
+- Il riquadro che compare passando col mouse sui grafici scriveva «null» dopo il valore delle misure in tolleranza.
+- Nelle quote di forma e posizione (solo limite superiore) il riquadro Cp diceva «servono 5 misure»: ora «solo limite superiore».
+- File: `django_app/produzione/static/produzione/js/analisi_quote.js`, `django_app/produzione/templates/produzione/quote.html` (versione dello script). `collectstatic`.
+
 ### Ordini di produzione: «Analisi quote» interattiva (filtri, Cp/Cpk, mappa, confronto, pezzo)
 
 La pagina dell'andamento quote diventa uno strumento di analisi (`/produzione/pn/quote/?pn=`), disegnato nel browser senza librerie con i dati di `GET /produzione/api/quote/`.
