@@ -55,7 +55,7 @@ class RevisionePresentazioneTests(TasksBaseTestCase):
         self.client.force_login(self.pm)
         html = self.client.get(reverse("tasks:project_list")).content.decode()
         self.assertNotIn("In ritardo di 15gg", html)
-        self.assertIn("Prossima scadenza tra 5gg", html)
+        self.assertIn("prossima scadenza tra 5gg", html)
         self.assertIn("50%", html)
 
     def test_avanzamento_uguale_su_portfolio_panoramica_e_gantt(self):

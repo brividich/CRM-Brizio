@@ -98,7 +98,7 @@ GUIDA = {
             "titolo": "Dove guardare",
             "blocchi": [
                 ("def", [
-                    ("Portfolio", "le commesse in card, board per fase (Bozza, VRF, In esecuzione, Completata) o timeline. Ogni card mostra l'avanzamento (attività completate sul totale, annullate escluse, come in Panoramica e nel Gantt) e la prossima scadenza fra le attività aperte («In ritardo di N gg» se è passata)."),
+                    ("Portfolio", "le commesse in elenco (una riga per commessa), board per fase (Bozza, VRF, In esecuzione, Completata) o timeline. Una sola ricerca in alto, filtri rapidi per fase con il conteggio e «Con problemi». Ogni riga mostra l'avanzamento (attività completate sul totale, annullate escluse, come in Panoramica e nel Gantt) e una riga di stato: attività e altre voci scadute, prontezza o prossima scadenza fra le attività aperte."),
                     ("Da gestire", "VRF mancanti, commesse non pronte, attività critiche, incontri con problemi aperti. «Le mie» filtra su di te."),
                     ("Calendario / Incontri", "tutti gli incontri del mese o in elenco, con i filtri per commessa, esito/minuta e prossimi 7 giorni."),
                     ("Percorso del kickoff", "in Panoramica e nell'incontro: Arrivo materiali, Programma CAM, Programma CMM, Macchina, Terzista, Processi speciali, FAI. È l'indice delle tappe, senza campi propri: «Assegna» crea l'attività del tipo giusto e la apre nel pannello laterale sul collegamento atteso; sotto la tappa si leggono i collegamenti dell'attività e lo stato dice «Manca: …» finché non ci sono. «Non serve» la toglie dal conteggio. Abilitati, assenze e impegni della macchina si leggono nella scheda dell'attività."),

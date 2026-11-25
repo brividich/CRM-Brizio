@@ -24,185 +24,99 @@
 {% endblock %}
 
 {% block tasks_shell_content %}
-<section class="ts-panel">
-  <div class="ts-panel-head">
-    <div class="ts-panel-title-wrap">
-      <h2 class="ts-panel-title">Elenco kickoff</h2>
-      <p class="ts-panel-subtitle">Ogni card è un kickoff: identità P/N, avanzamento delle attività e stato VRF.</p>
-    </div>
-    <div class="ts-panel-meta">
-      <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?status=IN_PROGRESS">Attività in corso</a>
-      <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?overdue=on">Attività scadute</a>
-    </div>
-  </div>
-  {# ── Toolbar filtri ── #}
-  <form method="get" class="pf-toolbar">
-    <div class="ts-field">
-      <label for="pf-q">Cerca</label>
-      <input id="pf-q" class="input" type="text" name="q" value="{{ pf_filter_q|default:'' }}" placeholder="Nome, P/N, cliente…">
-    </div>
-    <div class="ts-field">
-      <label for="pf-client">Cliente</label>
-      <select id="pf-client" class="input" name="client">
-        <option value="">Tutti</option>
-        {% for c in pf_client_choices %}
-          <option value="{{ c }}" {% if c == pf_filter_client %}selected{% endif %}>{{ c }}</option>
-        {% endfor %}
+<section class="ts-panel kel">
+  {# Barra unica: una sola ricerca, filtri rapidi per fase con il conteggio, cliente, VRF, ordine e vista. #}
+  <form method="get" class="kel-bar" data-kel-form>
+    {% if pf_fase %}<input type="hidden" name="fase" value="{{ pf_fase }}">{% endif %}
+    {% if pf_problemi %}<input type="hidden" name="problemi" value="1">{% endif %}
+    {% if view != 'elenco' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+    <input class="input kel-q" type="search" name="q" value="{{ pf_filter_q|default:'' }}" placeholder="Cerca nome, P/N, cliente, pezzo…" aria-label="Cerca kickoff" data-kel-cerca>
+    <nav class="kel-fasi" aria-label="Filtra per fase">
+      <a class="kel-f{% if not pf_fase %} on{% endif %}" href="?{{ pf_qs_base }}{% if pf_problemi %}{% if pf_qs_base %}&amp;{% endif %}problemi=1{% endif %}">Tutti<b>{{ pf_n_tutti }}</b></a>
+      {% for f in pf_filtri_fase %}
+      <a class="kel-f{% if pf_fase == f.key %} on{% endif %}" href="?{% if pf_qs_base %}{{ pf_qs_base }}&amp;{% endif %}fase={{ f.key }}{% if pf_problemi %}&amp;problemi=1{% endif %}">{{ f.label }}<b>{{ f.n }}</b></a>
+      {% endfor %}
+      <a class="kel-f kel-f--warn{% if pf_problemi %} on{% endif %}" href="?{{ pf_qs_con_fase }}{% if not pf_problemi %}{% if pf_qs_con_fase %}&amp;{% endif %}problemi=1{% endif %}" title="Attività o altre voci scadute (problemi aperti, attività d'incontro, sotto-attività)">Con problemi<b>{{ pf_n_problemi }}</b></a>
+    </nav>
+    <div class="kel-dx">
+      <select class="input" name="client" aria-label="Cliente" data-kel-auto data-no-search>
+        <option value="">Cliente: tutti</option>
+        {% for c in pf_client_choices %}<option value="{{ c }}"{% if c == pf_filter_client %} selected{% endif %}>{{ c }}</option>{% endfor %}
       </select>
-    </div>
-    <div class="ts-field">
-      <label for="pf-vrf">Stato VRF</label>
-      <select id="pf-vrf" class="input" name="vrf_status">
-        <option value="">Tutti</option>
-        <option value="ok"      {% if pf_filter_vrf == 'ok' %}selected{% endif %}>Caricato</option>
-        <option value="warning" {% if pf_filter_vrf == 'warning' %}selected{% endif %}>In attesa</option>
-        <option value="blocked" {% if pf_filter_vrf == 'blocked' %}selected{% endif %}>Bloccato</option>
-        <option value="pending" {% if pf_filter_vrf == 'pending' %}selected{% endif %}>Da caricare</option>
-        <option value="na"      {% if pf_filter_vrf == 'na' %}selected{% endif %}>N/A</option>
+      <select class="input" name="vrf_status" aria-label="Documento VRF" data-kel-auto data-no-search>
+        <option value="">VRF: tutti</option>
+        <option value="ok"{% if pf_filter_vrf == 'ok' %} selected{% endif %}>VRF caricato</option>
+        <option value="warning"{% if pf_filter_vrf == 'warning' %} selected{% endif %}>VRF in attesa</option>
+        <option value="blocked"{% if pf_filter_vrf == 'blocked' %} selected{% endif %}>VRF bloccato</option>
+        <option value="pending"{% if pf_filter_vrf == 'pending' %} selected{% endif %}>VRF da caricare</option>
+        <option value="na"{% if pf_filter_vrf == 'na' %} selected{% endif %}>VRF N/A</option>
       </select>
-    </div>
-    <div class="ts-field">
-      <label for="pf-sort">Ordina per</label>
-      <select id="pf-sort" class="input" name="sort">
-        <option value="name"         {% if pf_sort == 'name' or not pf_sort %}selected{% endif %}>Nome</option>
-        <option value="due"          {% if pf_sort == 'due' %}selected{% endif %}>Scadenza più vicina</option>
-        <option value="progress_desc"{% if pf_sort == 'progress_desc' %}selected{% endif %}>Avanzamento ↓</option>
-        <option value="ral"          {% if pf_sort == 'ral' %}selected{% endif %}>Criticità ↓</option>
+      <select class="input" name="sort" aria-label="Ordina" data-kel-auto data-no-search>
+        <option value="name"{% if pf_sort == 'name' or not pf_sort %} selected{% endif %}>Ordina: nome</option>
+        <option value="due"{% if pf_sort == 'due' %} selected{% endif %}>Ordina: scadenza</option>
+        <option value="progress_desc"{% if pf_sort == 'progress_desc' %} selected{% endif %}>Ordina: avanzamento</option>
+        <option value="ral"{% if pf_sort == 'ral' %} selected{% endif %}>Ordina: criticità</option>
       </select>
-    </div>
-    <div class="ts-field">
-      <label>Vista</label>
       <div class="pf-view-toggle">
-        <button type="submit" name="view" value="cards" class="pf-view-btn {% if view == 'cards' or not view %}active{% endif %}">Card</button>
+        <button type="submit" name="view" value="elenco" class="pf-view-btn {% if view == 'elenco' %}active{% endif %}">Elenco</button>
         <button type="submit" name="view" value="board" class="pf-view-btn {% if view == 'board' %}active{% endif %}">Board</button>
         <button type="submit" name="view" value="timeline" class="pf-view-btn {% if view == 'timeline' %}active{% endif %}">Timeline</button>
       </div>
     </div>
-    <button type="submit" class="btn btn-sm">Filtra</button>
-    {% if pf_filter_q or pf_filter_client or pf_filter_vrf or pf_sort %}
-      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_list' %}">Reset</a>
-    {% endif %}
   </form>
 
-  <div class="ts-panel-body">
+  <div class="ts-panel-body kel-body">
     {% if view == 'board' %}
       {% include "tasks/_board.html" %}
     {% elif view == 'timeline' %}
       {% include "tasks/_timeline.html" %}
     {% elif projects %}
-      <div class="pf-grid">
+      {# La ricerca è quella della barra: la tabella non aggiunge la sua (data-fm-hide-search). #}
+      <table class="kel-t" data-table-id="tasks-portfolio-elenco" data-fm-hide-search="1">
+        <thead><tr>
+          <th data-no-sort data-no-filter><span class="sr-only">P/N</span></th>
+          <th>Kickoff</th><th>Cliente</th><th>Fase</th><th>Stato</th><th>Avanzamento</th><th>PM</th>
+          <th data-no-sort data-no-filter><span class="sr-only">Azioni</span></th>
+        </tr></thead>
+        <tbody>
         {% for project in projects %}
-          {% with d=project.vrf_detail %}
-          <div class="pf-card">
-            <div class="pf-card-body">
-
-              <!-- Riga 1: nome + giorni alla consegna -->
-              <div class="pf-card-top">
-                <a class="pf-card-name" href="{% url 'tasks:project_overview' project.id %}">
-                  <span>{{ project.name }}</span>
-                </a>
-                <span class="pf-card-days{% if project.days_to_delivery is not None and project.days_to_delivery < 0 %} danger{% endif %}" title="Prossima scadenza fra le attività aperte">
-                  {% if project.days_to_delivery is None %}{% if project.task_total %}Nessuna scadenza aperta{% else %}Piano da scrivere{% endif %}
-                  {% elif project.days_to_delivery < 0 %}In ritardo di {{ project.days_to_delivery|cut:"-" }}gg
-                  {% elif project.days_to_delivery == 0 %}Scade oggi
-                  {% else %}Prossima scadenza tra {{ project.days_to_delivery }}gg{% endif %}
-                </span>
-              </div>
-
-              <!-- Riga 2: inizio + cliente + P/N + revisione -->
-              <div class="pf-chips">
-                {# Data di inizio = primo incontro del kickoff (annotazione data_inizio). #}
-                {% if project.data_inizio %}
-                  <span class="pf-chip start"><span class="lbl">Inizio</span>{{ project.data_inizio|date:"d/m/Y" }}</span>
-                {% else %}
-                  <a class="pf-chip start empty" href="{% url 'tasks:project_meetings' project.id %}"><span class="lbl">Inizio</span>da pianificare</a>
-                {% endif %}
-                {% if project.client_name %}
-                  <span class="pf-chip client">{{ project.client_name }}</span>
-                {% endif %}
-                {% if project.part_number %}
-                  <span class="pf-chip pn"><span class="lbl">P/N</span>{{ project.part_number }}</span>
-                {% endif %}
-                {% if project.revisione %}
-                  <span class="pf-chip rev"><span class="lbl">Rev</span>{{ project.revisione }}</span>
-                {% endif %}
-                {% if project.versione %}
-                  <span class="pf-chip ver"><span class="lbl">Ver</span>{{ project.versione }}</span>
-                {% endif %}
-                {% if project.safety_impact %}
-                  <span class="ts-chip danger" style="font-size:10px;">Impatto sicurezza</span>
-                {% endif %}
-              </div>
-
-              <!-- Riga 3: pill di stato -->
-              <div class="pf-pills">
-                <span class="pf-pill pf-pill--phase">{{ project.get_phase_display }}</span>
-                {% if project.overdue_action_count %}
-                  <span class="pf-pill pf-pill--overdue">{{ project.overdue_action_count }} scadut{{ project.overdue_action_count|pluralize:"a,e" }}</span>
-                {% endif %}
-                {% if project.readiness and project.readiness.level != 'ready' %}
-                  {% include "tasks/_readiness_badge.html" with readiness=project.readiness %}
-                {% endif %}
-              </div>
-
-              {# Avanzamento: attività completate sul totale (annullate escluse). #}
-              <div class="pf-progress" title="{{ project.task_done }} attività completate su {{ project.task_total }}">
-                <div class="pf-progress-head"><span>Avanzamento</span><strong>{{ project.progress_pct }}%</strong><span class="pf-progress-n">{{ project.task_done }}/{{ project.task_total }} attività</span></div>
-                <div class="pf-progress-bar"><i style="width:{{ project.progress_pct }}%"></i></div>
-              </div>
-
-              <div class="pf-card-sep"></div>
-
-              <!-- Riga team -->
-              <div class="pf-card-team">
-                {% for block in project.team_blocks %}
-                <div class="pf-card-team-item">
-                  <span class="pf-card-team-role">{{ block.label }}</span>
-                  <span class="pf-card-team-name">{{ block.display|default:"—" }}</span>
+          <tr class="kel-r" data-kel-riga="{{ project.name|lower }} {{ project.part_number|lower }} {{ project.client_name|lower }} {{ project.descrizione_pezzo|lower }}">
+            <td><span class="kel-mini kel-mini--{{ project.phase|lower }}" aria-hidden="true">{% if project.part_number %}{{ project.part_number|slice:"-4:" }}{% else %}KO{% endif %}</span></td>
+            <td>
+              <a class="kel-nome" href="{% url 'tasks:project_overview' project.id %}">{{ project.name|default:"Kickoff senza nome" }}</a>
+              <span class="kel-sub">{% if project.part_number %}{{ project.part_number }}{% else %}P/N da definire{% endif %}{% if project.revisione %} · Rev {{ project.revisione }}{% endif %}{% if project.safety_impact %} · <b class="kel-sic">Impatto sicurezza</b>{% endif %}</span>
+            </td>
+            <td>{{ project.client_name|default:"—" }}</td>
+            <td><span class="pf-pill pf-pill--phase">{{ project.get_phase_display }}</span></td>
+            <td><span class="kel-s kel-s--{{ project.stato_riga.tono }}">{{ project.stato_riga.testo }}</span></td>
+            <td data-sort-value="{{ project.progress_pct }}"><span class="kel-pp" title="{{ project.task_done }} attività completate su {{ project.task_total }}"><span class="kel-bar-p"><i style="width:{{ project.progress_pct }}%"></i></span>{{ project.progress_pct }}%</span></td>
+            <td>{{ project.team_display_pm|default:"—" }}</td>
+            <td class="kel-az">
+              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_overview' project.id %}">Apri</a>
+              <details class="kel-menu">
+                <summary class="btn btn-secondary btn-sm" aria-label="Altre azioni per {{ project.name }}">&middot;&middot;&middot;</summary>
+                <div class="kel-menu-pop">
+                  <a href="{% url 'tasks:list' %}?project={{ project.id }}">Attività</a>
+                  <a href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
+                  <a href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
+                  <a href="{% url 'tasks:project_vrf_compile' project.id %}">Documento VRF</a>
+                  {% if tasks_shell_can_create and project.can_manage %}
+                  <form method="post" action="{% url 'tasks:copy_project_with_vrf' project.id %}">{% csrf_token %}<button type="submit">Copia VRF</button></form>
+                  <form method="post" action="{% url 'tasks:copy_project_with_vrf_without_pn' project.id %}">{% csrf_token %}<button type="submit">Copia senza P/N</button></form>
+                  {% endif %}
                 </div>
-                {% endfor %}
-              </div>
-
-              <!-- VRF status row -->
-              <div class="pf-vrf-row">
-                <span class="pf-vrf-label">
-                  <span class="pf-vrf-dot {{ d.status|default:'pending' }}"></span>
-                  Documento VRF
-                </span>
-                {% if d.status == 'ok' %}
-                  <span class="ts-chip ok" style="font-size:10px;">Caricato</span>
-                {% elif d.status == 'na' %}
-                  <span class="ts-chip soft" style="font-size:10px;">N/A</span>
-                {% elif d.status == 'blocked' %}
-                  <a href="{% url 'tasks:project_vrf_compile' project.id %}" class="ts-chip danger" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">Bloccato</a>
-                {% elif d.status == 'warning' %}
-                  <a href="{% url 'tasks:project_vrf_compile' project.id %}" class="ts-chip warn" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">{{ d.days_pending }}gg</a>
-                {% else %}
-                  <a href="{% url 'tasks:project_vrf_compile' project.id %}" class="ts-chip soft" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">Da caricare</a>
-                {% endif %}
-              </div>
-
-            </div><!-- /.pf-card-body -->
-
-            <div class="pf-card-footer">
-              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?project={{ project.id }}">Attivita</a>
-              <a class="btn btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
-              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
-              {% if tasks_shell_can_create and project.can_manage %}
-                <form method="post" action="{% url 'tasks:copy_project_with_vrf' project.id %}" style="margin:0;">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-secondary btn-sm">Copia VRF</button>
-                </form>
-                <form method="post" action="{% url 'tasks:copy_project_with_vrf_without_pn' project.id %}" style="margin:0;">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-secondary btn-sm">Copia senza P/N</button>
-                </form>
-              {% endif %}
-            </div>
-          </div><!-- /.pf-card -->
-          {% endwith %}
+              </details>
+            </td>
+          </tr>
         {% endfor %}
-      </div><!-- /.pf-grid -->
+        </tbody>
+      </table>
+      <p class="kel-vuoto" data-kel-vuoto hidden>Nessun kickoff con questa ricerca.</p>
+    {% elif pf_filter_q or pf_filter_client or pf_filter_vrf or pf_fase or pf_problemi %}
+      <div class="ts-empty">
+        <strong>Nessun kickoff con questi filtri.</strong>
+        <div><a href="{% url 'tasks:project_list' %}">Togli i filtri</a></div>
+      </div>
     {% else %}
       <div class="ts-empty">
         <strong>Nessun kickoff da mostrare.</strong>
@@ -217,4 +131,32 @@
     {% endif %}
   </div>
 </section>
+<script>
+(function () {
+  var form = document.querySelector('[data-kel-form]');
+  if (!form) return;
+  // Tendine: si filtra subito.
+  form.querySelectorAll('[data-kel-auto]').forEach(function (sel) {
+    sel.addEventListener('change', function () { form.submit(); });
+  });
+  // Ricerca: nell'elenco filtra le righe mentre scrivi; Invio la applica anche a Board e Timeline.
+  var q = form.querySelector('[data-kel-cerca]');
+  var righe = document.querySelectorAll('[data-kel-riga]');
+  var vuoto = document.querySelector('[data-kel-vuoto]');
+  if (!q || !righe.length) return;
+  q.addEventListener('input', function () {
+    var t = q.value.trim().toLowerCase(), visibili = 0;
+    righe.forEach(function (r) {
+      var ok = !t || r.getAttribute('data-kel-riga').indexOf(t) !== -1;
+      r.hidden = !ok;
+      if (ok) visibili++;
+    });
+    if (vuoto) vuoto.hidden = visibili > 0;
+  });
+  // Un solo menu «···» aperto alla volta; clic fuori lo chiude.
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('.kel-menu[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+  });
+})();
+</script>
 {% endblock %}

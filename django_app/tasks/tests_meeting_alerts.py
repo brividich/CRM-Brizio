@@ -172,7 +172,7 @@ class ProjectStartDateTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:project_list"))
         projects = {p.id: p for p in response.context["projects"]}
         self.assertIsNone(projects[self.project.id].data_inizio)
-        self.assertContains(response, "da pianificare")
+        # L'elenco non mostra più la data di inizio: resta il dato per Timeline e panoramica.
 
     def test_project_list_non_duplica_i_kickoff(self):
         """L'annotazione data_inizio e' una sottoquery: niente righe sdoppiate."""

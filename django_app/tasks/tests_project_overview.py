@@ -251,7 +251,7 @@ class ProjectOverviewTests(TasksBaseTestCase):
 
         self.assertContains(
             response,
-            f'class="pf-card-name" href="{reverse("tasks:project_overview", args=[self.project.pk])}"',
+            f'class="kel-nome" href="{reverse("tasks:project_overview", args=[self.project.pk])}"',
         )
         self.assertContains(
             response,

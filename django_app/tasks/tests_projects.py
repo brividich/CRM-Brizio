@@ -1409,9 +1409,12 @@ class ReadinessPortfolioRenderTests(TestCase):
         make_project(name="Vuota", created_by=self.admin)
 
     def test_portfolio_shows_readiness_badge(self):
+        # Nell'elenco la prontezza finisce nella riga di stato (niente badge a parte).
         r = self.client.get(reverse("tasks:project_list"))
         assert r.status_code == 200
-        assert b"tk-readiness" in r.content
+        p = r.context["projects"][0]
+        assert p.readiness is not None
+        assert p.stato_riga["testo"].encode() in r.content
 
 
 class ReadinessProjectHeaderRenderTests(TestCase):
@@ -1666,11 +1669,41 @@ class ProjectBoardRenderTests(TestCase):
         assert b"In esecuzione" in r.content
         assert b"data-set-phase-url" in r.content
 
-    def test_cards_view_default(self):
+    def test_elenco_view_default(self):
         r = self.client.get(reverse("tasks:project_list"))
         assert r.status_code == 200
-        assert b"pf-grid" in r.content
+        assert b"kel-t" in r.content
         assert b"kbf-board" not in r.content
+        # Una sola ricerca: quella della barra, la tabella non aggiunge la sua.
+        assert b'data-fm-hide-search="1"' in r.content
+        assert r.content.count(b'name="q"') == 1
+
+    def test_elenco_filtri_fase_e_problemi(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from tasks.models import Project, Task, TaskStatus
+
+        p2 = Project.objects.create(name="In ritardo", created_by=self.admin, phase="EXEC")
+        Task.objects.create(
+            title="Scaduta", project=p2, created_by=self.admin, status=TaskStatus.TODO,
+            due_date=timezone.localdate() - timedelta(days=3),
+        )
+        url = reverse("tasks:project_list")
+        r = self.client.get(url)
+        assert r.context["pf_n_tutti"] == 2
+        assert r.context["pf_n_problemi"] == 1
+        riga = next(p for p in r.context["projects"] if p.pk == p2.pk)
+        assert riga.stato_riga["tono"] == "danger"
+        assert "1 attività scaduta da 3gg" in riga.stato_riga["testo"]
+        r = self.client.get(url + "?problemi=1")
+        assert [p.pk for p in r.context["projects"]] == [p2.pk]
+        r = self.client.get(url + "?fase=EXEC")
+        assert [p.pk for p in r.context["projects"]] == [p2.pk]
+        # Fase sconosciuta = nessun filtro.
+        r = self.client.get(url + "?fase=XYZ")
+        assert len(r.context["projects"]) == 2
 
 
 class PortfolioTimelineTests(TestCase):
