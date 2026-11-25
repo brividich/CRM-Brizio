@@ -95,19 +95,32 @@ def righe_risultati(corso) -> list[dict]:
     from .elearning_quiz import tentativi_rimasti
     from .elearning_regole import regola_corso
 
+    from ..models_elearning import TrainingElearningRispostaAperta
+    from ..models_formazione import TrainingEmployeeRecord
+
     assegnazioni = {a.legacy_anagrafica_id: a for a in TrainingAssignment.objects.filter(corso=corso)}
     iscrizioni = {}
     for e in TrainingElearningEnrollment.objects.filter(corso=corso).order_by("ciclo"):
         iscrizioni[e.legacy_anagrafica_id] = e  # vince l'ultimo ciclo
-    ids = set(assegnazioni) | set(iscrizioni)
+    # Completamenti validi da qualunque strada (anche link aperto, senza iscrizione).
+    record_validi = {}
+    for r in TrainingEmployeeRecord.objects.filter(corso=corso).order_by("data_completamento", "pk"):
+        record_validi[r.legacy_anagrafica_id] = r
+    da_link = set(TrainingElearningRispostaAperta.objects.filter(corso=corso, record__isnull=False)
+                  .values_list("legacy_anagrafica_id", flat=True))
+    ids = set(assegnazioni) | set(iscrizioni) | set(record_validi)
     anag, azi = _anagrafica(ids), _aziendale(ids)
     regola = regola_corso(corso)
     oggi = timezone.localdate()
     righe = []
     for lid in ids:
         a, e = assegnazioni.get(lid), iscrizioni.get(lid)
+        rec = record_validi.get(lid)
+        aperta = a is not None and a.stato not in ("COMPLETATO", "ESONERATO")
         if a is not None and a.stato == "ESONERATO":
             stato = ESONERATO
+        elif rec is not None and not aperta and not (e and e.stato == "COMPLETATO"):
+            stato = COMPLETATO
         elif e is None:
             stato = COMPLETATO if (a is not None and a.stato == "COMPLETATO") else DA_INIZIARE
         elif e.stato == "COMPLETATO":
@@ -137,7 +150,9 @@ def righe_risultati(corso) -> list[dict]:
             "best": e.best_punteggio_pct if e else None,
             "tentativi": e.n_tentativi if e else 0,
             "minuti": round((e.secondi_accreditati or 0) / 60) if e else 0,
-            "completato_il": (e.data_completamento if e else None),
+            "completato_il": (e.data_completamento if e and e.data_completamento else
+                              (rec.data_completamento if rec is not None else None)),
+            "da_link_aperto": lid in da_link,
             "esauriti": bool(e and e.stato != "COMPLETATO" and tentativi_rimasti(e, regola) == 0),
             "ha_utente": bool(r.get("utente_id")),
         })

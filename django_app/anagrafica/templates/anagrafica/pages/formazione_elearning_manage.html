@@ -166,7 +166,7 @@ body.theme-dark .elg-chip[aria-pressed=true]{background:#93c5fd;border-color:#93
             {% for r in righe %}
               <tr data-stato="{{ r.stato }}" data-ritardo="{% if r.in_ritardo %}1{% endif %}" data-cerca="{{ r.nome|lower }} {{ r.reparto|lower }}">
                 <td><strong>{{ r.nome }}</strong>{% if r.reparto %}<div class="fmd-muted" style="font-size:12px;">{{ r.reparto }}</div>{% endif %}</td>
-                <td><span class="fmd-badge fmd-b-{{ r.tono }}">{{ r.etichetta }}</span>{% if not r.assegnato %} <span class="fmd-muted" style="font-size:11.5px;">facoltativo</span>{% endif %}</td>
+                <td><span class="fmd-badge fmd-b-{{ r.tono }}">{{ r.etichetta }}</span>{% if r.da_link_aperto %} <span class="fmd-muted" style="font-size:11.5px;">dal link aperto</span>{% elif not r.assegnato %} <span class="fmd-muted" style="font-size:11.5px;">facoltativo</span>{% endif %}</td>
                 <td style="min-width:110px;"><span class="fmd-muted" style="font-size:12px;">{{ r.slide }}</span><div class="elg-bar{% if r.slide_pct < 100 %} in{% endif %}"><span style="width:{{ r.slide_pct }}%"></span></div></td>
                 <td class="fmd-c fmd-num">{% if r.best is not None %}{{ r.best|floatformat:0 }}%{% else %}—{% endif %}</td>
                 <td class="fmd-c fmd-num">{{ r.tentativi|default:"—" }}
@@ -212,7 +212,7 @@ body.theme-dark .elg-chip[aria-pressed=true]{background:#93c5fd;border-color:#93
           <span class="fmd-spacer" style="flex:1;"></span>
           {% if is_editor %}<button type="button" class="fmd-btn fmd-btn-primary" data-apri-assegna><svg class="fmd-ico"><use href="#i-plus"/></svg>Assegna dipendenti</button>{% endif %}
         </div>
-        <p class="fmd-fhelp" style="margin:0 0 10px;">Chi è assegnato deve completare il corso: lo trova tra le sue attività e in cima a «Corsi online». Senza assegnazioni il corso resta disponibile a tutti, ma non è obbligatorio per nessuno.</p>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">Chi è assegnato deve completare il corso: lo trova tra le sue attività e in cima a «Corsi online». {% if corso.elearning_self_service %}Il corso è aperto a tutti i dipendenti come facoltativo: le assegnazioni lo rendono obbligatorio per chi scegli.{% else %}Il corso <strong>non è aperto a tutti</strong>: con il login lo vede solo chi è assegnato (chi non ha l'utente usa il link aperto). Per aprirlo a tutti come facoltativo: <a href="{% url 'anagrafica:elearning_impostazioni_corsi' %}?q={{ corso.codice|urlencode }}">Impostazioni e-learning → Corsi</a> → «Solo assegnati» diventa «Aperto a tutti».{% endif %}</p>
         {% if assegnazioni %}
         <div class="fmd-tablewrap">
           <table class="fmd-table">

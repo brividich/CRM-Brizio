@@ -99,9 +99,17 @@ def formazione_online_catalog(request):
                 corso__is_elearning=True,
             ).order_by("ciclo")
         }
+    # Completamenti validi della persona sui corsi online, da qualunque strada (portale o
+    # link aperto): un corso fatto dal link aperto non ha iscrizione e-learning ma è fatto.
+    record_validi = {}
+    if legacy_id:
+        from .models_formazione import TrainingEmployeeRecord
+        for r in (TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=legacy_id, corso__is_elearning=True)
+                  .order_by("data_completamento", "pk")):
+            record_validi[r.corso_id] = r
     corsi = (
         fruizione.corsi_pubblicati()
-        .filter(Q(pk__in=list(assegnazioni)) | Q(elearning_self_service=True))
+        .filter(Q(pk__in=list(assegnazioni)) | Q(pk__in=list(record_validi)) | Q(elearning_self_service=True))
         .select_related("piano", "categoria")
         .annotate(
             n_slide=Count("slides", filter=Q(slides__is_active=True), distinct=True),
@@ -132,11 +140,14 @@ def formazione_online_catalog(request):
         a = assegnazioni.get(c.pk)
         if e is not None and a is not None and e.ciclo < a.ciclo:
             e = None  # rinnovo assegnato, nuovo ciclo non ancora iniziato
-        completato = bool(e and e.stato == "COMPLETATO")
-        da_fare = bool(a) and a.stato not in ("COMPLETATO", "ESONERATO") and not completato
+        rec = record_validi.get(c.pk)
+        aperta = bool(a) and a.stato not in ("COMPLETATO", "ESONERATO")
+        # Vale anche un completamento senza iscrizione (link aperto), se non c'è un rinnovo aperto dopo.
+        completato = bool(e and e.stato == "COMPLETATO") or bool(rec and not aperta)
+        da_fare = aperta and not completato
         cards.append({
             "corso": c,
-            "stato": e.stato if e else None,
+            "stato": "COMPLETATO" if completato else (e.stato if e else None),
             "best_pct": e.best_punteggio_pct if e else None,
             "n_slide": c.n_slide,
             "n_domande": c.n_domande,
@@ -146,7 +157,7 @@ def formazione_online_catalog(request):
             "in_ritardo": bool(da_fare and a.due_date and a.due_date < oggi),
             "progress_pct": min(round(completate.get(e.pk, 0) / c.n_slide * 100), 100)
             if e and c.n_slide else 0,
-            "da_valutare": bool(completato and e.record_completamento_id in da_valutare),
+            "da_valutare": bool(completato and e and e.record_completamento_id in da_valutare),
         })
     cards.sort(key=lambda x: (not x["assegnato_da_fare"], x["due_date"] or oggi.max, x["corso"].titolo.lower()))
     from .services.sessione_online import lezioni_della_persona
