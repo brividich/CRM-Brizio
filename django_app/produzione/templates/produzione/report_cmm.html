@@ -8,7 +8,7 @@
 <div class="prod">
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_scheda' %}?pn={{ report.pn|urlencode }}">{{ report.pn }}</a> · Report CMM</span>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a> · Report CMM</span>
       <h1>{{ report.seriale|default:report.file }}</h1>
     </div>
     <div class="prod-filtri">

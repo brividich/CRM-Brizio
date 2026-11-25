@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: scheda P/N a sezioni con indirizzo stabile
+
+- La scheda del P/N ha un indirizzo fisso, `/produzione/pn/<P/N>/` (il vecchio `/produzione/pn/scheda/?pn=` reindirizza), e non è più una colonna lunga di riquadri: in alto la striscia del percorso (KICK-OFF, programmi, FAI, OP) con lo stato di ogni passo, sotto le sezioni Panoramica, OP, Report CMM, Programmi e FAI, ognuna col suo indirizzo (`?sez=`).
+- Panoramica: «Da fare» in una sola lista dalla più urgente (quote fuori nell'ultimo report, quote in deriva, anomalie aperte, OP senza documenti), «Pezzi misurati per mese» (ultimi 6 mesi, in rosso quelli con quote fuori), quote da tenere d'occhio e OP. Tolti il riquadro «Prossimo passo» e i riquadri vuoti che ripetevano il percorso.
+- Sezione Report CMM: programmi CMM letti con link ad Analisi quote e gli ultimi 60 report da spuntare per il confronto.
+- File: `django_app/produzione/views.py`, `urls.py` (`pn/<path:pn>/`), `services.py` (`url_pn`, `SEZIONI_PN`, `da_fare_pn`, `pezzi_per_mese`), `acl_bootstrap.py` (binding `produzione:pn`, cache v8), `templates/produzione/pn_scheda.html`, `quote.html`, `quote_cruscotto.html`, `report_cmm.html`, `report_confronta.html`, `static/produzione/css/produzione.css`, `guida.py`, `core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`, test `tests.py`, `tests_quote_migliorie.py`, `tests_report_cmm.py`.
+
 ### Ordini di produzione: report CMM con tutte le quote e confronto fra report
 
 - Report CMM: tutte le quote (prima solo le fuori), con barra «Nella tolleranza», tolleranza usata, differenza dal pezzo prima, Cpk della quota e segnale di deriva; filtri Tutte / Fuori / Al limite / Diverse dal pezzo prima; pulsanti «‹ Pezzo prima», «Pezzo dopo ›» e «Confronta». Corretto il titolo della pagina, che conteneva per errore il codice della finestra «Escludi».

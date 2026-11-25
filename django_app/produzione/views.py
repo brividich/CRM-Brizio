@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from core import ordini_produzione as op_db
+from tasks.identity import normalize_part_number
 from core.acl_v2 import request_has_permission_code
 from core.audit import log_action
 from core.paginazione import pagina_elenco
@@ -89,13 +90,31 @@ def pn_elenco(request):
 
 @login_required
 @require_GET
-def pn_scheda(request):
+def pn_scheda(request, pn: str | None = None):
+    """Scheda del P/N a sezioni (``?sez=``). L'indirizzo vecchio ``/pn/scheda/?pn=`` porta a quello stabile."""
+    if pn is None:
+        vecchio = (request.GET.get("pn") or "").strip()
+        if not vecchio:
+            raise Http404
+        return redirect(services.url_pn(normalize_part_number(vecchio), request.GET.get("sez", "")), permanent=True)
     if not op_db.disponibile():
         raise Http404
-    dati = services.scheda_pn(request, request.GET.get("pn") or "")
+    dati = services.scheda_pn(request, pn)
     if dati is None:
         raise Http404
-    return render(request, "produzione/pn_scheda.html", _ctx(request, "pn", **dati))
+    sezioni = dict(services.SEZIONI_PN)
+    sezione = request.GET.get("sez", "")
+    if sezione not in sezioni:
+        sezione = ""
+    conta = {"op": len(dati["ops"]), "report": dati["report_cmm"]["n"], "programmi": len(dati["programmi"]),
+             "fai": len(dati["fai_pn"])}
+    if sezione == "report":
+        dati["report_cmm"]["ultimi"] = list(cmm.ReportCMM.objects.filter(pn=dati["pn"], righe__gt=0, escluso=False)
+                                            .order_by("-data", "-id")[:60])
+        dati["programmi_cmm"] = cmm.programmi_del_pn(dati["pn"])
+    tab = [{"chiave": k, "nome": v, "n": conta.get(k), "url": services.url_pn(dati["pn"], k)}
+           for k, v in services.SEZIONI_PN if k in ("", "op", "report") or dati["vede_kickoff"]]
+    return render(request, "produzione/pn_scheda.html", _ctx(request, "pn", sezione=sezione, sezioni=tab, **dati))
 
 
 @login_required

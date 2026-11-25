@@ -32,9 +32,9 @@ GUIDA = {
                 ("p", "Il P/N è l'articolo principale: ha più OP e i FAI sono suoi, non del singolo OP. La scheda «P/N» "
                       "elenca i P/N degli OP con numero di OP, ultimo OP, capocommessa, FAI, «Situazione FAI» e anomalie "
                       "aperte; «Da sistemare» filtra «Con anomalie aperte», «Senza FAI» e «FAI da ripetere o verificare»."),
-                ("p", "La scheda del P/N segue quattro passi: KICK-OFF del P/N, programmi CAM e CMM, FAI del P/N (situazione "
-                      "per cliente, tutti i FAI con il loro OP, «+ Nuovo FAI per questo P/N»), OP del P/N (documenti e "
-                      "anomalie aperte di ciascuno)."),
+                ("p", "La scheda del P/N (indirizzo fisso /produzione/pn/<P/N>/) ha in alto la striscia del percorso "
+                      "(KICK-OFF, programmi CAM e CMM, FAI, OP) e sotto le sezioni Panoramica («Da fare», pezzi misurati per "
+                      "mese, quote da tenere d'occhio, OP), OP, Report CMM, Programmi e FAI."),
             ],
         },
         {
