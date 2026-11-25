@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### E-learning: il corso fatto dal link aperto risulta completato
+
+- **Segnalazione:** corso fatto dal link aperto, abbinato in automatico e registrato a libretto, ma nelle pagine risultava ancora da fare. «I miei corsi online» e i Risultati del corso guardavano solo le iscrizioni e-learning (con login) e le assegnazioni.
+- Ora contano anche i completamenti validi senza iscrizione: in «I miei corsi online» il corso compare tra i Completati anche se non era assegnato; nei Risultati la persona c'è, «Completato · dal link aperto» (`views_elearning.py`, `services/elearning_corso_gestione.py` `righe_risultati`). Corretto anche un errore che avrebbe bloccato «I miei corsi online» a chi ha un completamento dal link aperto.
+- Scheda Assegnazioni: il testo dice se il corso è «Aperto a tutti» o «Solo assegnati» (con il link all'interruttore), invece di dire sempre «disponibile a tutti».
+- Test: `tests_elearning_gestione_corso.py`. Nessuna migrazione.
+
 ### E-learning: il link aperto mostra sempre l'indirizzo pubblico in https
 
 - Il riquadro «Link aperto» e il QR mostravano `http://hub.costruzioninovicrom.it/…`, costruito dalla richiesta interna (dietro IIS arriva in http). Ora l'indirizzo usa `SITE_URL` (in produzione `https://hub.costruzioninovicrom.it`, pubblicato su internet dall'app Entra «Approvazioni») quando `ELEARNING_LINK_APERTO_URL_PUBBLICO` e `RECEPTION_RICHIESTE_URL_PUBBLICO` sono vuote (`anagrafica/views_elearning.py` `url_link_aperto`). Il token non cambia: i QR già stampati restano validi. Test: `tests_elearning_gestione_corso.py`. Nessuna migrazione.

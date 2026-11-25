@@ -81,3 +81,28 @@ class LinkApertoUrlPubblicoTests(TestCase):
         with override_settings(SITE_URL="https://hub.costruzioninovicrom.it", ELEARNING_LINK_APERTO_URL_PUBBLICO="",
                                RECEPTION_RICHIESTE_URL_PUBBLICO=""):
             self.assertEqual(url_link_aperto(req, L()), "https://hub.costruzioninovicrom.it/corso-aperto/abc123/")
+
+
+class CompletamentoDaLinkApertoTests(TestCase):
+    """Un corso completato dal link aperto (record senza iscrizione e-learning) risulta fatto."""
+
+    def test_record_senza_iscrizione_conta_come_completato(self):
+        from datetime import date
+        from .models_formazione import TrainingEmployeeRecord
+        piano = TrainingPlan.objects.create(codice="PLA", nome="Piano")
+        corso = TrainingCourse.objects.create(piano=piano, codice="LA1", titolo="Corso link", durata_ore_teorica=Decimal("1"),
+                                              is_elearning=True, stato="ATTIVO")
+        TrainingSlide.objects.create(corso=corso, ordine=1, titolo="S", contenuto="x")
+        TrainingEmployeeRecord.objects.create(corso=corso, legacy_anagrafica_id=160, data_completamento=date(2026, 11, 25))
+        righe = g.righe_risultati(corso)
+        self.assertEqual([(r["legacy_id"], r["stato"]) for r in righe], [(160, g.COMPLETATO)])
+        from unittest import mock
+        from core.models import UserOnboarding
+        u = get_user_model().objects.create_user("dip.la", "d@example.com", "x")
+        UserOnboarding.objects.create(user=u, completed=True)
+        self.client.force_login(u)
+        with mock.patch("anagrafica.views._current_legacy_anagrafica_id", return_value=160), \
+                mock.patch("anagrafica.views._can_edit_formazione", return_value=False):
+            r = self.client.get(reverse("anagrafica:formazione_online_catalog"))
+        self.assertEqual([v["titolo"] for v in r.context["completati"]], ["Corso link"])
+        self.assertEqual(r.context["da_fare"], [])
