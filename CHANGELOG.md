@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: iscritti alla sessione in blocco, con filtri
+
+- **Segnalazione:** nella pagina «Iscritti» di una sessione (anche online: slide + test) si potevano aggiungere le persone solo una alla volta.
+- Nuovo pannello laterale **«+ Aggiungi iscritti»**: pulsanti «Da formare» (preselezionato), «In scadenza entro 90 gg», «Assegnati al corso», «Tutti»; ricerca per nome, filtri per reparto, area e mansione, «Solo chi non ha l'utente del portale», «Seleziona tutti» (i filtrati) / «Nessuno», contatore e «Iscrivi N». Accanto a ogni persona lo stato rispetto al corso (Da formare, Scade il…, In regola, Assegnato). «Uno alla volta» resta per l'iscrizione singola con nota.
+- Dal passo «Iscritti e scadenza» della lezione online il pulsante apre direttamente il pannello e, dopo l'iscrizione, si torna alla procedura.
+- File: `templates/anagrafica/components/_pannello_iscrivi_massa.html`, `formazione_iscritti.html`, `sessione_online_prepara.html`, `views/formazione.py` (`_contesto_iscrivi_massa`, `formazione_iscrizione_bulk` con ritorno), `services/elearning_corso_gestione.py` (`persone_iscrivibili`). Guide: guida Formazione in-app, Centro guide. Test: `anagrafica/tests_formazione_iscritti_massa.py`. Nessuna migrazione.
+
 ### Ordini di produzione: Analisi quote, controllo visivo di campi, tendine e testi
 
 - Filtri su due righe ordinate (programma e periodo; OP, report, misure, esclusi, S/N); i menu non ereditano più il maiuscolo dell'etichetta; tendine ricercabili leggibili anche in tema scuro (in tutte le pagine di Ordini di produzione).
