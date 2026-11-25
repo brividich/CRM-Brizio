@@ -226,7 +226,7 @@ class GestioneViewTests(_Base):
 
     def test_pubblica_e_registra(self):
         self._pronta()
-        with mock.patch.object(so, "invia_link", return_value={"mail": 0, "notifiche": 0, "persone": 1}):
+        with mock.patch.object(so, "invia_link", return_value={"notifiche": 1, "senza_utente": 0, "persone": 1}):
             r = self.client.post(reverse("anagrafica:sessione_online_pubblica", args=[self.sessione.pk]), {"invia": "1"})
         self.assertEqual(r.status_code, 302)
         self.assertTrue(TrainingSessionOnline.objects.get(sessione=self.sessione).pubblicata)

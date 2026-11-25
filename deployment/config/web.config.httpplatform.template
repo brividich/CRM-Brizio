@@ -90,7 +90,7 @@
          ================================================================ -->
     <security>
       <requestFiltering>
-        <requestLimits maxAllowedContentLength="104857600" />
+        <requestLimits maxAllowedContentLength="629145600" />
       </requestFiltering>
     </security>
 

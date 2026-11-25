@@ -48,7 +48,8 @@ class TrainingSessionOnline(models.Model):
     disponibile_dal = models.DateField(null=True, blank=True)
     scadenza = models.DateField(null=True, blank=True, help_text="Data entro cui completare la lezione.")
     promemoria_giorni = models.PositiveSmallIntegerField(
-        default=3, help_text="Giorni prima della scadenza per il promemoria a chi non ha finito (0 = nessuno).")
+        default=0, help_text="Giorni prima della scadenza per la notifica di promemoria a chi non ha finito "
+                             "(0 = nessuno). Solo notifica nel portale, mai email.")
     mostra_correzioni = models.BooleanField(
         default=True, help_text="A fine test la persona vede le risposte sbagliate con quella giusta.")
     pubblicata_il = models.DateTimeField(null=True, blank=True)

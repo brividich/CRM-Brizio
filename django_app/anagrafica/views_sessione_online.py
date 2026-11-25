@@ -340,8 +340,9 @@ def sessione_online_pubblica(request, sessione_id: int):
         return _torna(request, sessione_id, "invio")
     _audit(request, "pubblicata", sessione, **esito)
     if esito["persone"]:
-        messages.success(request, f"Lezione pubblicata: link mandato a {esito['persone']} persone "
-                                  f"({esito['mail']} mail, {esito['notifiche']} notifiche nel portale).")
+        messages.success(request, f"Lezione pubblicata: notifica nel portale a {esito['notifiche']} persone"
+                                  + (f"; {esito.get('senza_utente', 0)} senza utente del portale vanno avvisate da voi." if esito.get('senza_utente', 0) else ".")
+                                  + " Nessuna email inviata.")
     else:
         messages.success(request, "Lezione pubblicata.")
     return redirect(reverse("anagrafica:formazione_sessione_detail", args=[sessione_id]) + "#lezione-online")
@@ -371,8 +372,9 @@ def sessione_online_iscritto(request, sessione_id: int):
             return redirect(torna)
         esito = so.invia_link(sessione, cfg, persone, sollecito=True)
         _audit(request, "sollecito", sessione, **esito)
-        messages.success(request, f"Sollecito mandato a {esito['persone']} persone "
-                                  f"({esito['mail']} mail, {esito['notifiche']} notifiche).")
+        messages.success(request, f"Sollecito nel portale a {esito['notifiche']} persone"
+                                  + (f" ({esito.get('senza_utente', 0)} senza utente)." if esito.get('senza_utente', 0) else ".")
+                                  + " Nessuna email.")
     elif azione == "invia_link":
         persone = list(so.iscrizioni(sessione).filter(pk__in=ids)) if ids else []
         if not cfg.pubblicata or not persone:
@@ -380,7 +382,7 @@ def sessione_online_iscritto(request, sessione_id: int):
             return redirect(torna)
         esito = so.invia_link(sessione, cfg, persone)
         _audit(request, "link_reinviato", sessione, **esito)
-        messages.success(request, f"Link mandato a {esito['persone']} persone.")
+        messages.success(request, f"Notifica nel portale a {esito['notifiche']} persone. Nessuna email.")
     elif azione in ("tentativo", "azzera"):
         e = get_object_or_404(TrainingEnrollment, pk=ids[0] if ids else 0, sessione=sessione)
         try:

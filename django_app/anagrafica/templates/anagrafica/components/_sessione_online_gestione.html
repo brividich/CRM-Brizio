@@ -17,7 +17,7 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
       <p class="so-sub">
         {% if cfg.pubblicata %}Pubblicata il {{ cfg.pubblicata_il|date:"d-m-Y H:i" }}{% if cfg.pubblicata_da_nome %} da {{ cfg.pubblicata_da_nome }}{% endif %} · {% endif %}
         {% if cfg.disponibile_dal %}aperta dal {{ cfg.disponibile_dal|date:"d-m-Y" }}{% endif %}{% if cfg.scadenza %} fino al {{ cfg.scadenza|date:"d-m-Y" }}{% endif %}
-        {% if not cfg %}Gli iscritti ricevono un link, guardano le slide e fanno il test: l'esito va sull'iscrizione a questa sessione.{% endif %}
+        {% if not cfg %}Gli iscritti ricevono una notifica nel portale, guardano le slide e fanno il test: l'esito va sull'iscrizione a questa sessione.{% endif %}
       </p>
     </div>
     <div class="so-actions">
@@ -32,7 +32,7 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
         {% csrf_token %}<button class="hr-btn hr-btn-ghost" name="azione" value="sospendi" type="submit">Sospendi</button>
       </form>
       {% elif cfg and not online.manca %}
-      <a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}?passo=invio">Pubblica e invia</a>
+      <a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}?passo=invio">Pubblica e avvisa</a>
       {% endif %}
       {% endif %}
     </div>
@@ -70,10 +70,10 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
           {% if num.giorni_alla_scadenza is not None %}
             {% if num.giorni_alla_scadenza > 1 %}{{ num.giorni_alla_scadenza }} giorni alla scadenza{% elif num.giorni_alla_scadenza == 1 %}scade domani{% elif num.giorni_alla_scadenza == 0 %}scade oggi{% else %}scaduta da {{ num.giorni_alla_scadenza|stringformat:"d"|slice:"1:" }} giorni{% endif %}
           {% else %}senza scadenza{% endif %}
-          {% if cfg.promemoria_giorni %} · promemoria automatico {{ cfg.promemoria_giorni }} gg prima{% endif %}
-          {% if num.senza_contatto %}<br><span class="so-ko">{{ num.senza_contatto }} senza mail né utente del portale</span>{% endif %}
+          {% if cfg.promemoria_giorni %} · promemoria nel portale {{ cfg.promemoria_giorni }} gg prima{% endif %}
+          {% if num.senza_contatto %}<br><span class="so-ko">{{ num.senza_contatto }} senza utente del portale: avvisateli voi</span>{% endif %}
         </div>
-        {% if gestore and not sessione.is_approvata %}<a class="hr-btn {% if cfg.pubblicata %}hr-btn-ghost{% else %}hr-btn-primary{% endif %} hr-btn-sm" style="margin-top:auto;text-align:center;" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}?passo=invio">{% if cfg.pubblicata %}Date e iscritti{% else %}Pubblica e invia{% endif %}</a>{% endif %}
+        {% if gestore and not sessione.is_approvata %}<a class="hr-btn {% if cfg.pubblicata %}hr-btn-ghost{% else %}hr-btn-primary{% endif %} hr-btn-sm" style="margin-top:auto;text-align:center;" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}?passo=invio">{% if cfg.pubblicata %}Date e iscritti{% else %}Pubblica e avvisa{% endif %}</a>{% endif %}
       </div>
     </div>
 
@@ -102,7 +102,7 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
       <div class="so-actions">
         {% if cfg.pubblicata and num.da_sollecitare %}
         <button type="submit" form="so-bulk" class="hr-btn hr-btn-ghost" name="azione" value="sollecita"
-                data-hub-confirm="Mandare un promemoria (notifica e mail) a chi è selezionato, o a tutti i {{ num.da_sollecitare }} che non hanno finito se non selezioni nessuno?">Sollecita chi non ha finito ({{ num.da_sollecitare }})</button>
+                data-hub-confirm="Mandare una notifica di promemoria nel portale (nessuna email) a chi è selezionato, o a tutti i {{ num.da_sollecitare }} che non hanno finito se non selezioni nessuno?">Sollecita chi non ha finito ({{ num.da_sollecitare }})</button>
         {% endif %}
         {% if num.da_registrare %}
         <button type="submit" form="so-bulk" class="hr-btn hr-btn-primary" name="azione" value="registra"
@@ -117,7 +117,7 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
       <table class="so-table">
         <thead><tr>
           {% if gestore %}<th style="width:28px;"><span class="sr-only">Seleziona</span></th>{% endif %}
-          <th>Partecipante</th><th>Slide</th><th>Tempo</th><th>Test</th><th>Ultimo accesso</th><th>Link</th><th>Stato</th>
+          <th>Partecipante</th><th>Slide</th><th>Tempo</th><th>Test</th><th>Ultimo accesso</th><th>Avviso</th><th>Stato</th>
           {% if gestore %}<th style="text-align:right;">Azioni</th>{% endif %}
         </tr></thead>
         <tbody>
@@ -125,7 +125,7 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
           <tr>
             {% if gestore %}<td><input type="checkbox" form="so-bulk" name="enrollment_id" value="{{ r.enrollment.pk }}" aria-label="Seleziona {{ r.nome }}"></td>{% endif %}
             <td><strong>{{ r.nome }}</strong>
-              <div class="so-muted">{{ r.reparto|default:"" }}{% if not r.ha_email and not r.ha_utente %} · <span class="so-ko">nessun contatto</span>{% elif not r.ha_email %} · solo notifica portale{% elif not r.ha_utente %} · solo mail{% endif %}</div></td>
+              <div class="so-muted">{{ r.reparto|default:"" }}{% if not r.ha_utente %} · <span class="so-ko">senza utente: avvisalo voi</span>{% endif %}</div></td>
             <td><div class="so-actions" style="flex-wrap:nowrap;"><div class="so-bar{% if r.slide_pct >= 100 %} ok{% endif %}" style="width:80px;"><span style="width:{{ r.slide_pct }}%"></span></div><span class="so-muted">{{ r.slide_viste }}/{{ online.n_slide }}</span></div></td>
             <td>{% if r.minuti %}{{ r.minuti }} min{% else %}<span class="so-muted">—</span>{% endif %}</td>
             <td>{% if r.n_tentativi %}
@@ -140,7 +140,7 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
               {% if r.n_tentativi %}<a class="so-link" href="?risposte={{ r.enrollment.pk }}#lezione-online">Risposte</a>{% endif %}
               {% if not sessione.is_approvata %}
               {% if cfg.pubblicata and r.da_sollecitare %}<button class="so-link" form="so-r{{ r.enrollment.pk }}" name="azione" value="sollecita" type="submit">Sollecita</button>{% endif %}
-              {% if cfg.pubblicata and not r.link_inviato and r.stato != "registrata" %}<button class="so-link" form="so-r{{ r.enrollment.pk }}" name="azione" value="invia_link" type="submit">Manda link</button>{% endif %}
+              {% if cfg.pubblicata and not r.link_inviato and r.stato != "registrata" %}<button class="so-link" form="so-r{{ r.enrollment.pk }}" name="azione" value="invia_link" type="submit">Avvisa</button>{% endif %}
               {% if r.stato == "non_superata" %}<button class="so-link" form="so-r{{ r.enrollment.pk }}" name="azione" value="tentativo" type="submit">Tentativo in più</button>{% endif %}
               {% if r.da_registrare %}<button class="so-link" form="so-r{{ r.enrollment.pk }}" name="azione" value="registra" type="submit">Registra</button>{% endif %}
               {% if r.stato != "registrata" and r.stato != "non_iniziata" %}<button class="so-link danger" form="so-r{{ r.enrollment.pk }}" name="azione" value="azzera" type="submit" data-hub-confirm="Far ripartire {{ r.nome }} dalla prima slide? I tentativi fatti restano a registro.">Azzera</button>{% endif %}

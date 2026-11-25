@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: nessuna email ai partecipanti delle lezioni; video fino a 600 MB
+
+- **Richiesta:** «non devono partire email, manderemo noi una mail unica», per tutte le lezioni.
+- Lezione online di sessione: invio, «Sollecita», «Avvisa» e promemoria mandano **solo la notifica nel portale** (`services/sessione_online.py` `invia_link`, tolta `_manda_mail`); il promemoria automatico è **spento di default** (`promemoria_giorni` = 0, campo in `models_sessione_online.py` e migrazione `0248` non ancora in produzione); testi «Pubblica e avvisa nel portale», «senza utente: avvisalo voi», nota col link da copiare per la mail aziendale (`_sessione_online_gestione.html`, `sessione_online_prepara.html`, `views_sessione_online.py`).
+- Promemoria delle sessioni in aula (T-7 e T-1, `send_formazione_session_reminders`): **niente più email con invito .ics** agli iscritti, solo notifica nel portale. Restano invariati i riepiloghi a responsabili e ufficio HR.
+- Video delle slide: il tetto IIS sull'intera richiesta passa da 100 a 600 MB nel modello `deployment/config/web.config.httpplatform.template` (`maxAllowedContentLength`); il limite del portale per i video resta quello delle impostazioni e-learning (500 MB). **Il `web.config` del server non si aggiorna col deploy**: va cambiato a mano.
+- Guide: guida Formazione in-app, guida e-learning, Centro guide. Test aggiornato: `anagrafica/tests.py` (promemoria sessione senza email).
+
 ### Formazione: iscritti alla sessione in blocco, con filtri
 
 - **Segnalazione:** nella pagina «Iscritti» di una sessione (anche online: slide + test) si potevano aggiungere le persone solo una alla volta.
