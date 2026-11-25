@@ -97,3 +97,35 @@ class ReportPaginaTests(QuoteBase):
         r = self.client.get(reverse("produzione:report_cmm", args=[self.r1.pk]))
         self.assertContains(r, f'name="r" value="{altro.pk}"')
         self.assertContains(r, "Confronta le fasi")
+
+
+class MatriceOpTests(QuoteBase):
+    def setUp(self):
+        super().setUp()
+        self.report("SN1", [q(D40, 40.010)], prog="P120", giorni=0)
+        self.report("SN1", [q(D40, 40.030)], prog="PCQF", giorni=1)            # fuori
+        self.report("SN1", [q(D40, 40.012)], prog="PCQF", giorni=2)            # rimisura: OK
+        self.report("SN2", [q(D40, 40.024)], prog="P120", giorni=3)            # 92%: al limite
+        self.report("SN3", [q(D40, 40.030)], prog="P120", giorni=4, escluso=True)
+
+    def test_matrice(self):
+        m = pagine.matrice_op("OP/2026/100", {"SN2": 1})
+        self.assertEqual(m["fasi"], ["P120", "PCQF"])
+        self.assertEqual([p["sn"] for p in m["pezzi"]], ["SN2", "SN1"])        # il più recente prima, escluso fuori
+        sn1 = m["pezzi"][1]
+        self.assertEqual([c["stato"] for c in sn1["riga"]], ["ok", "ok"])
+        self.assertEqual(sn1["riga"][1]["n"], 2)
+        sn2 = m["pezzi"][0]
+        self.assertEqual(sn2["riga"][0]["stato"], "limite")
+        self.assertIsNone(sn2["riga"][1])
+        self.assertEqual(sn2["anomalie"], 1)
+        self.assertEqual((m["conta"]["pezzi"], m["conta"]["completi"], m["conta"]["esclusi"] if "esclusi" in m["conta"] else m["esclusi"]), (2, 1, 1))
+
+    def test_pagina_op_pezzi_e_sezioni(self):
+        r = self.client.get(reverse("produzione:scheda", args=[self.pk]))
+        self.assertContains(r, "Pezzi e fasi")
+        self.assertContains(r, "prod-cella is-limite")
+        self.assertContains(r, "Cosa è successo")
+        for sez in ("report", "documenti", "fai", "programmi", "xyz"):
+            self.assertEqual(self.client.get(reverse("produzione:scheda", args=[self.pk]), {"sez": sez}).status_code, 200)
+        self.assertEqual(self.client.get(reverse("produzione:scheda", args=[self.pk]), {"aggiungi": "1"}).context["sezione"], "documenti")

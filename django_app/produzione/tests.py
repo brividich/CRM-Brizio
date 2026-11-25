@@ -103,7 +103,8 @@ class SchedaTest(ProduzioneBase):
         self.assertEqual([r.code for r in c["programmi"]], ["CMM-ALFA"])
         self.assertEqual(c["anomalie"], {"totale": 2, "aperte": 1})
         self.assertEqual([o["op"] for o in c["altri_op"]], ["OP/2025/900"])
-        self.assertContains(pagina, "/tasks/fai/nuovo/?op=OP%2F2026%2F100&amp;pn=PN-ALFA-1")
+        sez_fai = self.client.get(reverse("produzione:scheda", args=[self.pk]), {"sez": "fai"})
+        self.assertContains(sez_fai, "/tasks/fai/nuovo/?op=OP%2F2026%2F100&amp;pn=PN-ALFA-1")
         self.assertContains(pagina, "/gestione-anomalie?op=OP%2F2026%2F100&amp;filter=tutti")
 
     def test_op_inesistente_404(self):
@@ -131,14 +132,14 @@ class PercorsoTest(ProduzioneBase):
         self.assertIn("/tasks/projects/new/?pn=PN-ALFA-1", passi["kickoff"]["url"])
         self.assertEqual(passi["anomalie"]["stato"], "allerta")
         self.assertEqual(pagina.context["prossimo"]["chiave"], "kickoff")
-        self.assertContains(pagina, "Prossimo passo")
+        self.assertContains(pagina, "prod-percorso-pn")                 # il percorso è la striscia in alto
 
     def test_passi_si_chiudono_e_il_prossimo_avanza(self):
         progetto = make_project(name="Kickoff Alfa", created_by=self.admin, part_number="PN-ALFA-1")
         ProjectTechRef.objects.create(project=progetto, kind=TechRefKind.CAM, code="CAM-1", status="DONE", created_by=self.admin)
         _, passi = self._passi()
         self.assertEqual((passi["kickoff"]["stato"], passi["programmi"]["stato"]), ("fatto", "fatto"))
-        self.assertEqual(passi["documenti"]["url"], "?aggiungi=1#passo-documenti")
+        self.assertEqual(passi["documenti"]["url"], "?sez=documenti&aggiungi=1")
         DocumentoOP.objects.create(op="OP/2026/100", tipo=self.tipo, titolo="Ciclo 1")
         fai = self._fai("OP/2026/100")
         pagina, passi = self._passi()

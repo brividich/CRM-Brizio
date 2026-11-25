@@ -55,14 +55,15 @@ GUIDA = {
             "titolo": "La scheda dell'OP",
             "blocchi": [
                 ("ul", [
-                    "«Documenti registrati»: cicli, disegni, DIP, piani di controllo, certificati, rapporti di collaudo e "
+                    "In alto i numeri dell'OP e la striscia del percorso (KICK-OFF, programmi, documenti, FAI, anomalie).",
+                    "«Pezzi»: matrice pezzi × fasi (una riga per S/N, una colonna per programma CMM; OK, al limite, "
+                    "fuori, non misurato, ↻ rimisurato; clic = report) e «Cosa è successo».",
+                    "«Report CMM»: i report dell'OP, da spuntare per il confronto.",
+                    "«Documenti»: cicli, disegni, DIP, piani di controllo, certificati, rapporti di collaudo e "
                     "gli altri tipi decisi in Impostazioni, con revisione, data e cartella di rete. «Aggiungi documento», "
                     "«Modifica», «Elimina».",
-                    "«FAI del P/N»: dal Registro FAI, gli ultimi dieci del P/N con il loro OP; «Scheda del P/N» per "
-                    "tutti, «+ Nuovo FAI del P/N» apre la scheda FAI con OP e P/N già compilati.",
-                    "«Programmi CAM e CMM»: dalle righe del KICK-OFF dello stesso P/N.",
-                    "«Anomalie»: conteggi e link a Gestione anomalie filtrata sull'OP.",
-                    "«KICK-OFF del P/N» e «Altri OP dello stesso P/N» a lato.",
+                    "«FAI»: dal Registro FAI, gli ultimi dieci del P/N con il loro OP; «+ Nuovo FAI del P/N».",
+                    "«Programmi»: dalle righe del KICK-OFF dello stesso P/N.",
                 ]),
                 ("p", "Nel Registro FAI il campo OP propone gli OP dello stesso elenco e il nome dell'OP porta a questa scheda."),
             ],

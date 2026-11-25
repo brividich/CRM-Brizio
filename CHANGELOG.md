@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: scheda OP a sezioni con la matrice pezzi × fasi
+
+- Nuova sezione «Pezzi» della scheda OP: una riga per S/N e una colonna per fase di controllo (programma CMM); ogni cella è l'ultimo report di quel pezzo in quella fase (OK, al limite oltre l'80% della tolleranza, N fuori, non misurato, ↻ rimisurato) e apre il report; accanto al S/N le anomalie aperte. A destra «Cosa è successo» (report e documenti dal più recente) e gli altri OP del P/N.
+- In alto i numeri dell'OP (pezzi misurati, arrivati all'ultima fase senza fuori, con quote fuori, anomalie aperte, report) e la striscia del percorso al posto di «Prossimo passo» e dei riquadri in colonna; sezioni Report CMM, Documenti, FAI e Programmi con indirizzo proprio (`?sez=`).
+- Link «Manca» di elenco OP, elenco P/N e scheda P/N portano alla sezione giusta.
+- File: `django_app/produzione/report_cmm_pagine.py` (`matrice_op`, `cronologia_op`), `views.py` (`_render_scheda`, `SEZIONI_OP`), `services.py`, `templates/produzione/scheda.html`, `elenco.html`, `pn_elenco.html`, `pn_scheda.html`, `static/produzione/css/produzione.css`, `core/ordini_produzione.py` (`anomalie_aperte_per_seriale`), `guida.py`, `core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`, test `tests.py`, `tests_report_pagine.py`.
+
 ### Ordini di produzione: scheda P/N a sezioni con indirizzo stabile
 
 - La scheda del P/N ha un indirizzo fisso, `/produzione/pn/<P/N>/` (il vecchio `/produzione/pn/scheda/?pn=` reindirizza), e non è più una colonna lunga di riquadri: in alto la striscia del percorso (KICK-OFF, programmi, FAI, OP) con lo stato di ogni passo, sotto le sezioni Panoramica, OP, Report CMM, Programmi e FAI, ognuna col suo indirizzo (`?sez=`).

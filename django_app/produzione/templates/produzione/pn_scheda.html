@@ -90,8 +90,8 @@
               <td><a class="prod-op" href="{{ url_op }}">{{ o.op }}</a></td>
               <td>{{ o.car|default:"—" }}</td>
               <td>{% if o.stato %}<span class="prod-stato">{{ o.stato }}</span>{% endif %}</td>
-              <td class="prod-n">{% if o.n_documenti %}{{ o.n_documenti }}{% else %}<a class="prod-manca" href="{{ url_op }}#passo-documenti">Manca</a>{% endif %}</td>
-              <td class="prod-n">{% if o.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ url_op }}#passo-anomalie">{{ o.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
+              <td class="prod-n">{% if o.n_documenti %}{{ o.n_documenti }}{% else %}<a class="prod-manca" href="{{ url_op }}?sez=documenti">Manca</a>{% endif %}</td>
+              <td class="prod-n">{% if o.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ url_op }}">{{ o.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -112,8 +112,8 @@
               <td><a class="prod-op" href="{{ url_op }}">{{ o.op }}</a></td>
               <td>{{ o.car|default:"—" }}</td>
               <td>{% if o.stato %}<span class="prod-stato">{{ o.stato }}</span>{% endif %}</td>
-              <td class="prod-n">{% if o.n_documenti %}{{ o.n_documenti }}{% else %}<a class="prod-manca" href="{{ url_op }}#passo-documenti">Manca</a>{% endif %}</td>
-              <td class="prod-n">{% if o.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ url_op }}#passo-anomalie">{{ o.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
+              <td class="prod-n">{% if o.n_documenti %}{{ o.n_documenti }}{% else %}<a class="prod-manca" href="{{ url_op }}?sez=documenti">Manca</a>{% endif %}</td>
+              <td class="prod-n">{% if o.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ url_op }}">{{ o.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>
