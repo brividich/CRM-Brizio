@@ -9,6 +9,10 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### E-learning: il link aperto mostra sempre l'indirizzo pubblico in https
+
+- Il riquadro «Link aperto» e il QR mostravano `http://hub.costruzioninovicrom.it/…`, costruito dalla richiesta interna (dietro IIS arriva in http). Ora l'indirizzo usa `SITE_URL` (in produzione `https://hub.costruzioninovicrom.it`, pubblicato su internet dall'app Entra «Approvazioni») quando `ELEARNING_LINK_APERTO_URL_PUBBLICO` e `RECEPTION_RICHIESTE_URL_PUBBLICO` sono vuote (`anagrafica/views_elearning.py` `url_link_aperto`). Il token non cambia: i QR già stampati restano validi. Test: `tests_elearning_gestione_corso.py`. Nessuna migrazione.
+
 ### Ordini di produzione: giro dei report CMM più corto e sicuro, messaggio chiaro se il PDF non si apre
 
 - Il giro apre solo i PDF col nome da report CMM (`_OP-aaaa-n_Z.._`) e scende al massimo 3 livelli sotto la cartella del P/N: prima apriva anche M, LPT, scansioni e scorreva le cartelle dei programmi macchina (migliaia di file). Sulle 6 cartelle più grandi della share l'elenco passa a meno di 10 secondi in tutto.

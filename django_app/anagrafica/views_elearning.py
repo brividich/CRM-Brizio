@@ -779,10 +779,15 @@ def formazione_online_gradimento(request, corso_id: int):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def url_link_aperto(request, link) -> str:
-    """Indirizzo completo del link aperto: quello pubblico (Entra) se configurato."""
+    """Indirizzo completo del link aperto, sempre quello pubblico.
+
+    Ordine: ``ELEARNING_LINK_APERTO_URL_PUBBLICO``, ``RECEPTION_RICHIESTE_URL_PUBBLICO``,
+    poi ``SITE_URL`` (in produzione https://hub.costruzioninovicrom.it, pubblicato da Entra).
+    Solo se mancano tutti si usa l'indirizzo della richiesta, che dietro IIS arriva in http."""
     from django.conf import settings
     base = ((getattr(settings, "ELEARNING_LINK_APERTO_URL_PUBBLICO", "") or "").strip()
-            or (getattr(settings, "RECEPTION_RICHIESTE_URL_PUBBLICO", "") or "").strip())
+            or (getattr(settings, "RECEPTION_RICHIESTE_URL_PUBBLICO", "") or "").strip()
+            or (getattr(settings, "SITE_URL", "") or "").strip())
     percorso = reverse("corso_aperto:corso", args=[link.token])
     return base.rstrip("/") + percorso if base else request.build_absolute_uri(percorso)
 
