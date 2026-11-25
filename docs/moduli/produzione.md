@@ -16,6 +16,10 @@ Ogni OP con i suoi documenti di produzione. Gli OP sono la tabella legacy `ordin
 - **P/N** (`/produzione/pn/`, `services.righe_pn`): il P/N è l'articolo principale con più OP, e il FAI è del P/N, non dell'OP. Una riga per P/N (normalizzato con `tasks.identity.normalize_part_number`) degli OP: numero di OP, ultimo OP, capocommessa, FAI, «Situazione FAI» (la peggiore fra gli articoli del P/N, da `tasks.services.fai.righe_registro`, stessa lettura del Registro FAI) e anomalie aperte di tutti gli OP. La ricerca sceglie i P/N da un loro OP, capocommessa o CAR ma conta tutti gli OP. Chip `?manca=anomalie|fai|scadenza`.
 - **Scheda del P/N** (`/produzione/pn/scheda/?pn=`, `services.scheda_pn`, 404 se nessun OP ha quel P/N): quattro passi — KICK-OFF del P/N, programmi CAM e CMM, FAI del P/N (situazione per cliente con «entro», tutti i FAI con il loro OP, «+ Nuovo FAI per questo P/N» → `tasks:fai_nuovo?pn=`), OP del P/N (CAR, stato, documenti, anomalie aperte).
 - Nella scheda dell'OP il passo è **FAI del P/N** (`services._passo_fai`): conta il FAI più recente non annullato del P/N, anche se fatto su un altro OP; «allerta» se l'articolo è da ripetere o, dopo un FAI positivo, da verificare. Nell'elenco OP la colonna «FAI del P/N» e il chip «Senza FAI» contano i FAI del P/N.
+- **Report CMM e andamento quote** (`produzione/report_cmm_indice.py`): la cartella `PRODUZIONE_REPORT_CMM_ROOT` (default `\\novisrv\Area Controllo\Collaudo`, struttura `<P/N>\<OP-aaaa-n>\<fase>_<OP>_<Z..>_<S/N>[_suffisso].pdf`) si legge in sola lettura con `anomalie.report_cmm.leggi_pdf(ocr=False)`. `ReportCMM` (P/N dalla cartella, OP dalla cartella → `OP/aaaa/n`, programma = «Part Program Name», `programma_base` senza `_REVn`, S/N e data dalla testata, ripiego sul nome file) e `MisuraCMM` (nome, `chiave` = nome senza spazi maiuscolo, gruppo, tipo, rilevato, nominale, tolleranze con segno, fuori, `fuori_di`, da verificare). Un PDF si rilegge solo se cambiano dimensione o data; quelli spariti si tolgono. Giro pianificato `produzione_report_cmm_giro` (`produzione.tasks.run_giro_report_cmm`, ogni ora ai 40, timeout 900 s, blocco in cache contro la riconsegna) per `PRODUZIONE_REPORT_CMM_MINUTI` (15): prima le cartelle mai lette, poi quelle cambiate, poi le più vecchie. `manage.py leggi_report_cmm [--pn P/N] [--minuti N]`.
+  - **Andamento quote** (`/produzione/pn/quote/?pn=&prog=&q=&r=`): programma, quota (`q` = `chiave|nominale`: lo stesso nome con un altro nominale è un'altra quota; `q=<chiave>&nom=` dal report), tabella per S/N e grafico SVG lato server (rilevato, nominale, limiti; `r` evidenzia un report). Senza quota: elenco delle quote con report e volte fuori (`&fuori=1`). «Leggi i report» (POST `/produzione/pn/leggi-report/`) accoda `run_leggi_pn` per la cartella del P/N.
+  - **Report** (`/produzione/report-cmm/<id>/`): quote fuori o da verificare (`?tutte=1` tutte), «Andamento» per ciascuna, altri report dello stesso S/N, «Apri il PDF» (`/produzione/report-cmm/<id>/pdf/`, solo file sotto la radice) e «Apri segnalazione anomalia» → `/gestione-anomalie/nuova-segnalazione?op_id=<id>&report_cmm=<id>`: il pannello «Dal report CMM (PDF)» si apre da sé e chiede `api/anomalie/report-cmm/leggi` con `report_cmm` (serve anche `produzione.op.view`).
+  - Riquadro «Report CMM» nelle schede del P/N (conteggi e ultimi 8) e dell'OP (report di quell'OP).
 - **Impostazioni** (`/produzione/impostazioni/`): tipi di documento (`TipoDocumento`), seminati dalla migrazione `0002`.
 
 Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KICK-OFF rispettano i permessi del modulo KICK-OFF.
@@ -24,7 +28,7 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 
 | Codice | Default | Rotte |
 |---|---|---|
-| `produzione.op.view` | tutti i ruoli | elenco, scheda, pn_elenco, pn_scheda, guida |
+| `produzione.op.view` | tutti i ruoli | elenco, scheda, pn_elenco, pn_scheda, pn_quote, pn_leggi_report, report_cmm, report_cmm_pdf, guida |
 | `produzione.documenti.manage` | admin | documento, documento_elimina |
 | `produzione.impostazioni.manage` | admin | impostazioni |
 | `produzione.op.manage` | admin | op_nuovo (risponde in JSON 401/403/400) |
@@ -33,8 +37,8 @@ Nella matrice di Ruoli e permessi il modulo è «Ordini di produzione» (area Pr
 
 ## Tabelle
 
-`produzione_tipodocumento`, `produzione_documentoop` (migrazioni `0001-0002`). Legge `ordini_produzione` e `anomalie`.
+`produzione_tipodocumento`, `produzione_documentoop` (migrazioni `0001-0002`); `produzione_cartellareportcmm`, `produzione_reportcmm`, `produzione_misuracmm` (migrazione `0003`). Legge `ordini_produzione` e `anomalie`.
 
 ## Deploy
 
-`migrate produzione`, `collectstatic` (`produzione/css/produzione.css`, `produzione/css/nuovo_op.css`, `produzione/js/nuovo_op.js`).
+`migrate produzione`, `collectstatic` (`produzione/css/produzione.css`, `produzione/css/nuovo_op.css`, `produzione/js/nuovo_op.js`, `produzione/js/quote.js`, bundle di Gestione anomalie), registrazione degli schedule (`produzione_report_cmm_giro`), riavvio di qcluster. L'utente del portale e quello di qcluster devono poter **leggere** `\\novisrv\Area Controllo\Collaudo`.

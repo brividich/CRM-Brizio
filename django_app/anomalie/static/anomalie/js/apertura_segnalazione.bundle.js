@@ -57,6 +57,7 @@ const API = window._AP_API || {
   clona: '/api/anomalie/clona',
   allegati_copia: '/api/anomalie/allegati/copia',
   report_cmm: '/api/anomalie/report-cmm/leggi',
+  report_cmm_archivio: '/api/anomalie/report-cmm/archivio',
   elimina: '/api/anomalie/elimina',
   sposta: '/api/anomalie/sposta'
 };
@@ -71,6 +72,23 @@ const CLONA_PARAMS = (() => {
     ids
   } : null;
 })();
+/* Da Ordini di produzione › Report CMM: ?op_id=<id>&report_cmm=<id> apre il pannello del report
+   già letto dalla share, appena si arriva all'elenco delle anomalie. Vale una volta sola. */
+const REPORT_DA_URL = (() => {
+  const v = new URLSearchParams(window.location.search).get('report_cmm') || '';
+  return /^\d+$/.test(v) ? {
+    id: v,
+    usato: false
+  } : null;
+})();
+const ApriReportDaUrl = ({
+  onApri
+}) => {
+  useEffect(() => {
+    if (REPORT_DA_URL && !REPORT_DA_URL.usato) onApri();
+  }, []);
+  return null;
+};
 const contaClona = c => c ? c.blocchi.reduce((n, b) => n + b.anomalie.length, 0) : 0;
 const cfgLists = window._AP_CONFIG_LISTS || {};
 const CFG_CAPI_REPARTO = Array.isArray(cfgLists.capi_reparto) ? cfgLists.capi_reparto : [];
@@ -1021,6 +1039,33 @@ const ReportPdfPannello = ({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
+  const leggiUno = async (form, nome) => {
+    form.append('op_id', opId || '');
+    const r = await fetch(API.report_cmm, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrf()
+      },
+      body: form,
+      credentials: 'same-origin'
+    });
+    const j = await parseJsonStrict(r, 'Lettura del report');
+    if (!r.ok || !j.success) throw new Error(j.error || `HTTP ${r.status}`);
+    if (!(j.righe || []).length) throw new Error('nessuna riga di misura trovata: è il report CMM esportato in PDF?');
+    const id = uid();
+    setReport(prev => [...prev.filter(x => x.file !== (j.file || nome)), {
+      id,
+      file: j.file || nome,
+      intestazione: j.intestazione || {},
+      righe: j.righe,
+      pagine: j.pagine,
+      metodo: j.metodo
+    }]);
+    setScelte(prev => ({
+      ...prev,
+      ...Object.fromEntries(j.righe.map(x => [`${id}:${x.indice}`, !!x.fuori]))
+    }));
+  };
   const leggi = async lista => {
     const files = Array.from(lista || []).filter(f => /\.pdf$/i.test(f.name || '') || f.type === 'application/pdf');
     if (!files.length) {
@@ -1032,38 +1077,40 @@ const ReportPdfPannello = ({
       setStato(`Lettura di ${file.name}…`);
       try {
         const form = new FormData();
-        form.append('op_id', opId || '');
         form.append('pdf', file, file.name || 'report.pdf');
-        const r = await fetch(API.report_cmm, {
-          method: 'POST',
-          headers: {
-            'X-CSRFToken': getCsrf()
-          },
-          body: form,
-          credentials: 'same-origin'
-        });
-        const j = await parseJsonStrict(r, 'Lettura del report');
-        if (!r.ok || !j.success) throw new Error(j.error || `HTTP ${r.status}`);
-        if (!(j.righe || []).length) throw new Error('nessuna riga di misura trovata: è il report CMM esportato in PDF?');
-        const id = uid();
-        setReport(prev => [...prev.filter(x => x.file !== (j.file || file.name)), {
-          id,
-          file: j.file || file.name,
-          intestazione: j.intestazione || {},
-          righe: j.righe,
-          pagine: j.pagine,
-          metodo: j.metodo
-        }]);
-        setScelte(prev => ({
-          ...prev,
-          ...Object.fromEntries(j.righe.map(x => [`${id}:${x.indice}`, !!x.fuori]))
-        }));
+        await leggiUno(form, file.name);
       } catch (e) {
         errori.push(`${file.name}: ${e.message}`);
       }
     }
     setStato(errori.join(' · '));
   };
+  // Report dell'OP già letti dalla cartella Collaudo (Ordini di produzione): si scelgono senza caricare il file.
+  const [archivio, setArchivio] = useState([]);
+  useEffect(() => {
+    if (!opId) return;
+    getJson(`${API.report_cmm_archivio}?op_id=${encodeURIComponent(opId)}`, 'Report della cartella').then(j => setArchivio(Array.isArray(j.report) ? j.report : [])).catch(() => setArchivio([]));
+  }, [opId]);
+  const leggiArchivio = async a => {
+    setStato(`Lettura di ${a.file}…`);
+    try {
+      const form = new FormData();
+      form.append('report_cmm', String(a.id));
+      await leggiUno(form, a.file);
+      setStato('');
+    } catch (e) {
+      setStato(`${a.file}: ${e.message}`);
+    }
+  };
+  // Report già letto dalla share (link da Ordini di produzione).
+  useEffect(() => {
+    if (!REPORT_DA_URL || REPORT_DA_URL.usato) return;
+    REPORT_DA_URL.usato = true;
+    setStato('Lettura del report dalla cartella dei report CMM…');
+    const form = new FormData();
+    form.append('report_cmm', REPORT_DA_URL.id);
+    leggiUno(form, 'report').then(() => setStato('')).catch(e => setStato(`Report dalla cartella: ${e.message}`));
+  }, []);
   const scelteRighe = report.flatMap(rep => rep.righe.filter(x => scelte[`${rep.id}:${x.indice}`]).map(x => ({
     rep,
     x
@@ -1125,7 +1172,23 @@ const ReportPdfPannello = ({
     onClick: () => fileRef.current && fileRef.current.click()
   }, "scegli i file"), ".", /*#__PURE__*/React.createElement("span", null, "Il PDF non viene allegato: serve solo a leggere le righe.")), stato && /*#__PURE__*/React.createElement("div", {
     className: stato.startsWith('Lettura') ? 'field-hint' : 'error-msg'
-  }, stato)), nTutte > 0 && /*#__PURE__*/React.createElement("div", {
+  }, stato)), archivio.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "cmm-archivio"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "field-hint"
+  }, "Report di questo OP nella cartella Collaudo:"), /*#__PURE__*/React.createElement("div", {
+    className: "cmm-archivio__lista"
+  }, archivio.map(a => {
+    const letto = report.some(x => x.file === a.file);
+    return /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      key: a.id,
+      className: `cmm-archivio__voce${letto ? ' is-letto' : ''}`,
+      disabled: letto,
+      onClick: () => leggiArchivio(a),
+      title: a.programma || a.file
+    }, /*#__PURE__*/React.createElement("strong", null, a.seriale), " ", a.data, a.fuori ? /*#__PURE__*/React.createElement("em", null, " \xB7 ", a.fuori, " fuori") : ' · ok');
+  }))), nTutte > 0 && /*#__PURE__*/React.createElement("div", {
     className: "cmm-side__filtro",
     role: "group",
     "aria-label": "Righe da mostrare"
@@ -4422,12 +4485,14 @@ const Step2Controllo = ({
     disabled: saving
   }, "+ Nuova anomalia su questi seriali"), campoVisibile('report_zeiss', {
     fase: controllo ? controllo.fase : ''
-  }, true) && /*#__PURE__*/React.createElement("button", {
+  }, true) && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "btn-outline anom-add",
     onClick: () => setReportPdfAperto(true),
     disabled: saving
-  }, "\uD83D\uDCC4 Dal report CMM (PDF)"), /*#__PURE__*/React.createElement("button", {
+  }, "\uD83D\uDCC4 Dal report CMM (PDF)"), /*#__PURE__*/React.createElement(ApriReportDaUrl, {
+    onApri: () => setReportPdfAperto(true)
+  })), /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "btn-outline anom-add",
     onClick: () => setElencoAperto(true),

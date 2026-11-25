@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ report.seriale|default:report.file }} · Report CMM{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125a">{% endblock %}
+
+{% block content %}
+<div class="prod">
+  <div class="prod-head">
+    <div>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_scheda' %}?pn={{ report.pn|urlencode }}">{{ report.pn }}</a> · Report CMM</span>
+      <h1>{{ report.seriale|default:report.file }}</h1>
+    </div>
+    <div class="prod-filtri">
+      <a class="prod-btn" href="{% url 'produzione:report_cmm_pdf' report.id %}" target="_blank" rel="noopener">Apri il PDF</a>
+      {% if url_anomalia %}<a class="prod-btn prod-btn-primary" href="{{ url_anomalia }}">Apri segnalazione anomalia</a>{% endif %}
+    </div>
+  </div>
+
+  {% include "produzione/_nav.html" %}
+
+  <div class="prod-dati">
+    <div class="prod-dato"><span>OP</span>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% else %}<b>{{ report.op|default:"—" }}</b>{% endif %}</div>
+    <div class="prod-dato"><span>Programma</span><b>{{ report.programma|default:"—" }}</b></div>
+    <div class="prod-dato"><span>Data</span><b>{{ report.data|date:"d/m/Y"|default:"—" }}</b></div>
+    <div class="prod-dato{% if report.fuori %} is-allerta{% endif %}"><span>Fuori tolleranza</span><b>{{ report.fuori }} su {{ report.righe }}</b></div>
+  </div>
+  {% if report.errore %}<p class="prod-avviso">{{ report.errore }}</p>{% endif %}
+  {% if report.op and not op %}<p class="prod-nota">L'OP {{ report.op }} non è nell'elenco degli OP: la segnalazione si apre da Gestione anomalie.</p>{% endif %}
+
+  <section class="prod-card">
+    <div class="prod-card-head">
+      <h2>{% if tutte %}Tutte le quote{% else %}Quote fuori tolleranza{% endif %}</h2>
+      <a class="prod-btn prod-btn-piccolo" href="?{% if not tutte %}tutte=1{% endif %}">{% if tutte %}Solo quelle fuori{% else %}Tutte le quote{% endif %}</a>
+    </div>
+    {% if misure %}
+    <div class="prod-scorri">
+      <table class="prod-tab">
+        <thead><tr><th>Quota</th><th>Gruppo</th><th class="prod-n">Rilevato</th><th class="prod-n">Nominale</th><th class="prod-n">Tol +</th><th class="prod-n">Tol −</th><th class="prod-n">Fuori di</th><th></th></tr></thead>
+        <tbody>
+          {% for m in misure %}
+          <tr>
+            <td><b>{{ m.nome }}</b>{% if m.tipo %}<span class="prod-sub"> {{ m.tipo }}</span>{% endif %}</td>
+            <td>{{ m.sezione|default:"—"|truncatechars:60 }}</td>
+            <td class="prod-num">{{ m.misurato|floatformat:4 }}</td>
+            <td class="prod-num">{{ m.nominale|floatformat:4 }}</td>
+            <td class="prod-num">{{ m.tol_sup|floatformat:4 }}</td>
+            <td class="prod-num">{{ m.tol_inf|floatformat:4 }}</td>
+            <td class="prod-num{% if m.fuori %} is-fuori{% endif %}">{% if m.fuori %}{{ m.fuori_di|floatformat:4 }}{% else %}—{% endif %}{% if m.da_verificare %} <span class="prod-stato is-warn" title="Il calcolo e l'eccedenza del report non coincidono">da verificare</span>{% endif %}</td>
+            <td><a href="{% url 'produzione:pn_quote' %}?pn={{ report.pn|urlencode }}&amp;prog={{ report.programma_base|urlencode }}&amp;q={{ m.chiave|urlencode }}&amp;nom={{ m.nominale|stringformat:".4f" }}&amp;r={{ report.id }}">Andamento</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="prod-vuoto">{% if tutte %}Nessuna quota letta da questo report.{% else %}Tutte le quote sono in tolleranza.{% endif %}</p>
+    {% endif %}
+  </section>
+
+  {% if altri %}
+  <section class="prod-card">
+    <div class="prod-card-head"><h2>Altri report dello stesso S/N</h2></div>
+    {% include "produzione/_report_cmm_tabella.html" with elenco_report=altri %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

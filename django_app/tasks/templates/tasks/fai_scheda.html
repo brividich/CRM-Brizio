@@ -9,7 +9,7 @@
   <span class="ts-chip soft">{{ record.stato.etichetta }}</span>
   {% if record.tipo %}<span class="ts-chip soft">{{ record.get_tipo_display }}</span>{% endif %}
 {% endif %}{% endblock %}
-{% block tasks_shell_actions %}<a class="ts-hero-action" href="{% url 'tasks:fai_registro' %}">Registro FAI</a>{% endblock %}
+{% block tasks_shell_actions %}{% if url_report_cmm %}<a class="ts-hero-action" href="{{ url_report_cmm }}">Report CMM del P/N</a>{% endif %}<a class="ts-hero-action" href="{% url 'tasks:fai_registro' %}">Registro FAI</a>{% endblock %}
 
 {% block tasks_shell_content %}
 <form method="post" class="fai-scheda" data-fai-form>

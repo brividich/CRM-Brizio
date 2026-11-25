@@ -47,6 +47,7 @@
     task: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 12 2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>',
     op: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/></svg>',
     fai: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5M8.5 11l1.8 1.8 3.2-3.3"/></svg>',
+    cmm: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><circle cx="19" cy="6" r="1.5"/></svg>',
     procedura: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/></svg>',
     dpi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>',
     processo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
@@ -55,7 +56,7 @@
   };
   var LABELS = {
     dipendente: "Dipendenti", asset: "Asset", ticket: "Ticket",
-    kickoff: "Kickoff", task: "Attività", op: "Ordini di produzione", fai: "Registro FAI", procedura: "Procedure", dpi: "DPI",
+    kickoff: "Kickoff", task: "Attività", op: "Ordini di produzione", fai: "Registro FAI", cmm: "Report CMM", procedura: "Procedure", dpi: "DPI",
     processo: "Processi qualificati"
   };
 

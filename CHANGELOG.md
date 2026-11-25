@@ -9,6 +9,22 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: andamento quote dai report CMM, collegato ad anomalie, FAI, KICK-OFF e Ctrl+K
+
+Porta nel portale il file Excel «Analizza Reports» del Collaudo: i report CMM non si caricano più a mano, il portale legge da solo la cartella `\\novisrv\Area Controllo\Collaudo` (sola lettura) e tiene le misure per P/N.
+
+- **Archivio dei report**: ogni ora (lavoro pianificato `produzione_report_cmm_giro`, al massimo 15 minuti a giro) legge i PDF nuovi o cambiati con il lettore di Gestione anomalie verificato sui 2861 report veri. P/N e OP dalla cartella, programma, S/N e data dalla testata del report. I file spariti si tolgono. `manage.py leggi_report_cmm [--pn] [--minuti]` per il primo caricamento.
+- **Andamento quote** (`/produzione/pn/quote/?pn=`): programma (senza revisione) e quota; tabella per S/N con rilevato, nominale, tolleranze e «Fuori di», grafico con limiti. Senza quota: elenco delle quote con quante volte sono andate fuori. «Leggi i report» rilegge subito la cartella del P/N.
+- **Report** (`/produzione/report-cmm/<id>/`): quote fuori tolleranza del S/N (o tutte), «Andamento» per ciascuna, altri report dello stesso S/N, «Apri il PDF», «Apri segnalazione anomalia».
+- **Collegamenti fra moduli**:
+  - Gestione anomalie: «Apri segnalazione anomalia» apre l'OP del report e, avviato il controllo, il pannello «📄 Dal report CMM (PDF)» si apre già con le righe del report. Nel pannello compaiono i report dell'OP già letti dalla cartella: un clic e si leggono, senza caricare il file (`api/anomalie/report-cmm/archivio`, `report_cmm` in `api/anomalie/report-cmm/leggi`).
+  - Schede P/N e OP: riquadro «Report CMM»; elenco P/N: colonna «Report CMM» (con quote fuori / totale) che porta all'andamento.
+  - KICK-OFF: le righe «Programma CMM» della scheda P/N portano all'andamento del programma con quel codice.
+  - Registro FAI: «Report CMM del P/N» nella scheda FAI.
+  - Ctrl+K: cerca i report per S/N, P/N, OP o nome del file.
+- Configurazione: `PRODUZIONE_REPORT_CMM_ROOT` (vuota = spenta), `PRODUZIONE_REPORT_CMM_MINUTI`. Al deploy: `migrate produzione` (0003), `collectstatic`, schedule registrato, riavvio di qcluster, **lettura sulla share Collaudo** per l'utente del portale e di qcluster.
+- File: `django_app/produzione/` (`models.py`, `migrations/0003_report_cmm.py`, `report_cmm_indice.py`, `tasks.py`, `management/commands/leggi_report_cmm.py`, `views.py`, `urls.py`, `services.py`, `acl_bootstrap.py`, `guida.py`, template `quote.html`, `report_cmm.html`, `_report_cmm_tabella.html`, `pn_scheda.html`, `pn_elenco.html`, `scheda.html`, `static/produzione/css/produzione.css`, `static/produzione/js/quote.js`, `tests_report_cmm.py`), `django_app/anomalie/` (`controllo_views.py`, `urls.py`, `report_cmm.py` con `ocr=False`, JSX + bundle, `apertura_segnalazione.html`), `django_app/tasks/views/fai.py`, `django_app/tasks/templates/tasks/fai_scheda.html`, `django_app/core/views.py`, `django_app/core/static/core/js/command-palette.js`, `django_app/automazioni/schedules.py`, `django_app/config/settings/base.py`, `django_app/core/guide_moduli/contenuti/produzione.py`, `django_app/hub_tools/schema_db.py`, `docs/moduli/produzione.md`.
+
 ### Organigramma a diagramma: un ambito alla volta, ricerca e vista ricordata
 
 - **Tolta la vista «Tutti gli ambiti»** (e «Ruoli senza ambito») dal diagramma: si apre sull'ambito con «alimenta il Ruolo aziendale», che comprende i ruoli non classificati, e la sessione ricorda l'ultimo scelto (`anagrafica/views/struttura.py` `_ambito_diagramma`, `organigramma_diagramma`; `services/organigramma_albero.py` `build_ruolo_albero(includi_senza=)`, `chiave_persona`). L'Albero resta com'era.
