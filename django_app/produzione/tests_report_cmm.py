@@ -61,7 +61,7 @@ class LetturaTests(ArchivioBase):
         self.scrivi("210_OP-2026-100_ZPN_SN002_A.pdf", _pdf_report_sintetico("SN002"))
         self.scrivi("32_OP-2026-100_LPT.pdf", b"%PDF-1.4 non un report")
         stat = cmm.leggi_pn("pn-alfa-1")
-        self.assertEqual((stat["letti"], stat["completa"]), (3, True))
+        self.assertEqual((stat["letti"], stat["completa"]), (2, True))          # LPT: non si apre
         r = ReportCMM.objects.get(seriale="SN001")
         self.assertEqual((r.pn, r.op, r.programma, r.programma_base), ("PN-ALFA-1", "OP/2026/100", "PRG_PROVA_REV0", "PRG_PROVA"))
         self.assertEqual((r.righe, r.fuori, r.data.isoformat()), (4, 2, "2026-01-01"))
@@ -69,12 +69,12 @@ class LetturaTests(ArchivioBase):
         self.assertTrue(m.fuori)
         self.assertAlmostEqual(m.fuori_di, -0.0246)
         self.assertEqual(m.sezione, "DIAMETRI ESTERNI")
-        self.assertTrue(ReportCMM.objects.get(file="32_OP-2026-100_LPT.pdf").errore)
+        self.assertFalse(ReportCMM.objects.filter(file="32_OP-2026-100_LPT.pdf").exists())
 
         # Invariati: non si rileggono. Sparito: si toglie con le sue misure.
         os.remove(a)
         stat = cmm.leggi_pn("PN-ALFA-1")
-        self.assertEqual((stat["letti"], stat["invariati"], stat["tolti"]), (0, 2, 1))
+        self.assertEqual((stat["letti"], stat["invariati"], stat["tolti"]), (0, 1, 1))
         self.assertFalse(MisuraCMM.objects.filter(report__seriale="SN001").exists())
         self.assertIsNotNone(CartellaReportCMM.objects.get(pn="PN-ALFA-1").letta_il)
 
@@ -171,7 +171,7 @@ class PagineTests(ArchivioBase):
         for chiudi in r._resource_closers:  # r.close() manderebbe request_finished e chiuderebbe il DB del test
             chiudi()
         ReportCMM.objects.filter(pk=self.r1.pk).update(percorso=r"C:\Windows\win.ini")
-        self.assertEqual(self.client.get(reverse("produzione:report_cmm_pdf", args=[self.r1.pk])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("produzione:report_cmm_pdf", args=[self.r1.pk])).status_code, 302)   # torna al report col messaggio
 
     def test_schede_op_e_pn_mostrano_i_report(self):
         scheda = self.client.get(reverse("produzione:scheda", args=[self.pk]))
@@ -244,3 +244,32 @@ class UnilateraliTests(SimpleTestCase):
         s = cmm.statistiche(punti, 0.0)
         self.assertIsNone(s["cp"])
         self.assertAlmostEqual(s["cpk"], (0.05 - 0.011) / (3 * s["sd"]), places=6)
+
+
+class GiroTests(ArchivioBase):
+    def test_solo_report_cmm_fino_a_tre_livelli(self):
+        self.scrivi("210_OP-2026-100_ZPN_SN001_A.pdf", _pdf_report_sintetico("SN001"))
+        profonda = os.path.join(self.cartella_op, "a", "b", "c", "d")
+        os.makedirs(profonda)
+        with open(os.path.join(profonda, "210_OP-2026-100_ZPN_SN009_A.pdf"), "wb") as fh:
+            fh.write(_pdf_report_sintetico("SN009"))
+        nomi = [x[1] for x in cmm._pdf_della_cartella(os.path.join(self.radice, "PN-ALFA-1"))]
+        self.assertEqual(nomi, ["210_OP-2026-100_ZPN_SN001_A.pdf"])
+        self.assertTrue(cmm.nome_da_report_cmm("CQF_OP-2026-0008_ZP_SN901.pdf"))
+        self.assertFalse(cmm.nome_da_report_cmm("450_OP-2026-0008_M.pdf"))
+        self.assertFalse(cmm.nome_da_report_cmm("CQC 12-3456_OP-2026-0008.pdf"))
+
+    def test_tempo_scaduto_mentre_scorre_le_cartelle(self):
+        import time
+
+        self.scrivi("210_OP-2026-100_ZPN_SN001_A.pdf", _pdf_report_sintetico("SN001"))
+        stat = cmm.leggi_cartella("PN-ALFA-1", os.path.join(self.radice, "PN-ALFA-1"), time.monotonic() - 1)
+        self.assertEqual((stat["letti"], stat["completa"]), (0, False))
+
+    def test_pdf_non_leggibile_messaggio_chiaro(self):
+        self.scrivi("210_OP-2026-100_ZPN_SN001_A.pdf", _pdf_report_sintetico("SN001"))
+        cmm.leggi_pn("PN-ALFA-1")
+        r = ReportCMM.objects.get()
+        with override_settings(PRODUZIONE_REPORT_CMM_ROOT=os.path.join(self.radice, "non-esiste")):
+            resp = self.client.get(reverse("produzione:report_cmm_pdf", args=[r.pk]), follow=True)
+        self.assertContains(resp, "permesso di lettura")
