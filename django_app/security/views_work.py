@@ -916,6 +916,7 @@ def watchguard_patch_tempi(request):
     from datetime import date, timedelta
 
     from .services import patch_sla, patch_storico
+    from .views_vuln import _statistica_in_cache
 
     periodo = request.GET.get("periodo") or patch_storico.PERIODO_DEFAULT
     periodo = periodo if periodo in patch_storico.PERIODI else patch_storico.PERIODO_DEFAULT
@@ -929,7 +930,11 @@ def watchguard_patch_tempi(request):
     if request.GET.get("formato") == "csv":
         return _patch_ferme_csv(request, ferme)
     return render(request, "security/watchguard_patch_tempi.html", {
-        "t": patch_sla.tempi(dal, oggi, oggi), "f": ferme, "a": patch_sla.andamento(oggi=oggi),
+        # Tempi e andamento non dipendono da ricerca e filtri della tabella: in cache come le
+        # altre statistiche SOC, cosi' cercare una patch non ricalcola tutto lo storico.
+        "t": _statistica_in_cache("patch_tempi", lambda: patch_sla.tempi(dal, oggi, oggi), periodo),
+        "f": ferme,
+        "a": _statistica_in_cache("patch_andamento", lambda: patch_sla.andamento(oggi=oggi)),
         "periodo": periodo, "periodi": list(patch_storico.PERIODI_LABEL.items()),
         "allerta_attiva": soc_settings.value("patch.sla.attivo"), "can_edit": can_manage_security_config(request.user),
     })
