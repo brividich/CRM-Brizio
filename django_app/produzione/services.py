@@ -13,6 +13,8 @@ FAI e KICK-OFF rispettano i permessi del modulo KICK-OFF: chi non li ha non li v
 """
 from __future__ import annotations
 
+from datetime import date
+
 from collections import Counter
 from urllib.parse import urlencode
 
@@ -135,6 +137,83 @@ MANCA_PN = (
     ("scadenza", "FAI da ripetere o verificare"),
 )
 
+MOSTRA_CATALOGO = (("", "Tutti"), ("attivi", "Attivi"), ("guardare", "Da guardare"), ("con_op", "Con OP"),
+                   ("senza_fai", "Con OP senza FAI"), ("archivio", "Solo archivio Collaudo"))
+_MANCA_VECCHIO = {"fai": "senza_fai", "anomalie": "guardare", "scadenza": "guardare"}   # link del vecchio elenco P/N
+ORDINA_CATALOGO = (("", "Più problemi prima"), ("recenti", "Attività più recente"), ("pn", "P/N A→Z"))
+
+
+def catalogo(request, testo: str = "", mostra: str = "", cliente: str = "", ordina: str = "") -> dict:
+    """Catalogo dei P/N: tutti gli articoli dell'anagrafica (OP, KICK-OFF, cartelle Collaudo) con il riepilogo
+    precalcolato, più per chi ha OP: ultimo OP, anomalie aperte e situazione FAI. Al primo uso, se l'anagrafica è
+    vuota, la crea (senza Cpk)."""
+    from . import articoli as art
+    from .models import ArticoloPN
+
+    if not ArticoloPN.objects.exists():
+        try:
+            art.sincronizza()
+        except Exception:  # pragma: no cover - fonti non raggiungibili: catalogo vuoto con avviso
+            pass
+    con_op = {r["pn"]: r for r in (righe_pn(request) if op_db.disponibile() else [])}
+    art._crea_mancanti({pn: "op" for pn in con_op})          # un OP nuovo compare subito, senza aspettare il giro
+    trovati_op = {r["pn"] for r in righe_pn(request, testo)} if (testo and op_db.disponibile()) else set()
+    qs = ArticoloPN.objects.all()
+    clienti = sorted({c for c in qs.exclude(cliente="").values_list("cliente", flat=True)}, key=str.lower)
+    if cliente:
+        qs = qs.filter(cliente=cliente)
+    righe = []
+    t = testo.lower()
+    for a in qs:
+        if t and not (t in a.pn.lower() or t in a.descrizione.lower() or t in a.cliente.lower() or a.pn in trovati_op):
+            continue
+        op = con_op.get(a.pn)
+        if op:
+            a.n_op = op["n_op"]                                   # conteggio vivo degli OP (il riepilogo è orario)
+        situazione = op["situazione"] if op else None
+        anomalie = op["n_anomalie_aperte"] if op else 0
+        righe.append({
+            "a": a, "op": op, "url": url_pn(a.pn), "stato": a.stato_effettivo, "anomalie": anomalie,
+            "situazione": situazione, "n_fai": op["n_fai"] if op else 0,
+            "guardare": art.da_guardare(a, anomalie, situazione.codice if situazione else ""),
+            "andamento": [int(x) for x in a.andamento.split(",")] if a.andamento else [],
+        })
+    conta = {
+        "": len(righe), "attivi": sum(r["stato"] == "attivo" for r in righe), "guardare": sum(r["guardare"] for r in righe),
+        "con_op": sum(1 for r in righe if r["op"]), "archivio": sum(1 for r in righe if not r["op"] and not r["a"].n_op),
+        "senza_fai": sum(1 for r in righe if r["op"] and not r["n_fai"]),
+    }
+    filtri = {
+        "attivi": lambda r: r["stato"] == "attivo", "guardare": lambda r: r["guardare"], "con_op": lambda r: r["op"],
+        "archivio": lambda r: not r["op"] and not r["a"].n_op, "senza_fai": lambda r: r["op"] and not r["n_fai"],
+    }
+    mostra = _MANCA_VECCHIO.get(mostra, mostra)
+    if mostra in filtri:
+        righe = [r for r in righe if filtri[mostra](r)]
+    else:
+        mostra = ""
+    if ordina == "pn":
+        righe.sort(key=lambda r: r["a"].pn)
+    elif ordina == "recenti":
+        righe.sort(key=lambda r: (r["a"].ultimo_report or date.min, r["a"].pn), reverse=True)
+    else:
+        ordina = ""
+        righe.sort(key=lambda r: (not r["guardare"], -(r["a"].quote_non_capaci or 0), -(r["a"].fuori_30g or 0),
+                                  -(r["anomalie"] or 0), -(r["a"].ultimo_report or date.min).toordinal(), r["a"].pn))
+    for r in righe:
+        r["spark"] = _spark(r["andamento"])
+    return {"righe": righe, "conta": conta, "mostra": mostra, "clienti": clienti, "cliente": cliente, "ordina": ordina,
+            "aggiornato": ArticoloPN.objects.order_by("-riepilogo_il").values_list("riepilogo_il", flat=True).first()}
+
+
+def _spark(valori: list[int], w: int = 84, h: int = 20) -> str:
+    """Punti della mini barra dei report per mese (SVG ``points`` di una polilinea)."""
+    if not valori or not any(valori):
+        return ""
+    m = max(valori) or 1
+    passo = w / max(1, len(valori) - 1)
+    return " ".join(f"{i * passo:.1f},{h - 1 - v / m * (h - 3):.1f}" for i, v in enumerate(valori))
+
 
 def filtra_manca_pn(righe: list[dict], manca: str) -> list[dict]:
     if manca == "anomalie":
@@ -231,11 +310,14 @@ def collega_programmi_cmm(pn_norm: str, programmi: list) -> None:
 
 def scheda_pn(request, pn: str) -> dict | None:
     """Scheda del P/N: i suoi OP, KICK-OFF, programmi e FAI. ``None`` se nessun OP ha quel P/N."""
+    from .models import ArticoloPN
+
     pn_norm = normalize_part_number(pn)
     if not pn_norm:
         return None
     ops = [o for o in op_db.elenco(pn_norm) if normalize_part_number(o["pn"]) == pn_norm]
-    if not ops:
+    articolo = ArticoloPN.objects.filter(pn=pn_norm).first()
+    if not ops and articolo is None and not report_cmm_indice.ReportCMM.objects.filter(pn=pn_norm).exists():
         return None
     documenti = Counter(t.lower() for t in DocumentoOP.objects.values_list("op", flat=True))
     anomalie = op_db.anomalie_aperte_per_op()
@@ -249,8 +331,9 @@ def scheda_pn(request, pn: str) -> dict | None:
         progetti, programmi = _kickoff_del_pn(request, pn_norm)
     dati = {
         "pn": pn_norm,
+        "articolo": articolo,
         "ops": ops,
-        "ultimo_op": ops[0],
+        "ultimo_op": ops[0] if ops else None,
         "vede_kickoff": kickoff,
         "fai_pn": fai,
         "situazione_fai": situazione,
@@ -450,6 +533,8 @@ def _passo_fai(fai: list, situazione, url_nuovo: str) -> dict:
 
 def _passo_ops(dati: dict) -> dict:
     n, aperte, senza = len(dati["ops"]), dati["n_anomalie_aperte"], dati["senza_documenti"]
+    if not n:
+        return _passo("op", "OP del P/N", "attesa", "Nessun OP nel portale per questo P/N.")
     testo = f"{n} OP"
     if senza:
         testo += f", {senza} senza documenti"

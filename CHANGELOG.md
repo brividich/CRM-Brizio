@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: anagrafica e catalogo dei P/N
+
+- Nuova anagrafica dei P/N (tabella `produzione_articolopn`, migrazione `produzione 0005`): ogni P/N degli OP, dei KICK-OFF e delle cartelle della share Collaudo diventa un articolo con descrizione, cliente, disegno, revisione, materiale, famiglia, stato e note. Descrizione, cliente e revisione vuoti si completano dal KICK-OFF e il cliente dal Registro FAI, senza mai sovrascrivere quello scritto a mano.
+- La scheda «P/N» è ora il catalogo di tutti i P/N (anche quelli con la sola cartella Collaudo): cliente, stato (Attivo, Fermo, Obsoleto, Solo archivio), OP, ultimo OP, report degli ultimi 12 mesi con la linea per mese, Cpk peggiore, quote non capaci, report con fuori negli ultimi 30 giorni, anomalie, FAI, ultimo report. «Mostra» (Tutti, Attivi, Da guardare, Con OP, Con OP senza FAI, Solo archivio Collaudo), filtro cliente, ordine; i P/N da guardare hanno una riga rossa a sinistra. Riepilogo precalcolato aggiornato alla fine di ogni giro dei report CMM e da «Aggiorna il catalogo».
+- Scheda del P/N: descrizione, cliente, disegno, materiale sotto il titolo e pulsante «Anagrafica» con il pannello di modifica (permesso nuovo «Ordini di produzione - Anagrafica P/N», di default solo admin); si apre anche per i P/N senza OP.
+- File: `django_app/produzione/models.py` (`ArticoloPN`), `migrations/0005_anagrafica_articoli.py`, `articoli.py` (nuovo), `report_cmm_indice.py` (giro → sincronizzazione), `services.py` (`catalogo`), `views.py` (`pn_elenco`, `pn_sincronizza`, `pn_anagrafica`), `urls.py`, `acl_bootstrap.py` (`PERM_ARTICOLI`, cache v9), `registro_permessi.py`, `templates/produzione/pn_elenco.html`, `pn_scheda.html`, `static/produzione/css/produzione.css`, `guida.py`, `core/guide_moduli/contenuti/produzione.py`, `hub_tools/schema_db.py`, `docs/moduli/produzione.md`, test `tests.py`, `tests_report_cmm.py`.
+
 ### Ordini di produzione: scheda OP a sezioni con la matrice pezzi × fasi
 
 - Nuova sezione «Pezzi» della scheda OP: una riga per S/N e una colonna per fase di controllo (programma CMM); ogni cella è l'ultimo report di quel pezzo in quella fase (OK, al limite oltre l'80% della tolleranza, N fuori, non misurato, ↻ rimisurato) e apre il report; accanto al S/N le anomalie aperte. A destra «Cosa è successo» (report e documenti dal più recente) e gli altri OP del P/N.

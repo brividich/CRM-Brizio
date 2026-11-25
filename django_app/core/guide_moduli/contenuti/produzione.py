@@ -30,8 +30,11 @@ GUIDA = {
             "titolo": "P/N",
             "blocchi": [
                 ("p", "Il P/N è l'articolo principale: ha più OP e i FAI sono suoi, non del singolo OP. La scheda «P/N» "
-                      "elenca i P/N degli OP con numero di OP, ultimo OP, capocommessa, FAI, «Situazione FAI» e anomalie "
-                      "aperte; «Da sistemare» filtra «Con anomalie aperte», «Senza FAI» e «FAI da ripetere o verificare»."),
+                      "è il catalogo di tutti i P/N (OP, KICK-OFF e cartelle Collaudo) con cliente, stato, OP, report degli "
+                      "ultimi 12 mesi, Cpk peggiore, quote non capaci, fuori nell'ultimo mese, anomalie e FAI; «Mostra» "
+                      "filtra Attivi, «Da guardare», Con OP, «Con OP senza FAI» e «Solo archivio Collaudo»."),
+                ("p", "Nella scheda del P/N «Anagrafica» apre il pannello con descrizione, cliente, disegno, revisione, "
+                      "materiale, famiglia, stato e note (permesso «Anagrafica P/N»)."),
                 ("p", "La scheda del P/N (indirizzo fisso /produzione/pn/<P/N>/) ha in alto la striscia del percorso "
                       "(KICK-OFF, programmi CAM e CMM, FAI, OP) e sotto le sezioni Panoramica («Da fare», pezzi misurati per "
                       "mese, quote da tenere d'occhio, OP), OP, Report CMM, Programmi e FAI."),
@@ -107,6 +110,9 @@ GUIDA = {
                     ("Tipi di documento", "Ordini di produzione › Impostazioni: nome, descrizione, ordine, attivo."),
                     ("Quote CMM", "permesso «Gestire le quote CMM» (escludere report, unire quote; di default solo admin); "
                      "avvisi in Impostazioni (destinatari, fuori tolleranza, deriva)."),
+                    ("Anagrafica P/N", "permesso «Ordini di produzione - Anagrafica P/N» (di default solo admin) per "
+                     "cambiare l'anagrafica e usare «Aggiorna il catalogo». Il catalogo si aggiorna da solo alla fine di ogni "
+                     "giro dei report CMM; al primo uso, se è vuoto, si crea all'apertura della pagina."),
                     ("Report CMM", "cartella PRODUZIONE_REPORT_CMM_ROOT (di default \\\\novisrv\\Area Controllo\\Collaudo), "
                      "letta ogni ora dal lavoro pianificato «produzione_report_cmm_giro» per al massimo "
                      "PRODUZIONE_REPORT_CMM_MINUTI minuti (15). L'utente del portale e quello di qcluster devono poter "
