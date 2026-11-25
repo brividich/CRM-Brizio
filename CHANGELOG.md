@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: Portfolio kickoff come elenco
+
+- La pagina «Kickoff» (`/tasks/projects/`) passa dalle card a un **elenco**: una riga per commessa con P/N, nome, cliente, fase, una sola riga di stato (scadute, prontezza o prossima scadenza), avanzamento e PM; «Apri» e menu «···» al posto dei cinque pulsanti per card.
+- **Una sola ricerca** in alto (la tabella non aggiunge la sua) e filtri rapidi col conteggio: Tutti, Da avviare, In VRF, In esecuzione, Chiusi, Con problemi. Cliente, VRF e Ordina si applicano appena scelti, senza «Filtra». Board e Timeline invariate.
+- File: `tasks/views/projects.py`, `templates/tasks/projects.html`, `static/tasks/css/tasks.css`, `templates/tasks/base.html`, `templates/tasks/base_shell.html`, `static/tasks/guida/portfolio.jpg`. Guide: `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`. Test `tests_projects.py`, `tests_project_overview.py`, `tests_percorso_render.py`, `tests_meeting_alerts.py`, `tests_revisione_presentazione.py`. Deploy: collectstatic, nessuna migrazione.
+
 ### Organigramma a diagramma: un ambito alla volta, ricerca e vista ricordata
 
 - **Tolta la vista «Tutti gli ambiti»** (e «Ruoli senza ambito») dal diagramma: si apre sull'ambito con «alimenta il Ruolo aziendale», che comprende i ruoli non classificati, e la sessione ricorda l'ultimo scelto (`anagrafica/views/struttura.py` `_ambito_diagramma`, `organigramma_diagramma`; `services/organigramma_albero.py` `build_ruolo_albero(includi_senza=)`, `chiave_persona`). L'Albero resta com'era.

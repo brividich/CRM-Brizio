@@ -80,15 +80,16 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "La voce «Kickoff» apre il «Portfolio kickoff», con tutte le commesse che puoi vedere."),
             ("ul", [
-                "Filtri: «Cerca» (nome, P/N, cliente), «Cliente», «Stato VRF» (Caricato, In attesa, Bloccato, Da caricare).",
-                "«Ordina per»: Nome, Scadenza più vicina, Avanzamento, Criticità. Premi «Filtra» per applicare, «Reset» per togliere tutto.",
-                "Sulla card trovi oggetto, cliente, P/N, data di inizio (il primo incontro non annullato), fase, semaforo di prontezza, team e stato del documento VRF.",
-                "Pulsanti della card: «Attivita», «Gantt», «Incontri», «Copia VRF», «Copia senza P/N».",
+                "Una sola ricerca in alto (nome, P/N, cliente, descrizione pezzo): nell'Elenco filtra le righe mentre scrivi; con Invio vale anche per Board e Timeline.",
+                "Filtri rapidi col conteggio: «Tutti», «Da avviare», «In VRF», «In esecuzione», «Chiusi» e «Con problemi» (attività o altre voci scadute: problemi aperti, attività d'incontro, sotto-attività).",
+                "Tendine «Cliente», «VRF» (caricato, in attesa, bloccato, da caricare, N/A) e «Ordina» (nome, scadenza, avanzamento, criticità): si applicano appena scegli.",
+                "Ogni riga: P/N, nome, cliente, fase, una riga di stato (rossa se ci sono scadute, arancio se non è pronta, verde «In regola» con la prossima scadenza), avanzamento e PM.",
+                "«Apri» porta alla commessa; «···» ha Attività, Gantt, Incontri, Documento VRF, «Copia VRF» e «Copia senza P/N».",
             ]),
-            ("img", (_IMG + "portfolio.jpg", "Il portfolio nella vista Card")),
+            ("img", (_IMG + "portfolio.jpg", "Il portfolio nella vista Elenco")),
             ("p", "«Vista» cambia il modo di leggere le stesse commesse:"),
             ("def", [
-                ("Card", "una scheda per commessa, la vista predefinita."),
+                ("Elenco", "una riga per commessa, la vista predefinita."),
                 ("Board", "una colonna per fase: Bozza, VRF, In esecuzione, Completata. Chi può modificare trascina la card, o usa il menu sulla card, per cambiare fase."),
                 ("Timeline", "una barra per commessa sul calendario, colorata in base alla prontezza, con il segno di oggi."),
             ]),
@@ -690,7 +691,7 @@ SEZIONI: list[dict] = [
         "titolo": "Copiare una commessa e importare da Excel",
         "blocchi": [
             ("def", [
-                ("Copia VRF", "sulla card del portfolio: crea un nuovo kickoff con gli stessi dati, lo stesso team e il file VRF."),
+                ("Copia VRF", "nel menu «···» della riga del portfolio: crea un nuovo kickoff con gli stessi dati, lo stesso team e il file VRF."),
                 ("Copia senza P/N", "come sopra, ma svuota il P/N della commessa e del file VRF. Utile per un particolare simile."),
                 ("Import Excel", "nel portfolio: «Scarica template .xlsx», compilalo e caricalo. L'anteprima mostra cosa verrà importato prima di confermare."),
             ]),
