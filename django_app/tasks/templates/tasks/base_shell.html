@@ -4,7 +4,7 @@
 {% block title %}{{ page_title|default:"KICK-OFF" }} - Portale Applicativo{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261125c">
+<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261125e">
 {% block tasks_shell_head %}{% endblock %}
 {% endblock %}
 
@@ -63,10 +63,7 @@
         </details>
       {% else %}
       {% block tasks_shell_actions %}
-        {# Modulo solo-kickoff: le attivita' si creano DENTRO un kickoff, non da qui. #}
-        {% if tasks_shell_can_create and not tasks_shell_project %}
-          <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
-        {% endif %}
+        {# Nessun pulsante di base: «+ Nuovo kickoff» sta solo in Dashboard ed Elenco kickoff (25/11/2026). #}
       {% endblock %}
       {% endif %}
     </div>

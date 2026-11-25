@@ -10,8 +10,10 @@
     {% if section.items %}
       <ul class="dg-list">
         {% for item in section.items %}
-          <li class="dg-item dg-item--{{ section.tone }}" data-kel-riga="{{ item.label|lower }} {{ item.meta|default:''|lower }}">
+          {% if item.gruppo %}{% ifchanged item.gruppo %}<li class="dg-gruppo">{{ item.gruppo }}</li>{% endifchanged %}{% endif %}
+          <li class="dg-item dg-item--{{ section.tone }}" data-kel-riga="{{ item.label|lower }} {{ item.gruppo|default:''|lower }} {{ item.meta|default:''|lower }} {{ item.tags|join:' '|lower }}">
             <a class="dg-item-link" href="{{ item.url }}">{{ item.label }}</a>
+            {% if item.tags %}<span class="dg-item-tags">{% for t in item.tags %}<span class="ts-chip warn">manca {{ t }}</span>{% endfor %}</span>{% endif %}
             {% if item.meta %}<span class="dg-item-meta">{{ item.meta }}</span>{% endif %}
           </li>
         {% endfor %}

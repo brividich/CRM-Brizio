@@ -10,6 +10,15 @@ Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, t
 
 ## Dettaglio
 
+### Pulizia: barra su una riga, nomi delle fasi, meno doppioni (25/11/2026)
+
+- Elenco kickoff: cliente, VRF e ordine nella tendina «Filtri ▾» (`<details class="kel-filtri">`, `pf_n_filtri`); la tabella ha `data-fm-hide-controls="1"` (niente seconda barra, restano gli ordinamenti sulle intestazioni). Stessa barra in Programmi (`programmi_registro.html`: fasi come filtri rapidi, tipo e macchina in «Filtri», niente «Filtra»).
+- Nomi delle fasi ovunque quelli del modello: Bozza, VRF, In esecuzione, Completata (tolto `FASI_ELENCO`; stato «Completata»).
+- «Le mie attività» (senza «KICK-OFF») dentro il modulo; la colonna della dashboard del portale e le mail tengono il nome completo.
+- Pulsanti in alto: nessuno di base in `base_shell.html`; «+ Nuovo kickoff» solo in Dashboard ed Elenco; la Dashboard tiene «Calendario incontri».
+- Da gestire (`da_gestire.py`): `_sec_commesse` («Commesse da completare», una riga per commessa con `tags` dei criteri mancanti, link al primo da sistemare) al posto di «VRF da compilare» + «Commesse non pronte»; attività critiche con `gruppo` = commessa. Le mie commesse: niente «Consegna non indicata» / «Nessun incontro fissato».
+- CSS: tolti 56 selettori delle vecchie card del Portfolio e della vecchia Board (`pf-card*`, `pf-chip*`, `pf-progress*`, `pf-vrf*`, `pf-toolbar`, `kbf-card-name/client/meta`…).
+
 ### Menu più corto, un ruolo solo per PM e capocommessa, stessa barra nelle liste (25/11/2026)
 
 - **Capocommessa unico**: `Project.TEAM_ROLES` senza «Project manager»; `TEAM_CODE_ALIAS` fa valere `project_managers`/`PM` come `CC`, così poteri, avvisi, automazioni e AI che chiedono il PM ricevono i capocommessa. Migrazione `tasks 0075_capocommessa_unico`: righe `ProjectMember` PM → CC (senza doppioni), candidati `TaskRoleAssignment` PM → CC, ruolo di sistema «Project manager» disattivato, `poteri_ruoli`/`avvisi_destinatari` con CC al posto di PM (default `poteri_ruoli` = `CC`). Tolti il campo `project_managers` dal form kickoff e `project_new_manager` dal form attività; prontezza = capocommessa + programmatore. Import Excel: la colonna «PM (username)» resta e aggiunge il capocommessa. Il ritorno indietro non separa i ruoli.

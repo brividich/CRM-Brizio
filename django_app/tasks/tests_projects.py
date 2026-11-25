@@ -1495,17 +1495,22 @@ class KickoffDaGestireTests(TestCase):
             name="y", created_by=self.admin, vrf_status=VRFDocStatus.UPLOADED
         )
         secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
-        urls = [i["url"] for i in secs["vrf"]["items"]]
-        assert len(secs["vrf"]["items"]) == 1
-        assert any(f"/tasks/projects/{p_pending.id}/vrf/" in u for u in urls)
+        # Una sezione sola per le commesse: il VRF da compilare è un'etichetta e il primo link.
+        assert "vrf" not in secs
+        righe = {i["label"]: i for i in secs["commesse"]["items"]}
+        assert "VRF" in righe["x"]["tags"]
+        assert f"/tasks/projects/{p_pending.id}/vrf/" in righe["x"]["url"]
+        assert "VRF" not in righe.get("y", {"tags": []})["tags"]
 
     def test_not_ready_section(self):
         from tasks.da_gestire import build_kickoff_da_gestire
 
         p = make_project(name="x", created_by=self.admin)  # 0/4 -> notready
         secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
-        urls = [i["url"] for i in secs["not_ready"]["items"]]
-        assert any(f"?project={p.id}" in u for u in urls)
+        riga = next(i for i in secs["commesse"]["items"] if i["label"] == "x")
+        assert set(riga["tags"]) >= {"Incontro kickoff", "Team"}
+        assert riga["meta"].endswith("/4")
+        assert p.id
 
     def test_critical_tasks_section_reasons(self):
         from tasks.models import Task, TaskStatus
@@ -1566,7 +1571,7 @@ class KickoffDaGestireRenderTests(TestCase):
         r = self.client.get(reverse("tasks:da_gestire"))
         assert r.status_code == 200
         assert b"dg-section" in r.content
-        assert b"Commesse non pronte" in r.content
+        assert b"Commesse da completare" in r.content
         assert b"?scope=mine" in r.content
 
     def test_scope_mine_renders(self):
