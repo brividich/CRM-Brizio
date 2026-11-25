@@ -96,11 +96,10 @@ class MenuEBarreTests(TestCase):
         self.assertEqual(r.context["n_aperte"], 1)
         self.assertEqual(r.content.decode().count('name="q"'), 1)
 
-    def test_da_gestire_filtro_sezione(self):
-        Project.objects.create(name="Senza VRF", created_by=self.admin)
-        r = self.client.get(reverse("tasks:da_gestire") + "?scope=portfolio&sezione=commesse")
+    def test_da_gestire_una_riga_per_commessa(self):
+        p = Project.objects.create(name="Senza VRF", created_by=self.admin)
+        r = self.client.get(reverse("tasks:da_gestire") + "?scope=portfolio")
         self.assertEqual(r.status_code, 200)
-        self.assertEqual([s["key"] for s in r.context["da_gestire_data"]["sections"]], ["commesse"])
+        self.assertIn(p.pk, [riga["project"].pk for riga in r.context["righe"]])
         self.assertContains(r, "manca VRF")
-        r = self.client.get(reverse("tasks:da_gestire") + "?scope=portfolio&sezione=xyz")
-        self.assertGreater(len(r.context["da_gestire_data"]["sections"]), 1)
+        self.assertNotContains(r, "dg-section")

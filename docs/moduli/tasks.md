@@ -10,6 +10,11 @@ Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, t
 
 ## Dettaglio
 
+### «Da gestire» semplice: una riga per commessa (25/11/2026)
+
+- `da_gestire.build_da_gestire_per_commessa` al posto delle quattro sezioni (`build_kickoff_da_gestire` e `_sec_*` tolti, partial `_da_gestire_section.html` tolto): per commessa conteggi `scadute`, `problemi`, `non_assegnate`, `senza_data`, `ferme` (chip rossi prima, poi arancio), `manca` dai criteri di prontezza, `voci` (max 30) con link; ordine per peso (scadute e problemi ×3). Ogni parte è difensiva ma scrive l'errore nel log (`logger.exception`).
+- Template `da_gestire.html`: `<details class="dgc-r">` per commessa (aperta la prima), barra con sola ricerca locale e Portfolio / Le mie. CSS `.dgc-*`; tolti i vecchi `.dg-*` tranne `.dg-barra`.
+
 ### Pulizia: barra su una riga, nomi delle fasi, meno doppioni (25/11/2026)
 
 - Elenco kickoff: cliente, VRF e ordine nella tendina «Filtri ▾» (`<details class="kel-filtri">`, `pf_n_filtri`); la tabella ha `data-fm-hide-controls="1"` (niente seconda barra, restano gli ordinamenti sulle intestazioni). Stessa barra in Programmi (`programmi_registro.html`: fasi come filtri rapidi, tipo e macchina in «Filtri», niente «Filtra»).
