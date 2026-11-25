@@ -103,6 +103,31 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "quote",
+        "titolo": "Andamento quote dai report CMM",
+        "blocchi": [
+            ("p", "Il portale legge da solo i report CMM in PDF della cartella Collaudo (una cartella per P/N, dentro una "
+                  "per OP) e ne tiene le misure: ogni ora i PDF nuovi o cambiati, senza toccare i file. Nella scheda del "
+                  "P/N il riquadro «Report CMM» mostra quanti report sono stati letti e gli ultimi; nella scheda dell'OP "
+                  "ci sono i report di quell'OP."),
+            ("p", "«Andamento quote» (dalla scheda del P/N): scegli il programma, poi la quota. Il programma è il «Part "
+                  "Program Name» del report senza la revisione (REV0, REV1… finiscono insieme). La tabella elenca la "
+                  "quota in ogni report, dal più vecchio, con S/N, OP, data, rilevato, nominale, tolleranze e di quanto "
+                  "è fuori; il grafico mostra rilevato, nominale e limiti, i punti rossi sono fuori tolleranza. Senza "
+                  "quota scelta compare l'elenco delle quote del programma con quante volte sono andate fuori; "
+                  "«Solo quelle andate fuori» lo restringe."),
+            ("p", "Una quota è il nome scritto nel report (spazi e maiuscole non contano) col suo nominale: se il programma "
+                  "rinomina una quota è una quota diversa, e se riusa lo stesso nome con un altro nominale compaiono due "
+                  "righe (nella tendina con «nom.»)."),
+            ("p", "Un clic sul S/N apre il report: le quote fuori tolleranza (o «Tutte le quote»), «Andamento» per "
+                  "ciascuna con quel S/N evidenziato, «Apri il PDF» e «Apri segnalazione anomalia». Quest'ultimo apre "
+                  "Gestione anomalie sull'OP del report: avviato il controllo, il pannello «📄 Dal report CMM (PDF)» si "
+                  "apre da solo con le righe di quel report, senza caricare il file."),
+            ("p", "«Leggi i report» rilegge subito la cartella del P/N (in background: ricarica la pagina dopo qualche "
+                  "minuto). Serve quando un report è appena stato salvato e non si vuole aspettare il giro dell'ora."),
+        ],
+    },
+    {
         "id": "impostazioni",
         "titolo": "Impostazioni",
         "blocchi": [

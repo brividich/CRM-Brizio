@@ -399,6 +399,23 @@ def fai_op(request):
     return JsonResponse({"ok": True, "disponibile": True, "risultati": ordini_produzione.cerca(request.GET.get("q", ""))})
 
 
+def _url_report_cmm(request, articolo) -> str:
+    """Andamento quote dei report CMM del P/N (Ordini di produzione), se ce ne sono e l'utente li vede."""
+    if articolo is None or not articolo.part_number:
+        return ""
+    try:
+        from core.acl_v2 import request_has_permission_code
+        from produzione.acl_bootstrap import PERM_VIEW
+        from produzione.models import ReportCMM
+
+        pn = normalize_part_number(articolo.part_number)
+        if not request_has_permission_code(request, PERM_VIEW) or not ReportCMM.objects.filter(pn=pn, righe__gt=0).exists():
+            return ""
+        return f"{reverse('produzione:pn_quote')}?{urlencode({'pn': pn})}"
+    except Exception:
+        return ""
+
+
 def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool) -> dict:
     articolo = record.articolo if record else None
     limiti = soglie()
@@ -420,6 +437,7 @@ def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool)
         "scelte_documento": FaiDocumento.choices,
         "valore_invio_cq": form["invio_cq"].value() or "",
         "fai_storico": bool(record and record.chiave_import),
+        "url_report_cmm": _url_report_cmm(request, articolo),
         "dati_originali": _dati_originali(record) if record else [],
         **_tasks_shell_context(request, active="tech_refs" if project else "fai", project=project, testata=False),
         "page_title": "Scheda FAI",

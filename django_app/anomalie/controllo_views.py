@@ -627,6 +627,9 @@ def api_report_cmm_leggi(request):
         return _err("op_id obbligatorio")
     if not _can_create_anomalie_for_op(request, op_id) and not _op_ancora_da_creare(op_id):
         return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
+    report_id = str(request.POST.get("report_cmm") or "")
+    if report_id.isdigit():
+        return _report_cmm_da_archivio(request, op_id, int(report_id))
     pdf = request.FILES.get("pdf")
     if pdf is not None:
         if (pdf.size or 0) > MAX_PDF_BYTES:
@@ -653,6 +656,56 @@ def api_report_cmm_leggi(request):
         "op_id": op_id, "righe": len(esito["righe"]), "fuori": sum(1 for r in esito["righe"] if r["fuori"]),
     })
     return JsonResponse({"success": True, **esito})
+
+
+@login_required
+@require_GET
+def api_report_cmm_archivio(request):
+    """Report CMM dell'OP già letti dalla share (Ordini di produzione), per sceglierli senza caricare il PDF."""
+    from core.acl_v2 import request_has_permission_code
+    from produzione.acl_bootstrap import PERM_VIEW
+    from produzione.models import ReportCMM
+
+    op_id = _txt(request.GET.get("op_id"), 100)
+    if not op_id:
+        return _err("op_id obbligatorio")
+    if not request_has_permission_code(request, PERM_VIEW):
+        return JsonResponse({"success": True, "disponibile": False, "report": []})
+    report = [
+        {"id": r.pk, "seriale": r.seriale or r.file, "file": r.file, "data": r.data.strftime("%d/%m/%Y") if r.data else "",
+         "programma": r.programma, "righe": r.righe, "fuori": r.fuori}
+        for r in ReportCMM.objects.filter(op__iexact=op_id, righe__gt=0).order_by("-data", "-id")[:60]
+    ]
+    return JsonResponse({"success": True, "disponibile": True, "report": report})
+
+
+def _report_cmm_da_archivio(request, op_id: str, report_id: int):
+    """Report CMM già indicizzato da Ordini di produzione: il PDF si rilegge dalla share."""
+    from core.acl_v2 import request_has_permission_code
+    from produzione.acl_bootstrap import PERM_VIEW
+    from produzione.models import ReportCMM
+    from produzione.report_cmm_indice import percorso_sicuro
+
+    from .report_cmm import ErroreReport, leggi_pdf
+
+    if not request_has_permission_code(request, PERM_VIEW):
+        return _err("Permesso negato: serve «Ordini di produzione - Elenco e scheda OP»", 403)
+    report = ReportCMM.objects.filter(pk=report_id).first()
+    percorso = percorso_sicuro(report.percorso) if report else ""
+    if not percorso:
+        return _err("Il report non è più nella cartella dei report CMM.", 404)
+    try:
+        with open(percorso, "rb") as fh:
+            esito = leggi_pdf(fh.read(), ocr=False)
+    except ErroreReport as exc:
+        return _err(str(exc), 422)
+    except OSError:
+        return _err("Il PDF non si riesce a leggere dalla cartella dei report.", 422)
+    log_action(request, "anomalie_report_cmm_pdf_letto", "anomalie", {
+        "op_id": op_id, "file": report.file[:120], "report_cmm": report.pk, "pagine": esito["pagine"],
+        "metodo": esito["metodo"], "righe": len(esito["righe"]), "fuori": sum(1 for r in esito["righe"] if r["fuori"]),
+    })
+    return JsonResponse({"success": True, "file": report.file[:120], **esito})
 
 
 def salva_dettaglio(local_id, dettaglio, tipo_difetto_id, testo, dove_pezzi=None) -> None:

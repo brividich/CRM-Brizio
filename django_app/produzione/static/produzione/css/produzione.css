@@ -131,3 +131,25 @@
 .prod-articolo i.prod-stato{font-style:normal}
 .prod-articolo .prod-nota{margin:0}
 
+/* Andamento quote CMM */
+.prod-quote-filtri{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.prod-quote-filtri label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--text-mid)}
+.prod-quote-filtri select{min-width:260px;max-width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+.prod-grafico{width:100%;height:auto;display:block;color:var(--text-mid)}
+.prod-grafico .g-griglia{stroke:var(--border);stroke-width:1}
+.prod-grafico .g-tacca{fill:var(--text-mid);font-size:10px}
+.prod-grafico .g-limite{fill:none;stroke:var(--danger);stroke-width:1.5;stroke-dasharray:5 4}
+.prod-grafico .g-nominale{fill:none;stroke:var(--text-mid);stroke-width:1.2}
+.prod-grafico .g-rilevato{fill:none;stroke:var(--accent);stroke-width:2.2}
+.prod-grafico .g-punto{fill:var(--surface);stroke:var(--accent);stroke-width:2}
+.prod-grafico .g-punto.is-fuori{fill:var(--danger);stroke:var(--danger)}
+.prod-grafico .g-punto.is-scelto{stroke:var(--warning,#d97706);stroke-width:4}
+.prod-grafico a:focus-visible .g-punto{stroke-width:4}
+.prod-legenda{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--text-mid);margin-top:6px}
+.prod-legenda i{display:inline-block;width:18px;height:0;border-top:2px solid var(--accent);vertical-align:middle;margin-right:5px}
+.prod-legenda i.is-limite{border-top:2px dashed var(--danger)}
+.prod-legenda i.is-nominale{border-top-color:var(--text-mid)}
+.prod-tab tr.is-scelto td{background:var(--warning-bg,#fef3c7)}
+.prod-tab td.is-fuori{color:var(--danger);font-weight:800}
+.prod-num{font-family:var(--hub-mono,ui-monospace,monospace);font-size:12.5px;text-align:right;white-space:nowrap}
+

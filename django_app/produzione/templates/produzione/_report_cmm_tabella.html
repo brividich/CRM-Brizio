@@ -1,0 +1,17 @@
+<div class="prod-scorri">
+  <table class="prod-tab">
+    <thead><tr><th>S/N</th><th>OP</th><th>Programma</th><th>Data</th><th class="prod-n">Quote</th><th class="prod-n">Fuori</th></tr></thead>
+    <tbody>
+      {% for r in elenco_report %}
+      <tr>
+        <td><a class="prod-op" href="{% url 'produzione:report_cmm' r.id %}">{{ r.seriale|default:r.file }}</a></td>
+        <td>{{ r.op|default:"—" }}</td>
+        <td>{{ r.programma_base|default:"—" }}</td>
+        <td>{{ r.data|date:"d/m/Y"|default:"—" }}</td>
+        <td class="prod-n">{{ r.righe }}</td>
+        <td class="prod-n">{% if r.fuori %}<a class="prod-manca is-allerta" href="{% url 'produzione:report_cmm' r.id %}">{{ r.fuori }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
