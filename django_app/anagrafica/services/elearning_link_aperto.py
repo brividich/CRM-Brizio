@@ -132,7 +132,7 @@ def matricole_attive(ids: set[int]) -> dict[int, set[str]]:
 
 
 def abbinamento_con_matricola(nome: str, cognome: str, matricola: str,
-                              attivi: list[dict] | None = None) -> tuple[int | None, str]:
+                              attivi: list[dict] | None = None, reparto: str = "") -> tuple[int | None, str]:
     """(legacy_id, nota). Abbina solo se matricola e cognome indicano la stessa persona.
 
     - matricola di una persona attiva con lo stesso cognome → quella persona;
@@ -157,6 +157,13 @@ def abbinamento_con_matricola(nome: str, cognome: str, matricola: str,
                 return None, f"La matricola {matricola} è di un'altra persona: controlla nome e matricola."
             return None, f"La matricola {matricola} risulta a più persone."
     trovati = candidati(nome, cognome, attivi)
+    if len(trovati) > 1 and reparto:
+        # QR di reparto: tra gli omonimi vale chi sta in quel reparto.
+        from ..models import DipendenteAnagraficaAziendale
+        del_reparto = set(DipendenteAnagraficaAziendale.objects.filter(
+            legacy_anagrafica_id__in=trovati, area__iexact=reparto).values_list("legacy_anagrafica_id", flat=True))
+        if len(del_reparto) == 1:
+            trovati = sorted(del_reparto)
     if len(trovati) == 1 and not matricole.get(trovati[0]):
         return trovati[0], ""
     if len(trovati) == 1:
@@ -289,19 +296,67 @@ def correggi(corso, domande_ids: list[int], risposte: dict[int, set[int]], sogli
             "superato": bool(n_totali) and punteggio >= Decimal(str(soglia_pct)), "risposte": snapshot}
 
 
+def nuova_partecipazione(link, dati: dict, *, reparto: str = "", ip: str = ""):
+    """Crea la partecipazione alla registrazione e prova subito l'abbinamento (matricola + cognome)."""
+    from ..models_elearning import TrainingElearningPartecipazioneAperta as P
+
+    legacy_id, nota = abbinamento_con_matricola(dati["nome"], dati["cognome"], dati.get("matricola", ""),
+                                                reparto=reparto)
+    return P.objects.create(corso=link.corso, nome=dati["nome"], cognome=dati["cognome"],
+                            matricola=(dati.get("matricola") or "")[:40], reparto=(reparto or "")[:120],
+                            legacy_anagrafica_id=legacy_id, nota_abbinamento=(nota or "")[:300],
+                            ip=ip or None)
+
+
+def chiede_pin(link) -> bool:
+    return bool(getattr(link, "chiedi_pin", False))
+
+
+def controlla_pin(link, dati: dict, pin: str) -> str:
+    """Con «Chiedi il PIN» acceso: chi ha un PIN delle postazioni condivise deve scriverlo giusto.
+
+    Chi non ha l'utente del portale non ha PIN e passa con la sola matricola."""
+    if not chiede_pin(link):
+        return ""
+    legacy_id, _nota = abbinamento_con_matricola(dati["nome"], dati["cognome"], dati.get("matricola", ""))
+    if not legacy_id:
+        return ""
+    from core.legacy_models import AnagraficaDipendente
+    from core.models import PinPostazione
+    utente_id = AnagraficaDipendente.objects.filter(pk=legacy_id).values_list("utente_id", flat=True).first()
+    if not utente_id or not PinPostazione.objects.filter(legacy_user_id=utente_id).exists():
+        return ""
+    if not (pin or "").strip():
+        return "Hai un PIN delle postazioni condivise: scrivilo per continuare."
+    from core.postazioni import verifica_pin
+    esito = verifica_pin(utente_id, pin)
+    if esito.get("esito") == "ok":
+        return ""
+    if esito.get("esito") == "bloccato":
+        return "PIN bloccato per troppi errori: chiedi all'ufficio HR."
+    return f"PIN non corretto (tentativi rimasti: {esito.get('restanti', 0)})."
+
+
 def registra(corso, *, nome: str, cognome: str, esito: dict, avviato_il, ip: str, user_agent: str,
-             matricola: str = ""):
+             matricola: str = "", partecipazione=None):
     """Salva la risposta e prova l'abbinamento automatico (matricola + cognome). Ritorna la risposta."""
     from ..models_elearning import TrainingElearningRispostaAperta as R
 
     risposta = R.objects.create(
-        corso=corso, nome=nome, cognome=cognome, matricola=(matricola or "")[:40], punteggio_pct=esito["punteggio_pct"],
+        corso=corso, nome=nome, cognome=cognome, matricola=(matricola or "")[:40], partecipazione=partecipazione,
+        punteggio_pct=esito["punteggio_pct"],
         n_corrette=esito["n_corrette"], n_totali=esito["n_totali"], superato=esito["superato"],
         risposte_json={"risposte": esito["risposte"]}, versione_corso=corso.versione or "",
         avviato_il=avviato_il, ip=ip or None,
         ua_hash=hashlib.sha256((user_agent or "").encode()).hexdigest() if user_agent else "",
     )
-    legacy_id, nota = abbinamento_con_matricola(nome, cognome, matricola)
+    if partecipazione is not None and partecipazione.legacy_anagrafica_id:
+        legacy_id, nota = partecipazione.legacy_anagrafica_id, ""
+    else:
+        legacy_id, nota = abbinamento_con_matricola(nome, cognome, matricola,
+                                                    reparto=getattr(partecipazione, "reparto", ""))
+    if partecipazione is not None and esito.get("superato"):
+        type(partecipazione).objects.filter(pk=partecipazione.pk).update(completata_il=timezone.now())
     if legacy_id:
         abbina(risposta, legacy_id, user=None, stato=R.AUTO)
         risposta.refresh_from_db()

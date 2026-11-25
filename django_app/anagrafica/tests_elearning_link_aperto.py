@@ -260,3 +260,46 @@ class ServizioTests(_Base):
     def test_candidati_ignorano_ordine_accenti_maiuscole(self):
         self.assertEqual(servizio.candidati("ROSSI SINTETICO", "mario"), [self.dip.id])
         self.assertEqual(servizio.candidati("Mario", "Rossi"), [])
+
+
+class PartecipazioneApertaTests(_Base):
+    """Fase A: la partecipazione nasce alla registrazione e tiene avanzamento e tempo sul server."""
+
+    def test_registrazione_crea_partecipazione_abbinata(self):
+        from .models_elearning import TrainingElearningPartecipazioneAperta as P
+        self.segui_corso()
+        p = P.objects.get()
+        self.assertEqual(p.legacy_anagrafica_id, self.dip.id)
+        self.assertEqual(len(p.slide_viste), 2)
+        self.consegna(self.giusta)
+        p.refresh_from_db()
+        self.assertIsNotNone(p.completata_il)
+        self.assertEqual(R.objects.get().partecipazione_id, p.pk)
+
+    def test_tempo_accreditato_dal_server(self):
+        from datetime import timedelta
+        from .models_elearning import TrainingElearningPartecipazioneAperta as P
+        self.registra()
+        self.anonimo.get(self.url())
+        P.objects.update(ultimo_accesso_il=timezone.now() - timedelta(seconds=40))
+        self.anonimo.get(self.url() + "?s=2")
+        self.assertGreaterEqual(P.objects.get().secondi, 39)
+        P.objects.update(ultimo_accesso_il=timezone.now() - timedelta(hours=3))
+        self.anonimo.get(self.url())
+        self.assertLess(P.objects.get().secondi, 40 + 125)  # la pagina dimenticata aperta non conta ore
+
+    def test_ripresa_da_altro_telefono_con_codice(self):
+        from .models_elearning import TrainingElearningPartecipazioneAperta as P
+        self.segui_corso()
+        p = P.objects.get()
+        altro = Client()
+        r = altro.post(self.url("registrati"), {"codice": p.codice.lower(), "cognome_ripresa": "Sbagliato"})
+        self.assertEqual(r.status_code, 400)
+        altro.post(self.url("registrati"), {"codice": p.codice, "cognome_ripresa": "rossi sintetico"})
+        self.assertEqual(altro.get(self.url("quiz")).status_code, 200)  # slide già viste: il quiz si apre
+        self.assertEqual(P.objects.count(), 1)
+
+    def test_qr_reparto_passa_alla_registrazione(self):
+        r = self.anonimo.get(self.url() + "?rep=Officina")
+        self.assertIn("rep=Officina", r["Location"])
+        self.assertContains(self.anonimo.get(r["Location"]), "Officina")

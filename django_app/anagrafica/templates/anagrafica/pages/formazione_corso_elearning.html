@@ -67,28 +67,81 @@
       </form>
 
       {# Video: una slide video (MP4, storage privato) #}
-      <form method="post" action="{% url 'anagrafica:formazione_slide_video_upload' corso.pk %}" enctype="multipart/form-data" class="fm-import-box">
+      <form method="post" action="{% url 'anagrafica:formazione_slide_video_upload' corso.pk %}" enctype="multipart/form-data" class="fm-import-box" id="video-form"
+            data-pezzo-url="{% url 'anagrafica:formazione_video_pezzo' corso.pk %}">
         {% csrf_token %}
         <div class="fmd-block-title" style="font-size:13px;margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-download"/></svg> Aggiungi un video</div>
-        <p class="fmd-fhelp" style="margin:0 0 10px;">File <strong>.mp4</strong> (verificato dal contenuto). Diventa una slide in coda. La permanenza minima vale come tempo di visione richiesto.</p>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">File <strong>.mp4</strong> anche grandi (fino al limite delle impostazioni e-learning): si carica a pezzi da 8 MB, con la barra di avanzamento, e se sul server c'è ffmpeg viene compresso in background per aprirsi più in fretta dal telefono. Diventa una slide in coda.</p>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <input type="text" name="titolo" class="fm-input" placeholder="Titolo del video" required maxlength="300" style="max-width:260px;" aria-label="Titolo del video">
           <input type="number" name="durata_minima_secondi" class="fm-input" min="0" placeholder="Visione minima (s)" style="max-width:170px;" aria-label="Visione minima in secondi">
+          {% if moduli %}<select name="modulo_id" class="fm-input" style="max-width:220px;" aria-label="Modulo"><option value="">Nessun modulo</option>{% for m in moduli %}<option value="{{ m.pk }}">{{ m.titolo }}</option>{% endfor %}</select>{% endif %}
+          <label style="display:inline-flex;gap:6px;align-items:center;font-size:12.5px;"><input type="checkbox" name="fino_in_fondo" value="1"> Da guardare fino in fondo</label>
           <input type="file" name="video" accept=".mp4,video/mp4" class="fm-input" required style="max-width:320px;" aria-label="File video">
           <button type="submit" class="fmd-btn fmd-btn-navy">Carica video</button>
         </div>
+        <div id="video-avanz" hidden style="margin-top:10px;">
+          <div style="height:8px;background:#e8edf3;border-radius:4px;overflow:hidden;"><div id="video-barra" style="height:8px;width:0;background:#ff6b00;"></div></div>
+          <div class="fmd-muted" id="video-testo" style="font-size:12.5px;margin-top:4px;">Caricamento…</div>
+        </div>
       </form>
+      <script>
+      (function () {
+        var form = document.getElementById('video-form');
+        if (!form || !window.fetch || !window.Blob) return;
+        form.addEventListener('submit', function (e) {
+          var input = form.querySelector('input[name=video]');
+          var file = input && input.files && input.files[0];
+          if (!file) return;
+          e.preventDefault();
+          var PEZZO = 8 * 1024 * 1024, totale = Math.max(1, Math.ceil(file.size / PEZZO));
+          var arr = new Uint8Array(16); (window.crypto || window.msCrypto).getRandomValues(arr);
+          var uid = Array.prototype.map.call(arr, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+          var barra = document.getElementById('video-barra'), testo = document.getElementById('video-testo');
+          document.getElementById('video-avanz').hidden = false;
+          form.querySelector('button[type=submit]').disabled = true;
+          var csrf = form.querySelector('input[name=csrfmiddlewaretoken]').value;
+          function manda(i, tentativo) {
+            var fd = new FormData();
+            fd.append('csrfmiddlewaretoken', csrf); fd.append('upload_id', uid);
+            fd.append('indice', i); fd.append('totale', totale); fd.append('nome', file.name);
+            fd.append('pezzo', file.slice(i * PEZZO, Math.min(file.size, (i + 1) * PEZZO)), 'pezzo');
+            if (i === totale - 1) {
+              ['titolo', 'durata_minima_secondi', 'modulo_id'].forEach(function (n) { var el = form.elements[n]; if (el) fd.append(n, el.value); });
+              if (form.elements.fino_in_fondo && form.elements.fino_in_fondo.checked) fd.append('fino_in_fondo', '1');
+            }
+            fetch(form.dataset.pezzoUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+              .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+              .then(function (x) {
+                if (!x.ok || !x.j.ok) throw new Error((x.j && x.j.errore) || 'Errore nel caricamento');
+                var pct = Math.round(100 * (i + 1) / totale);
+                barra.style.width = pct + '%';
+                testo.textContent = 'Caricato ' + pct + '% (' + Math.round(Math.min(file.size, (i + 1) * PEZZO) / 1048576) + ' di ' + Math.round(file.size / 1048576) + ' MB)';
+                if (x.j.fatto) { testo.textContent = 'Video caricato.'; window.location.href = x.j.redirect; }
+                else manda(i + 1, 0);
+              })
+              .catch(function (err) {
+                if (tentativo < 3 && !/rifiutato|limite|Permesso/.test(err.message)) { setTimeout(function () { manda(i, tentativo + 1); }, 1500); return; }
+                testo.textContent = err.message; form.querySelector('button[type=submit]').disabled = false;
+              });
+          }
+          manda(0, 0);
+        });
+      })();
+      </script>
 
       {# Moduli: raggruppano le slide (lezioni) nell'indice del player #}
       <div class="fm-import-box">
         <div class="fmd-block-title" style="font-size:13px;margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-book"/></svg> Moduli <span class="fmd-count">{{ moduli|length }}</span></div>
-        <p class="fmd-fhelp" style="margin:0 0 10px;">Facoltativi. Il discente vede l'indice del corso diviso in moduli; ogni slide è una lezione. La sequenza resta quella dell'ordine delle slide: assegna a un modulo slide consecutive.</p>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">Un modulo è una presentazione (o un gruppo di video). Il discente vede l'indice diviso in moduli e può consultarli liberamente. <strong>Nel percorso</strong>: il modulo va seguito in ordine per aprire il quiz; se lo togli, resta solo da consultare. La sequenza resta quella dell'ordine delle slide: assegna a un modulo slide consecutive.</p>
         {% for m in moduli %}
         <div class="fm-opt-row">
           <form method="post" action="{% url 'anagrafica:formazione_modulo_save' corso.pk %}" style="display:contents;">
             {% csrf_token %}<input type="hidden" name="modulo_id" value="{{ m.pk }}">
             <input class="fm-input" type="number" name="ordine" value="{{ m.ordine }}" min="1" style="max-width:70px;" aria-label="Ordine del modulo">
             <input class="fm-input" type="text" name="titolo" value="{{ m.titolo }}" maxlength="200" aria-label="Titolo del modulo">
+            <input type="hidden" name="obbligatorio_presente" value="1">
+            <label style="display:inline-flex;gap:5px;align-items:center;font-size:12px;white-space:nowrap;" title="Se tolto, il modulo è solo da consultare: non serve per aprire il quiz"><input type="checkbox" name="obbligatorio" value="1"{% if m.obbligatorio %} checked{% endif %}> Nel percorso</label>
             <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Salva</button>
           </form>
           <form method="post" action="{% url 'anagrafica:formazione_modulo_delete' corso.pk m.pk %}" data-hub-confirm="Eliminare il modulo? Le slide restano.">

@@ -262,13 +262,44 @@ body.theme-dark .elg-chip[aria-pressed=true]{background:#93c5fd;border-color:#93
         <button type="submit" name="azione" value="attiva" class="fmd-btn fmd-btn-ghost">Salva scadenza</button>
         <button type="submit" name="azione" value="rigenera" class="fmd-btn fmd-btn-ghost" data-hub-confirm="Creare un nuovo link? Quello vecchio (e il QR stampato) smette di funzionare.">Nuovo link</button>
         <button type="submit" name="azione" value="spegni" class="fmd-btn fmd-btn-ghost" style="color:#c0392b;">Spegni</button>
+        <button type="submit" name="azione" value="{% if link_aperto.chiedi_pin %}pin_no{% else %}pin_si{% endif %}" class="fmd-btn fmd-btn-ghost" title="Chi ha un PIN delle postazioni condivise deve scriverlo alla registrazione; chi non ce l'ha passa con la matricola">{% if link_aperto.chiedi_pin %}PIN richiesto · togli{% else %}Chiedi il PIN a chi ce l'ha{% endif %}</button>
         {% else %}
         <button type="submit" name="azione" value="attiva" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Attiva il link aperto</button>
         {% endif %}
       </form>
       {% endif %}
 
+      {% if link_aperto.attivo and is_editor and reparti_qr %}
+      <form method="get" action="{% url 'anagrafica:elearning_link_aperto_qr' corso.pk %}" target="_blank" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:12px;">
+        <label class="fmd-field" style="margin:0;"><span>QR per reparto (tra gli omonimi vale chi sta nel reparto)</span>
+          <select name="rep" class="fm-input" style="min-width:220px;">{% for r in reparti_qr %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select></label>
+        <button type="submit" class="fmd-btn fmd-btn-ghost">Apri il QR del reparto</button>
+      </form>
+      {% endif %}
+
+      {% if partecipazioni %}
+      <div style="margin-top:16px;font-weight:700;color:var(--fmd-navy,#0c2545);">Chi lo sta facendo dal link aperto <span class="fmd-count">{{ partecipazioni|length }}</span>{% if n_in_corso_aperto %} <span class="fmd-badge fmd-b-amber">{{ n_in_corso_aperto }} in corso</span>{% endif %}</div>
+      <div class="fmd-tablewrap" data-fm-table-skip="1" style="margin-top:8px;">
+        <table class="fmd-table">
+          <thead><tr><th>Persona</th><th>Abbinata a</th><th>Slide</th><th class="fmd-c">Tempo</th><th>Ultimo accesso</th><th>Stato</th></tr></thead>
+          <tbody>
+          {% for p in partecipazioni %}
+            <tr>
+              <td><strong>{{ p.cognome }} {{ p.nome }}</strong><div class="fmd-muted" style="font-size:12px;">matricola {{ p.matricola|upper|default:"—" }}{% if p.reparto %} · {{ p.reparto }}{% endif %} · codice {{ p.codice }}</div></td>
+              <td>{% if p.legacy_anagrafica_id %}{{ p.nome_abbinato|default:p.legacy_anagrafica_id }}{% else %}<span class="fmd-badge fmd-b-amber">Da controllare</span>{% if p.nota_abbinamento %}<div class="fmd-muted" style="font-size:11.5px;">{{ p.nota_abbinamento }}</div>{% endif %}{% endif %}</td>
+              <td style="min-width:110px;"><span class="fmd-muted" style="font-size:12px;">{{ p.n_viste }}/{{ n_slide_percorso }}</span><div class="elg-bar{% if p.pct < 100 %} in{% endif %}"><span style="width:{{ p.pct }}%"></span></div></td>
+              <td class="fmd-c fmd-num">{% if p.minuti %}{{ p.minuti }} min{% else %}—{% endif %}</td>
+              <td class="fmd-nowrap">{{ p.ultimo_accesso_il|date:"d-m-Y H:i"|default:"—" }}</td>
+              <td>{% if p.completata_il %}<span class="fmd-badge fmd-b-green">Completato</span>{% else %}<span class="fmd-badge fmd-b-amber">In corso</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
       {% if risposte_aperte %}
+      <div style="margin-top:16px;font-weight:700;color:var(--fmd-navy,#0c2545);">Quiz consegnati</div>
       <div class="fmd-tablewrap" style="margin-top:14px;">
         <table class="fmd-table">
           <thead><tr><th>Nome scritto</th><th>Inviato</th><th>Quiz</th><th>Abbinamento</th>{% if is_editor %}<th class="fmd-nowrap">Controllo</th>{% endif %}</tr></thead>

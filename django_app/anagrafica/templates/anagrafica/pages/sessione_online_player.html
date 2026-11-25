@@ -25,7 +25,9 @@
     <div class="so-bar acc" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}" aria-label="Avanzamento"><span style="width:{{ pct }}%"></span></div>
 
     <div class="so-stage">
-      {% if slide.immagine %}<img src="{% url 'anagrafica:sessione_online_slide_img' slide.pk %}" alt="{{ slide.titolo|default:'Slide' }}">
+      {% if slide.video %}<video controls preload="metadata" playsinline controlslist="nodownload" src="{{ slide.url_video }}" style="width:100%;max-height:70vh;background:#000;"></video>
+      {% elif slide.immagine and slide.url_immagine %}<img src="{{ slide.url_immagine }}" alt="{{ slide.titolo|default:'Slide' }}">
+      {% elif slide.immagine %}<img src="{% url 'anagrafica:sessione_online_slide_img' slide.pk %}" alt="{{ slide.titolo|default:'Slide' }}">
       {% else %}<div class="so-md">{% if slide.titolo %}<h3 style="margin-top:0;">{{ slide.titolo }}</h3>{% endif %}{{ testo_html|safe }}</div>{% endif %}
     </div>
 

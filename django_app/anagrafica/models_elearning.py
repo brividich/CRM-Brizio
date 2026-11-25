@@ -55,6 +55,8 @@ class TrainingElearningSlideView(models.Model):
     prima_vista = models.DateTimeField(auto_now_add=True)
     ultima_vista = models.DateTimeField(auto_now=True)
     secondi = models.PositiveIntegerField(default=0)
+    video_secondi = models.PositiveIntegerField(default=0, help_text="Secondi di video guardati davvero (non saltati).")
+    video_durata = models.PositiveIntegerField(default=0, help_text="Durata del video letta dal browser.")
     completata = models.BooleanField(default=False)
 
     class Meta:
@@ -161,6 +163,8 @@ class TrainingElearningModulo(models.Model):
     corso = models.ForeignKey("anagrafica.TrainingCourse", on_delete=models.CASCADE, related_name="moduli_elearning")
     ordine = models.PositiveSmallIntegerField(default=1)
     titolo = models.CharField(max_length=200)
+    obbligatorio = models.BooleanField(default=True, help_text="Fa parte del percorso guidato per il quiz. "
+                                                               "Se no, è solo materiale da consultare.")
     creato_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -217,6 +221,8 @@ class TrainingElearningLinkAperto(models.Model):
     token = models.CharField(max_length=64, unique=True)
     attivo = models.BooleanField(default=True)
     scade_il = models.DateField(null=True, blank=True, help_text="Ultimo giorno valido; vuoto = senza scadenza.")
+    chiedi_pin = models.BooleanField(default=False, help_text="Chi ha un PIN delle postazioni condivise deve scriverlo "
+                                                              "alla registrazione (chi non ce l'ha passa con la matricola).")
     creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                   related_name="+")
     creato_il = models.DateTimeField(auto_now_add=True)
@@ -228,6 +234,44 @@ class TrainingElearningLinkAperto(models.Model):
 
     def __str__(self) -> str:
         return f"Link aperto corso {self.corso_id} ({'attivo' if self.attivo else 'spento'})"
+
+
+def _codice_ripresa() -> str:
+    import secrets
+    alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # niente 0/O, 1/I: si detta al telefono
+    return "".join(secrets.choice(alfabeto) for _ in range(8))
+
+
+class TrainingElearningPartecipazioneAperta(models.Model):
+    """Chi sta seguendo un corso dal link aperto: nasce alla registrazione, prima delle slide.
+
+    Tiene sul server avanzamento e tempo (non solo nel browser), così l'HR vede chi sta
+    facendo il corso e la persona può riprendere da un altro telefono con il codice."""
+
+    corso = models.ForeignKey("anagrafica.TrainingCourse", on_delete=models.CASCADE, related_name="partecipazioni_aperte")
+    codice = models.CharField(max_length=12, unique=True, default=_codice_ripresa)
+    nome = models.CharField(max_length=100)
+    cognome = models.CharField(max_length=100)
+    matricola = models.CharField(max_length=40, blank=True, default="")
+    reparto = models.CharField(max_length=120, blank=True, default="", help_text="Dal QR di reparto, se usato.")
+    legacy_anagrafica_id = models.IntegerField(null=True, blank=True, db_index=True)
+    nota_abbinamento = models.CharField(max_length=300, blank=True, default="")
+    registrato_il = models.DateTimeField(auto_now_add=True)
+    ultimo_accesso_il = models.DateTimeField(null=True, blank=True)
+    secondi = models.PositiveIntegerField(default=0, help_text="Tempo effettivo misurato dal server.")
+    slide_viste = models.JSONField(default=dict, blank=True, help_text="{ordine: timestamp della prima apertura}")
+    video_visti = models.JSONField(default=dict, blank=True, help_text="{slide_id: secondi guardati}")
+    completata_il = models.DateTimeField(null=True, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-registrato_il"]
+        indexes = [models.Index(fields=["corso", "registrato_il"])]
+        verbose_name = "Partecipazione dal link aperto"
+        verbose_name_plural = "Partecipazioni dal link aperto"
+
+    def __str__(self) -> str:
+        return f"{self.cognome} {self.nome} · {self.corso_id}"
 
 
 class TrainingElearningRispostaAperta(models.Model):
@@ -250,6 +294,8 @@ class TrainingElearningRispostaAperta(models.Model):
     cognome = models.CharField(max_length=100)
     matricola = models.CharField(max_length=40, blank=True, default="",
                                  help_text="Matricola scritta dalla persona (es. T138, A012, CNO 1234).")
+    partecipazione = models.ForeignKey(TrainingElearningPartecipazioneAperta, null=True, blank=True,
+                                       on_delete=models.SET_NULL, related_name="risposte")
     punteggio_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     n_corrette = models.PositiveSmallIntegerField(default=0)
     n_totali = models.PositiveSmallIntegerField(default=0)

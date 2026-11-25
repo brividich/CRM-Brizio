@@ -5528,10 +5528,25 @@ def formazione_elearning_manage(request, corso_id: int):
         for r in risposte_aperte:
             r.nome_abbinato = nomi_ra.get(r.legacy_anagrafica_id, "") if r.legacy_anagrafica_id else ""
     n_da_abbinare = sum(1 for r in risposte_aperte if r.stato == "DA_ABBINARE")
+    from ..models_elearning import TrainingElearningPartecipazioneAperta
+    partecipazioni = list(TrainingElearningPartecipazioneAperta.objects.filter(corso=corso)[:300])
+    from ..services.elearning_fruizione import slides_percorso
+    n_slide_tot = len(slides_percorso(corso))
+    for p in partecipazioni:
+        p.n_viste = len(p.slide_viste or {})
+        p.pct = min(100, round(100 * p.n_viste / n_slide_tot)) if n_slide_tot else 0
+        p.minuti = round((p.secondi or 0) / 60)
+        p.nome_abbinato = (nomi or _helpers._build_nomi_map()).get(p.legacy_anagrafica_id, "") if p.legacy_anagrafica_id else ""
+    reparti_qr = sorted({a for a in DipendenteAnagraficaAziendale.objects.filter(data_cessazione__isnull=True)
+                        .exclude(area="").values_list("area", flat=True)}, key=str.lower)
 
     righe = gestione.righe_risultati(corso)
     assegnabili_pannello = gestione.persone_assegnabili(corso) if is_editor else []
     return render(request, "anagrafica/pages/formazione_elearning_manage.html", {
+        "partecipazioni": partecipazioni,
+        "n_slide_percorso": n_slide_tot,
+        "n_in_corso_aperto": sum(1 for p in partecipazioni if not p.completata_il),
+        "reparti_qr": reparti_qr,
         "stato": gestione.stato_corso(corso, n_slide=len(slides), n_domande=len(domande),
                                       n_invalid=n_invalid, link=link_aperto),
         "righe": righe,
@@ -6049,6 +6064,8 @@ def formazione_modulo_save(request, corso_id: int):
     modulo = (get_object_or_404(TrainingElearningModulo, pk=modulo_id, corso=corso) if modulo_id
               else TrainingElearningModulo(corso=corso))
     modulo.titolo = titolo
+    if request.POST.get("obbligatorio_presente"):
+        modulo.obbligatorio = request.POST.get("obbligatorio") == "1"
     if ordine.isdigit():
         modulo.ordine = int(ordine)
     elif not modulo.pk:

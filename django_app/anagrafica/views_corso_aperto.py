@@ -59,21 +59,61 @@ def _stato(request, link) -> dict:
     return stato
 
 
+CREDITO_MAX_SECONDI = 120  # oltre, la pagina è rimasta aperta senza nessuno davanti
+
+
 def _salva(request, link, stato: dict) -> None:
     request.session[_chiave(link)] = stato
     request.session.modified = True
+    _sincronizza(stato)
+
+
+def _partecipazione(stato):
+    from .models_elearning import TrainingElearningPartecipazioneAperta as P
+    pid = stato.get("pid")
+    return P.objects.filter(pk=pid).first() if pid else None
+
+
+def _sincronizza(stato) -> None:
+    """Copia sul server avanzamento e tempo effettivo della partecipazione (se registrata)."""
+    p = _partecipazione(stato)
+    if p is None:
+        return
+    adesso = timezone.now()
+    campi = ["slide_viste", "ultimo_accesso_il"]
+    if p.ultimo_accesso_il:
+        delta = (adesso - p.ultimo_accesso_il).total_seconds()
+        if 0 < delta:
+            p.secondi = (p.secondi or 0) + int(min(delta, CREDITO_MAX_SECONDI))
+            campi.append("secondi")
+    p.slide_viste = dict(stato.get("viste") or {})
+    p.ultimo_accesso_il = adesso
+    p.save(update_fields=campi)
 
 
 def _slides(corso) -> list:
-    return list(corso.slides.filter(is_active=True).order_by("ordine", "pk"))
+    """Slide del percorso guidato (moduli «Nel percorso» e slide senza modulo)."""
+    from .services.elearning_fruizione import slides_percorso
+    return list(slides_percorso(corso))
+
+
+def _slides_tutte(corso) -> list:
+    return list(corso.slides.filter(is_active=True).select_related("modulo").order_by("ordine", "pk"))
+
+
+def _video_mancante(stato, slide) -> int:
+    from .services.elearning_fruizione import video_mancante
+    visto = (stato.get("video") or {}).get(str(slide.pk)) or [0, 0]
+    return video_mancante(slide, visto[0], visto[1])
 
 
 def _secondi_mancanti(stato, slide, regola) -> int:
     vista = stato["viste"].get(str(slide.ordine))
     richiesti = secondi_richiesti_slide(slide, regola)
+    video = _video_mancante(stato, slide) if vista is not None else 0
     if vista is None or not richiesti:
-        return 0
-    return max(int(richiesti - (time.time() - vista)), 0)
+        return video
+    return max(int(richiesti - (time.time() - vista)), video, 0)
 
 
 def _tempo_mancante(stato, regola) -> int:
@@ -105,20 +145,41 @@ def registrati(request, token: str):
     if request.method == "GET" and _registrato(stato) and request.GET.get("cambia") != "1":
         return redirect("corso_aperto:corso", token=token)
     dati, errori = {"nome": "", "cognome": "", "matricola": ""}, []
+    reparto = _testo(request.GET.get("rep") or request.POST.get("rep"), 120)
     if request.method == "POST":
         if request.POST.get("sito_web"):
             raise Http404
-        dati = {"nome": _testo(request.POST.get("nome"), 100), "cognome": _testo(request.POST.get("cognome"), 100),
-                "matricola": _testo(request.POST.get("matricola"), 40)}
-        if not dati["nome"] or not dati["cognome"]:
-            errori.append("Scrivi nome e cognome.")
-        if not servizio.norm_matricola(dati["matricola"]):
-            errori.append("Scrivi la tua matricola (per esempio T138, A012, CNO 1234).")
-        if not errori:
-            _salva(request, link, {"avvio": time.time(), "viste": {}, "chi": dati})
-            return redirect("corso_aperto:corso", token=token)
+        codice = _testo(request.POST.get("codice"), 12).upper().replace(" ", "")
+        if codice:
+            # Ripresa da un altro telefono: codice + cognome.
+            from .models_elearning import TrainingElearningPartecipazioneAperta as P
+            from core.naming import chiave_testo
+            p = P.objects.filter(corso=corso_obj, codice=codice).first()
+            if p is None or chiave_testo(p.cognome) != chiave_testo(request.POST.get("cognome_ripresa")):
+                errori.append("Codice o cognome non corretti.")
+            else:
+                _salva(request, link, {"avvio": p.registrato_il.timestamp(), "viste": dict(p.slide_viste or {}),
+                                       "chi": {"nome": p.nome, "cognome": p.cognome, "matricola": p.matricola},
+                                       "pid": p.pk})
+                return redirect("corso_aperto:corso", token=token)
+        else:
+            dati = {"nome": _testo(request.POST.get("nome"), 100), "cognome": _testo(request.POST.get("cognome"), 100),
+                    "matricola": _testo(request.POST.get("matricola"), 40)}
+            if not dati["nome"] or not dati["cognome"]:
+                errori.append("Scrivi nome e cognome.")
+            if not servizio.norm_matricola(dati["matricola"]):
+                errori.append("Scrivi la tua matricola (per esempio T138, A012, CNO 1234).")
+            if not errori:
+                errore_pin = servizio.controlla_pin(link, dati, request.POST.get("pin"))
+                if errore_pin:
+                    errori.append(errore_pin)
+            if not errori:
+                p = servizio.nuova_partecipazione(link, dati, reparto=reparto, ip=client_ip(request) or "")
+                _salva(request, link, {"avvio": time.time(), "viste": {}, "chi": dati, "pid": p.pk})
+                return redirect("corso_aperto:corso", token=token)
     return render(request, "anagrafica/corso_aperto/registrati.html",
-                  {"link": link, "corso": corso_obj, "dati": dati, "errori": errori,
+                  {"link": link, "corso": corso_obj, "dati": dati, "errori": errori, "reparto": reparto,
+                   "chiede_pin": servizio.chiede_pin(link),
                    "n_slide": len(_slides(corso_obj))}, status=400 if errori else 200)
 
 
@@ -130,7 +191,7 @@ def materiale(request, token: str):
     stato = _stato(request, link)
     if not _registrato(stato):
         return redirect("corso_aperto:registrati", token=token)
-    slides = _slides(link.corso)
+    slides = _slides_tutte(link.corso)
     gruppi, attuale = [], None
     for pos, s in enumerate(slides, start=1):
         titolo = s.modulo.titolo if s.modulo_id else "Materiale del corso"
@@ -155,10 +216,15 @@ def corso(request, token: str):
     regola = regola_corso(corso_obj)
     stato = _stato(request, link)
     if not _registrato(stato):
-        return redirect("corso_aperto:registrati", token=token)
+        url = reverse("corso_aperto:registrati", args=[token])
+        if request.GET.get("rep"):
+            from urllib.parse import quote
+            url += "?rep=" + quote(_testo(request.GET.get("rep"), 120))
+        return redirect(url)
     from .services.elearning_markdown import render_markdown
     if request.GET.get("c"):
         # Consultazione libera: nessun tempo minimo, non conta per il percorso del quiz.
+        slides = _slides_tutte(corso_obj)
         try:
             pos = max(min(int(request.GET.get("c")), len(slides)), 1) - 1
         except ValueError:
@@ -188,8 +254,10 @@ def corso(request, token: str):
         "contenuto_html": render_markdown(slide.contenuto) if not slide.is_immagine and slide.tipo != "VIDEO" else "",
         "prec": pos if pos > 0 else None, "succ": pos + 2 if not ultima else None, "ultima": ultima,
         "secondi_mancanti": _secondi_mancanti(stato, slide, regola),
+        "video_fino": bool(slide.tipo == "VIDEO" and slide.video_fino_in_fondo and _video_mancante(stato, slide)),
         "progress_pct": round((pos + 1) / len(slides) * 100),
         "ha_quiz": bool(quiz.domande_valide(corso_obj)), "chi": stato["chi"],
+        "codice": getattr(_partecipazione(stato), "codice", ""),
     })
 
 
@@ -197,6 +265,7 @@ def _slide_vista(request, token: str, slide_id: int, tipo_ok) -> TrainingSlide:
     link = _link(token)
     slide = TrainingSlide.objects.filter(pk=slide_id, corso=link.corso, is_active=True).first()
     stato = _stato(request, link)
+    # (le slide fuori percorso si aprono solo in consultazione, quindi da registrati)
     # Chi si è registrato può consultare tutto il materiale; altrimenti solo le slide già aperte.
     if slide is None or not tipo_ok(slide) or not (_registrato(stato) or str(slide.ordine) in stato["viste"]):
         raise Http404
@@ -216,6 +285,36 @@ def immagine(request, token: str, slide_id: int):
     resp["Content-Disposition"] = "inline"
     resp["Cache-Control"] = "private, max-age=300"
     return resp
+
+
+@require_http_methods(["POST"])
+@risposta_pubblica_con_form
+def video_avanz(request, token: str):
+    """Secondi di video guardati (JSON): per i video «da guardare fino in fondo»."""
+    from django.http import JsonResponse
+    link = _link(token)
+    stato = _stato(request, link)
+    if not _registrato(stato):
+        return JsonResponse({"ok": False}, status=403)
+    slide = TrainingSlide.objects.filter(pk=request.POST.get("slide_id") or 0, corso=link.corso, is_active=True).first()
+    if slide is None or slide.tipo != TrainingSlide.TIPO_VIDEO:
+        return JsonResponse({"ok": False}, status=404)
+    try:
+        secondi = max(int(float(request.POST.get("secondi") or 0)), 0)
+        durata = max(int(float(request.POST.get("durata") or 0)), 0)
+    except ValueError:
+        return JsonResponse({"ok": False}, status=400)
+    tetto = int(slide.video_durata_secondi or durata or 0) or 36000
+    video = stato.setdefault("video", {})
+    prima = video.get(str(slide.pk)) or [0, 0]
+    video[str(slide.pk)] = [max(prima[0], min(secondi, tetto)), prima[1] or min(durata, 36000)]
+    _salva(request, link, stato)
+    p = _partecipazione(stato)
+    if p is not None:
+        vv = dict(p.video_visti or {})
+        vv[str(slide.pk)] = video[str(slide.pk)][0]
+        type(p).objects.filter(pk=p.pk).update(video_visti=vv)
+    return JsonResponse({"ok": True, "mancano": _video_mancante(stato, slide)})
 
 
 @require_GET
@@ -339,6 +438,7 @@ def quiz_finale(request, token: str):
     avvio = stato.get("avvio")
     risposta = servizio.registra(
         corso_obj, nome=dati["nome"], cognome=dati["cognome"], matricola=dati.get("matricola", ""), esito=esito,
+        partecipazione=_partecipazione(stato),
         avviato_il=timezone.make_aware(datetime.fromtimestamp(avvio)) if avvio else None,
         ip=ip if ip not in _LOOPBACK else "", user_agent=request.headers.get("User-Agent", "")[:500],
     )

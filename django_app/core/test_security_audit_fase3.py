@@ -39,6 +39,7 @@ PUBLIC_VIEWS = frozenset({
     "anagrafica.views_corso_aperto.corso",
     "anagrafica.views_corso_aperto.registrati",
     "anagrafica.views_corso_aperto.materiale",
+    "anagrafica.views_corso_aperto.video_avanz",
     "anagrafica.views_corso_aperto.quiz_finale",
     "anagrafica.views_corso_aperto.immagine",
     "anagrafica.views_corso_aperto.video",

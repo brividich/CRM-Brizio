@@ -1,5 +1,5 @@
 {# Partial HTMX: una slide del micro-corso e-learning. Swappato dentro #fm-slide-target. #}
-<div class="fm-slide" id="fm-slide-{{ slide.ordine }}" data-slide-id="{{ slide.pk }}" data-secondi-mancanti="{{ secondi_mancanti }}">
+<div class="fm-slide" id="fm-slide-{{ slide.ordine }}" data-slide-id="{{ slide.pk }}" data-secondi-mancanti="{{ secondi_mancanti }}"{% if slide.video_fino_in_fondo and slide.tipo == "VIDEO" and video_avanz_url %} data-video-url="{{ video_avanz_url }}"{% endif %}>
 
   <div class="fmd-bar" style="margin-bottom:14px;"><span style="width:{{ progress_pct }}%;"></span></div>
 
@@ -54,7 +54,8 @@
     {% endif %}
 
     {% if secondi_mancanti %}
-      <span class="fm-slide-attesa fmd-muted" role="status" aria-live="polite">Resta su questa slide ancora circa <strong class="js-secondi">{{ secondi_mancanti }}</strong> secondi.</span>
+      {% if slide.video_fino_in_fondo and slide.tipo == "VIDEO" %}<span class="fm-slide-attesa fmd-muted" role="status" aria-live="polite">Guarda il video fino in fondo per andare avanti.</span>
+      {% else %}<span class="fm-slide-attesa fmd-muted" role="status" aria-live="polite">Resta su questa slide ancora circa <strong class="js-secondi">{{ secondi_mancanti }}</strong> secondi.</span>{% endif %}
     {% endif %}
     {% if not is_ultima %}
       <button type="button" class="fmd-btn fmd-btn-primary js-avanti"{% if secondi_mancanti %} disabled{% endif %}
