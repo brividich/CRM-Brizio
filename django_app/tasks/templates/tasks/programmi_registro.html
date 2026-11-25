@@ -1,4 +1,5 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Programmi</span>{% endblock %}
 {% block tasks_shell_guide_anchor %}#programmi-fai{% endblock %}
@@ -7,31 +8,38 @@
 
 {% block tasks_shell_content %}
 {% include "tasks/_programmi_fai_schede.html" with attiva="programmi" %}
-<section class="ts-panel">
-  <div class="ts-panel-body fai-registro">
-    <div class="fai-viste" role="group" aria-label="Filtra i programmi per fase">
+<section class="ts-panel kel">
+  {# Stessa barra delle altre liste del modulo: una sola ricerca, filtri rapidi per fase col conteggio, «Filtri» per tipo e macchina. #}
+  <form method="get" class="kel-bar" data-kel-form>
+    {% if vista %}<input type="hidden" name="vista" value="{{ vista }}">{% endif %}
+    <input class="input kel-q" type="search" name="q" value="{{ q }}" placeholder="Cerca codice, cartella, cliente, P/N…" aria-label="Cerca programmi" data-kel-cerca>
+    <nav class="kel-fasi" aria-label="Filtra i programmi per fase">
       {% for v in viste %}
-        <a class="fai-vista{% if vista == v.codice %} active{% endif %}{% if v.codice == 'ritardo' and v.conta %} danger{% endif %}{% if v.codice == 'da_provare' and v.conta %} warn{% endif %}"
-           href="?vista={{ v.codice }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if tipo %}&tipo={{ tipo }}{% endif %}{% if macchina %}&macchina={{ macchina }}{% endif %}"{% if vista == v.codice %} aria-current="true"{% endif %}>
-          <strong>{{ v.conta }}</strong> {{ v.etichetta }}
-        </a>
+      <a class="kel-f{% if vista == v.codice %} on{% endif %}{% if v.codice == 'ritardo' %} kel-f--warn{% endif %}" href="?{% if v.codice %}vista={{ v.codice }}&amp;{% endif %}{% if q %}q={{ q|urlencode }}&amp;{% endif %}{% if tipo %}tipo={{ tipo }}&amp;{% endif %}{% if macchina %}macchina={{ macchina }}{% endif %}"{% if vista == v.codice %} aria-current="true"{% endif %}>{{ v.etichetta }}<b>{{ v.conta }}</b></a>
       {% endfor %}
+    </nav>
+    <div class="kel-dx">
+      <details class="kel-filtri"{% if tipo or macchina %} data-attivi{% endif %}>
+        <summary class="btn btn-secondary btn-sm">Filtri{% if tipo and macchina %} <b>2</b>{% elif tipo or macchina %} <b>1</b>{% endif %} <span aria-hidden="true">&#9662;</span></summary>
+        <div class="kel-filtri-pop">
+          <label><span>Tipo</span>
+            <select class="input" name="tipo" data-kel-auto data-no-search>
+              <option value="">CAM e CMM</option>
+              <option value="CAM"{% if tipo == "CAM" %} selected{% endif %}>Solo CAM</option>
+              <option value="CMM"{% if tipo == "CMM" %} selected{% endif %}>Solo CMM</option>
+            </select></label>
+          <label><span>Macchina</span>
+            <select class="input" name="macchina" data-kel-auto data-no-search>
+              <option value="">Tutte</option>
+              {% for a in macchine %}<option value="{{ a.id }}"{% if macchina == a.id|stringformat:"s" %} selected{% endif %}>{{ a.asset_tag }} {{ a.name }}</option>{% endfor %}
+            </select></label>
+          {% if tipo or macchina %}<a class="kel-filtri-via" href="{% url 'tasks:programmi_registro' %}{% if vista %}?vista={{ vista }}{% endif %}">Togli i filtri</a>{% endif %}
+        </div>
+      </details>
+      <a class="btn btn-secondary btn-sm" href="?vista={{ vista }}&amp;q={{ q|urlencode }}&amp;tipo={{ tipo }}&amp;macchina={{ macchina }}&amp;formato=csv">Esporta CSV</a>
     </div>
-    <form method="get" class="fai-cerca pg-filtri">
-      <input type="hidden" name="vista" value="{{ vista }}">
-      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Cerca codice, cartella, cliente, P/N o kickoff" aria-label="Cerca">
-      <select class="input" name="tipo" aria-label="Tipo">
-        <option value="">CAM e CMM</option>
-        <option value="CAM"{% if tipo == "CAM" %} selected{% endif %}>Solo CAM</option>
-        <option value="CMM"{% if tipo == "CMM" %} selected{% endif %}>Solo CMM</option>
-      </select>
-      <select class="input" name="macchina" aria-label="Macchina">
-        <option value="">Tutte le macchine</option>
-        {% for a in macchine %}<option value="{{ a.id }}"{% if macchina == a.id|stringformat:"s" %} selected{% endif %}>{{ a.asset_tag }} {{ a.name }}</option>{% endfor %}
-      </select>
-      <button type="submit" class="btn btn-secondary">Filtra</button>
-      <a class="btn btn-secondary" href="?vista={{ vista }}&q={{ q|urlencode }}&tipo={{ tipo }}&macchina={{ macchina }}&formato=csv">Esporta CSV</a>
-    </form>
+  </form>
+  <div class="ts-panel-body fai-registro">
     {% if righe %}
     <div class="tl-table-wrap">
       <table class="tl-table pg-tabella" data-fm-table-skip="1" data-table-enhanced="0">
@@ -39,7 +47,7 @@
         <tbody>
           {% for r in righe %}
           {% with ref=r.ref %}
-          <tr class="{% if ref.is_overdue %}status-overdue{% elif ref.fase == 'VALIDATO' %}status-done{% endif %}">
+          <tr class="{% if ref.is_overdue %}status-overdue{% elif ref.fase == 'VALIDATO' %}status-done{% endif %}" data-kel-riga="{{ ref.code|lower }} {{ ref.path|lower }} {{ ref.project.name|lower }} {{ ref.project.client_name|lower }} {{ ref.project.part_number|lower }}">
             <td>
               <span class="pg-tipo">{{ ref.kind }}</span> <strong>{{ ref.etichetta_breve }}</strong>
               {% if ref.task_id %}<div class="tl-task-desc"><a class="tl-task-link" href="{% url 'tasks:detail' ref.task_id %}">{{ ref.task.title }}</a></div>{% endif %}
@@ -59,6 +67,7 @@
         </tbody>
       </table>
     </div>
+    <p class="tr-hint" data-kel-vuoto hidden>Nessun programma con questa ricerca.</p>
     {% elif q or vista or tipo or macchina %}
       <p class="tr-hint">Nessun programma con questi filtri.</p>
     {% else %}
@@ -66,4 +75,5 @@
     {% endif %}
   </div>
 </section>
+<script src="{% static 'tasks/js/barra_elenco.js' %}?v=20261125b" defer></script>
 {% endblock %}

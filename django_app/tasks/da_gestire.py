@@ -42,42 +42,35 @@ def _tasks_qs(request, scope):
     return qs
 
 
-def _sec_vrf_pending(request, scope):
-    from .models import VRFDocStatus
-
-    qs = (
-        _projects_qs(request, scope)
-        .filter(vrf_status=VRFDocStatus.PENDING)
-        .order_by("-updated_at")
-    )
-    items = [
-        {"label": p.name, "url": _url("tasks:project_vrf_compile", p.id), "meta": "VRF da compilare"}
-        for p in qs[:_TOP]
-    ]
-    return {
-        "key": "vrf", "label": "VRF da compilare", "tone": "warning", "icon": "\U0001F4C4",
-        "items": items, "all_url": _url("tasks:project_list") + "?vrf_status=pending",
-        "empty": "Nessun VRF da compilare.",
-    }
+# Nomi brevi dei criteri di prontezza, come etichette sulla riga della commessa.
+_MANCA = {"vrf": "VRF", "meeting": "Incontro kickoff", "team": "Team", "plan": "Piano attività"}
 
 
-def _sec_not_ready(request, scope):
+def _sec_commesse(request, scope):
+    """Una riga per commessa non pronta, con quello che manca come etichette.
+
+    Prima c'erano due sezioni («VRF da compilare» e «Commesse non pronte») che
+    elencavano le stesse commesse; il VRF da compilare è una delle etichette.
+    """
     from .readiness import annotate_readiness_qs, compute_project_readiness
 
     items = []
     for p in annotate_readiness_qs(_projects_qs(request, scope)).order_by("name"):
         r = compute_project_readiness(p)
-        if r.level in ("notready", "partial"):
-            missing = ", ".join(c.label for c in r.criteria if not c.ok)
-            items.append({
-                "label": p.name,
-                "url": _url("tasks:list") + f"?project={p.id}",
-                "meta": f"{r.label} — manca: {missing}",
-            })
+        if r.level not in ("notready", "partial"):
+            continue
+        mancano = [c for c in r.criteria if not c.ok]
+        primo = next((c.action_url for c in mancano if c.action_url), None)
+        items.append({
+            "label": p.name,
+            "url": primo or _url("tasks:project_overview", p.id),
+            "meta": f"{r.met}/{r.total}",
+            "tags": [_MANCA.get(c.key, c.label) for c in mancano],
+        })
         if len(items) >= _TOP:
             break
     return {
-        "key": "not_ready", "label": "Commesse non pronte", "tone": "danger", "icon": "\U0001F6A6",
+        "key": "commesse", "label": "Commesse da completare", "tone": "danger", "icon": "🚦",
         "items": items, "all_url": _url("tasks:project_list"),
         "empty": "Tutte le commesse sono pronte.",
     }
@@ -89,7 +82,7 @@ def _sec_critical_tasks(request, scope):
     today = timezone.localdate()
     now = timezone.now()
     open_statuses = (TaskStatus.TODO, TaskStatus.IN_PROGRESS)
-    base = _tasks_qs(request, scope).filter(status__in=open_statuses)
+    base = _tasks_qs(request, scope).filter(status__in=open_statuses).select_related("project")
 
     items, seen = [], set()
 
@@ -98,7 +91,10 @@ def _sec_critical_tasks(request, scope):
             if t.id in seen:
                 continue
             seen.add(t.id)
-            items.append({"label": t.title, "url": _url("tasks:detail", t.id), "meta": reason})
+            items.append({
+                "label": t.title, "url": _url("tasks:detail", t.id), "meta": reason,
+                "gruppo": t.project.name if t.project_id else "Senza commessa",
+            })
 
     add(base.filter(due_date__lt=today).order_by("due_date"), "Scaduta")
     add(base.filter(assigned_to__isnull=True).order_by("-updated_at"), "Non assegnata")
@@ -109,9 +105,15 @@ def _sec_critical_tasks(request, scope):
         ).order_by("updated_at"),
         "Ferma >7gg",
     )
+    # Raggruppate per commessa (l'ordine dei motivi resta dentro ogni commessa).
+    items = items[:_TOP]
+    ordine = {}
+    for it in items:
+        ordine.setdefault(it["gruppo"], len(ordine))
+    items.sort(key=lambda it: ordine[it["gruppo"]])
     return {
         "key": "critical", "label": "Attività critiche", "tone": "warning", "icon": "⏰",
-        "items": items[:_TOP], "all_url": _url("tasks:list"),
+        "items": items, "all_url": _url("tasks:list"),
         "empty": "Nessuna attività critica.",
     }
 
@@ -186,7 +188,7 @@ def _sec_meeting_items(request, scope):
 
 def build_kickoff_da_gestire(request, scope: str) -> dict:
     scope = "mine" if scope == "mine" else "portfolio"
-    builders = (_sec_meeting_items, _sec_vrf_pending, _sec_not_ready, _sec_critical_tasks, _sec_meetings_open_issues)
+    builders = (_sec_meeting_items, _sec_commesse, _sec_critical_tasks, _sec_meetings_open_issues)
     sections = []
     for b in builders:
         try:

@@ -387,10 +387,6 @@ def project_create(request):
     )
 
 
-# Nomi dei filtri rapidi dell'elenco kickoff (le fasi restano quelle del modello).
-FASI_ELENCO = {"BOZZA": "Da avviare", "VRF": "In VRF", "EXEC": "In esecuzione", "DONE": "Chiusi"}
-
-
 def _stato_riga(p) -> dict:
     """Una sola riga di stato per l'elenco kickoff: tono, testo e se è un problema.
 
@@ -399,7 +395,7 @@ def _stato_riga(p) -> dict:
     giorni = p.days_to_delivery
     ritardo = f"in ritardo di {-giorni}gg" if giorni is not None and giorni < 0 else ""
     if p.phase == "DONE":
-        return {"tono": "ok", "testo": "Chiuso", "problema": False}
+        return {"tono": "ok", "testo": "Completata", "problema": False}
     pezzi = []
     if p.task_overdue:
         # La scadenza più vecchia fra le aperte dice da quanto: niente «in ritardo» ripetuto.
@@ -543,7 +539,7 @@ def project_list(request):
     if q_problemi:
         projects = [p for p in projects if p.stato_riga["problema"]]
     filtri_fase = [
-        {"key": key, "label": FASI_ELENCO.get(key, label), "n": conteggi.get(key, 0)}
+        {"key": key, "label": label, "n": conteggi.get(key, 0)}
         for key, label in ProjectPhase.choices
     ]
     # Link dei filtri rapidi: tengono ricerca, cliente, VRF, ordine e vista.
@@ -619,6 +615,7 @@ def project_list(request):
             "pf_filtri_fase": filtri_fase,
             "pf_n_tutti": n_tutti,
             "pf_n_problemi": n_problemi,
+            "pf_n_filtri": sum(1 for v in (q_client, q_vrf) if v),
             "pf_qs_base": qs_base,
             "pf_qs_con_fase": qs_con_fase,
         },

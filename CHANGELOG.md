@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: pulizia delle liste, nomi delle fasi, meno doppioni
+
+- **Barra su una riga** nell'Elenco kickoff e in Programmi: cliente, VRF e ordine (in Programmi tipo e macchina) nella tendina «Filtri ▾» col numero dei filtri attivi; tolta la seconda barra della tabella (si ordina cliccando le intestazioni) e il pulsante «Filtra» di Programmi.
+- **Nomi delle fasi uguali ovunque**: Bozza, VRF, In esecuzione, Completata.
+- **«Le mie attività»** al posto di «Le mie attività KICK-OFF» dentro il modulo.
+- **Meno doppioni**: la Dashboard non ripete il menu (restano «+ Nuovo kickoff» e «Calendario incontri»); «+ Nuovo kickoff» solo in Dashboard ed Elenco.
+- **Da gestire**: una riga per commessa da completare con quello che manca come etichette (prima due sezioni con le stesse commesse); attività critiche raggruppate per commessa. **Le mie commesse** senza «Consegna non indicata» / «Nessun incontro fissato» ripetuti.
+- Tolto il CSS delle vecchie card del Portfolio e della vecchia Board.
+- File: `tasks/views/projects.py`, `da_gestire.py`, `views/mie_azioni.py`, template `base_shell.html`, `projects.html`, `programmi_registro.html`, `list.html`, `incontri_lista.html`, `mie_azioni.html`, `form.html`, `cruscotto.html`, `_da_gestire_section.html`, `static/tasks/js/barra_elenco.js`, `static/tasks/css/tasks.css`. Guide: `tasks/guida.py`, `tasks/guida_ruoli.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`. Test `tests_projects.py`, `tests_giro_menu_ruoli.py`, `tests_meeting_alerts.py`. Deploy: collectstatic, nessuna migrazione.
+
 ### Ordini di produzione: Analisi quote, due correzioni viste nell'anteprima
 
 - Il riquadro che compare passando col mouse sui grafici scriveva «null» dopo il valore delle misure in tolleranza.

@@ -32,6 +32,7 @@
     <div class="cr-lista">
       {% for r in righe %}
       <a class="cr-riga" href="{% url 'tasks:project_overview' r.project.id %}" data-kel-riga="{{ r.project.name|lower }} {{ r.project.part_number|lower }} {{ r.project.client_name|lower }} {{ r.project.descrizione_pezzo|lower }}">
+        {# Solo quello che c'è: niente «Consegna non indicata» / «Nessun incontro fissato» ripetuti su ogni riga; il passo da fare dice cosa manca. #}
         <div class="cr-nome">
           <strong>{{ r.project.name }}</strong>
           <small>{{ r.project.client_name }}{% if r.project.part_number %} · {{ r.project.part_number }}{% endif %}{% if r.project.modello %} · {{ r.project.modello.nome }}{% endif %}</small>
@@ -42,11 +43,11 @@
         </div>
         <div class="cr-consegna">
           {% if r.consegna %}<span class="ts-chip {% if r.consegna.a_rischio %}danger{% elif r.consegna.giorni < 7 %}warn{% else %}ok{% endif %}">Consegna {{ r.consegna.data|date:"d/m" }}{% if r.consegna.a_rischio %} · a rischio{% endif %}</span>
-          {% else %}<small class="cr-muto">Consegna non indicata</small>{% endif %}
+          {% endif %}
           {% if r.tappe.ha_piano and r.tappe.ritardo_piano > 0 %}<small class="cr-rosso">+{{ r.tappe.ritardo_piano }} gg sul piano</small>{% endif %}
         </div>
         <div class="cr-incontro">
-          {% if r.prossimo %}<small>Incontro {{ r.prossimo.numero }} · {{ r.prossimo.data|date:"d/m" }}{% if r.prossimo.ora %} {{ r.prossimo.ora|time:"H:i" }}{% endif %}</small>{% else %}<small class="cr-muto">Nessun incontro fissato</small>{% endif %}
+          {% if r.prossimo %}<small>Incontro {{ r.prossimo.numero }} · {{ r.prossimo.data|date:"d/m" }}{% if r.prossimo.ora %} {{ r.prossimo.ora|time:"H:i" }}{% endif %}</small>{% endif %}
           {% if r.spostamenti %}<span class="ts-chip warn">{{ r.spostamenti }} spostament{{ r.spostamenti|pluralize:"o,i" }} da decidere</span>{% endif %}
         </div>
         <div class="cr-passo">{% if r.project.chiuso_il %}<small>Chiuso il {{ r.project.chiuso_il|date:"d/m/Y" }}</small>{% elif r.passo %}<small>{{ r.passo.titolo }} →</small>{% endif %}</div>
@@ -59,5 +60,5 @@
     {% endif %}
   </div>
 </section>
-<script src="{% static 'tasks/js/barra_elenco.js' %}?v=20261125a" defer></script>
+<script src="{% static 'tasks/js/barra_elenco.js' %}?v=20261125b" defer></script>
 {% endblock %}

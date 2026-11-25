@@ -6,7 +6,7 @@
    - Menu «···» (.kel-menu): uno aperto alla volta, clic fuori lo chiude. */
 (function () {
   document.addEventListener('click', function (e) {
-    document.querySelectorAll('.kel-menu[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+    document.querySelectorAll('.kel-menu[open], .kel-filtri[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
   });
   var form = document.querySelector('[data-kel-form]');
   if (!form) return;
