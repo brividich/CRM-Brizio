@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: lezione online di una sessione (slide + test), senza corso nuovo
+
+- **Segnalazione:** per una lezione «online» con slide e test finale su un corso già presente bisognava creare un corso e-learning nuovo, con una gestione complessa. Ora slide e test stanno sulla **sessione**.
+- Nuove tabelle `anagrafica/models_sessione_online.py` (`TrainingSessionOnline`, `TrainingSessionSlide`, `TrainingSessionQuestion`, `TrainingSessionOption`, `TrainingSessionProgress`, `TrainingSessionAttempt`) e modalità sessione «Online: slide + test» (`models_formazione.py`); migrazione `0248_sessione_lezione_online` con i permessi delle rotte nuove copiati dalle sorelle. Il motore dei corsi e-learning non cambia.
+- Preparazione in tre passi (`/anagrafica/formazione/sessioni/<id>/online/`): slide da PowerPoint/PDF o copiate dal corso, riordino; test con domande a risposta singola o multipla, incolla da Word, import Excel o dal corso, soglia e tentativi; date, promemoria automatico e «Pubblica e invia» (notifica + mail). Creando una sessione «Online» si apre subito la preparazione (`views/formazione.py`).
+- Pagina della sessione: riquadro «Lezione online» con stato, tre passi, indicatori (finiti, iniziati, punteggio medio, superati al 1° tentativo, tempo medio contro il minimo, da registrare, tentativi finiti), tabella per persona (slide, minuti, tentativi, miglior punteggio, ultimo accesso, «fermo da N giorni», link e solleciti) con azioni sulla riga e in blocco (sollecita, manda link, tentativo in più, azzera, registra completamenti), domande sbagliate più spesso, pannelli laterali «Test finale» e «Risposte», export CSV (`templates/anagrafica/components/_sessione_online_gestione.html`, `_sessione_online_domande.html`, `_sessione_online_style.html`).
+- Partecipante (`/anagrafica/formazione/corsi-online/sessione/<id>/`): slide in sequenza con tempo minimo misurato dal server, ripresa dalla slide raggiunta, test corretto solo sul server, esito con le risposte da rivedere. Chi supera ha presenza 100%, ore del corso e verifica «Test scritto» sull'iscrizione; il completamento a libretto lo registra chi gestisce, con le regole del corso. Anteprima per chi gestisce. La lezione compare in Corsi online e in «Le mie attività» (`views_elearning.py`, `dashboard/views_mie_attivita.py`).
+- Servizio `anagrafica/services/sessione_online.py`, view `anagrafica/views_sessione_online.py`, rotte in `anagrafica/urls.py`; promemoria agganciato a `send_elearning_reminders`.
+- Guide: guida Formazione in-app (`formazione_guida.html`, «lezione-online»), Centro guide `core/guide_moduli/contenuti/anagrafica.py` (uso, admin, problemi). Scheda `docs/moduli/anagrafica.md`, `hub_tools/schema_db.py`. Test: `anagrafica/tests_sessione_online.py`.
+
 ### Organigramma a diagramma: un ambito alla volta, ricerca e vista ricordata
 
 - **Tolta la vista «Tutti gli ambiti»** (e «Ruoli senza ambito») dal diagramma: si apre sull'ambito con «alimenta il Ruolo aziendale», che comprende i ruoli non classificati, e la sessione ricorda l'ultimo scelto (`anagrafica/views/struttura.py` `_ambito_diagramma`, `organigramma_diagramma`; `services/organigramma_albero.py` `build_ruolo_albero(includi_senza=)`, `chiave_persona`). L'Albero resta com'era.

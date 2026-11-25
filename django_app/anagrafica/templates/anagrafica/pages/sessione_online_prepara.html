@@ -1,0 +1,166 @@
+{% extends "core/base.html" %}
+
+{% block title %}Lezione online · {{ sessione.codice_sessione }} | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% include "anagrafica/components/_sessione_online_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_sessioni_list' %}" style="color:#94a3b8;text-decoration:none;">Sessioni</a> ›
+        <a href="{% url 'anagrafica:formazione_corso_detail' sessione.corso.pk %}" style="color:#94a3b8;text-decoration:none;">{{ sessione.corso.codice }}</a> ›
+        <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}" style="color:#94a3b8;text-decoration:none;">{{ sessione.codice_sessione }}</a> › Lezione online
+      </div>
+      <h2 class="hr-pagehead-title">Lezione online per {{ sessione.codice_sessione }}</h2>
+      <p class="hr-pagehead-desc">Corso: <strong>{{ sessione.corso.titolo }}</strong> · niente corso nuovo: slide e test valgono solo per questa sessione.</p>
+    </div>
+    <div class="so-actions">
+      {% include "anagrafica/partials/_formazione_guida_link.html" with ancora="lezione-online" %}
+      {% if n_slide %}<a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_player' sessione.pk %}?anteprima=1" target="_blank" rel="noopener">Prova come partecipante</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="so-wiz">
+    <div class="so-card">
+      <div class="so-head" style="display:block;">
+        <nav class="so-steps" aria-label="Passi">
+          <a href="?passo=slide" class="{% if passo == 'slide' %}cur{% elif n_slide %}ok{% endif %}"><span class="so-step-n {% if passo == 'slide' %}cur{% elif n_slide %}ok{% endif %}">1</span>Slide{% if n_slide %} · {{ n_slide }}{% endif %}</a>
+          <a href="?passo=test" class="{% if passo == 'test' %}cur{% elif n_domande and not n_domande_ko %}ok{% endif %}"><span class="so-step-n {% if passo == 'test' %}cur{% elif n_domande and not n_domande_ko %}ok{% endif %}">2</span>Test finale{% if n_domande %} · {{ n_domande }} domande{% endif %}</a>
+          <a href="?passo=invio" class="{% if passo == 'invio' %}cur{% elif cfg.pubblicata %}ok{% endif %}"><span class="so-step-n {% if passo == 'invio' %}cur{% elif cfg.pubblicata %}ok{% endif %}">3</span>Iscritti e scadenza</a>
+        </nav>
+      </div>
+
+      {% if passo == "slide" %}
+      <div class="so-body" style="display:flex;flex-direction:column;gap:14px;">
+        <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:sessione_online_slide_importa' sessione.pk %}" class="so-drop">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3" stroke="#2f5f89" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <strong>Carica il PowerPoint o il PDF</strong>
+          <span class="so-muted">Ogni pagina diventa una slide, accodata a quelle che ci sono già. PowerPoint: la conversione può richiedere fino a un minuto.</span>
+          <div class="so-actions" style="justify-content:center;">
+            <input type="file" name="file" accept=".pptx,.ppt,.odp,.pdf" required aria-label="File delle slide">
+            <button type="submit" class="hr-btn hr-btn-primary">Carica</button>
+          </div>
+        </form>
+        {% if slide_corso %}
+        <form method="post" action="{% url 'anagrafica:sessione_online_slide_corso' sessione.pk %}" class="so-actions" style="justify-content:center;">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+          <span class="so-muted">Oppure</span>
+          <button type="submit" class="hr-btn hr-btn-ghost">Copia le {{ slide_corso }} slide del corso {{ sessione.corso.codice }}</button>
+        </form>
+        {% endif %}
+
+        <form method="post" action="{% url 'anagrafica:sessione_online_impostazioni' sessione.pk %}" class="so-actions" style="align-items:flex-end;">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+          <label class="so-f">Tempo minimo su ogni slide (secondi, 0 = nessuno)
+            <input type="number" name="secondi_minimi_slide" min="0" max="600" value="{{ cfg.secondi_minimi_slide }}" style="width:160px;"></label>
+          <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Salva</button>
+          {% if n_slide and cfg.secondi_minimi_slide %}<span class="so-muted">≈ {% widthratio n_slide 1 cfg.secondi_minimi_slide as tot %}{{ tot|floatformat:0 }} secondi in tutto</span>{% endif %}
+        </form>
+
+        {% if slides %}
+        <div class="so-actions" style="justify-content:space-between;">
+          <strong>{{ n_slide }} slide</strong>
+          <form method="post" action="{% url 'anagrafica:sessione_online_slide_azione' sessione.pk %}">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+            <button class="so-link danger" name="azione" value="svuota" type="submit" data-hub-confirm="Togliere tutte le {{ n_slide }} slide?">Togli tutte</button>
+          </form>
+        </div>
+        <div class="so-thumbs">
+          {% for s in slides %}
+          <div class="so-thumb">
+            <div class="so-thumb-img">{% if s.immagine %}<img src="{% url 'anagrafica:sessione_online_slide_img' s.pk %}" alt="Slide {{ s.ordine }}" loading="lazy">{% else %}{{ s.titolo|default:"Slide di testo" }}{% endif %}</div>
+            <form method="post" action="{% url 'anagrafica:sessione_online_slide_azione' sessione.pk %}" class="so-thumb-f">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}"><input type="hidden" name="slide_id" value="{{ s.pk }}">
+              <strong>{{ s.ordine }}</strong>
+              <span class="so-actions" style="gap:2px;">
+                {% if not forloop.first %}<button class="so-link" name="azione" value="su" type="submit" aria-label="Sposta prima">←</button>{% endif %}
+                {% if not forloop.last %}<button class="so-link" name="azione" value="giu" type="submit" aria-label="Sposta dopo">→</button>{% endif %}
+                <button class="so-link danger" name="azione" value="elimina" type="submit" aria-label="Togli la slide {{ s.ordine }}">Togli</button>
+              </span>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="so-foot">
+        <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}">Torna alla sessione</a>
+        <a class="hr-btn hr-btn-primary" href="?passo=test">Avanti: test finale</a>
+      </div>
+
+      {% elif passo == "test" %}
+      <div class="so-body">
+        <form method="post" action="{% url 'anagrafica:sessione_online_impostazioni' sessione.pk %}" class="so-grid4" style="align-items:end;margin-bottom:14px;">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}"><input type="hidden" name="mostra_correzioni_presente" value="1">
+          <label class="so-f">Soglia per superarlo (%)<input type="number" name="soglia_pct" min="1" max="100" value="{{ cfg.soglia_pct }}"></label>
+          <label class="so-f">Tentativi (0 = senza limite)<input type="number" name="max_tentativi" min="0" max="20" value="{{ cfg.max_tentativi }}"></label>
+          <label class="so-f" style="flex-direction:row;align-items:center;gap:6px;padding-bottom:8px;"><input type="checkbox" name="mostra_correzioni" value="1"{% if cfg.mostra_correzioni %} checked{% endif %}> A fine test mostra le risposte giuste</label>
+          <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Salva</button>
+        </form>
+        {% include "anagrafica/components/_sessione_online_domande.html" with prossimo=qui %}
+      </div>
+      <div class="so-foot">
+        <a class="hr-btn hr-btn-ghost" href="?passo=slide">Indietro</a>
+        <a class="hr-btn hr-btn-primary" href="?passo=invio">Avanti: iscritti e scadenza</a>
+      </div>
+
+      {% else %}
+      <div class="so-body" style="display:flex;flex-direction:column;gap:14px;">
+        {% if manca %}<div class="so-banner"><strong>Per pubblicare manca:</strong> {{ manca|join:"; " }}.</div>
+        {% elif cfg.pubblicata %}<div class="so-banner ok">Pubblicata il {{ cfg.pubblicata_il|date:"d-m-Y H:i" }}. Ripubblicando, il link va solo a chi non l'ha ancora ricevuto (per esempio i nuovi iscritti).</div>{% endif %}
+
+        <form method="post" action="{% url 'anagrafica:sessione_online_impostazioni' sessione.pk %}" class="so-grid4" style="align-items:end;">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+          <label class="so-f">Disponibile dal<input type="date" name="disponibile_dal" value="{{ cfg.disponibile_dal|date:'Y-m-d' }}"></label>
+          <label class="so-f">Da completare entro<input type="date" name="scadenza" value="{{ cfg.scadenza|date:'Y-m-d' }}"></label>
+          <label class="so-f">Promemoria automatico (giorni prima, 0 = no)<input type="number" name="promemoria_giorni" min="0" max="60" value="{{ cfg.promemoria_giorni }}"></label>
+          <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Salva date</button>
+        </form>
+
+        <div style="border:1px solid var(--border,#d7e0ea);border-radius:10px;">
+          <div class="so-head" style="padding:10px 14px;"><strong>{{ righe|length }} partecipant{{ righe|length|pluralize:"e,i" }}</strong>
+            <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}">Aggiungi o togli iscritti</a></div>
+          <div class="so-scroll" style="max-height:340px;overflow:auto;">
+            <table class="so-table">
+              <thead><tr><th>Partecipante</th><th>Reparto</th><th>Come riceve il link</th><th>Stato</th></tr></thead>
+              <tbody>
+              {% for r in righe %}
+              <tr><td>{{ r.nome }}</td><td class="so-muted">{{ r.reparto }}</td>
+                <td>{% if r.ha_email and r.ha_utente %}Mail e notifica nel portale{% elif r.ha_email %}Mail{% elif r.ha_utente %}Notifica nel portale{% else %}<span class="so-ko">nessun contatto: dagli il link a voce o stampato</span>{% endif %}</td>
+                <td>{% if r.link_inviato %}<span class="so-pill success">Link inviato {{ r.link_inviato|date:"d-m" }}</span>{% else %}<span class="so-pill neutral">Da inviare</span>{% endif %}</td></tr>
+              {% empty %}<tr><td colspan="4" class="so-muted">Nessun iscritto alla sessione.</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="so-muted">Il link porta a <code>{{ request.scheme }}://{{ request.get_host }}{% url 'anagrafica:sessione_online_player' sessione.pk %}</code>: compare anche in «Le mie attività» e tra i corsi online della persona.</div>
+      </div>
+      <div class="so-foot">
+        <a class="hr-btn hr-btn-ghost" href="?passo=test">Indietro</a>
+        <div class="so-actions">
+          <form method="post" action="{% url 'anagrafica:sessione_online_pubblica' sessione.pk %}">
+            {% csrf_token %}<input type="hidden" name="invia" value="0">
+            <button type="submit" class="hr-btn hr-btn-ghost"{% if manca %} disabled{% endif %}>Pubblica senza inviare</button>
+          </form>
+          <form method="post" action="{% url 'anagrafica:sessione_online_pubblica' sessione.pk %}">
+            {% csrf_token %}<input type="hidden" name="invia" value="1">
+            <button type="submit" class="hr-btn hr-btn-primary"{% if manca %} disabled{% endif %}>{% if cfg.pubblicata %}Manda il link ai nuovi{% else %}Pubblica e invia{% endif %}</button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -2730,6 +2730,9 @@ def formazione_sessione_create(request):
                 request.session.pop("rinnovo_preselect", None)
                 messages.success(request, f'Sessione "{sessione.codice_sessione}" creata; {n_new} dipendenti iscritti.')
                 return _agli_iscritti(sessione, pre.get("back") or "")
+            if sessione.modalita == "ONLINE":
+                messages.success(request, f'Sessione "{sessione.codice_sessione}" creata: ora slide, test e invio.')
+                return redirect("anagrafica:sessione_online_prepara", sessione_id=sessione.pk)
             messages.success(request, f'Sessione "{sessione.codice_sessione}" creata.')
             return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
     else:
@@ -2870,7 +2873,35 @@ def formazione_sessione_detail(request, sessione_id: int):
         "ATTACH_TIPI":  TrainingAttachment.Tipo.choices,
         "gruppi_gemelli": gruppi_gemelli,
         "dividi_form":    dividi_form,
+        "online":         _contesto_lezione_online(request, sessione),
+        "pannello":       request.GET.get("pannello", ""),
+        "risposte_di":    _risposte_lezione_online(request, sessione),
     })
+
+
+def _contesto_lezione_online(request, sessione):
+    from ..views_sessione_online import contesto_gestione
+    try:
+        return contesto_gestione(request, sessione)
+    except Exception:
+        logger.exception("Riquadro lezione online non calcolato (sessione %s)", sessione.pk)
+        return None
+
+
+def _risposte_lezione_online(request, sessione):
+    """Tentativi della persona scelta (pannello laterale «Vedi risposte»)."""
+    raw = request.GET.get("risposte") or ""
+    if not raw.isdigit():
+        return None
+    from ..models_sessione_online import TrainingSessionAttempt
+    from ..services.sessione_online import righe_gestione, config
+    e = TrainingEnrollment.objects.filter(pk=int(raw), sessione=sessione).first()
+    cfg = config(sessione)
+    if e is None or cfg is None:
+        return None
+    nome = next((r["nome"] for r in righe_gestione(sessione, cfg, 0) if r["enrollment"].pk == e.pk), "")
+    return {"enrollment": e, "nome": nome,
+            "tentativi": list(TrainingSessionAttempt.objects.filter(enrollment=e).order_by("-inviato_il"))}
 
 
 @login_required

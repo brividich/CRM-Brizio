@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+
+{% block title %}Test finale · {{ sessione.corso.titolo }} | Lezione online{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_sessione_online_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="so-player" style="max-width:760px;">
+    {% if anteprima %}<div class="so-banner">Anteprima: vedi il test come lo vedranno gli iscritti; non si consegna.</div>{% endif %}
+    <div>
+      <div class="so-muted"><a href="{% url 'anagrafica:sessione_online_player' sessione.pk %}{% if anteprima %}?anteprima=1{% endif %}">{{ sessione.corso.titolo }}</a> › Test finale</div>
+      <h2 style="margin:4px 0 0;font-size:20px;color:var(--hub-color-navy,#0c2545);">Test finale</h2>
+      <div class="so-muted" style="margin-top:4px;">{{ domande|length }} domande · serve almeno il {{ cfg.soglia_pct }}% · tentativo {{ tentativo_n }}{% if tentativi_max %} di {{ tentativi_max }}{% endif %}</div>
+    </div>
+    <form method="post" style="display:flex;flex-direction:column;gap:12px;">
+      {% csrf_token %}
+      {% for d in domande %}
+      <fieldset class="so-card" style="margin:0;padding:14px 16px;display:flex;flex-direction:column;gap:8px;">
+        <legend style="padding:0 6px;font-weight:700;color:var(--hub-color-navy,#0c2545);font-size:14px;">{{ forloop.counter }}. {{ d.testo|linebreaksbr }}</legend>
+        {% if d.multipla %}<span class="so-muted">Più risposte giuste: scegli tutte quelle corrette.</span>{% endif %}
+        {% for o in d.lista_opzioni %}
+        <label class="so-choice"><input type="{% if d.multipla %}checkbox{% else %}radio{% endif %}" name="d{{ d.pk }}" value="{{ o.pk }}"{% if o.pk in d.scelte %} checked{% endif %}> {{ o.testo }}</label>
+        {% endfor %}
+      </fieldset>
+      {% endfor %}
+      <div class="so-actions" style="justify-content:space-between;">
+        <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_player' sessione.pk %}?n=1{% if anteprima %}&anteprima=1{% endif %}">Rivedi le slide</a>
+        <button type="submit" class="hr-btn hr-btn-primary" data-hub-confirm="Consegnare il test? Le risposte non si possono più cambiare." data-hub-confirm-ok="Consegna">Consegna il test</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

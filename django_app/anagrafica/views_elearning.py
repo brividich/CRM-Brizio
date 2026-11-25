@@ -114,7 +114,9 @@ def formazione_online_catalog(request):
             "da_valutare": bool(completato and e.record_completamento_id in da_valutare),
         })
     cards.sort(key=lambda x: (not x["assegnato_da_fare"], x["due_date"] or oggi.max, x["corso"].titolo.lower()))
+    from .services.sessione_online import lezioni_della_persona
     return render(request, "anagrafica/pages/formazione_online_catalog.html", {
+        "lezioni_sessione": lezioni_della_persona(legacy_id) if legacy_id else [],
         "cards": cards,
         "no_anagrafica": legacy_id is None,
         "is_editor": is_editor,

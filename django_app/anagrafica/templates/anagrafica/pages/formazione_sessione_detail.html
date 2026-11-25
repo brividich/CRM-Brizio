@@ -73,6 +73,10 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
          title="Iscritti, presenze e attestati">👥 Iscritti & presenze</a>
       {% include "anagrafica/partials/_formazione_guida_link.html" with ancora="edizione" %}
       {% if is_editor %}
+      {% if not online and not sessione.is_approvata %}
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}"
+         title="Slide e test finale che gli iscritti seguono online, senza creare un corso nuovo">Lezione online</a>
+      {% endif %}
       <button class="hr-btn hr-btn-ghost"
               onclick="document.getElementById('panel-dividi-gruppi').style.display=
                 document.getElementById('panel-dividi-gruppi').style.display==='none'?'block':'none'"
@@ -96,6 +100,8 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
   <div class="fm-cache-banner" role="status">🔒 {{ motivo_blocco }}</div>
   {% endif %}
   {% if gestore or can_approve %}{% include "anagrafica/components/_formazione_chiusura_panel.html" %}{% endif %}
+
+  {% if online %}{% include "anagrafica/components/_sessione_online_gestione.html" %}{% endif %}
 
   {# ── Edizione / gruppi gemelli: stesso corso erogato a più gruppi in parallelo ── #}
   {% if sessione.edizione %}
