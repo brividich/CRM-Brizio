@@ -1365,12 +1365,11 @@ def _task_line(task, today: date) -> str:
 def _project_line(project) -> str:
     number = getattr(project, "kickoff_number", None)
     prefix = f"KICK-OFF {number}" if number else str(getattr(project, "name", "") or "KICK-OFF")
-    pm = project.team_display("project_managers") or "-"
     cc = project.team_display("capi_commessa") or "-"
     programmer = project.team_display("programmers") or "-"
     caporeparto = project.team_display("caporeparti") or "-"
     return (
-        f"- {prefix}: PM {pm}, capocommessa {cc}, "
+        f"- {prefix}: capocommessa {cc}, "
         f"programmatore {programmer}, caporeparto {caporeparto}"
     )
 

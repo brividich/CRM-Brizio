@@ -6,6 +6,7 @@
 {% block tasks_shell_subtitle %}Programmi CAM e CMM di tutte le commesse: da scrivere, in scrittura, da provare in macchina, validati.{% endblock %}
 
 {% block tasks_shell_content %}
+{% include "tasks/_programmi_fai_schede.html" with attiva="programmi" %}
 <section class="ts-panel">
   <div class="ts-panel-body fai-registro">
     <div class="fai-viste" role="group" aria-label="Filtra i programmi per fase">

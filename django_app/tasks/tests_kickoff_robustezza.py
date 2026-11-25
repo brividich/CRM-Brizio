@@ -159,7 +159,7 @@ class KickoffRobustezzaTests(TasksBaseTestCase):
     def _payload_kickoff(self, versione, **extra):
         dati = {
             "client_name": "Cliente Nuovo", "part_number": "PN-R1",
-            "project_managers": [self.user.pk], "impronta": versione,
+            "capi_commessa": [self.user.pk], "impronta": versione,
         }
         dati.update(extra)
         return dati

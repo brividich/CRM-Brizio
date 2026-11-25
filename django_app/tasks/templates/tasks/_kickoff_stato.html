@@ -1,0 +1,2 @@
+{# Riga di stato del kickoff (views/projects._stato_riga). Se è un problema porta alle voci scadute della commessa. Param: project. #}
+{% if project.stato_riga.problema %}<a class="kel-s kel-s--{{ project.stato_riga.tono }} kel-s--link" href="{% url 'tasks:project_actions' project.id %}?scadenza=scadute" title="Apri le voci scadute di questa commessa">{{ project.stato_riga.testo }}</a>{% else %}<span class="kel-s kel-s--{{ project.stato_riga.tono }}">{{ project.stato_riga.testo }}</span>{% endif %}

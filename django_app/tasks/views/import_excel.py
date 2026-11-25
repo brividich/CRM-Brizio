@@ -104,7 +104,7 @@ def download_excel_template(request):
         ("P/N", "Part Number (testo libero)."),
         ("Revisione", "Revisione del P/N (testo libero, es. A, B, 01)."),
         ("Versione", "Versione del P/N (testo libero, es. 1.0, 2.3)."),
-        ("PM (username)", "Username del project manager. Deve esistere nel sistema."),
+        ("PM (username)", "Username del capocommessa (la colonna conserva il vecchio nome). Deve esistere nel sistema."),
         ("Titolo attivita", "Titolo dell'attivita kickoff (obbligatorio)."),
         ("Descrizione attivita", "Descrizione operativa (opzionale)."),
         ("Stato", "TODO / IN_PROGRESS / DONE / CANCELED. Default: TODO."),
@@ -323,8 +323,8 @@ def import_excel(request):
                     if updated_fields:
                         project.save(update_fields=updated_fields + ["updated_at"])
                     # Il PM del file si aggiunge all'elenco, non sostituisce chi c'e' gia'.
-                    if pm_user is not None and project.add_team_member("project_managers", pm_user):
-                        updated_fields.append("project_managers")
+                    if pm_user is not None and project.add_team_member("capi_commessa", pm_user):
+                        updated_fields.append("capi_commessa")
                     if project.id not in updated_project_ids and updated_fields and not project_was_created:
                         updated_project_ids.add(project.id)
                         updated_projects += 1

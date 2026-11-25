@@ -21,7 +21,7 @@ class MinutaDopoFineTests(TasksBaseTestCase):
         self._refresh_acl_cache()
         self.pm = _create_user_with_legacy(username="mf-pm", legacy_user_id=811, role_id=2, role_name="tasks")
         self.cc = _create_user_with_legacy(username="mf-cc", legacy_user_id=812, role_id=2, role_name="tasks")
-        self.project = make_project(name="Commessa minuta", created_by=self.pm, project_manager=self.pm)
+        self.project = make_project(name="Commessa minuta", created_by=self.pm, programmer=self.pm)
         self.project.add_team_member("CC", self.cc)
         self.meeting = KickoffMeeting.objects.create(
             project=self.project, data=date(2026, 11, 2), stato=MeetingStatus.SVOLTO, note="Verbale",

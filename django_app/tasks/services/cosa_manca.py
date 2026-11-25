@@ -91,7 +91,7 @@ def cosa_manca(project, *, tappe: dict, readiness, azioni, can_manage: bool, puo
             if not parla_di_incontri:
                 righe.append(_riga("info", "Incontro di kickoff da svolgere", "Pianificato, non ancora svolto", url, "Incontri"))
         elif c.key == "team":
-            righe.append(_riga("warn", "Team incompleto", "Servono PM, capocommessa e programmatore", url, "Completa"))
+            righe.append(_riga("warn", "Team incompleto", "Servono capocommessa e programmatore", url, "Completa"))
         elif c.key == "plan":
             righe.append(_riga(
                 "warn", "Nessuna attività con scadenza", "Il piano non ha ancora date",

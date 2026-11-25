@@ -1,21 +1,37 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Le mie commesse</span>{% endblock %}
 {% block tasks_shell_guide_anchor %}#cruscotto{% endblock %}
 {% block tasks_shell_title %}Le mie commesse{% endblock %}
-{% block tasks_shell_subtitle %}Le commesse dove sei capocommessa o PM: in cima quelle con ritardi, consegna a rischio o decisioni da prendere.{% endblock %}
+{% block tasks_shell_subtitle %}Le commesse dove sei capocommessa: in cima quelle con ritardi, consegna a rischio o decisioni da prendere.{% endblock %}
 
 {% block tasks_shell_content %}
-<section class="ts-panel">
-  <div class="ts-panel-body">
-    <div class="fai-viste" role="group" aria-label="Filtra le commesse">
-      <a class="fai-vista{% if stato != 'chiuse' %} active{% endif %}" href="?stato=aperte{% if tutte %}&tutte=1{% endif %}">Aperte</a>
-      <a class="fai-vista{% if stato == 'chiuse' %} active{% endif %}" href="?stato=chiuse{% if tutte %}&tutte=1{% endif %}">Chiuse</a>
-      {% if puo_vedere_tutte %}<a class="fai-vista{% if tutte %} active{% endif %}" href="?stato={{ stato }}{% if not tutte %}&tutte=1{% endif %}">{% if tutte %}Solo le mie{% else %}Tutte le commesse{% endif %}</a>{% endif %}
+<section class="ts-panel kel">
+  {# Stessa barra del Portfolio: una sola ricerca, filtri rapidi col conteggio. #}
+  <form method="get" class="kel-bar" data-kel-form>
+    <input type="hidden" name="stato" value="{{ stato }}">
+    {% if tutte %}<input type="hidden" name="tutte" value="1">{% endif %}
+    {% if solo_problemi %}<input type="hidden" name="problemi" value="1">{% endif %}
+    <input class="input kel-q" type="search" name="q" value="{{ q }}" placeholder="Cerca nome, P/N, cliente, pezzo…" aria-label="Cerca commessa" data-kel-cerca>
+    <nav class="kel-fasi" aria-label="Filtra le commesse">
+      <a class="kel-f{% if stato == 'aperte' %} on{% endif %}" href="?stato=aperte{% if keep %}&amp;{{ keep }}{% endif %}">Aperte<b>{{ n_aperte }}</b></a>
+      <a class="kel-f{% if stato == 'chiuse' %} on{% endif %}" href="?stato=chiuse{% if keep %}&amp;{{ keep }}{% endif %}">Chiuse<b>{{ n_chiuse }}</b></a>
+      <a class="kel-f kel-f--warn{% if solo_problemi %} on{% endif %}" href="?stato={{ stato }}{% if keep %}&amp;{{ keep }}{% endif %}{% if not solo_problemi %}&amp;problemi=1{% endif %}" title="Tappe in ritardo, consegna a rischio, ritardo sul piano o spostamenti da decidere">Con problemi<b>{{ n_problemi }}</b></a>
+    </nav>
+    {% if puo_vedere_tutte %}
+    <div class="kel-dx">
+      <div class="pf-view-toggle">
+        <a class="pf-view-btn{% if not tutte %} active{% endif %}" href="?stato={{ stato }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">Le mie</a>
+        <a class="pf-view-btn{% if tutte %} active{% endif %}" href="?stato={{ stato }}&amp;tutte=1{% if q %}&amp;q={{ q|urlencode }}{% endif %}">Tutte</a>
+      </div>
     </div>
+    {% endif %}
+  </form>
+  <div class="ts-panel-body">
     {% if righe %}
     <div class="cr-lista">
       {% for r in righe %}
-      <a class="cr-riga" href="{% url 'tasks:project_overview' r.project.id %}">
+      <a class="cr-riga" href="{% url 'tasks:project_overview' r.project.id %}" data-kel-riga="{{ r.project.name|lower }} {{ r.project.part_number|lower }} {{ r.project.client_name|lower }} {{ r.project.descrizione_pezzo|lower }}">
         <div class="cr-nome">
           <strong>{{ r.project.name }}</strong>
           <small>{{ r.project.client_name }}{% if r.project.part_number %} · {{ r.project.part_number }}{% endif %}{% if r.project.modello %} · {{ r.project.modello.nome }}{% endif %}</small>
@@ -37,9 +53,11 @@
       </a>
       {% endfor %}
     </div>
+    <p class="tr-hint" data-kel-vuoto hidden>Nessuna commessa con questa ricerca.</p>
     {% else %}
-      <p class="tr-hint">Nessuna commessa{% if stato == "chiuse" %} chiusa{% endif %} dove sei capocommessa o PM.</p>
+      <p class="tr-hint">Nessuna commessa{% if stato == "chiuse" %} chiusa{% endif %}{% if solo_problemi %} con problemi{% endif %}{% if q %} con questa ricerca{% endif %} dove sei capocommessa.</p>
     {% endif %}
   </div>
 </section>
+<script src="{% static 'tasks/js/barra_elenco.js' %}?v=20261125a" defer></script>
 {% endblock %}

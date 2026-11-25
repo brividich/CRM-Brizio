@@ -71,11 +71,11 @@ def _has_planned_task(project) -> bool:
     return project.tasks.filter(due_date__isnull=False).exists()
 
 
-_TEAM_REQUIRED_CODES = ("PM", "CC", "PRG")
+_TEAM_REQUIRED_CODES = ("CC", "PRG")
 
 
 def _has_team(project) -> bool:
-    """Team completo: almeno una persona per PM, capocommessa e programmatore."""
+    """Team completo: almeno un capocommessa e un programmatore."""
     anno = getattr(project, "rd_has_team", None)
     if anno is not None:
         return bool(anno)
@@ -109,7 +109,7 @@ def compute_project_readiness(project) -> ReadinessResult:
             None if meeting_ok else _meeting_action_url(project, pid),
         ),
         ReadinessCriterion(
-            "team", "Team assegnato (PM, capocommessa, programmatore)", team_ok,
+            "team", "Team assegnato (capocommessa, programmatore)", team_ok,
             None if team_ok else reverse("tasks:project_edit", args=[pid]) + "#team",
         ),
         ReadinessCriterion(

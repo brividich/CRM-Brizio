@@ -203,12 +203,12 @@ class AvvisiTests(SpostamentiBase):
         self.cc.save()
         self.client.force_login(self.cc)
         self.client.post(reverse("tasks:impostazioni"), {
-            "tab": "poteri", "poteri_ruoli": ["CC"], "avvisi_destinatari": ["INCARICATO", "PM"],
+            "tab": "poteri", "poteri_ruoli": ["CC"], "avvisi_destinatari": ["INCARICATO", "CC"],
             "poteri_utenti": [str(self.altro.pk)],
         })
         cfg = TaskImpostazioni.get_singleton()
         cfg.refresh_from_db()
-        self.assertEqual((cfg.poteri_ruoli, cfg.avvisi_destinatari, cfg.spostamenti_con_approvazione), ("CC", "INCARICATO,PM", False))
+        self.assertEqual((cfg.poteri_ruoli, cfg.avvisi_destinatari, cfg.spostamenti_con_approvazione), ("CC", "INCARICATO,CC", False))
         self.assertEqual(list(cfg.poteri_utenti.values_list("pk", flat=True)), [self.altro.pk])
         self.assertContains(self.client.get(reverse("tasks:impostazioni") + "?tab=config"), "Poteri e avvisi")
 

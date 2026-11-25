@@ -10,6 +10,13 @@ Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, t
 
 ## Dettaglio
 
+### Menu più corto, un ruolo solo per PM e capocommessa, stessa barra nelle liste (25/11/2026)
+
+- **Capocommessa unico**: `Project.TEAM_ROLES` senza «Project manager»; `TEAM_CODE_ALIAS` fa valere `project_managers`/`PM` come `CC`, così poteri, avvisi, automazioni e AI che chiedono il PM ricevono i capocommessa. Migrazione `tasks 0075_capocommessa_unico`: righe `ProjectMember` PM → CC (senza doppioni), candidati `TaskRoleAssignment` PM → CC, ruolo di sistema «Project manager» disattivato, `poteri_ruoli`/`avvisi_destinatari` con CC al posto di PM (default `poteri_ruoli` = `CC`). Tolti il campo `project_managers` dal form kickoff e `project_new_manager` dal form attività; prontezza = capocommessa + programmatore. Import Excel: la colonna «PM (username)» resta e aggiunge il capocommessa. Il ritorno indietro non separa i ruoli.
+- **Menu del modulo** da 10 a 7 voci (migrazione `core 0117_tasks_subnav_meno_voci`, voci nascoste con `is_visible=False`): «Programmi e FAI» (schede `_programmi_fai_schede.html` su Programmi, Registro FAI, Report FAI), «Le mie attività»; «Calendario incontri» dalla Dashboard.
+- **Portfolio**: tolte le pillole «N kickoff / Tutte le commesse» e «Dashboard attività». Colonna «Capocommessa». Riga di stato rossa → `project_actions?scadenza=scadute` (partial `_kickoff_stato.html`); menu «···» condiviso (`_kickoff_menu.html`). Board con card nello schema dell'Elenco (`_board_card.html`).
+- **Barra unica** anche in «Le mie commesse» (`views/cruscotto.py`: `q`, `problemi=1`, conteggi Aperte/Chiuse/Con problemi, Le mie/Tutte) e «Da gestire» (`sezione=` con conteggio per sezione, Portfolio/Le mie nella barra, ricerca solo nella pagina). JS comune `static/tasks/js/barra_elenco.js`.
+
 ### Portfolio kickoff come elenco (25/11/2026)
 
 - La vista predefinita di `/tasks/projects/` è «Elenco» (`view=elenco`; un valore sconosciuto, anche il vecchio `cards`, apre l'elenco): una riga per commessa con riquadro P/N colorato per fase, nome, cliente, fase, riga di stato, avanzamento, PM, «Apri» e menu «···» (Attività, Gantt, Incontri, Documento VRF, Copia VRF, Copia senza P/N).

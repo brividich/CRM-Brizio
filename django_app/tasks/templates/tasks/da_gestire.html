@@ -1,19 +1,37 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 {% block tasks_shell_guide_anchor %}#da-gestire{% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Da gestire</span>{% endblock %}
 {% block tasks_shell_title %}Da gestire{% endblock %}
 {% block tasks_shell_subtitle %}Cosa richiede intervento sulle commesse kickoff.{% endblock %}
 
-{% block tasks_shell_actions %}
-  <a class="ts-hero-action {% if scope == 'portfolio' %}primary{% endif %}" href="{% url 'tasks:da_gestire' %}?scope=portfolio">Portfolio</a>
-  <a class="ts-hero-action {% if scope == 'mine' %}primary{% endif %}" href="{% url 'tasks:da_gestire' %}?scope=mine">Le mie</a>
-{% endblock %}
-
 {% block tasks_shell_content %}
+<section class="ts-panel kel dg-barra">
+  {# Stessa barra del Portfolio: una sola ricerca, filtri rapidi per sezione col conteggio; Portfolio / Le mie a destra. #}
+  <form method="get" class="kel-bar" data-kel-form>
+    <input type="hidden" name="scope" value="{{ scope }}">
+    {% if dg_sezione %}<input type="hidden" name="sezione" value="{{ dg_sezione }}">{% endif %}
+    <input class="input kel-q" type="search" placeholder="Cerca commessa, attività, incontro…" aria-label="Cerca fra le cose da gestire" data-kel-cerca data-kel-locale>
+    <nav class="kel-fasi" aria-label="Filtra per sezione">
+      <a class="kel-f{% if not dg_sezione %} on{% endif %}" href="?scope={{ scope }}">Tutto<b>{{ dg_totale }}</b></a>
+      {% for f in dg_filtri %}
+      <a class="kel-f{% if dg_sezione == f.key %} on{% endif %}" href="?scope={{ scope }}&amp;sezione={{ f.key }}">{{ f.label }}<b>{{ f.n }}</b></a>
+      {% endfor %}
+    </nav>
+    <div class="kel-dx">
+      <div class="pf-view-toggle">
+        <a class="pf-view-btn{% if scope == 'portfolio' %} active{% endif %}" href="?scope=portfolio{% if dg_sezione %}&amp;sezione={{ dg_sezione }}{% endif %}">Portfolio</a>
+        <a class="pf-view-btn{% if scope == 'mine' %} active{% endif %}" href="?scope=mine{% if dg_sezione %}&amp;sezione={{ dg_sezione }}{% endif %}">Le mie</a>
+      </div>
+    </div>
+  </form>
+</section>
 <div class="ts-stack">
   {% for section in da_gestire_data.sections %}
     {% include "tasks/_da_gestire_section.html" with section=section %}
   {% endfor %}
+  <p class="dg-empty" data-kel-vuoto hidden>Niente con questa ricerca.</p>
 </div>
+<script src="{% static 'tasks/js/barra_elenco.js' %}?v=20261125a" defer></script>
 {% endblock %}
