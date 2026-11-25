@@ -21,6 +21,7 @@ from django.urls import reverse
 from core import ordini_produzione as op_db
 from tasks.identity import normalize_part_number
 
+from . import report_cmm_indice
 from .models import DocumentoOP
 
 
@@ -106,6 +107,7 @@ def righe_pn(request, testo: str = "") -> list[dict]:
         ops = [o for o in ops if normalize_part_number(o["pn"]) in trovati]
     fai = fai_per_pn(request) if _vede_kickoff(request) else {}
     anomalie = op_db.anomalie_aperte_per_op()
+    cmm = report_cmm_indice.conteggi_per_pn()
     righe: dict[str, dict] = {}
     for op in ops:  # dal più recente
         pn = normalize_part_number(op["pn"])
@@ -118,6 +120,7 @@ def righe_pn(request, testo: str = "") -> list[dict]:
                 "pn": pn, "url": url_pn(pn), "ultimo_op": op, "capocommessa": op["capocommessa"],
                 "n_op": 0, "n_anomalie_aperte": 0,
                 "n_fai": len(voce.get("fai", [])), "situazione": voce.get("situazione"),
+                "cmm": cmm.get(pn), "url_quote": f"{reverse('produzione:pn_quote')}?{urlencode({'pn': pn})}",
             }
         riga["n_op"] += 1
         riga["n_anomalie_aperte"] += anomalie.get(op["op"].lower(), 0)
@@ -183,6 +186,8 @@ def scheda(request, op: dict) -> dict:
         "url_anomalie": url_anomalie(titolo),
         "url_nuovo_fai": url_nuovo_fai(pn_norm, titolo),
         "url_pn": url_pn(pn_norm) if pn_norm else "",
+        "report_cmm": report_cmm_indice.report_dell_op(titolo),
+        "url_quote": f"{reverse('produzione:pn_quote')}?{urlencode({'pn': pn_norm})}" if pn_norm else "",
         "altri_op": [o for o in (op_db.elenco(pn) if pn else []) if o["id"] != op["id"] and normalize_part_number(o["pn"]) == pn_norm][:10],
     }
     dati["passi"] = percorso(request, dati)
@@ -198,6 +203,19 @@ def _fai_del_pn(request, pn_norm: str) -> tuple[list, object, list]:
                .filter(articolo__part_number__iexact=pn_norm).order_by("-id"))
     righe = righe_registro(fai)
     return fai, _peggiore([r["situazione"] for r in righe]), righe
+
+
+def collega_programmi_cmm(pn_norm: str, programmi: list) -> None:
+    """Righe CMM del KICK-OFF -> ``url_quote``: andamento del programma dei report che contiene quel codice."""
+    righe_cmm = [r for r in programmi if r.kind == "CMM" and (r.code or "").strip()]
+    if not righe_cmm:
+        return
+    nomi = [p["programma_base"] for p in report_cmm_indice.programmi_del_pn(pn_norm)]
+    for r in righe_cmm:
+        codice = report_cmm_indice.programma_base(r.code).upper()
+        trovato = next((n for n in nomi if codice and (codice in n.upper() or n.upper() in codice)), "")
+        if trovato:
+            r.url_quote = f"{reverse('produzione:pn_quote')}?{urlencode({'pn': pn_norm, 'prog': trovato})}"
 
 
 def scheda_pn(request, pn: str) -> dict | None:
@@ -231,7 +249,9 @@ def scheda_pn(request, pn: str) -> dict | None:
         "url_nuovo_fai": url_nuovo_fai(pn_norm),
         "n_anomalie_aperte": sum(o["n_anomalie_aperte"] for o in ops),
         "senza_documenti": sum(1 for o in ops if not o["n_documenti"]),
+        "report_cmm": report_cmm_indice.riepilogo_pn(pn_norm),
     }
+    collega_programmi_cmm(pn_norm, programmi)
     passi = _passi_kickoff(pn_norm, progetti, programmi) if kickoff else []
     if kickoff:
         passi.append(_passo_fai(fai, situazione, dati["url_nuovo_fai"]))

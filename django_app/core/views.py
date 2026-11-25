@@ -1806,7 +1806,7 @@ def _cerca_processi_qualificati(request, q: str, limite: int = 5) -> list[dict]:
 def api_global_search(request):
     """
     GET /api/search/?q=<query>
-    Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, OP, FAI, Procedure, Processi qualificati, DPI.
+    Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, OP, report CMM, FAI, Procedure, Processi qualificati, DPI.
     Restituisce risultati raggruppati per tipo, max 5 per gruppo.
     Ogni blocco è eseguito solo se l'utente ha accesso ACL al modulo relativo.
     """
@@ -2042,6 +2042,26 @@ def api_global_search(request):
     except Exception:
         pass
 
+    # ── Report CMM (archivio letto dalla share Collaudo): per S/N, P/N o OP ──
+    try:
+        if not _global_search_module_allowed(request, "/produzione/"):
+            raise _ModuleHidden
+        from produzione.models import ReportCMM
+
+        for r in (ReportCMM.objects.filter(righe__gt=0)
+                  .filter(Q(seriale__icontains=q) | Q(pn__icontains=q) | Q(op__icontains=q) | Q(file__icontains=q))
+                  .order_by("-data", "-id")[:5]):
+            results.append({
+                "tipo": "cmm",
+                "label": r.seriale or r.file,
+                "sub": " · ".join(filter(None, [r.pn, r.op, r.data.strftime("%d/%m/%Y") if r.data else "",
+                                                f"{r.fuori} fuori" if r.fuori else "in tolleranza"])),
+                "preview": r.programma,
+                "url": reverse("produzione:report_cmm", args=[r.pk]),
+            })
+    except Exception:
+        pass
+
     # ── FAI (Registro FAI, solo quelli che l'utente vede) ────────────────────
     try:
         if not _global_search_module_allowed(request, "/tasks/fai/"):
@@ -2072,6 +2092,7 @@ def api_global_search(request):
         "task": "KICK-OFF",
         "op": "Ordini di produzione",
         "fai": "Registro FAI",
+        "cmm": "Report CMM",
         "procedura": "CN-SGI · Procedure",
         "dpi": "DPI",
         "processo": "Processi qualificati",

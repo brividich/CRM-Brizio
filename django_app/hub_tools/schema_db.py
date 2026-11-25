@@ -34,7 +34,8 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
                 "capo fisso per dipendente"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
     "produzione": ("Operations", "#0d9488", "Ordini di produzione: scheda dell'OP (tabella legacy ordini_produzione, letta) con i documenti "
-                   "di produzione registrati e i tipi decisi in Impostazioni; FAI, programmi CAM/CMM e anomalie letti dai loro moduli"),
+                   "di produzione registrati e i tipi decisi in Impostazioni; FAI, programmi CAM/CMM e anomalie letti dai loro moduli; "
+                   "archivio dei report CMM letti dalla share Collaudo (report e misure) per l'andamento delle quote"),
     "presenti": ("Persone e HR", "#16a34a", "Presenti in azienda dalle timbrature Solari e esterni dal GuestPortal (letti, non copiati): "
                  "appelli di evacuazione con le persone contate, avvisi delle uscite non timbrate"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
@@ -88,6 +89,13 @@ AREE = ("Piattaforma", "Persone e HR", "Operations", "Sicurezza sul lavoro", "Qu
         "Sicurezza informatica", "Automazioni", "Altri moduli", "Framework e librerie")
 
 CONNESSIONI_ESTERNE: list[dict] = [
+    {
+        "nome": "Share dei report CMM (Collaudo)",
+        "cosa": "Cartella di rete con i report CMM CALYPSO in PDF, una cartella per P/N e dentro una per OP. L'HUB la legge soltanto: ogni ora i PDF nuovi o cambiati finiscono nell'archivio delle misure; il PDF resta sulla share e si apre dal portale.",
+        "chi": "Ordini di produzione → Andamento quote, report CMM nelle schede P/N e OP; Gestione anomalie → pannello «Dal report CMM (PDF)» aperto da un report dell'archivio.",
+        "config": "PRODUZIONE_REPORT_CMM_ROOT (vuota = spenta), PRODUZIONE_REPORT_CMM_MINUTI; lavoro pianificato produzione_report_cmm_giro; lettura NTFS+SMB per l'utente del portale e di qcluster.",
+        "controllo": "Andamento quote di un P/N: «Cartella non leggibile» o «Report letti il …»; manage.py leggi_report_cmm --pn <P/N>.",
+    },
     {
         "nome": "Vecchio scadenzario (Flask + MySQL sul NAS)",
         "cosa": "App Flask sul NAS (10.0.0.222:8080) con database MySQL scadenziario su 10.0.0.7: categorie, attività con scadenza e registro degli avvisi. L'HUB lo legge in sola lettura solo con il comando di import, che copia i dati nelle scadenze generiche; dopo il passaggio il vecchio va spento.",

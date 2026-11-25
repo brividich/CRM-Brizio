@@ -618,6 +618,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ORDINI DI PRODUZIONE — archivio dei report CMM: ogni ora legge i PDF nuovi o cambiati
+        # della share Collaudo (sola lettura), prima le cartelle mai lette, per al massimo
+        # PRODUZIONE_REPORT_CMM_MINUTI. Il primo caricamento si completa in più giri.
+        "name": "produzione_report_cmm_giro",
+        "func": "produzione.tasks.run_giro_report_cmm",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "40 * * * *",       # ogni ora ai 40
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 900}},
+    },
+    {
         # ANAGRAFICA HR — ricalcolo notturno delle scadenze dal motore unico dei requisiti:
         # cache formazione (TrainingDeadline, prima mai ricalcolata: stati vecchi nello
         # scadenzario e nei promemoria) e scadenza effettiva delle visite (ricalcolo

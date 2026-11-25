@@ -328,6 +328,12 @@
     .cmm-side__body > * { flex-shrink: 0; }
     .cmm-side__foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid var(--border); background: var(--bg); }
     .cmm-side .cmm-box { cursor: default; }
+    .cmm-archivio { display: grid; gap: 6px; }
+    .cmm-archivio__lista { display: flex; flex-wrap: wrap; gap: 6px; max-height: 140px; overflow: auto; }
+    .cmm-archivio__voce { border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; background: var(--surface); color: var(--text); font-size: var(--fs-sm); cursor: pointer; }
+    .cmm-archivio__voce:hover:not(:disabled) { border-color: var(--accent); }
+    .cmm-archivio__voce em { color: var(--danger); font-style: normal; font-weight: 700; }
+    .cmm-archivio__voce.is-letto { opacity: .55; cursor: default; }
     .cmm-side__filtro { display: inline-flex; align-self: flex-start; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
     .cmm-side__filtro button { border: none; background: var(--surface); color: var(--text-mid); padding: 6px 12px; font: inherit; font-size: var(--fs-sm); cursor: pointer; min-height: 0; }
     .cmm-side__filtro button.is-on { background: var(--accent-light); color: var(--text); font-weight: 700; }

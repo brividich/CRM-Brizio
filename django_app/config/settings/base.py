@@ -902,6 +902,11 @@ TESSERACT_CMD = env("TESSERACT_CMD", "")
 # affiancate all'eseguibile, senza installer): un Tesseract installato la trova da
 # sé. Vuoto = si lascia decidere a Tesseract.
 TESSDATA_PREFIX = env("TESSDATA_PREFIX", "")
+# Cartella dei report CMM (CALYPSO, PDF) per l'andamento delle quote in Ordini di produzione:
+# <radice>\<P/N>\<OP>\<fase>_<OP>_<Z..>_<S/N>.pdf. Il portale la legge soltanto. Vuota = funzione spenta.
+PRODUZIONE_REPORT_CMM_ROOT = env("PRODUZIONE_REPORT_CMM_ROOT", r"\\novisrv\Area Controllo\Collaudo")
+# Minuti di lettura per ogni giro pianificato (il resto al giro dopo).
+PRODUZIONE_REPORT_CMM_MINUTI = int(env("PRODUZIONE_REPORT_CMM_MINUTI", "15") or "15")
 # Radici UNC CONSENTITE per gli allegati "collegati" (modalità share = single source of
 # truth: il PDF resta sul master aziendale, il portale lo serve on-demand). La view di
 # download serve SOLO file dentro queste radici (allowlist + anti-traversal). Più radici

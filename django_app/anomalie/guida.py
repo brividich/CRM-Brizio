@@ -198,7 +198,10 @@ SEZIONI: list[dict] = [
                 "Per una lettura migliore ingrandisci il PDF (almeno 125%) prima di catturare. Sotto le proposte, «Testo letto "
                 "dall'immagine» mostra cosa ha letto il portale: se mancano righe, ricattura più grande o a pezzi.",
                 "Dal report CMM completo (PDF): sotto le anomalie del blocco premi «📄 Dal report CMM (PDF)». Nel pannello a "
-                "destra trascina i PDF esportati dalla CMM (uno per S/N, anche più insieme) o «scegli i file». Il portale legge "
+                "destra trascina i PDF esportati dalla CMM (uno per S/N, anche più insieme) o «scegli i file». Se i report "
+                "dell'OP sono già nella cartella Collaudo, il pannello li elenca («Report di questo OP nella cartella "
+                "Collaudo», S/N, data e quante quote fuori): un clic e si leggono senza caricare nulla. Da Ordini di produzione "
+                "› report CMM, «Apri segnalazione anomalia» apre l'OP e, avviato il controllo, il pannello già col report. Il portale legge "
                 "tutte le righe di tutte le pagine dal testo del PDF, senza riconoscimento dell'immagine, e le mostra per "
                 "sezione con rilevato, nominale, tolleranza ed esito: le fuori tolleranza sono già spuntate. «Solo fuori "
                 "tolleranza» / «Tutte le righe» cambia la vista; spunta o togli le righe (anche cliccando la riga) e premi "

@@ -35,7 +35,7 @@
       <thead>
         <tr>
           <th>P/N</th><th class="prod-n">OP</th><th>Ultimo OP</th><th>Capocommessa</th>
-          {% if vede_kickoff %}<th class="prod-n">FAI</th><th>Situazione FAI</th>{% endif %}<th class="prod-n">Anomalie aperte</th>
+          {% if vede_kickoff %}<th class="prod-n">FAI</th><th>Situazione FAI</th>{% endif %}<th class="prod-n">Anomalie aperte</th><th class="prod-n" title="Report CMM letti dalla share: con quote fuori / totale">Report CMM</th>
         </tr>
       </thead>
       <tbody>
@@ -50,9 +50,10 @@
           <td>{% if r.situazione %}<span class="prod-stato is-{{ r.situazione.classe }}" title="{{ r.situazione.nota }}">{{ r.situazione.etichetta }}</span>{% else %}—{% endif %}</td>
           {% endif %}
           <td class="prod-n">{% if r.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ r.url }}#passo-op">{{ r.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
+          <td class="prod-n">{% if r.cmm %}<a class="prod-manca{% if r.cmm.con_fuori %} is-allerta{% endif %}" href="{{ r.url_quote }}" title="{{ r.cmm.con_fuori }} report con quote fuori su {{ r.cmm.n }}">{{ r.cmm.con_fuori }}/{{ r.cmm.n }}</a>{% else %}<span class="prod-zero">—</span>{% endif %}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="prod-vuoto">{% if q or manca %}Nessun P/N con questi filtri.{% else %}Nessun OP con P/N nell'elenco.{% endif %}</td></tr>
+        <tr><td colspan="8" class="prod-vuoto">{% if q or manca %}Nessun P/N con questi filtri.{% else %}Nessun OP con P/N nell'elenco.{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table>

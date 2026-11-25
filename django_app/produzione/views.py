@@ -1,12 +1,16 @@
 """Ordini di produzione: elenco degli OP, scheda con i documenti di produzione, impostazioni."""
 from __future__ import annotations
 
+from urllib.parse import urlencode
+
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.http import Http404, HttpResponse, JsonResponse
+from django.db.models import Q
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
@@ -18,8 +22,9 @@ from tasks.tech_paths import normalizza_percorso
 
 from . import guida as guida_mod
 from . import nuovo_op, services
+from . import report_cmm_indice as cmm
 from .acl_bootstrap import PERM_DOCUMENTI, PERM_IMPOSTAZIONI
-from .models import DocumentoOP, TipoDocumento
+from .models import CartellaReportCMM, DocumentoOP, ReportCMM, TipoDocumento
 
 
 def _richiede(request, codice: str) -> None:
@@ -86,6 +91,84 @@ def pn_scheda(request):
     if dati is None:
         raise Http404
     return render(request, "produzione/pn_scheda.html", _ctx(request, "pn", **dati))
+
+
+@login_required
+@require_GET
+def pn_quote(request):
+    """Andamento di una quota fra i report CMM del P/N (stesso programma), con il grafico."""
+    from tasks.identity import normalize_part_number
+
+    pn = normalize_part_number(request.GET.get("pn") or "")
+    if not pn:
+        raise Http404
+    programmi = cmm.programmi_del_pn(pn)
+    prog = (request.GET.get("prog") or "").strip()
+    if prog not in {p["programma_base"] for p in programmi}:
+        prog = programmi[0]["programma_base"] if len(programmi) == 1 else ""
+    quote = cmm.quote_del_programma(pn, prog) if prog else []
+    scelta = (request.GET.get("q") or "").strip()
+    # «q» = nome|nominale; un nome solo (link vecchi o da un report) prende la quota più recente con quel nome
+    quota = next((x for x in quote if x["id"] == scelta), None) or next(
+        (x for x in reversed(quote) if x["chiave"] == scelta), None)
+    if quota and (request.GET.get("nom") or "") and "|" not in scelta:
+        quota = next((x for x in quote if x["chiave"] == scelta and x["id"].endswith("|" + request.GET["nom"])), quota)
+    punti = cmm.andamento(pn, prog, quota) if quota else []
+    evidenzia = int(request.GET["r"]) if (request.GET.get("r") or "").isdigit() else 0
+    return render(request, "produzione/quote.html", _ctx(
+        request, "pn", pn=pn, programmi=programmi, prog=prog, quote=quote, quota=quota, punti=punti,
+        grafico=cmm.grafico(punti), evidenzia=evidenzia, solo_fuori=request.GET.get("fuori") == "1",
+        cartella=CartellaReportCMM.objects.filter(pn=pn).order_by("-letta_il").first(), attivo=cmm.attivo(),
+    ))
+
+
+@login_required
+@require_POST
+def pn_leggi_report(request):
+    """Accoda la lettura dei report CMM della cartella del P/N."""
+    from tasks.identity import normalize_part_number
+
+    pn = normalize_part_number(request.POST.get("pn") or "")
+    if not pn or not cmm.attivo():
+        raise Http404
+    from .tasks import accoda_lettura_pn
+
+    if accoda_lettura_pn(pn):
+        log_action(request, "produzione_report_cmm_leggi", "produzione", {"pn": pn})
+        messages.success(request, "Lettura dei report avviata: ricarica la pagina tra qualche minuto.")
+    else:
+        messages.info(request, "La lettura dei report di questo P/N è già in corso.")
+    return redirect(f"{reverse('produzione:pn_quote')}?{urlencode({'pn': pn})}")
+
+
+@login_required
+@require_GET
+def report_cmm(request, pk: int):
+    """Un report CMM: le quote fuori tolleranza (o tutte), con l'andamento di ciascuna e il link all'anomalia."""
+    report = get_object_or_404(ReportCMM, pk=pk)
+    tutte = request.GET.get("tutte") == "1"
+    misure = report.misure.all() if tutte else report.misure.filter(Q(fuori=True) | Q(da_verificare=True))
+    op = op_db.per_titolo(report.op) if report.op and op_db.disponibile() else None
+    url_anomalia = ""
+    if op:
+        url_anomalia = f"{reverse('apertura_segnalazione')}?{urlencode({'op_id': op['id'], 'report_cmm': report.pk})}"
+    return render(request, "produzione/report_cmm.html", _ctx(
+        request, "pn", report=report, misure=list(misure.order_by("indice")), tutte=tutte, op=op,
+        url_anomalia=url_anomalia, altri=ReportCMM.objects.filter(pn=report.pn, seriale=report.seriale)
+        .exclude(pk=report.pk).exclude(seriale="")[:20] if report.seriale else [],
+    ))
+
+
+@login_required
+@require_GET
+def report_cmm_pdf(request, pk: int):
+    """Il PDF dalla share, solo se sta sotto la cartella dei report."""
+    report = get_object_or_404(ReportCMM, pk=pk)
+    percorso = cmm.percorso_sicuro(report.percorso)
+    if not percorso:
+        raise Http404
+    log_action(request, "produzione_report_cmm_pdf", "produzione", {"id": report.pk, "file": report.file})
+    return FileResponse(open(percorso, "rb"), content_type="application/pdf", filename=report.file, as_attachment=False)
 
 
 class DocumentoForm(forms.ModelForm):

@@ -624,7 +624,7 @@ def _pdf_ocr(doc) -> list[dict]:
     return righe
 
 
-def leggi_pdf(contenuto: bytes) -> dict:
+def leggi_pdf(contenuto: bytes, ocr: bool = True) -> dict:
     """PDF del report CMM -> ``{"intestazione", "righe": [misure proposte], "pagine", "metodo"}``."""
     if not contenuto:
         raise ErroreReport("Nessun file ricevuto.")
@@ -659,7 +659,7 @@ def leggi_pdf(contenuto: bytes) -> dict:
                 righe = righe[:MAX_RIGHE_PDF]
                 break
         metodo = "testo"
-        if not righe and not con_testo:
+        if not righe and not con_testo and ocr:
             righe = _pdf_ocr(doc)
             metodo = "ocr"
         pagine = doc.page_count
