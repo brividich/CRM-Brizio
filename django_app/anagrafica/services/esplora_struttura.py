@@ -95,20 +95,48 @@ class Dati:
         return d
 
     # ── Reparti ──────────────────────────────────────────────────────────
+    # Indici costruiti una volta: le colonne chiedono persone e mansioni di ogni
+    # reparto centinaia di volte (prima ogni domanda rileggeva tutti gli elenchi).
+    _idx_persone: dict | None = None
+    _idx_mansioni: dict | None = None
+
+    def _indice_persone(self) -> dict:
+        if self._idx_persone is None:
+            idx: dict = defaultdict(set)
+            for p, a in self.area_di.items():
+                idx[a].add(p)
+            idx[SENZA] = {p for p in self.in_forza if p not in self.area_di}
+            self._idx_persone = dict(idx)
+        return self._idx_persone
+
+    def _indice_mansioni(self) -> dict:
+        if self._idx_mansioni is None:
+            idx: dict = {"area": defaultdict(list), "reparto": defaultdict(list), "senza": []}
+            for pos, m in enumerate(self.mansioni):
+                if not m.area_id and not m.responsabilita_reparto_id and not m.responsabilita_area_id:
+                    idx["senza"].append(m)
+                    continue
+                for area_id in {m.area_id, m.responsabilita_area_id} - {None, 0}:
+                    idx["area"][area_id].append((pos, m))
+                if m.responsabilita_reparto_id:
+                    idx["reparto"][m.responsabilita_reparto_id].append((pos, m))
+            self._idx_mansioni = idx
+        return self._idx_mansioni
+
     def persone_area(self, area_id: int) -> set:
         """Persone in forza del reparto; ``SENZA`` = in forza e senza area."""
-        if area_id == SENZA:
-            return {p for p in self.in_forza if p not in self.area_di}
-        return {p for p, a in self.area_di.items() if a == area_id}
+        return set(self._indice_persone().get(area_id, ()))
 
     def mansioni_area(self, area) -> list:
         """Mansioni del reparto, comprese le «Responsabilità» che lo governano."""
+        idx = self._indice_mansioni()
         if area is None:
-            return [m for m in self.mansioni
-                    if not m.area_id and not m.responsabilita_reparto_id and not m.responsabilita_area_id]
-        return [m for m in self.mansioni
-                if m.area_id == area.pk or m.responsabilita_area_id == area.pk
-                or (area.reparto_id and m.responsabilita_reparto_id == area.reparto_id)]
+            return list(idx["senza"])
+        trovate = dict(idx["area"].get(area.pk, ()))
+        if area.reparto_id:
+            trovate.update(idx["reparto"].get(area.reparto_id, ()))
+        # Stesso ordine dell'elenco completo delle mansioni.
+        return [trovate[pos] for pos in sorted(trovate)]
 
     def aree_centro(self, centro_id: int) -> list:
         """Reparti del centro: quelli spenti solo se hanno ancora persone o mansioni."""

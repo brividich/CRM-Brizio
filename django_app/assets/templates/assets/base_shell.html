@@ -268,7 +268,7 @@
   var pop = form.querySelector(".as-search-pop");
   var suggestUrl = form.dataset.suggestUrl;
   var pageUrl = form.dataset.pageUrl;
-  var timer = null, seq = 0, active = -1;
+  var timer = null, seq = 0, active = -1, inflight = null;
 
   function node(tag, cls, text) {
     var n = document.createElement(tag);
@@ -328,13 +328,17 @@
     var q = input.value.trim();
     if (q.length < 2) { close(); return; }
     var my = ++seq;
+    // La richiesta precedente non serve piu': la si chiude invece di aspettarla.
+    if (inflight) { inflight.abort(); }
+    inflight = window.AbortController ? new AbortController() : null;
     fetch(suggestUrl + "?format=json&q=" + encodeURIComponent(q), {
-      credentials: "same-origin", headers: { "Accept": "application/json" }
+      credentials: "same-origin", headers: { "Accept": "application/json" },
+      signal: inflight ? inflight.signal : undefined
     }).then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
       .then(function (data) { if (my === seq) { render(data, q); } })
       .catch(function () { if (my === seq) { close(); } });
   }
-  input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(suggest, 220); });
+  input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(suggest, 300); });
   input.addEventListener("focus", function () { if (input.value.trim().length >= 2 && pop.hidden) { suggest(); } });
   input.addEventListener("keydown", function (e) {
     var all = links();

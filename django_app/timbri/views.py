@@ -448,7 +448,15 @@ def _forbidden():
     return HttpResponseForbidden("Permesso negato.")
 
 
+_SCHEMA_TIMBRI_OK = False
+
+
 def _timbri_schema_issue() -> str:
+    # Lo schema completo non torna indietro: verificato una volta per processo.
+    # Prima ogni pagina dei Timbri rileggeva l'elenco di tutte le tabelle (~0,2 s).
+    global _SCHEMA_TIMBRI_OK
+    if _SCHEMA_TIMBRI_OK:
+        return ""
     try:
         with connections["default"].cursor() as cursor:
             existing_tables = {
@@ -461,6 +469,7 @@ def _timbri_schema_issue() -> str:
 
     missing_tables = sorted(table for table in _TIMBRI_REQUIRED_TABLES if table not in existing_tables)
     if not missing_tables:
+        _SCHEMA_TIMBRI_OK = True
         return ""
     return (
         "Modulo Timbri non inizializzato sul database SQL Server. "

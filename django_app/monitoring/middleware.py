@@ -184,6 +184,10 @@ class IssueCaptureMiddleware:
                         "captured_by": "IssueCaptureMiddleware",
                         "elapsed_ms": elapsed_ms,
                         "threshold_ms": self.slow_request_threshold_ms,
+                        # Una view puo' annotare i tempi delle sue fasi in ``request.fasi_ms``
+                        # (es. accesso Windows: negoziazione, Active Directory, utente):
+                        # nella richiesta lenta si vede subito quale ha pesato.
+                        **({"fasi_ms": dict(getattr(request, "fasi_ms", {}))} if getattr(request, "fasi_ms", None) else {}),
                     },
                     release_version=event["release_version"],
                     environment=event["environment"],
