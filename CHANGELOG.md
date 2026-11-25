@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: giro dei report CMM più corto e sicuro, messaggio chiaro se il PDF non si apre
+
+- Il giro apre solo i PDF col nome da report CMM (`_OP-aaaa-n_Z.._`) e scende al massimo 3 livelli sotto la cartella del P/N: prima apriva anche M, LPT, scansioni e scorreva le cartelle dei programmi macchina (migliaia di file). Sulle 6 cartelle più grandi della share l'elenco passa a meno di 10 secondi in tutto.
+- Il limite di tempo si controlla a ogni cartella, non solo prima di aprire un PDF: il primo giro del 25/11 era andato oltre i 25 minuti.
+- Il blocco contro i giri doppi dura 2 ore (prima 15 minuti: un giro lungo poteva sovrapporsi al successivo).
+- «Apri il PDF» non risponde più «Not Found»: torna al report con il motivo (manca il permesso di lettura sulla cartella, oppure il file non c'è più).
+- I PDF già letti che non sono report CMM escono dall'archivio al primo giro completo della loro cartella.
+- File: `django_app/produzione/report_cmm_indice.py`, `tasks.py`, `views.py`, `tests_report_cmm.py`.
+
 ### Formazione: nessuna email ai partecipanti delle lezioni; video fino a 600 MB
 
 - **Richiesta:** «non devono partire email, manderemo noi una mail unica», per tutte le lezioni.

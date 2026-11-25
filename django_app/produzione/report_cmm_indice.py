@@ -133,18 +133,46 @@ def cartella_del_pn(pn: str) -> str:
     return ""
 
 
-def _pdf_della_cartella(percorso: str):
-    """Tutti i PDF sotto la cartella del P/N (OP e sottocartelle), con dimensione e data."""
-    for base, cartelle, files in os.walk(percorso):
-        cartelle[:] = [c for c in cartelle if not c.startswith((".", "~"))]
-        for f in files:
-            if f.lower().endswith(".pdf") and not f.startswith("~"):
-                p = os.path.join(base, f)
-                try:
-                    st = os.stat(p)
-                except OSError:
-                    continue
-                yield p, f, st.st_size, st.st_mtime, os.path.basename(base)
+# Nome dei report CMM: «<fase>_<OP-aaaa-n>_Z.._<S/N>[…].pdf». Gli altri PDF (M, LPT, PLOT, PDU, scansioni, file
+# senza OP nel nome) non si aprono: sull'inventario del 25/11 erano 94.000 su 173.000 e quasi mai report.
+_NOME_CMM = re.compile(r"(?:^|_)(?:OP|OG)-\d{4}-\d+_Z[A-Z]{0,3}_", re.I)
+_NOME_NON_CMM = re.compile(r"_(LPT|M|PDU|PLOT|PDM|DIM|FAI|CCI)(_|\.pdf$)", re.I)
+# I report stanno nella cartella dell'OP (99%) o al massimo due livelli sotto; più in basso ci sono i
+# programmi della macchina (migliaia di file per P/N): non si scende.
+PROFONDITA_MAX = 3
+
+
+class TempoScaduto(Exception):
+    """Il giro ha finito il tempo mentre scorreva le cartelle."""
+
+
+def nome_da_report_cmm(nome: str) -> bool:
+    return nome.lower().endswith(".pdf") and bool(_NOME_CMM.search(nome)) and not _NOME_NON_CMM.search(nome)
+
+
+def _pdf_della_cartella(percorso: str, scadenza: float | None = None):
+    """I PDF con nome da report CMM sotto la cartella del P/N (fino a ``PROFONDITA_MAX`` livelli), con
+    dimensione e data. Il tempo si controlla a ogni cartella: oltre ``scadenza`` solleva ``TempoScaduto``."""
+    pila = [(percorso, 0)]
+    while pila:
+        base, livello = pila.pop()
+        if scadenza and time.monotonic() > scadenza:
+            raise TempoScaduto
+        with os.scandir(base) as it:
+            voci = list(it)
+        for e in voci:
+            nome = e.name
+            if nome.startswith((".", "~")):
+                continue
+            try:
+                if e.is_dir(follow_symlinks=False):
+                    if livello < PROFONDITA_MAX:
+                        pila.append((e.path, livello + 1))
+                elif nome_da_report_cmm(nome):
+                    st = e.stat()
+                    yield e.path, nome, st.st_size, st.st_mtime, os.path.basename(base)
+            except OSError:
+                continue
 
 
 # --- Lettura -----------------------------------------------------------------------------------------
@@ -222,7 +250,7 @@ def leggi_cartella(pn: str, percorso: str, scadenza: float | None = None) -> dic
     noti = {r.percorso: r for r in ReportCMM.objects.filter(cartella=cartella)}
     visti, stat = set(), {"letti": 0, "invariati": 0, "tolti": 0, "completa": True}
     try:
-        for p, f, dim, mtime, base in _pdf_della_cartella(percorso):
+        for p, f, dim, mtime, base in _pdf_della_cartella(percorso, scadenza):
             visti.add(p[:500])
             vecchio = noti.get(p[:500])
             if vecchio and vecchio.dimensione == dim and abs(vecchio.modificato - mtime) < 1:
@@ -234,6 +262,8 @@ def leggi_cartella(pn: str, percorso: str, scadenza: float | None = None) -> dic
             _leggi_report(cartella, p, f, dim, mtime, base, vecchio)
             stat["letti"] += 1
         cartella.errore = ""
+    except TempoScaduto:
+        stat["completa"] = False
     except OSError as exc:
         stat["completa"] = False
         cartella.errore = f"Cartella non leggibile: {exc}"[:300]

@@ -1,6 +1,7 @@
 """Ordini di produzione: elenco degli OP, scheda con i documenti di produzione, impostazioni."""
 from __future__ import annotations
 
+import os
 from urllib.parse import urlencode
 
 from django import forms
@@ -388,7 +389,12 @@ def report_cmm_pdf(request, pk: int):
     report = get_object_or_404(ReportCMM, pk=pk)
     percorso = cmm.percorso_sicuro(report.percorso)
     if not percorso:
-        raise Http404
+        if cmm.attivo() and not os.path.isdir(cmm.radice()):
+            messages.error(request, "Il PDF non si apre: il portale non riesce a leggere la cartella dei report CMM "
+                                    "(serve il permesso di lettura per l'utente del portale). L'analisi funziona lo stesso.")
+        else:
+            messages.error(request, "Il PDF non è più nella cartella dei report CMM (spostato o rinominato).")
+        return redirect("produzione:report_cmm", report.pk)
     log_action(request, "produzione_report_cmm_pdf", "produzione", {"id": report.pk, "file": report.file})
     return FileResponse(open(percorso, "rb"), content_type="application/pdf", filename=report.file, as_attachment=False)
 
