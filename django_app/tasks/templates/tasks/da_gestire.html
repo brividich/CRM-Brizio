@@ -8,30 +8,41 @@
 
 {% block tasks_shell_content %}
 <section class="ts-panel kel dg-barra">
-  {# Stessa barra del Portfolio: una sola ricerca, filtri rapidi per sezione col conteggio; Portfolio / Le mie a destra. #}
+  {# Barra: una sola ricerca (solo nella pagina) e Portfolio / Le mie. #}
   <form method="get" class="kel-bar" data-kel-form>
     <input type="hidden" name="scope" value="{{ scope }}">
-    {% if dg_sezione %}<input type="hidden" name="sezione" value="{{ dg_sezione }}">{% endif %}
-    <input class="input kel-q" type="search" placeholder="Cerca commessa, attività, incontro…" aria-label="Cerca fra le cose da gestire" data-kel-cerca data-kel-locale>
-    <nav class="kel-fasi" aria-label="Filtra per sezione">
-      <a class="kel-f{% if not dg_sezione %} on{% endif %}" href="?scope={{ scope }}">Tutto<b>{{ dg_totale }}</b></a>
-      {% for f in dg_filtri %}
-      <a class="kel-f{% if dg_sezione == f.key %} on{% endif %}" href="?scope={{ scope }}&amp;sezione={{ f.key }}">{{ f.label }}<b>{{ f.n }}</b></a>
-      {% endfor %}
-    </nav>
+    <input class="input kel-q" type="search" placeholder="Cerca commessa, attività, problema…" aria-label="Cerca fra le cose da gestire" data-kel-cerca data-kel-locale>
     <div class="kel-dx">
       <div class="pf-view-toggle">
-        <a class="pf-view-btn{% if scope == 'portfolio' %} active{% endif %}" href="?scope=portfolio{% if dg_sezione %}&amp;sezione={{ dg_sezione }}{% endif %}">Portfolio</a>
-        <a class="pf-view-btn{% if scope == 'mine' %} active{% endif %}" href="?scope=mine{% if dg_sezione %}&amp;sezione={{ dg_sezione }}{% endif %}">Le mie</a>
+        <a class="pf-view-btn{% if scope == 'portfolio' %} active{% endif %}" href="?scope=portfolio">Portfolio</a>
+        <a class="pf-view-btn{% if scope == 'mine' %} active{% endif %}" href="?scope=mine">Le mie</a>
       </div>
     </div>
   </form>
 </section>
-<div class="ts-stack">
-  {% for section in da_gestire_data.sections %}
-    {% include "tasks/_da_gestire_section.html" with section=section %}
-  {% endfor %}
-  <p class="dg-empty" data-kel-vuoto hidden>Niente con questa ricerca.</p>
-</div>
+<section class="ts-panel">
+  <div class="dgc">
+    {# Una riga per commessa, le più urgenti in cima; si apre per vedere le voci. Aperta di base solo la prima. #}
+    {% for r in righe %}
+    <details class="dgc-r" data-kel-riga="{{ r.testo }}"{% if forloop.first %} open{% endif %}>
+      <summary>
+        <a class="dgc-n" href="{{ r.url }}">{{ r.project.name }}</a>
+        <span class="dgc-c">
+          {% for c in r.chip %}<span class="ts-chip {{ c.tono }}">{{ c.testo }}</span>{% endfor %}
+          {% for m in r.manca %}<span class="ts-chip warn">manca {{ m.testo }}</span>{% endfor %}
+        </span>
+        <span class="dgc-x"><span class="dgc-apri">Vedi {{ r.n }}</span><span class="dgc-chiudi">Chiudi</span></span>
+      </summary>
+      <ul class="dgc-l">
+        {% for v in r.voci %}<li><a href="{{ v.url }}">{{ v.label }}</a><span>{{ v.meta }}</span></li>{% endfor %}
+        {% for m in r.manca %}<li>{% if m.url %}<a href="{{ m.url }}">Manca {{ m.testo }}</a>{% else %}Manca {{ m.testo }}{% endif %}<span>Per l'avvio</span></li>{% endfor %}
+      </ul>
+    </details>
+    {% empty %}
+    <p class="dgc-ok">Niente da gestire{% if scope == "mine" %} a tuo nome{% endif %}.</p>
+    {% endfor %}
+    <p class="dgc-ok" data-kel-vuoto hidden>Niente con questa ricerca.</p>
+  </div>
+</section>
 <script src="{% static 'tasks/js/barra_elenco.js' %}?v=20261125b" defer></script>
 {% endblock %}

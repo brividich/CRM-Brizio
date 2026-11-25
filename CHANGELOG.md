@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### KICK-OFF: «Da gestire» più semplice
+
+- **Una riga per commessa** al posto di quattro sezioni che ripetevano le stesse commesse: in cima le più urgenti, con i soli conteggi di quello che non va («5 scadute», «2 problemi aperti», «4 non assegnate», «manca VRF»…; prima le etichette rosse). «Vedi N» apre l'elenco delle voci, ognuna col link dove si risolve. In alto restano la ricerca e Portfolio / Le mie.
+- Anche le schede di «Programmi e FAI» ora hanno la loro larghezza invece di tutta la riga.
+- File: `tasks/da_gestire.py`, `views/task.py`, `templates/tasks/da_gestire.html` (tolto `_da_gestire_section.html`), `static/tasks/css/tasks.css`, `templates/tasks/base.html`, `base_shell.html`, `static/tasks/guida/da_gestire.jpg`. Guide: `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`. Test `tests_projects.py`, `tests_meeting_alerts.py`, `tests_giro_menu_ruoli.py`. Deploy: collectstatic, nessuna migrazione.
+
 ### KICK-OFF: pulizia delle liste, nomi delle fasi, meno doppioni
 
 - **Barra su una riga** nell'Elenco kickoff e in Programmi: cliente, VRF e ordine (in Programmi tipo e macchina) nella tendina «Filtri ▾» col numero dei filtri attivi; tolta la seconda barra della tabella (si ordina cliccando le intestazioni) e il pulsante «Filtra» di Programmi.

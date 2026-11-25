@@ -290,32 +290,22 @@ def task_list(request):
 
 @task_permissions_required("tasks_view")
 def da_gestire(request):
-    from tasks.da_gestire import build_kickoff_da_gestire
+    from tasks.da_gestire import build_da_gestire_per_commessa
 
     is_admin = has_task_permission(request, "tasks_admin")
     scope = request.GET.get("scope") or ("portfolio" if is_admin else "mine")
     if scope not in ("portfolio", "mine"):
         scope = "portfolio" if is_admin else "mine"
-    data = build_kickoff_da_gestire(request, scope)
-    # Barra unica: filtri rapidi per sezione col conteggio (sezione sconosciuta = tutte).
-    sezioni = data.get("sections") or []
-    sezione = (request.GET.get("sezione") or "").strip()
-    if sezione not in {s["key"] for s in sezioni}:
-        sezione = ""
-    filtri = [{"key": s["key"], "label": s["label"], "n": len(s["items"])} for s in sezioni]
-    data = {**data, "sections": [s for s in sezioni if not sezione or s["key"] == sezione]}
+    data = build_da_gestire_per_commessa(request, scope)
     return render(
         request,
         "tasks/da_gestire.html",
         {
             **_tasks_shell_context(request, active="da_gestire"),
             "page_title": "Da gestire",
-            "da_gestire_data": data,
+            "righe": data["righe"],
             "scope": scope,
             "is_scope_admin": is_admin,
-            "dg_sezione": sezione,
-            "dg_filtri": filtri,
-            "dg_totale": sum(f["n"] for f in filtri),
         },
     )
 
