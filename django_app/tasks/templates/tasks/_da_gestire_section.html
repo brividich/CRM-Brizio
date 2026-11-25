@@ -1,4 +1,4 @@
-<section class="ts-panel dg-section">
+<section class="ts-panel dg-section" data-kel-gruppo>
   <div class="ts-panel-head">
     <div class="ts-panel-title-wrap">
       <h2 class="ts-panel-title">{{ section.icon }} {{ section.label }}</h2>
@@ -10,7 +10,7 @@
     {% if section.items %}
       <ul class="dg-list">
         {% for item in section.items %}
-          <li class="dg-item dg-item--{{ section.tone }}">
+          <li class="dg-item dg-item--{{ section.tone }}" data-kel-riga="{{ item.label|lower }} {{ item.meta|default:''|lower }}">
             <a class="dg-item-link" href="{{ item.url }}">{{ item.label }}</a>
             {% if item.meta %}<span class="dg-item-meta">{{ item.meta }}</span>{% endif %}
           </li>

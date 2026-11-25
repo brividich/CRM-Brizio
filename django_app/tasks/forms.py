@@ -145,6 +145,7 @@ def _users_for_capo_commessa():
             pass
     return _users_for_role(TaskRoleType.CAPO_COMMESSA)
 
+
 User = get_user_model()
 
 
@@ -177,13 +178,8 @@ class ProjectKickoffForm(forms.ModelForm):
     """
 
     # Ogni ruolo ammette piu' persone: checkbox multiple invece della tendina singola.
-    TEAM_FIELDS = ("project_managers", "capi_commessa", "programmers", "caporeparti")
+    TEAM_FIELDS = ("capi_commessa", "programmers", "caporeparti")
 
-    project_managers = forms.ModelMultipleChoiceField(
-        required=False, queryset=User.objects.none(),
-        widget=forms.CheckboxSelectMultiple(attrs={"class": "kp-multipick-input"}),
-        label="Project manager",
-    )
     capi_commessa = forms.ModelMultipleChoiceField(
         required=False, queryset=User.objects.none(),
         widget=forms.CheckboxSelectMultiple(attrs={"class": "kp-multipick-input"}),
@@ -233,7 +229,6 @@ class ProjectKickoffForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.reused_existing_project: Project | None = None
         self.project_queryset = project_queryset if project_queryset is not None else Project.objects.all()
-        self.fields["project_managers"].queryset = _users_for_role(TaskRoleType.PROJECT_MANAGER)
         self.fields["capi_commessa"].queryset    = _users_for_capo_commessa()
         self.fields["programmers"].queryset      = _users_for_role(TaskRoleType.PROGRAMMER)
         self.fields["caporeparti"].queryset      = _users_for_role(TaskRoleType.CAPOREPARTO)
@@ -289,7 +284,7 @@ class ProjectKickoffForm(forms.ModelForm):
         team_filled = any(cleaned.get(name) for name in self.TEAM_FIELDS)
         if not team_filled:
             raise forms.ValidationError(
-                "Almeno un membro del team di progetto (Project manager, Capocommessa, "
+                "Almeno un membro del team di progetto (Capocommessa, "
                 "Programmatore o Caporeparto) è obbligatorio."
             )
 
@@ -404,12 +399,6 @@ class TaskForm(forms.ModelForm):
         max_length=180,
         widget=forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Cliente"}),
         label="Cliente",
-    )
-    project_new_manager = forms.ModelChoiceField(
-        required=False,
-        queryset=User.objects.none(),
-        widget=forms.Select(attrs={"class": "input"}),
-        label="Project manager",
     )
     project_new_capo_commessa = forms.ModelChoiceField(
         required=False,
@@ -538,7 +527,6 @@ class TaskForm(forms.ModelForm):
         self.fields["progress"].initial = 0
         self.fields["project_choice"].queryset = project_qs
         self.fields["category"].queryset = TaskCategory.objects.filter(is_active=True).order_by("order_index", "name")
-        self.fields["project_new_manager"].queryset       = _users_for_role(TaskRoleType.PROJECT_MANAGER)
         self.fields["project_new_capo_commessa"].queryset = _users_for_capo_commessa()
         self.fields["project_new_programmer"].queryset    = _users_for_role(TaskRoleType.PROGRAMMER)
         self.fields["project_similar_choice"].queryset = project_qs
@@ -548,7 +536,6 @@ class TaskForm(forms.ModelForm):
         self.fields["project_new_name"].label = "Nome kickoff"
         self.fields["project_new_description"].label = "Descrizione kickoff"
         self.fields["project_new_client"].label = "Cliente"
-        self.fields["project_new_manager"].label = "Project manager"
         self.fields["project_new_capo_commessa"].label = "Capocommessa"
         self.fields["project_new_programmer"].label = "Programmatore"
         self.fields["project_new_control_method"].label = "Metodo di controllo"
@@ -838,7 +825,6 @@ class TaskForm(forms.ModelForm):
         return project
 
     _NEW_PROJECT_TEAM_MAP = (
-        ("project_new_manager", "project_managers"),
         ("project_new_capo_commessa", "capi_commessa"),
         ("project_new_programmer", "programmers"),
     )

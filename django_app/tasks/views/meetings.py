@@ -1380,7 +1380,7 @@ def project_meeting_proposal_create(request, project_id: int, meeting_id: int):
         "proposal_id": proposal.pk, "meeting_id": meeting.pk, "project_id": project.pk,
     })
     autore = request.user.get_full_name() or request.user.username
-    referenti = project.team_members("project_managers") + project.team_members("capi_commessa")
+    referenti = project.team_members("capi_commessa")
     for manager in {u.pk: u for u in referenti}.values():
         if manager.pk != request.user.pk:
             notify_user(

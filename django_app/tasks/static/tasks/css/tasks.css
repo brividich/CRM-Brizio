@@ -5419,3 +5419,20 @@ body.theme-dark .agenda-apri { color: var(--accent); }
 .kel-menu-pop a:hover,.kel-menu-pop button:hover{background:var(--hub-status-neutral-bg)}
 .kel-menu-pop form{margin:0}
 .kel-vuoto{padding:18px 0;color:var(--hub-color-text-soft)}
+.pfai-schede{margin:0 0 12px}
+.pfai-schede .pf-view-btn{text-decoration:none}
+/* Board con lo schema dell'Elenco */
+.kbf-card--el{gap:8px;padding:12px}
+.kbf-card-top{display:flex;align-items:flex-start;gap:10px}
+.kbf-card-id{flex:1;min-width:0}
+.kbf-card-id .kel-nome{overflow-wrap:anywhere}
+.kel-mini--sm{width:36px;height:36px;border-radius:8px;font-size:11px;flex:none}
+.kbf-card-ft{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.kbf-card--el .kbf-card-move{max-width:130px}
+.kbf-card--el .kel-bar-p{flex:1;width:auto}
+.kbf-card--el .kel-pp{display:flex}
+.kel-s--link{text-decoration:none}
+.kel-s--link:hover{text-decoration:underline}
+/* La ricerca della barra nasconde righe e gruppi con [hidden]: vale anche dove la riga è flex/grid. */
+[data-kel-riga][hidden],[data-kel-gruppo][hidden]{display:none!important}
+.pfai-schede{display:inline-flex}

@@ -1,4 +1,5 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 {% block tasks_shell_guide_anchor %}#portfolio{% endblock %}
 
 {% block tasks_shell_shell_class %} ts-shell--compact ts-shell--portfolio{% endblock %}
@@ -10,13 +11,8 @@
   Le commesse che puoi vedere: P/N, cliente, avanzamento e stato del documento VRF.
 {% endblock %}
 
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{{ projects|length }} kickoff</span>
-  <span class="ts-hero-pill">{% if is_scope_admin %}Tutte le commesse{% else %}Le commesse che segui{% endif %}</span>
-{% endblock %}
-
+{# Niente pillole «N kickoff» né «Dashboard attività»: il conteggio è nel filtro «Tutti», la dashboard nel menu del modulo. #}
 {% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attività</a>
   {% if tasks_shell_can_create %}
     <a class="ts-hero-action" href="{% url 'tasks:import_excel' %}">Import Excel</a>
     <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
@@ -75,7 +71,7 @@
       <table class="kel-t" data-table-id="tasks-portfolio-elenco" data-fm-hide-search="1">
         <thead><tr>
           <th data-no-sort data-no-filter><span class="sr-only">P/N</span></th>
-          <th>Kickoff</th><th>Cliente</th><th>Fase</th><th>Stato</th><th>Avanzamento</th><th>PM</th>
+          <th>Kickoff</th><th>Cliente</th><th>Fase</th><th>Stato</th><th>Avanzamento</th><th>Capocommessa</th>
           <th data-no-sort data-no-filter><span class="sr-only">Azioni</span></th>
         </tr></thead>
         <tbody>
@@ -88,24 +84,12 @@
             </td>
             <td>{{ project.client_name|default:"—" }}</td>
             <td><span class="pf-pill pf-pill--phase">{{ project.get_phase_display }}</span></td>
-            <td><span class="kel-s kel-s--{{ project.stato_riga.tono }}">{{ project.stato_riga.testo }}</span></td>
+            <td>{% include "tasks/_kickoff_stato.html" with project=project %}</td>
             <td data-sort-value="{{ project.progress_pct }}"><span class="kel-pp" title="{{ project.task_done }} attività completate su {{ project.task_total }}"><span class="kel-bar-p"><i style="width:{{ project.progress_pct }}%"></i></span>{{ project.progress_pct }}%</span></td>
             <td>{{ project.team_display_pm|default:"—" }}</td>
             <td class="kel-az">
               <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_overview' project.id %}">Apri</a>
-              <details class="kel-menu">
-                <summary class="btn btn-secondary btn-sm" aria-label="Altre azioni per {{ project.name }}">&middot;&middot;&middot;</summary>
-                <div class="kel-menu-pop">
-                  <a href="{% url 'tasks:list' %}?project={{ project.id }}">Attività</a>
-                  <a href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
-                  <a href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
-                  <a href="{% url 'tasks:project_vrf_compile' project.id %}">Documento VRF</a>
-                  {% if tasks_shell_can_create and project.can_manage %}
-                  <form method="post" action="{% url 'tasks:copy_project_with_vrf' project.id %}">{% csrf_token %}<button type="submit">Copia VRF</button></form>
-                  <form method="post" action="{% url 'tasks:copy_project_with_vrf_without_pn' project.id %}">{% csrf_token %}<button type="submit">Copia senza P/N</button></form>
-                  {% endif %}
-                </div>
-              </details>
+              {% include "tasks/_kickoff_menu.html" with project=project %}
             </td>
           </tr>
         {% endfor %}
@@ -131,32 +115,5 @@
     {% endif %}
   </div>
 </section>
-<script>
-(function () {
-  var form = document.querySelector('[data-kel-form]');
-  if (!form) return;
-  // Tendine: si filtra subito.
-  form.querySelectorAll('[data-kel-auto]').forEach(function (sel) {
-    sel.addEventListener('change', function () { form.submit(); });
-  });
-  // Ricerca: nell'elenco filtra le righe mentre scrivi; Invio la applica anche a Board e Timeline.
-  var q = form.querySelector('[data-kel-cerca]');
-  var righe = document.querySelectorAll('[data-kel-riga]');
-  var vuoto = document.querySelector('[data-kel-vuoto]');
-  if (!q || !righe.length) return;
-  q.addEventListener('input', function () {
-    var t = q.value.trim().toLowerCase(), visibili = 0;
-    righe.forEach(function (r) {
-      var ok = !t || r.getAttribute('data-kel-riga').indexOf(t) !== -1;
-      r.hidden = !ok;
-      if (ok) visibili++;
-    });
-    if (vuoto) vuoto.hidden = visibili > 0;
-  });
-  // Un solo menu «···» aperto alla volta; clic fuori lo chiude.
-  document.addEventListener('click', function (e) {
-    document.querySelectorAll('.kel-menu[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
-  });
-})();
-</script>
+<script src="{% static 'tasks/js/barra_elenco.js' %}?v=20261125a" defer></script>
 {% endblock %}

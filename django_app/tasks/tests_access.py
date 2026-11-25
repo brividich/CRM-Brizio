@@ -512,14 +512,15 @@ class TaskScopedAccessRulesTests(TasksBaseTestCase):
 
     def test_project_manager_read_all_can_view_but_not_edit(self):
         TaskRoleAccessRule.objects.create(
-            role_type=TaskRoleType.PROJECT_MANAGER,
+            role_type=TaskRoleType.CAPO_COMMESSA,
             access_level=TaskAccessLevel.READ_ALL,
         )
-        # Il PM ha pieni poteri di default: qui la regola di sola lettura vale perché i poteri restano al capocommessa.
+        # Il capocommessa (ex PM) ha pieni poteri di default: qui la regola di sola lettura vale
+        # perché i pieni poteri vanno solo al programmatore.
         from tasks.models import TaskImpostazioni
 
         cfg = TaskImpostazioni.get_singleton()
-        cfg.poteri_ruoli = "CC"
+        cfg.poteri_ruoli = "PRG"
         cfg.save()
         self.client.force_login(self.pm_user)
 

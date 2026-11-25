@@ -344,7 +344,7 @@ class FirstMeetingOnKickoffCreateTests(TasksBaseTestCase):
             "vrf_quote_number": "",
             "vrf_description": "",
             "vrf_esp": "",
-            "project_managers": [self.user.id],
+            "capi_commessa": [self.user.id],
         }
         payload.update(extra)
         return self.client.post(reverse("tasks:project_create"), payload)
@@ -1323,7 +1323,7 @@ class MeetingMinuteApprovalTests(TasksBaseTestCase):
             username="minuta-pm", legacy_user_id=531, role_id=2, role_name="tasks"
         )
         self.project = make_project(
-            name="", created_by=self.user, project_manager=self.user
+            name="", created_by=self.user, programmer=self.user  # non capocommessa: dopo l'approvazione non corregge
         )
         self.meeting = KickoffMeeting.objects.create(
             project=self.project,

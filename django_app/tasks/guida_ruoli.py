@@ -17,7 +17,7 @@ SEZIONI_GESTIONE: list[dict] = [
             ("passi", [
                 "KICK-OFF › Kickoff › «+ Nuovo kickoff».",
                 "Scrivi «Cliente» e P/N. Lascia vuoto il nome: si compone da solo.",
-                "Nel Team cerca e spunta Project manager, Capocommessa e Programmatore.",
+                "Nel Team cerca e spunta Capocommessa e Programmatore.",
                 "Premi «Crea kickoff e convoca il primo incontro».",
             ]),
             ("img", (_IMG + "nuovo_kickoff.jpg", "Il form «Nuovo kickoff»")),
@@ -177,7 +177,7 @@ GUIDE_RUOLI: dict[str, dict] = {
     "gestione": {
         "etichetta": "Guida rapida · Chi gestisce la commessa",
         "titolo": "KICK-OFF · Chi gestisce la commessa",
-        "sottotitolo": "Guida rapida per Project manager e capocommessa",
+        "sottotitolo": "Guida rapida per il capocommessa",
         "file": "Guida_KickOff_Gestione.pdf",
         "sezioni": SEZIONI_GESTIONE,
     },

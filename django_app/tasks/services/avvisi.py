@@ -5,7 +5,7 @@ responsabile. Prima veniva avvisato solo all'assegnazione: uno spostamento nel
 Gantt o un annullamento passavano in silenzio.
 
 Destinatari configurabili (Impostazioni KICK-OFF → «Poteri e avvisi»):
-INCARICATO, CC (capocommessa), PM, CREATORE. Chi fa la modifica non viene avvisato.
+INCARICATO, CC (capocommessa; il vecchio PM vale CC), CREATORE. Chi fa la modifica non viene avvisato.
 Campanella sempre; mail tramite il flusso «kickoff_avviso_cambiamenti».
 """
 from __future__ import annotations
@@ -62,10 +62,10 @@ def destinatari(task, *, escludi_ids=()) -> list:
     if "INCARICATO" in ruoli and task.assigned_to_id:
         persone[task.assigned_to_id] = task.assigned_to
     if task.project_id:
-        for codice in ("CC", "PM"):
-            if codice in ruoli:
-                for u in task.project.team_members(codice):
-                    persone.setdefault(u.pk, u)
+        # PM e capocommessa sono lo stesso ruolo: un vecchio «PM» salvato vale CC.
+        if ruoli & {"CC", "PM"}:
+            for u in task.project.team_members("CC"):
+                persone.setdefault(u.pk, u)
     if "CREATORE" in ruoli and task.created_by_id:
         persone.setdefault(task.created_by_id, task.created_by)
     return [u for pk, u in persone.items() if pk not in set(escludi_ids) and getattr(u, "is_active", True)]

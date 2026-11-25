@@ -175,18 +175,22 @@ class Project(models.Model):
     # il vecchio nome del campo M2M, ancora usato da form, template e chiamanti;
     # il dato e' `ProjectMember.role_code`. I codici sono letterali per non
     # anticipare TaskRoleType, definito piu' sotto.
+    # Dal 25/11/2026 Project manager e Capocommessa sono un ruolo solo («Capocommessa»,
+    # codice CC). I vecchi nomi restano alias, così chi chiede ancora il PM
+    # (poteri, avvisi, automazioni, AI) riceve i capocommessa.
     TEAM_ROLES = (
-        ("project_managers", "Project manager", "PM"),
         ("capi_commessa", "Capocommessa", "CC"),
         ("programmers", "Programmatore", "PRG"),
         ("caporeparti", "Caporeparto", "CR"),
     )
     TEAM_ROLE_FIELDS = tuple(field for field, _label, _code in TEAM_ROLES)
     TEAM_CODE_BY_FIELD = {field: code for field, _label, code in TEAM_ROLES}
+    TEAM_CODE_ALIAS = {"project_managers": "CC", "PM": "CC"}
 
     @classmethod
     def team_code(cls, role) -> str:
-        """Codice ruolo da chiave (``"capi_commessa"``) o da codice (``"CC"``)."""
+        """Codice ruolo da chiave (``"capi_commessa"``) o da codice (``"CC"``); PM vale CC."""
+        role = cls.TEAM_CODE_ALIAS.get(role, role)
         return cls.TEAM_CODE_BY_FIELD.get(role, role)
 
     @classmethod
@@ -271,7 +275,8 @@ class Project(models.Model):
 
     @property
     def team_display_pm(self) -> str:
-        return self.team_display("project_managers")
+        """Capocommessa (il vecchio «PM» è lo stesso ruolo)."""
+        return self.team_display("capi_commessa")
 
     @property
     def team_users(self):
@@ -759,7 +764,7 @@ class TaskImpostazioni(models.Model):
     )
     # Poteri pieni sulla commessa: ruoli di team (codici separati da virgola) + persone scelte.
     poteri_ruoli = models.CharField(
-        max_length=60, blank=True, default="CC,PM", verbose_name="Ruoli con pieni poteri",
+        max_length=60, blank=True, default="CC", verbose_name="Ruoli con pieni poteri",
         help_text="Ruoli del team che modificano tutto sulla commessa, date comprese, senza approvazione.",
     )
     poteri_utenti = models.ManyToManyField(
@@ -769,7 +774,7 @@ class TaskImpostazioni(models.Model):
         default=True, verbose_name="Spostamenti di date con approvazione",
         help_text="Chi non ha pieni poteri chiede lo spostamento: decide il capocommessa.",
     )
-    # Chi riceve l'avviso quando cambia un incarico: INCARICATO, CC, PM, CREATORE.
+    # Chi riceve l'avviso quando cambia un incarico: INCARICATO, CC, CREATORE (PM = CC).
     avvisi_destinatari = models.CharField(
         max_length=60, blank=True, default="INCARICATO,CC", verbose_name="Chi riceve gli avvisi sui cambiamenti",
     )

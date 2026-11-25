@@ -1,0 +1,6 @@
+{# Programmi, Registro FAI e Report FAI stanno sotto una voce sola del menu («Programmi e FAI»): qui si passa dall'uno all'altro. Param: attiva = programmi | fai | report. #}
+<nav class="pf-view-toggle pfai-schede" aria-label="Programmi e FAI">
+  <a class="pf-view-btn{% if attiva == 'programmi' %} active{% endif %}" href="{% url 'tasks:programmi_registro' %}"{% if attiva == 'programmi' %} aria-current="page"{% endif %}>Programmi</a>
+  <a class="pf-view-btn{% if attiva == 'fai' %} active{% endif %}" href="{% url 'tasks:fai_registro' %}"{% if attiva == 'fai' %} aria-current="page"{% endif %}>Registro FAI</a>
+  <a class="pf-view-btn{% if attiva == 'report' %} active{% endif %}" href="{% url 'tasks:fai_report' %}"{% if attiva == 'report' %} aria-current="page"{% endif %}>Report FAI</a>
+</nav>

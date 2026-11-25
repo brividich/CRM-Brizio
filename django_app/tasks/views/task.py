@@ -297,6 +297,13 @@ def da_gestire(request):
     if scope not in ("portfolio", "mine"):
         scope = "portfolio" if is_admin else "mine"
     data = build_kickoff_da_gestire(request, scope)
+    # Barra unica: filtri rapidi per sezione col conteggio (sezione sconosciuta = tutte).
+    sezioni = data.get("sections") or []
+    sezione = (request.GET.get("sezione") or "").strip()
+    if sezione not in {s["key"] for s in sezioni}:
+        sezione = ""
+    filtri = [{"key": s["key"], "label": s["label"], "n": len(s["items"])} for s in sezioni]
+    data = {**data, "sections": [s for s in sezioni if not sezione or s["key"] == sezione]}
     return render(
         request,
         "tasks/da_gestire.html",
@@ -306,6 +313,9 @@ def da_gestire(request):
             "da_gestire_data": data,
             "scope": scope,
             "is_scope_admin": is_admin,
+            "dg_sezione": sezione,
+            "dg_filtri": filtri,
+            "dg_totale": sum(f["n"] for f in filtri),
         },
     )
 
@@ -735,7 +745,6 @@ def project_info_json(request, project_id: int):
         "part_number": project.part_number or "",
         "revisione": project.revisione or "",
         "versione": project.versione or "",
-        "project_manager": project.team_display("project_managers"),
         "capo_commessa": project.team_display("capi_commessa"),
         "programmer": project.team_display("programmers"),
         "caporeparto": project.team_display("caporeparti"),
