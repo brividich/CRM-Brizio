@@ -1,0 +1,65 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ sessione.corso.titolo }} · slide {{ ordine }} | Lezione online{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_sessione_online_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="so-player">
+    {% if anteprima %}<div class="so-banner">Anteprima per chi gestisce la formazione: puoi scorrere liberamente, niente viene registrato.</div>{% endif %}
+    {% if scaduta %}<div class="so-banner">La lezione era da completare entro il {{ cfg.scadenza|date:"d-m-Y" }}: per continuare chiedi al responsabile della formazione di spostare la scadenza.</div>{% endif %}
+    <div class="so-actions" style="justify-content:space-between;align-items:flex-end;">
+      <div>
+        <div class="so-muted"><a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a> › Sessione {{ sessione.codice_sessione }}{% if cfg.scadenza %} · da completare entro il {{ cfg.scadenza|date:"d-m-Y" }}{% endif %}</div>
+        <h2 style="margin:4px 0 0;font-size:20px;color:var(--hub-color-navy,#0c2545);">{{ sessione.corso.titolo }}</h2>
+      </div>
+      <span class="so-muted">Slide <strong>{{ ordine }} di {{ n_slide }}</strong>{% if n_domande %} · poi il test ({{ n_domande }} domande, soglia {{ cfg.soglia_pct }}%){% endif %}</span>
+    </div>
+    <div class="so-bar acc" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}" aria-label="Avanzamento"><span style="width:{{ pct }}%"></span></div>
+
+    <div class="so-stage">
+      {% if slide.immagine %}<img src="{% url 'anagrafica:sessione_online_slide_img' slide.pk %}" alt="{{ slide.titolo|default:'Slide' }}">
+      {% else %}<div class="so-md">{% if slide.titolo %}<h3 style="margin-top:0;">{{ slide.titolo }}</h3>{% endif %}{{ testo_html|safe }}</div>{% endif %}
+    </div>
+
+    <form method="post" action="{% url 'anagrafica:sessione_online_avanti' sessione.pk %}{% if anteprima %}?anteprima=1{% endif %}" class="so-actions" style="justify-content:space-between;">
+      {% csrf_token %}<input type="hidden" name="ordine" value="{{ ordine }}">
+      {% if ordine > 1 %}<a class="hr-btn hr-btn-ghost" href="?n={{ ordine|add:'-1' }}{% if anteprima %}&anteprima=1{% endif %}">Indietro</a>{% else %}<span></span>{% endif %}
+      <span class="so-muted" id="so-attesa"{% if not attesa %} hidden{% endif %}>Puoi andare avanti tra <strong id="so-sec">{{ attesa }}</strong> secondi</span>
+      <button type="submit" class="hr-btn hr-btn-primary" id="so-avanti"{% if attesa %} disabled{% endif %}{% if scaduta and not anteprima %} disabled{% endif %}>
+        {% if ordine < n_slide %}Avanti{% else %}Vai al test{% endif %}</button>
+    </form>
+
+    <nav class="so-dots" aria-label="Slide">
+      {% for s in slides %}
+        {% if forloop.counter == ordine %}<span class="cur" aria-current="page">{{ forloop.counter }}</span>
+        {% elif forloop.counter <= massimo %}<a href="?n={{ forloop.counter }}{% if anteprima %}&anteprima=1{% endif %}" class="{% if prog and forloop.counter <= prog.slide_viste %}ok{% endif %}">{{ forloop.counter }}</a>
+        {% else %}<span class="lock" title="Si apre dopo le precedenti">{{ forloop.counter }}</span>{% endif %}
+      {% endfor %}
+    </nav>
+    <p class="so-muted" style="text-align:center;margin:0;">
+      Puoi interrompere quando vuoi: riprendi dalla stessa slide.
+      {% if test_pronto and not anteprima %}<a href="{% url 'anagrafica:sessione_online_test' sessione.pk %}">Il test è pronto</a>{% if rimasti is not None %} ({{ rimasti }} tentativ{{ rimasti|pluralize:"o,i" }} rimast{{ rimasti|pluralize:"o,i" }}){% endif %}.{% endif %}
+    </p>
+  </div>
+</div>
+{% if attesa %}
+<script>
+(function () {
+  var s = {{ attesa|default:0 }}, el = document.getElementById('so-sec'), btn = document.getElementById('so-avanti'), box = document.getElementById('so-attesa');
+  var t = setInterval(function () {
+    s -= 1;
+    if (s <= 0) { clearInterval(t); if (box) box.hidden = true; if (btn && !btn.hasAttribute('data-scaduta')) btn.disabled = false; return; }
+    if (el) el.textContent = s;
+  }, 1000);
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -13,6 +13,25 @@ GUIDA = {
     ],
     "uso": [
         {
+            "id": "lezione-online-partecipante",
+            "titolo": "Lezione online di una sessione: slide e test",
+            "blocchi": [
+                ("p", "Se sei iscritto a una sessione con lezione online ricevi una notifica nel portale e, se hai la mail, "
+                      "un messaggio con il link. La trovi anche in «Le mie attività» e in Formazione → Corsi online, "
+                      "riquadro «Lezioni online delle tue sessioni»."),
+                ("ul", [
+                    "Le slide si guardano in ordine: «Avanti» si accende dopo il tempo minimo indicato sulla slide.",
+                    "Puoi interrompere quando vuoi: riaprendo il link riparti dalla slide a cui eri arrivato.",
+                    "Dopo l'ultima slide si apre il test: rispondi a tutte le domande e premi «Consegna il test». "
+                    "Quando una domanda ha più risposte giuste lo dice sotto il testo: vanno scelte tutte.",
+                    "Superi il test con la percentuale indicata (di solito 70%). Se non lo superi puoi riprovare finché "
+                    "hai tentativi; finiti quelli, il responsabile della formazione può concedertene un altro.",
+                ]),
+                ("nota", "Superato il test, presenza ed esito sono registrati sulla sessione; il corso entra nel tuo "
+                         "libretto quando il responsabile registra il completamento."),
+            ],
+        },
+        {
             "id": "menu",
             "titolo": "Come è organizzato il menu",
             "blocchi": [
@@ -474,6 +493,45 @@ GUIDA = {
         },
     ],
     "admin": [
+        {
+            "id": "lezione-online-sessione",
+            "titolo": "Lezione online di una sessione (slide + test), senza corso nuovo",
+            "blocchi": [
+                ("p", "Una sessione di un corso che esiste già può avere una lezione online: slide e test valgono solo "
+                      "per quella sessione e gli iscritti la seguono quando possono. Si crea la sessione con modalità "
+                      "«Online: slide + test» (il portale apre subito la preparazione), oppure dalla pagina di "
+                      "qualsiasi sessione con il pulsante «Lezione online»."),
+                ("def", [
+                    ("1 · Slide", "carica un PowerPoint o un PDF (ogni pagina diventa una slide) o «Copia le slide del "
+                                  "corso»; riordina con le frecce. «Tempo minimo su ogni slide»: 20 secondi proposti, 0 = nessuno."),
+                    ("2 · Test finale", "scrivi le domande con le risposte e spunta «Giusta»; più giuste = vanno scelte "
+                                        "tutte. «Aggiungi più domande insieme»: dal corso, incollate da Word (riga vuota "
+                                        "tra le domande, * davanti alla giusta) o da Excel. Soglia proposta: il punteggio "
+                                        "minimo del corso (70% se non c'è); tentativi: 2 (0 = senza limite)."),
+                    ("3 · Iscritti e scadenza", "date di apertura e scadenza (proposte: inizio e fine della sessione), "
+                                                "promemoria automatico 3 giorni prima della scadenza a chi non ha finito. "
+                                                "«Pubblica e invia» manda notifica e mail con il link; ripubblicando, il "
+                                                "link va solo a chi non l'ha ancora ricevuto."),
+                ]),
+                ("p", "Nella pagina della sessione il riquadro «Lezione online» mostra: chi ha finito, chi ha iniziato, "
+                      "punteggio medio, superati al primo tentativo, tempo medio sulle slide contro il minimo previsto, "
+                      "quanti sono da registrare a libretto e quanti hanno finito i tentativi; per ogni persona slide "
+                      "viste, minuti, tentativi e miglior punteggio, ultimo accesso («fermo da N giorni» dopo 3 giorni), "
+                      "link e solleciti. «Domande sbagliate più spesso» indica cosa spiegare meglio."),
+                ("ul", [
+                    "Azioni sulla riga: «Risposte» (pannello con ogni tentativo), «Sollecita», «Manda link», "
+                    "«Tentativo in più», «Registra», «Azzera» (riparte dalla prima slide; i tentativi restano a registro).",
+                    "Azioni in blocco sopra la tabella: «Sollecita chi non ha finito» e «Registra completamenti»; valgono "
+                    "per i selezionati o, se non selezioni nessuno, per tutti quelli interessati.",
+                    "Chi supera il test ha presenza 100%, ore del corso e verifica «Test scritto» col punteggio "
+                    "sull'iscrizione. «Registra» porta il completamento a libretto con le regole del corso, come "
+                    "dalla pagina Iscritti (scadenza, attestato, skill matrix).",
+                    "«Prova come partecipante» apre la lezione in anteprima: si scorre liberamente e non si registra "
+                    "nulla. «Avanzamento CSV» scarica la tabella. «Sospendi» la nasconde agli iscritti.",
+                ]),
+                ("nota", "Un'edizione approvata (MOD.040) non si modifica più: anche la lezione online resta com'è."),
+            ],
+        },
         {
             "id": "organizzazione",
             "titolo": "Reparti, aree aziendali e responsabili",
@@ -1618,6 +1676,19 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "«Pubblica e invia» è spento nella lezione online della sessione",
+            "perche": "manca qualcosa: slide, domande, una domanda senza risposta giusta o con meno di due risposte, iscritti, oppure la scadenza è prima della data di apertura. L'elenco è nel riquadro giallo.",
+            "fare": ["Sistema quanto indicato nel passo «Slide» o «Test finale», poi torna a «Iscritti e scadenza»."],
+        },
+        {
+            "sintomo": "Un iscritto dice che la lezione online «non si apre»",
+            "perche": "la lezione non è pubblicata o è sospesa, non è ancora la data di apertura, la scadenza è passata, oppure il suo utente non è collegato alla sua scheda (il portale non sa chi è).",
+            "fare": [
+                "Pagina della sessione → riquadro «Lezione online»: controlla stato e date; sposta la scadenza da «Date e iscritti».",
+                "Se il riquadro dice «nessun contatto» per quella persona, collega l'utente alla scheda o dagli il link a voce.",
+            ],
+        },
         {
             "sintomo": "Un quiz dal link aperto resta «Da abbinare»",
             "perche": "il nome scritto non corrisponde a nessun dipendente attivo, oppure a più di uno (omonimi). Si abbina a mano dal riquadro «Link aperto» della pagina del corso; finché non è abbinato il corso non va sulla scheda.",

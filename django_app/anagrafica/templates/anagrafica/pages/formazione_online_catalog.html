@@ -37,6 +37,25 @@
     </div>
     {% endif %}
 
+    {% if lezioni_sessione %}
+    {% include "anagrafica/components/_sessione_online_style.html" %}
+    <div class="so-card">
+      <div class="so-head"><span class="so-title">Lezioni online delle tue sessioni</span><span class="so-muted">slide e test finale, quando puoi</span></div>
+      <div class="so-body" style="display:flex;flex-direction:column;gap:10px;">
+        {% for lz in lezioni_sessione %}
+        <div class="so-actions" style="justify-content:space-between;border-bottom:1px solid var(--border,#edf2f7);padding-bottom:10px;">
+          <div><strong>{{ lz.sessione.corso.titolo }}</strong>
+            <div class="so-muted">Sessione {{ lz.sessione.codice_sessione }} · {{ lz.n_slide }} slide{% if lz.cfg.scadenza %} · entro il {{ lz.cfg.scadenza|date:"d-m-Y" }}{% endif %}</div></div>
+          <div class="so-actions">
+            <span class="so-pill {{ lz.tono }}">{{ lz.stato_label }}</span>
+            <a class="fmd-btn {% if lz.finita %}fmd-btn-ghost{% else %}fmd-btn-primary{% endif %}" href="{{ lz.url }}">{% if lz.finita %}Rivedi{% elif lz.stato == "non_iniziata" %}Inizia{% else %}Continua{% endif %}</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     {% if cards %}
     <div class="fm-card-grid">
       {% for it in cards %}

@@ -25,6 +25,7 @@ from . import views_richieste
 from . import views_mia_scheda
 from . import views_retention
 from . import views_elearning
+from . import views_sessione_online
 from . import views_sorveglianza
 from . import views_elenco
 from . import views_account
@@ -729,6 +730,24 @@ urlpatterns = [
     path("formazione/sessioni/", views.formazione_sessioni_list, name="formazione_sessioni_list"),
     path("formazione/sessioni/nuova/", views.formazione_sessione_create, name="formazione_sessione_create"),
     path("formazione/sessioni/<int:sessione_id>/", views.formazione_sessione_detail, name="formazione_sessione_detail"),
+    # Lezione online della sessione (slide + test): preparazione e gestione
+    path("formazione/sessioni/<int:sessione_id>/online/", views_sessione_online.sessione_online_prepara, name="sessione_online_prepara"),
+    path("formazione/sessioni/<int:sessione_id>/online/impostazioni", views_sessione_online.sessione_online_impostazioni, name="sessione_online_impostazioni"),
+    path("formazione/sessioni/<int:sessione_id>/online/slide/importa", views_sessione_online.sessione_online_slide_importa, name="sessione_online_slide_importa"),
+    path("formazione/sessioni/<int:sessione_id>/online/slide/dal-corso", views_sessione_online.sessione_online_slide_corso, name="sessione_online_slide_corso"),
+    path("formazione/sessioni/<int:sessione_id>/online/slide/azione", views_sessione_online.sessione_online_slide_azione, name="sessione_online_slide_azione"),
+    path("formazione/sessioni/<int:sessione_id>/online/domande/salva", views_sessione_online.sessione_online_domanda_salva, name="sessione_online_domanda_salva"),
+    path("formazione/sessioni/<int:sessione_id>/online/domande/azione", views_sessione_online.sessione_online_domanda_azione, name="sessione_online_domanda_azione"),
+    path("formazione/sessioni/<int:sessione_id>/online/domande/importa", views_sessione_online.sessione_online_domande_importa, name="sessione_online_domande_importa"),
+    path("formazione/sessioni/<int:sessione_id>/online/pubblica", views_sessione_online.sessione_online_pubblica, name="sessione_online_pubblica"),
+    path("formazione/sessioni/<int:sessione_id>/online/iscritti", views_sessione_online.sessione_online_iscritto, name="sessione_online_iscritto"),
+    path("formazione/sessioni/<int:sessione_id>/online/avanzamento.csv", views_sessione_online.sessione_online_export, name="sessione_online_export"),
+    # Lezione online: pagine del partecipante (area discente, controllo nelle view)
+    path("formazione/corsi-online/sessione/<int:sessione_id>/", views_sessione_online.sessione_online_player, name="sessione_online_player"),
+    path("formazione/corsi-online/sessione/<int:sessione_id>/avanti", views_sessione_online.sessione_online_avanti, name="sessione_online_avanti"),
+    path("formazione/corsi-online/sessione/<int:sessione_id>/test", views_sessione_online.sessione_online_test, name="sessione_online_test"),
+    path("formazione/corsi-online/sessione/<int:sessione_id>/esito", views_sessione_online.sessione_online_esito, name="sessione_online_esito"),
+    path("formazione/corsi-online/sessione-slide/<int:slide_id>/immagine", views_sessione_online.sessione_online_slide_img, name="sessione_online_slide_img"),
     path("formazione/sessioni/<int:sessione_id>/modifica", views.formazione_sessione_edit, name="formazione_sessione_edit"),
     path("formazione/sessioni/<int:sessione_id>/elimina", views.formazione_sessione_delete, name="formazione_sessione_delete"),
     # Lezioni inline nella sessione
