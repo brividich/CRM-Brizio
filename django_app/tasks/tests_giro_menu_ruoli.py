@@ -98,9 +98,9 @@ class MenuEBarreTests(TestCase):
 
     def test_da_gestire_filtro_sezione(self):
         Project.objects.create(name="Senza VRF", created_by=self.admin)
-        r = self.client.get(reverse("tasks:da_gestire") + "?scope=portfolio&sezione=vrf")
+        r = self.client.get(reverse("tasks:da_gestire") + "?scope=portfolio&sezione=commesse")
         self.assertEqual(r.status_code, 200)
-        self.assertEqual([s["key"] for s in r.context["da_gestire_data"]["sections"]], ["vrf"])
-        self.assertTrue(any(f["key"] == "not_ready" for f in r.context["dg_filtri"]))
+        self.assertEqual([s["key"] for s in r.context["da_gestire_data"]["sections"]], ["commesse"])
+        self.assertContains(r, "manca VRF")
         r = self.client.get(reverse("tasks:da_gestire") + "?scope=portfolio&sezione=xyz")
         self.assertGreater(len(r.context["da_gestire_data"]["sections"]), 1)

@@ -244,7 +244,7 @@ def mie_azioni(request):
         "tasks/mie_azioni.html",
         {
             **_tasks_shell_context(request, active="mie_azioni"),
-            "page_title": "Le mie attività KICK-OFF",
+            "page_title": "Le mie attività",
             "rows": rows,
             **elenco.contesto_elenco(
                 request, righe, per=(request.GET.get("raggruppa") or "").strip(),

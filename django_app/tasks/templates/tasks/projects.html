@@ -35,24 +35,34 @@
       <a class="kel-f kel-f--warn{% if pf_problemi %} on{% endif %}" href="?{{ pf_qs_con_fase }}{% if not pf_problemi %}{% if pf_qs_con_fase %}&amp;{% endif %}problemi=1{% endif %}" title="Attività o altre voci scadute (problemi aperti, attività d'incontro, sotto-attività)">Con problemi<b>{{ pf_n_problemi }}</b></a>
     </nav>
     <div class="kel-dx">
-      <select class="input" name="client" aria-label="Cliente" data-kel-auto data-no-search>
-        <option value="">Cliente: tutti</option>
-        {% for c in pf_client_choices %}<option value="{{ c }}"{% if c == pf_filter_client %} selected{% endif %}>{{ c }}</option>{% endfor %}
-      </select>
-      <select class="input" name="vrf_status" aria-label="Documento VRF" data-kel-auto data-no-search>
-        <option value="">VRF: tutti</option>
-        <option value="ok"{% if pf_filter_vrf == 'ok' %} selected{% endif %}>VRF caricato</option>
-        <option value="warning"{% if pf_filter_vrf == 'warning' %} selected{% endif %}>VRF in attesa</option>
-        <option value="blocked"{% if pf_filter_vrf == 'blocked' %} selected{% endif %}>VRF bloccato</option>
-        <option value="pending"{% if pf_filter_vrf == 'pending' %} selected{% endif %}>VRF da caricare</option>
-        <option value="na"{% if pf_filter_vrf == 'na' %} selected{% endif %}>VRF N/A</option>
-      </select>
-      <select class="input" name="sort" aria-label="Ordina" data-kel-auto data-no-search>
-        <option value="name"{% if pf_sort == 'name' or not pf_sort %} selected{% endif %}>Ordina: nome</option>
-        <option value="due"{% if pf_sort == 'due' %} selected{% endif %}>Ordina: scadenza</option>
-        <option value="progress_desc"{% if pf_sort == 'progress_desc' %} selected{% endif %}>Ordina: avanzamento</option>
-        <option value="ral"{% if pf_sort == 'ral' %} selected{% endif %}>Ordina: criticità</option>
-      </select>
+      {# Cliente, VRF e ordine in una tendina: la barra resta su una riga. Il numero dice quanti filtri sono attivi. #}
+      <details class="kel-filtri"{% if pf_n_filtri %} data-attivi{% endif %}>
+        <summary class="btn btn-secondary btn-sm">Filtri{% if pf_n_filtri %} <b>{{ pf_n_filtri }}</b>{% endif %} <span aria-hidden="true">&#9662;</span></summary>
+        <div class="kel-filtri-pop">
+          <label><span>Cliente</span>
+            <select class="input" name="client" data-kel-auto data-no-search>
+              <option value="">Tutti</option>
+              {% for c in pf_client_choices %}<option value="{{ c }}"{% if c == pf_filter_client %} selected{% endif %}>{{ c }}</option>{% endfor %}
+            </select></label>
+          <label><span>Documento VRF</span>
+            <select class="input" name="vrf_status" data-kel-auto data-no-search>
+              <option value="">Tutti</option>
+              <option value="ok"{% if pf_filter_vrf == 'ok' %} selected{% endif %}>Caricato</option>
+              <option value="warning"{% if pf_filter_vrf == 'warning' %} selected{% endif %}>In attesa</option>
+              <option value="blocked"{% if pf_filter_vrf == 'blocked' %} selected{% endif %}>Bloccato</option>
+              <option value="pending"{% if pf_filter_vrf == 'pending' %} selected{% endif %}>Da caricare</option>
+              <option value="na"{% if pf_filter_vrf == 'na' %} selected{% endif %}>N/A</option>
+            </select></label>
+          <label><span>Ordina per</span>
+            <select class="input" name="sort" data-kel-auto data-no-search>
+              <option value="name"{% if pf_sort == 'name' or not pf_sort %} selected{% endif %}>Nome</option>
+              <option value="due"{% if pf_sort == 'due' %} selected{% endif %}>Scadenza</option>
+              <option value="progress_desc"{% if pf_sort == 'progress_desc' %} selected{% endif %}>Avanzamento</option>
+              <option value="ral"{% if pf_sort == 'ral' %} selected{% endif %}>Criticità</option>
+            </select></label>
+          {% if pf_n_filtri %}<a class="kel-filtri-via" href="{% url 'tasks:project_list' %}{% if view != 'elenco' %}?view={{ view }}{% endif %}">Togli i filtri</a>{% endif %}
+        </div>
+      </details>
       <div class="pf-view-toggle">
         <button type="submit" name="view" value="elenco" class="pf-view-btn {% if view == 'elenco' %}active{% endif %}">Elenco</button>
         <button type="submit" name="view" value="board" class="pf-view-btn {% if view == 'board' %}active{% endif %}">Board</button>
@@ -67,8 +77,8 @@
     {% elif view == 'timeline' %}
       {% include "tasks/_timeline.html" %}
     {% elif projects %}
-      {# La ricerca è quella della barra: la tabella non aggiunge la sua (data-fm-hide-search). #}
-      <table class="kel-t" data-table-id="tasks-portfolio-elenco" data-fm-hide-search="1">
+      {# Ricerca e filtri sono quelli della barra: la tabella non aggiunge la sua barra (data-fm-hide-controls), restano gli ordinamenti sulle intestazioni. #}
+      <table class="kel-t" data-table-id="tasks-portfolio-elenco" data-fm-hide-search="1" data-fm-hide-controls="1">
         <thead><tr>
           <th data-no-sort data-no-filter><span class="sr-only">P/N</span></th>
           <th>Kickoff</th><th>Cliente</th><th>Fase</th><th>Stato</th><th>Avanzamento</th><th>Capocommessa</th>
@@ -115,5 +125,5 @@
     {% endif %}
   </div>
 </section>
-<script src="{% static 'tasks/js/barra_elenco.js' %}?v=20261125a" defer></script>
+<script src="{% static 'tasks/js/barra_elenco.js' %}?v=20261125b" defer></script>
 {% endblock %}

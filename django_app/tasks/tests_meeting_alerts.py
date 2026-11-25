@@ -111,7 +111,7 @@ class MeetingAlertsTests(TasksBaseTestCase):
         data = build_kickoff_da_gestire(response.wsgi_request, "mine")
         # Quattro sezioni costruite: nessuna persa per eccezione inghiottita.
         # Azioni e problemi assegnati, VRF, commesse non pronte, attivita' critiche, incontri.
-        self.assertEqual(len(data["sections"]), 5)
+        self.assertEqual(len(data["sections"]), 4)  # VRF e commesse non pronte unite
 
 
 class ProjectListRoutingTests(TasksBaseTestCase):
