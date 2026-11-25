@@ -387,6 +387,48 @@ def project_create(request):
     )
 
 
+# Nomi dei filtri rapidi dell'elenco kickoff (le fasi restano quelle del modello).
+FASI_ELENCO = {"BOZZA": "Da avviare", "VRF": "In VRF", "EXEC": "In esecuzione", "DONE": "Chiusi"}
+
+
+def _stato_riga(p) -> dict:
+    """Una sola riga di stato per l'elenco kickoff: tono, testo e se è un problema.
+
+    Problema = attività o altre voci del registro scadute, oppure prossima scadenza già passata.
+    """
+    giorni = p.days_to_delivery
+    ritardo = f"in ritardo di {-giorni}gg" if giorni is not None and giorni < 0 else ""
+    if p.phase == "DONE":
+        return {"tono": "ok", "testo": "Chiuso", "problema": False}
+    pezzi = []
+    if p.task_overdue:
+        # La scadenza più vecchia fra le aperte dice da quanto: niente «in ritardo» ripetuto.
+        da = f" da {-giorni}gg" if giorni is not None and giorni < 0 else ""
+        pezzi.append(f"{p.task_overdue} attività scadut{'a' if p.task_overdue == 1 else 'e'}{da}")
+    elif ritardo:
+        pezzi.append(ritardo[0].upper() + ritardo[1:])
+    # overdue_action_count comprende già le attività: qui solo il resto del registro
+    # (problemi aperti, attività d'incontro, sotto-attività).
+    altre = max((getattr(p, "overdue_action_count", 0) or 0) - (getattr(p, "_oa_task_overdue", 0) or 0), 0)
+    if altre:
+        pezzi.append(f"{altre} altr{'a voce scaduta' if altre == 1 else 'e voci scadute'}")
+    if pezzi:
+        return {"tono": "danger", "testo": " · ".join(pezzi), "problema": True}
+    if not p.task_total:
+        return {"tono": "soft", "testo": "Piano da scrivere", "problema": False}
+    scadenza = (
+        "nessuna scadenza aperta" if giorni is None
+        else "scade oggi" if giorni == 0
+        else f"prossima scadenza tra {giorni}gg"
+    )
+    r = getattr(p, "readiness", None)
+    if p.phase in ("BOZZA", "VRF") and r is not None and r.level != "ready":
+        return {"tono": "warn", "testo": f"{r.label} {r.met}/{r.total} · {scadenza}", "problema": False}
+    if giorni == 0:
+        return {"tono": "warn", "testo": "Scade oggi", "problema": False}
+    return {"tono": "ok", "testo": f"In regola · {scadenza}", "problema": False}
+
+
 @task_permissions_required("tasks_view")
 def project_list(request):
     today = timezone.localdate()
@@ -482,6 +524,35 @@ def project_list(request):
     if q_vrf:
         projects = [p for p in projects if p.vrf_detail.get("status") == q_vrf]
 
+    # Elenco: una riga di stato per commessa; i filtri rapidi (fase, «Con problemi»)
+    # contano sulle commesse già filtrate da ricerca, cliente e VRF.
+    from tasks.models import ProjectPhase
+    for p in projects:
+        p.stato_riga = _stato_riga(p)
+    conteggi = {key: 0 for key, _ in ProjectPhase.choices}
+    for p in projects:
+        conteggi[p.phase] = conteggi.get(p.phase, 0) + 1
+    n_tutti = len(projects)
+    n_problemi = sum(1 for p in projects if p.stato_riga["problema"])
+    q_fase = (request.GET.get("fase") or "").strip()
+    q_problemi = request.GET.get("problemi") == "1"
+    if q_fase in conteggi:
+        projects = [p for p in projects if p.phase == q_fase]
+    else:
+        q_fase = ""
+    if q_problemi:
+        projects = [p for p in projects if p.stato_riga["problema"]]
+    filtri_fase = [
+        {"key": key, "label": FASI_ELENCO.get(key, label), "n": conteggi.get(key, 0)}
+        for key, label in ProjectPhase.choices
+    ]
+    # Link dei filtri rapidi: tengono ricerca, cliente, VRF, ordine e vista.
+    _qs = request.GET.copy()
+    for k in ("fase", "problemi"):
+        _qs.pop(k, None)
+    qs_base = _qs.urlencode()
+    qs_con_fase = "&".join(x for x in (qs_base, f"fase={q_fase}" if q_fase else "") if x)
+
     # Clienti distinti per il dropdown filtro
     client_choices = sorted(set(
         client_name
@@ -489,9 +560,8 @@ def project_list(request):
         if client_name
     ))
 
-    from tasks.models import ProjectPhase
     _v = request.GET.get("view")
-    view_mode = _v if _v in ("board", "timeline") else "cards"
+    view_mode = _v if _v in ("board", "timeline") else "elenco"
     board_columns = None
     is_board_editor = has_task_permission(request, "tasks_edit")
     if view_mode == "board":
@@ -544,6 +614,13 @@ def project_list(request):
             "pf_filter_vrf": q_vrf,
             "pf_sort": q_sort,
             "pf_client_choices": client_choices,
+            "pf_fase": q_fase,
+            "pf_problemi": q_problemi,
+            "pf_filtri_fase": filtri_fase,
+            "pf_n_tutti": n_tutti,
+            "pf_n_problemi": n_problemi,
+            "pf_qs_base": qs_base,
+            "pf_qs_con_fase": qs_con_fase,
         },
     )
 
