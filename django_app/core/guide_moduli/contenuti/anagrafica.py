@@ -16,9 +16,9 @@ GUIDA = {
             "id": "lezione-online-partecipante",
             "titolo": "Lezione online di una sessione: slide e test",
             "blocchi": [
-                ("p", "Se sei iscritto a una sessione con lezione online ricevi una notifica nel portale e, se hai la mail, "
-                      "un messaggio con il link. La trovi anche in «Le mie attività» e in Formazione → Corsi online, "
-                      "riquadro «Lezioni online delle tue sessioni»."),
+                ("p", "Se sei iscritto a una sessione con lezione online ricevi una notifica nel portale (il portale non "
+                      "manda email: l'eventuale mail arriva dall'azienda). La trovi anche in «Le mie attività» e in "
+                      "Formazione → I miei corsi online."),
                 ("ul", [
                     "Le slide si guardano in ordine: «Avanti» si accende dopo il tempo minimo indicato sulla slide.",
                     "Puoi interrompere quando vuoi: riaprendo il link riparti dalla slide a cui eri arrivato.",
@@ -545,9 +545,10 @@ GUIDA = {
                                         "tra le domande, * davanti alla giusta) o da Excel. Soglia proposta: il punteggio "
                                         "minimo del corso (70% se non c'è); tentativi: 2 (0 = senza limite)."),
                     ("3 · Iscritti e scadenza", "date di apertura e scadenza (proposte: inizio e fine della sessione), "
-                                                "promemoria automatico 3 giorni prima della scadenza a chi non ha finito. "
-                                                "«Pubblica e invia» manda notifica e mail con il link; ripubblicando, il "
-                                                "link va solo a chi non l'ha ancora ricevuto."),
+                                                "notifica di promemoria facoltativa (0 giorni = spenta, è il valore proposto). "
+                                                "«Pubblica e avvisa nel portale» manda solo la notifica nel portale: "
+                                                "nessuna email, la mail ai partecipanti la mandate voi copiando il link; "
+                                                "ripubblicando, la notifica va solo a chi non l'ha ancora ricevuta."),
                 ]),
                 ("p", "Nella pagina della sessione il riquadro «Lezione online» mostra: chi ha finito, chi ha iniziato, "
                       "punteggio medio, superati al primo tentativo, tempo medio sulle slide contro il minimo previsto, "

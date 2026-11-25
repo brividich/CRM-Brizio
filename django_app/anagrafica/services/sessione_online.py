@@ -587,7 +587,7 @@ def numeri(righe: list[dict], cfg) -> dict:
         "giorni_alla_scadenza": giorni,
         "da_registrare": conta[SUPERATA],
         "da_sollecitare": conta[NON_INIZIATA] + conta[IN_CORSO] + conta[TEST_DA_FARE],
-        "senza_contatto": sum(1 for r in righe if not r["ha_email"] and not r["ha_utente"]),
+        "senza_contatto": sum(1 for r in righe if not r["ha_utente"]),
     }
 
 
@@ -615,11 +615,10 @@ def _url_lezione(sessione) -> str:
 
 
 def invia_link(sessione, cfg, enrollments, *, sollecito: bool = False) -> dict:
-    """Notifica nel portale + mail a ogni iscritto. Ritorna i conteggi."""
-    from core.accounts.portal_links import portal_link
+    """Notifica nel portale a ogni iscritto. Nessuna email (decisione del 25/11/2026: la mail
+    ai partecipanti la manda l'azienda, una sola). Ritorna i conteggi."""
     from core.legacy_anagrafica import fetch_anagrafica_rows
     from core.notifiche import invia_notifica
-    from core.notifiche_prefs import should_notify
 
     enrollments = list(enrollments)
     ids = [e.legacy_anagrafica_id for e in enrollments]
@@ -628,27 +627,21 @@ def invia_link(sessione, cfg, enrollments, *, sollecito: bool = False) -> dict:
         try:
             anag = {int(r["id"]): r for r in fetch_anagrafica_rows(ids=ids) if r.get("id")}
         except Exception:
-            logger.exception("Anagrafica non leggibile per l'invio dei link (sessione %s)", sessione.pk)
+            logger.exception("Anagrafica non leggibile per l'avviso (sessione %s)", sessione.pk)
     url_rel = _url_lezione(sessione)
-    url_abs = portal_link(url_rel) or url_rel
     corso = sessione.corso.titolo
     entro = f" entro il {cfg.scadenza:%d-%m-%Y}" if cfg.scadenza else ""
-    tipo = "formazione_promemoria"
     testo_notifica = (f"Promemoria: completa la lezione online «{corso}»{entro}." if sollecito
                       else f"Nuova lezione online: «{corso}». Guarda le slide e fai il test{entro}.")
-    oggetto = (f"Promemoria lezione online: {corso}" if sollecito else f"Lezione online da seguire: {corso}")
-    n_mail = n_notifiche = 0
+    n_notifiche = senza_utente = 0
     adesso = timezone.now()
     for e in enrollments:
-        r = anag.get(e.legacy_anagrafica_id, {})
-        utente_id = r.get("utente_id")
+        utente_id = anag.get(e.legacy_anagrafica_id, {}).get("utente_id")
         if utente_id:
-            invia_notifica(utente_id, tipo, testo_notifica, url_rel)
+            invia_notifica(utente_id, "formazione_promemoria", testo_notifica, url_rel)
             n_notifiche += 1
-        email = (r.get("email_notifica") or r.get("email") or "").strip()
-        if email and (not utente_id or should_notify(tipo=tipo, legacy_user_id=utente_id)):
-            if _manda_mail(email, oggetto, sessione, cfg, url_abs, sollecito=sollecito):
-                n_mail += 1
+        else:
+            senza_utente += 1
         prog = avanzamento(e)
         if sollecito:
             prog.solleciti += 1
@@ -657,33 +650,7 @@ def invia_link(sessione, cfg, enrollments, *, sollecito: bool = False) -> dict:
         else:
             prog.link_inviato_il = adesso
             prog.save(update_fields=["link_inviato_il"])
-    return {"mail": n_mail, "notifiche": n_notifiche, "persone": len(enrollments)}
-
-
-def _manda_mail(email, oggetto, sessione, cfg, url, *, sollecito: bool) -> bool:
-    try:
-        from core.email_utils import email_cta, email_facts_table, send_hub_mail, text_to_html
-        n_slide = TrainingSessionSlide.objects.filter(sessione=sessione).count()
-        n_dom = len(domande_valide(sessione))
-        facts = [("Corso", sessione.corso.titolo), ("Sessione", sessione.codice_sessione),
-                 ("Contenuto", f"{n_slide} slide e un test di {n_dom} domande (soglia {cfg.soglia_pct}%)")]
-        if cfg.scadenza:
-            facts.append(("Da completare entro", f"{cfg.scadenza:%d-%m-%Y}"))
-        intro = ("Non hai ancora completato la lezione online:" if sollecito
-                 else "Ti è stata assegnata una lezione online da seguire quando puoi:")
-        fragment = (text_to_html(intro)
-                    + '<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>'
-                    + email_facts_table(facts)
-                    + '<div style="height:16px;line-height:16px;font-size:0;">&nbsp;</div>'
-                    + email_cta("Apri la lezione", url,
-                                note="Puoi interrompere e riprendere dalla stessa slide."))
-        corpo = f"{intro}\n\n" + "\n".join(f"{k}: {v}" for k, v in facts) + f"\n\nApri la lezione: {url}"
-        send_hub_mail(oggetto, corpo, [email], email_type="Anagrafica HR", section_label="Lezione online",
-                      body_html_fragment=fragment, fail_silently=True)
-        return True
-    except Exception:
-        logger.exception("Mail della lezione online non inviata (sessione %s)", sessione.pk)
-        return False
+    return {"notifiche": n_notifiche, "senza_utente": senza_utente, "persone": len(enrollments)}
 
 
 def pubblica(sessione, cfg, user, *, invia: bool = True) -> dict:
@@ -696,7 +663,7 @@ def pubblica(sessione, cfg, user, *, invia: bool = True) -> dict:
     for e in iscrizioni(sessione):
         avanzamento(e)
     if not invia:
-        return {"mail": 0, "notifiche": 0, "persone": 0}
+        return {"notifiche": 0, "senza_utente": 0, "persone": 0}
     # Il link va a chi non l'ha ancora ricevuto (ripubblicare non manda doppioni).
     nuovi = [e for e in iscrizioni(sessione).select_related("avanzamento_online")
              if not getattr(getattr(e, "avanzamento_online", None), "link_inviato_il", None)
