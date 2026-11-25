@@ -211,6 +211,22 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "pezzo",
+        "titolo": "Pagina del pezzo (S/N)",
+        "blocchi": [
+            ("p", "Tutto quello che è successo a un pezzo. Si apre con un clic sul S/N nel titolo del report, da «Pagina del "
+                  "pezzo» in «Altri report dello stesso S/N» e dal S/N nella tabella «Pezzi e fasi» della scheda dell'OP. Lo "
+                  "stesso pezzo scritto in modi diversi (SN-7, SN7, sn 7) è riconosciuto come uno solo."),
+            ("p", "In alto il P/N, gli OP, lo stato dell'ultimo report, quanti report, quante quote sono andate fuori almeno "
+                  "una volta, le anomalie e se è il primo articolo del FAI. «Le quote del pezzo, report per report»: una "
+                  "colonna per report (al massimo gli ultimi 12) con la barra «Nella tolleranza» e «Δ ultimo − primo»; i "
+                  "filtri «Fuori almeno una volta» e «Cambiate fra i report» (oltre il 20% della tolleranza). A destra la "
+                  "storia: report (con le rimisure e gli esclusi) e anomalie che citano il S/N."),
+            ("p", "«Confronta le fasi» apre il Confronto report sugli ultimi 6 report del pezzo. «Scheda pezzo (PDF)» "
+                  "scarica la scheda con l'elenco dei report e le quote degli ultimi 6, da allegare o mandare al cliente."),
+        ],
+    },
+    {
         "id": "confronto",
         "titolo": "Confronto report",
         "blocchi": [

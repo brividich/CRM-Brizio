@@ -129,3 +129,33 @@ class MatriceOpTests(QuoteBase):
         for sez in ("report", "documenti", "fai", "programmi", "xyz"):
             self.assertEqual(self.client.get(reverse("produzione:scheda", args=[self.pk]), {"sez": sez}).status_code, 200)
         self.assertEqual(self.client.get(reverse("produzione:scheda", args=[self.pk]), {"aggiungi": "1"}).context["sezione"], "documenti")
+
+
+class PezzoTests(QuoteBase):
+    def setUp(self):
+        super().setUp()
+        self.r1 = self.report("SN-7", [q(D40, 40.010), q(D62, 62.010)], prog="P120", giorni=0)
+        self.r2 = self.report("SN7", [q(D40, 40.030), q(D62, 62.011)], prog="PCQF", giorni=1)      # fuori
+        self.r3 = self.report("sn 7", [q(D40, 40.012), q(D62, 62.012)], prog="PCQF", giorni=2)    # rimisura
+        self.altro = self.report("SN8", [q(D40, 40.0)], prog="P120", giorni=3)
+
+    def test_dati_pezzo(self):
+        d = pagine.pezzo("PN-ALFA-1", "SN7")
+        self.assertEqual([r.pk for r in d["reports"]], [self.r1.pk, self.r2.pk, self.r3.pk])   # stesso pezzo, scritture diverse
+        self.assertEqual(d["n_fuori"], 1)
+        self.assertEqual(d["stato"], "ok")
+        self.assertEqual(d["storia"][0]["testo"], "PCQF · rimisura")
+        self.assertEqual([r["nome"] for r in pagine.pezzo("PN-ALFA-1", "SN7", "fuori")["righe"]], ["Ø40 H7"])
+        self.assertIsNone(pagine.pezzo("PN-ALFA-1", "SN99"))
+
+    def test_pagina_e_pdf(self):
+        url = reverse("produzione:pezzo")
+        r = self.client.get(url, {"pn": "pn-alfa-1", "sn": "SN7"})
+        self.assertContains(r, "Storia del pezzo")
+        self.assertContains(r, "Confronta le fasi")
+        self.assertEqual(self.client.get(url, {"pn": "PN-ALFA-1", "sn": "XX"}).status_code, 404)
+        pdf = self.client.get(url, {"pn": "PN-ALFA-1", "sn": "SN7", "formato": "pdf"})
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
+        rep = self.client.get(reverse("produzione:report_cmm", args=[self.r2.pk]))
+        self.assertContains(rep, "Pagina del pezzo")

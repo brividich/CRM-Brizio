@@ -457,8 +457,8 @@ def report_cmm(request, pk: int):
     return render(request, "produzione/report_cmm.html", _ctx(
         request, "pn", report=report, righe=righe, conta=dati["conta"], filtro=filtro, prima=dati["prima"],
         dopo=dati["dopo"], proposte=pagine_cmm.proposte(report), op=op, motivi=MOTIVI_ESCLUSIONE,
-        url_anomalia=url_anomalia, altri=ReportCMM.objects.filter(pn=report.pn, seriale=report.seriale)
-        .exclude(pk=report.pk).exclude(seriale="").order_by("data", "id")[:20] if report.seriale else [],
+        url_anomalia=url_anomalia,
+        altri=[r for r in pagine_cmm.report_del_pezzo(report.pn, report.seriale) if r.pk != report.pk][:20] if report.seriale else [],
     ))
 
 
@@ -694,3 +694,34 @@ def guida(request):
     return render(request, "produzione/guida.html", _ctx(
         request, "guida", sezioni=guida_mod.SEZIONI, titolo=guida_mod.TITOLO, sottotitolo=guida_mod.SOTTOTITOLO,
     ))
+
+
+@login_required
+@require_GET
+def pezzo(request):
+    """Pagina del pezzo (``?pn=&sn=``): tutti i suoi report, le quote fase per fase, la storia; ``formato=pdf``."""
+    pn = normalize_part_number(request.GET.get("pn") or "")
+    sn = (request.GET.get("sn") or "").strip()
+    dati = pagine_cmm.pezzo(pn, sn, request.GET.get("solo", "")) if pn and sn else None
+    if dati is None:
+        raise Http404("Nessun report CMM per questo pezzo.")
+    if request.GET.get("formato") == "pdf":
+        from . import pdf_pezzo
+
+        contenuto = pdf_pezzo.genera(dati, request.user.get_full_name() or request.user.get_username())
+        log_action(request, "produzione_pezzo_pdf", "produzione", {"pn": pn, "sn": dati["sn"]})
+        resp = HttpResponse(contenuto, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="Scheda_pezzo_{pn}_{dati["sn"]}.pdf"'
+        return resp
+    colori = ["#2563eb", "#0d9488", "#d97706", "#9333ea", "#db2777", "#4b5563"]
+    dati["intestazioni"] = [{"r": c, "colore": colori[i % len(colori)]} for i, c in enumerate(dati["colonne"])]
+    for riga in dati["righe"]:
+        riga["celle"] = [(v, colori[i % len(colori)]) for i, v in enumerate(riga["valori"])]
+    op = op_db.per_titolo(dati["ultimo"].op) if dati["ultimo"].op and op_db.disponibile() else None
+    url_anomalia = ""
+    if op:
+        url_anomalia = f"{reverse('apertura_segnalazione')}?{urlencode({'op_id': op['id'], 'report_cmm': dati['ultimo'].pk})}"
+    return render(request, "produzione/pezzo.html", _ctx(
+        request, "pn", op=op, url_anomalia=url_anomalia, url_pn=services.url_pn(pn),
+        query_base=urlencode({"pn": pn, "sn": dati["sn"]}), ids_confronto="&".join(f"r={c.pk}" for c in dati["colonne"][-6:]),
+        **dati))

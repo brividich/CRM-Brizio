@@ -20,6 +20,7 @@ urlpatterns = [
     path("report-cmm/<int:pk>/escludi/", views.report_escludi, name="report_escludi"),
     path("pn/leggi-report/", views.pn_leggi_report, name="pn_leggi_report"),
     path("report-cmm/confronta/", views.report_confronta, name="report_confronta"),
+    path("pezzo/", views.pezzo, name="pezzo"),
     path("report-cmm/<int:pk>/", views.report_cmm, name="report_cmm"),
     path("report-cmm/<int:pk>/pdf/", views.report_cmm_pdf, name="report_cmm_pdf"),
     path("pn/sincronizza/", views.pn_sincronizza, name="pn_sincronizza"),

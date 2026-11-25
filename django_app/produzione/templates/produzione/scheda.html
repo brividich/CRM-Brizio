@@ -52,7 +52,7 @@
           <tbody>
             {% for p in matrice.pezzi %}
             <tr>
-              <th class="prod-matrice-sn" scope="row">{{ p.sn }}{% if p.anomalie %} <a class="prod-stato is-allerta" href="{{ url_anomalie }}">{{ p.anomalie }} anomali{{ p.anomalie|pluralize:"a,e" }}</a>{% endif %}</th>
+              <th class="prod-matrice-sn" scope="row"><a href="{% url 'produzione:pezzo' %}?pn={{ op.pn|urlencode }}&amp;sn={{ p.sn|urlencode }}">{{ p.sn }}</a>{% if p.anomalie %} <a class="prod-stato is-allerta" href="{{ url_anomalie }}">{{ p.anomalie }} anomali{{ p.anomalie|pluralize:"a,e" }}</a>{% endif %}</th>
               {% for c in p.riga %}
               <td>{% if c %}<a class="prod-cella is-{{ c.stato }}" href="{% url 'produzione:report_cmm' c.id %}" title="{{ c.data|date:'d/m/Y' }}{% if c.n > 1 %} · misurato {{ c.n }} volte{% endif %}">{% if c.stato == "fuori" %}{{ c.fuori }} fuori{% elif c.stato == "limite" %}al limite{% else %}OK{% endif %}{% if c.n > 1 %} <i>↻</i>{% endif %}</a>{% else %}<span class="prod-cella is-vuota">—</span>{% endif %}</td>
               {% endfor %}

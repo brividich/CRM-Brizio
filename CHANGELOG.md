@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: pagina del pezzo (S/N) con scheda PDF
+
+- Nuova pagina del pezzo (`/produzione/pezzo/?pn=&sn=`): tutti i report CMM di un S/N (anche scritto in modi diversi), le quote report per report con la barra nella tolleranza e la differenza fra primo e ultimo, filtri «Fuori almeno una volta» e «Cambiate fra i report», storia con rimisure, esclusi e anomalie del S/N, segnale «Primo articolo del FAI». «Confronta le fasi» e «Scheda pezzo (PDF)» da allegare o mandare al cliente.
+- Si apre dal S/N nel titolo del report, da «Pagina del pezzo» in «Altri report dello stesso S/N» (che ora trova il pezzo anche con S/N scritto diverso) e dal S/N nella matrice «Pezzi e fasi» della scheda OP.
+- File: `django_app/produzione/report_cmm_pagine.py` (`pezzo`, `report_del_pezzo`), `pdf_pezzo.py` (nuovo), `views.py` (`pezzo`), `urls.py`, `acl_bootstrap.py` (binding `produzione:pezzo`, cache v10), `templates/produzione/pezzo.html` (nuovo), `report_cmm.html`, `scheda.html`, `static/produzione/css/produzione.css`, `core/ordini_produzione.py` (`anomalie_del_seriale`), `guida.py`, `core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`, test `tests_report_pagine.py`.
+
 ### Ordini di produzione: anagrafica e catalogo dei P/N
 
 - Nuova anagrafica dei P/N (tabella `produzione_articolopn`, migrazione `produzione 0005`): ogni P/N degli OP, dei KICK-OFF e delle cartelle della share Collaudo diventa un articolo con descrizione, cliente, disegno, revisione, materiale, famiglia, stato e note. Descrizione, cliente e revisione vuoti si completano dal KICK-OFF e il cliente dal Registro FAI, senza mai sovrascrivere quello scritto a mano.

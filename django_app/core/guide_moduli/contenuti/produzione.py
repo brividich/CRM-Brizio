@@ -91,6 +91,9 @@ GUIDA = {
                       "barra nella tolleranza, tolleranza usata, differenza dal pezzo prima e Cpk; filtri Fuori, Al limite, "
                       "Diverse dal pezzo prima; «‹ Pezzo prima / Pezzo dopo ›», «Apri il PDF», «Apri segnalazione anomalia» "
                       "con il pannello «📄 Dal report CMM (PDF)» già pronto."),
+                ("p", "Pagina del pezzo (clic sul S/N nel titolo del report o nella tabella «Pezzi e fasi» dell'OP): tutte "
+                      "le quote del S/N report per report, storia con rimisure e anomalie, «Confronta le fasi» e «Scheda "
+                      "pezzo (PDF)»."),
                 ("p", "Confronto report: spunta da 2 a 6 righe negli elenchi dei report e premi «Confronta». Quote "
                       "allineate (anche quelle unite fra programmi), differenza fra ultimo e primo in % della tolleranza, "
                       "confronti pronti (stesso S/N in tutte le fasi, primo articolo e ultimi pezzi, pezzo prima e dopo), "

@@ -23,7 +23,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "produzione"
-_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v9"  # v9: anagrafica P/N e catalogo
+_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v10"  # v10: pagina del pezzo
 
 PERM_VIEW = "produzione.op.view"
 PERM_DOCUMENTI = "produzione.documenti.manage"
@@ -69,6 +69,7 @@ _ROUTE_BINDINGS = {
     "produzione:report_cmm": PERM_VIEW,
     "produzione:report_cmm_pdf": PERM_VIEW,
     "produzione:report_confronta": PERM_VIEW,
+    "produzione:pezzo": PERM_VIEW,
     "produzione:guida": PERM_VIEW,
     "produzione:documento": PERM_DOCUMENTI,
     "produzione:documento_elimina": PERM_DOCUMENTI,

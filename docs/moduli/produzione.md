@@ -27,6 +27,11 @@ Ogni OP con i suoi documenti di produzione. Gli OP sono la tabella legacy `ordin
 
 Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KICK-OFF rispettano i permessi del modulo KICK-OFF.
 
+### Pagina del pezzo (26/11/2026)
+
+- `/produzione/pezzo/?pn=<P/N>&sn=<S/N>`: report del pezzo (S/N confrontato su lettere e cifre), quote allineate come nel confronto (ultimi 12 report), filtri `solo=fuori|cambiate`, storia con anomalie del S/N (`core.ordini_produzione.anomalie_del_seriale`); `formato=pdf` scarica la scheda pezzo (`produzione/pdf_pezzo.py`, ultimi 6 report). Dati in `report_cmm_pagine.pezzo` e `report_del_pezzo`. Nessuna tabella nuova.
+- Link: S/N nel titolo del report, «Pagina del pezzo» in «Altri report dello stesso S/N» (ora riconosce anche il S/N scritto diverso), S/N nella matrice «Pezzi e fasi» dell'OP.
+
 ### Anagrafica e catalogo dei P/N (26/11/2026)
 
 - Tabella `produzione_articolopn` (`ArticoloPN`, migrazione `produzione 0005`): P/N unico, descrizione, cliente, disegno, revisione, materiale, famiglia, stato (vuoto = dall'attività), note, origine, cartella Collaudo, chi ha modificato; riepilogo precalcolato (OP, OP aperti, report, report 12 mesi, fuori 30 giorni, ultimo report, Cpk peggiore, quote non capaci, andamento per mese).
