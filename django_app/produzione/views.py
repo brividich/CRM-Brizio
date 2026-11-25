@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from core import ordini_produzione as op_db
+from tasks.identity import normalize_part_number
 from core.acl_v2 import request_has_permission_code
 from core.audit import log_action
 from core.paginazione import pagina_elenco
@@ -24,6 +25,7 @@ from tasks.tech_paths import normalizza_percorso
 from . import guida as guida_mod
 from . import nuovo_op, services
 from . import report_cmm_indice as cmm
+from . import report_cmm_pagine as pagine_cmm
 from .acl_bootstrap import PERM_DOCUMENTI, PERM_IMPOSTAZIONI, PERM_QUOTE
 from .models import (
     AliasQuotaCMM, CartellaReportCMM, DocumentoOP, ImpostazioniQuoteCMM, NotaQuotaCMM, ReportCMM, TipoDocumento,
@@ -88,13 +90,31 @@ def pn_elenco(request):
 
 @login_required
 @require_GET
-def pn_scheda(request):
+def pn_scheda(request, pn: str | None = None):
+    """Scheda del P/N a sezioni (``?sez=``). L'indirizzo vecchio ``/pn/scheda/?pn=`` porta a quello stabile."""
+    if pn is None:
+        vecchio = (request.GET.get("pn") or "").strip()
+        if not vecchio:
+            raise Http404
+        return redirect(services.url_pn(normalize_part_number(vecchio), request.GET.get("sez", "")), permanent=True)
     if not op_db.disponibile():
         raise Http404
-    dati = services.scheda_pn(request, request.GET.get("pn") or "")
+    dati = services.scheda_pn(request, pn)
     if dati is None:
         raise Http404
-    return render(request, "produzione/pn_scheda.html", _ctx(request, "pn", **dati))
+    sezioni = dict(services.SEZIONI_PN)
+    sezione = request.GET.get("sez", "")
+    if sezione not in sezioni:
+        sezione = ""
+    conta = {"op": len(dati["ops"]), "report": dati["report_cmm"]["n"], "programmi": len(dati["programmi"]),
+             "fai": len(dati["fai_pn"])}
+    if sezione == "report":
+        dati["report_cmm"]["ultimi"] = list(cmm.ReportCMM.objects.filter(pn=dati["pn"], righe__gt=0, escluso=False)
+                                            .order_by("-data", "-id")[:60])
+        dati["programmi_cmm"] = cmm.programmi_del_pn(dati["pn"])
+    tab = [{"chiave": k, "nome": v, "n": conta.get(k), "url": services.url_pn(dati["pn"], k)}
+           for k, v in services.SEZIONI_PN if k in ("", "op", "report") or dati["vede_kickoff"]]
+    return render(request, "produzione/pn_scheda.html", _ctx(request, "pn", sezione=sezione, sezioni=tab, **dati))
 
 
 @login_required
@@ -367,18 +387,71 @@ def pn_leggi_report(request):
 @login_required
 @require_GET
 def report_cmm(request, pk: int):
-    """Un report CMM: le quote fuori tolleranza (o tutte), con l'andamento di ciascuna e il link all'anomalia."""
+    """Un report CMM: tutte le quote (le fuori in cima) con posizione nella tolleranza, differenza dal pezzo
+    prima e Cpk della quota; pezzo prima / dopo, confronti pronti e link all'anomalia."""
     report = get_object_or_404(ReportCMM, pk=pk)
-    tutte = request.GET.get("tutte") == "1"
-    misure = report.misure.all() if tutte else report.misure.filter(Q(fuori=True) | Q(da_verificare=True))
+    dati = pagine_cmm.righe_report(report)
+    filtro = request.GET.get("f", "")
+    righe = dati["righe"]
+    if filtro == "fuori":
+        righe = [r for r in righe if r["m"].fuori or r["m"].da_verificare]
+    elif filtro == "limite":
+        righe = [r for r in righe if r["limite"] or r["m"].fuori]
+    elif filtro == "cambiate":
+        righe = [r for r in righe if r["delta"] is not None and r["m"].tol_sup != r["m"].tol_inf
+                 and abs(r["delta"]) / (r["m"].tol_sup - r["m"].tol_inf) > pagine_cmm.SOGLIA_CAMBIO]
+    else:
+        filtro = ""
     op = op_db.per_titolo(report.op) if report.op and op_db.disponibile() else None
     url_anomalia = ""
     if op:
         url_anomalia = f"{reverse('apertura_segnalazione')}?{urlencode({'op_id': op['id'], 'report_cmm': report.pk})}"
     return render(request, "produzione/report_cmm.html", _ctx(
-        request, "pn", report=report, misure=list(misure.order_by("indice")), tutte=tutte, op=op, motivi=MOTIVI_ESCLUSIONE,
+        request, "pn", report=report, righe=righe, conta=dati["conta"], filtro=filtro, prima=dati["prima"],
+        dopo=dati["dopo"], proposte=pagine_cmm.proposte(report), op=op, motivi=MOTIVI_ESCLUSIONE,
         url_anomalia=url_anomalia, altri=ReportCMM.objects.filter(pn=report.pn, seriale=report.seriale)
-        .exclude(pk=report.pk).exclude(seriale="")[:20] if report.seriale else [],
+        .exclude(pk=report.pk).exclude(seriale="").order_by("data", "id")[:20] if report.seriale else [],
+    ))
+
+
+@login_required
+@require_GET
+def report_confronta(request):
+    """Da 2 a 6 report affiancati, quota per quota (``?r=<id>&r=<id>…``); ``formato=csv`` per Excel."""
+    reports = pagine_cmm.report_da_confrontare(request.GET.getlist("r"))
+    solo = request.GET.get("solo") == "1"
+    if len(reports) < 2:
+        messages.info(request, "Per confrontare servono almeno due report: spunta le righe nell'elenco e premi «Confronta».")
+        if reports:
+            return redirect("produzione:report_cmm", reports[0].pk)
+        return redirect("produzione:quote_cruscotto")
+    dati = pagine_cmm.confronta(reports, solo_cambiate=solo)
+    if request.GET.get("formato") == "csv":
+        import csv
+
+        risposta = HttpResponse(content_type="text/csv; charset=utf-8")
+        risposta["Content-Disposition"] = 'attachment; filename="confronto_report_cmm.csv"'
+        risposta.write("﻿")
+        w = csv.writer(risposta, delimiter=";")
+        w.writerow(["Quota", "Nominale", "Limite inferiore", "Limite superiore"]
+                   + [f"{r.seriale or r.file} {r.data:%d/%m/%Y}" if r.data else (r.seriale or r.file) for r in reports]
+                   + ["Differenza ultimo-primo", "% tolleranza"])
+        num = lambda v: "" if v is None else f"{v:.4f}".replace(".", ",")
+        for riga in dati["righe"]:
+            w.writerow([riga["nome"], num(riga["nominale"]), num(riga["lsl"]), num(riga["usl"])]
+                       + [num(v["x"]) if v else "" for v in riga["valori"]]
+                       + [num(riga["delta"]), "" if riga["delta_pct"] is None else riga["delta_pct"]])
+        return risposta
+    pn = reports[0].pn
+    colori = ["#2563eb", "#0d9488", "#d97706", "#9333ea", "#db2777", "#4b5563"]
+    colonne = [{"r": r, "colore": colori[i]} for i, r in enumerate(reports)]
+    for riga in dati["righe"]:
+        riga["celle"] = list(zip(riga["valori"], colori))
+    ids = [r.pk for r in reports]
+    return render(request, "produzione/report_confronta.html", _ctx(
+        request, "pn", pn=pn, colonne=colonne, righe=dati["righe"], totale=dati["totale"], cambiate=dati["cambiate"],
+        solo=solo, proposte=pagine_cmm.proposte(reports[-1]), ids=ids, query_ids="&".join(f"r={i}" for i in ids),
+        soglia=round(pagine_cmm.SOGLIA_CAMBIO * 100), massimo=pagine_cmm.MAX_CONFRONTO,
     ))
 
 

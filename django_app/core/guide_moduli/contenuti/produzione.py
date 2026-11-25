@@ -32,9 +32,9 @@ GUIDA = {
                 ("p", "Il P/N è l'articolo principale: ha più OP e i FAI sono suoi, non del singolo OP. La scheda «P/N» "
                       "elenca i P/N degli OP con numero di OP, ultimo OP, capocommessa, FAI, «Situazione FAI» e anomalie "
                       "aperte; «Da sistemare» filtra «Con anomalie aperte», «Senza FAI» e «FAI da ripetere o verificare»."),
-                ("p", "La scheda del P/N segue quattro passi: KICK-OFF del P/N, programmi CAM e CMM, FAI del P/N (situazione "
-                      "per cliente, tutti i FAI con il loro OP, «+ Nuovo FAI per questo P/N»), OP del P/N (documenti e "
-                      "anomalie aperte di ciascuno)."),
+                ("p", "La scheda del P/N (indirizzo fisso /produzione/pn/<P/N>/) ha in alto la striscia del percorso "
+                      "(KICK-OFF, programmi CAM e CMM, FAI, OP) e sotto le sezioni Panoramica («Da fare», pezzi misurati per "
+                      "mese, quote da tenere d'occhio, OP), OP, Report CMM, Programmi e FAI."),
             ],
         },
         {
@@ -83,8 +83,14 @@ GUIDA = {
                       "lato, 6 in salita/discesa), eventi (cambio revisione, note), bandierine delle anomalie, quote unite fra "
                       "programmi, «PDF di capacità». «Quote CMM» elenca tutti i P/N dal più grave; Impostazioni › «Avvisi delle "
                       "quote CMM» sceglie chi riceve gli avvisi."),
-                ("p", "La scheda del P/N mostra le «Quote da tenere d'occhio». Dal report di un S/N: quote fuori, "
-                      "«Apri il PDF», «Apri segnalazione anomalia» con il pannello «📄 Dal report CMM (PDF)» già pronto."),
+                ("p", "La scheda del P/N mostra le «Quote da tenere d'occhio». Dal report di un S/N: tutte le quote con "
+                      "barra nella tolleranza, tolleranza usata, differenza dal pezzo prima e Cpk; filtri Fuori, Al limite, "
+                      "Diverse dal pezzo prima; «‹ Pezzo prima / Pezzo dopo ›», «Apri il PDF», «Apri segnalazione anomalia» "
+                      "con il pannello «📄 Dal report CMM (PDF)» già pronto."),
+                ("p", "Confronto report: spunta da 2 a 6 righe negli elenchi dei report e premi «Confronta». Quote "
+                      "allineate (anche quelle unite fra programmi), differenza fra ultimo e primo in % della tolleranza, "
+                      "confronti pronti (stesso S/N in tutte le fasi, primo articolo e ultimi pezzi, pezzo prima e dopo), "
+                      "export CSV."),
             ],
         },
     ],

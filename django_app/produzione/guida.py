@@ -49,14 +49,21 @@ SEZIONI: list[dict] = [
                   "i suoi OP. La ricerca trova il P/N anche da un suo OP, capocommessa o CAR, e conta comunque tutti i suoi OP."),
             ("p", "«Da sistemare» filtra i P/N «Con anomalie aperte», quelli «Senza FAI» e quelli con «FAI da ripetere o "
                   "verificare»."),
-            ("p", "La scheda del P/N è un percorso in quattro passi:"),
+            ("p", "La scheda del P/N ha un indirizzo fisso, /produzione/pn/<P/N>/, che si può salvare o mandare. In alto la "
+                  "striscia del percorso (KICK-OFF del P/N, Programmi CAM e CMM, FAI del P/N, OP del P/N) con lo stato di ogni "
+                  "passo: ✓ fatto, numero arancione da fare, giallo in attesa, rosso da sistemare; il titolo apre il passo. "
+                  "Sotto, le sezioni:"),
             ("def", [
-                ("1 · KICK-OFF del P/N", "come nella scheda dell'OP."),
-                ("2 · Programmi CAM e CMM", "come nella scheda dell'OP."),
-                ("3 · FAI del P/N", "la situazione per cliente (con la data «entro» cui ripeterlo) e tutti i FAI del P/N con il "
-                 "loro OP; «+ Nuovo FAI per questo P/N» apre la scheda FAI col P/N già scritto."),
-                ("4 · OP del P/N", "tutti gli OP con CAR, stato, documenti e anomalie aperte; «Manca» e il numero delle "
-                 "anomalie portano al passo della scheda dell'OP."),
+                ("Panoramica", "«Da fare», una sola lista dalla più urgente (quote fuori nell'ultimo report, quote in deriva, "
+                 "anomalie aperte, OP senza documenti, ognuna col suo pulsante); «Pezzi misurati per mese» (report CMM validi "
+                 "degli ultimi 6 mesi, in rosso quelli con quote fuori); «Quote da tenere d'occhio» e gli OP."),
+                ("OP", "tutti gli OP con CAR, stato, documenti e anomalie aperte; «Manca» e il numero delle anomalie portano "
+                 "alla scheda dell'OP."),
+                ("Report CMM", "le quote da tenere d'occhio, i programmi CMM letti (con «Analisi quote») e gli ultimi 60 "
+                 "report, da spuntare per il confronto."),
+                ("Programmi", "i programmi CAM e CMM del KICK-OFF."),
+                ("FAI", "la situazione per cliente (con la data «entro» cui ripeterlo), tutti i FAI del P/N con il loro OP e "
+                 "il report CMM del primo articolo; «+ Nuovo FAI» apre la scheda FAI col P/N già scritto."),
             ]),
             ("p", "Il P/N nell'elenco degli OP e nella scheda dell'OP porta alla scheda del P/N."),
         ],
@@ -175,9 +182,29 @@ SEZIONI: list[dict] = [
             ("p", "Avvisi: in Impostazioni › «Avvisi delle quote CMM» si sceglie chi li riceve (campanella del portale) e se "
                   "avvisare per i report nuovi con quote fuori e per le quote che vanno in deriva (al massimo un avviso al mese per "
                   "quota). Il FAI mostra il «Report CMM del primo articolo» del suo OP con il Cpk sui pezzi dopo."),
-            ("p", "Dal report (clic su un S/N): le quote fuori tolleranza, «Andamento» per ciascuna, «Apri il PDF» e "
-                  "«Apri segnalazione anomalia», che apre Gestione anomalie sull'OP con il pannello «📄 Dal report CMM "
-                  "(PDF)» già pronto."),
+            ("p", "Dal report (clic su un S/N): tutte le quote, con le fuori in cima. Per ogni quota la barra «Nella "
+                  "tolleranza» (zona verde = tolleranza, linea al centro = valore ideale), «Usata» (quanto della metà "
+                  "tolleranza è consumato: 100% = al limite, gialla oltre l'80%), «Δ pezzo prima» (differenza dal report "
+                  "precedente dello stesso programma), il Cpk sugli ultimi 30 pezzi e «Andamento». I filtri «Tutte», «Fuori», "
+                  "«Al limite» e «Diverse dal pezzo prima» (oltre il 20% della tolleranza) restringono l'elenco. In alto "
+                  "«‹ Pezzo prima» e «Pezzo dopo ›», «Confronta», «Apri il PDF» e «Apri segnalazione anomalia», che apre "
+                  "Gestione anomalie sull'OP con il pannello «📄 Dal report CMM (PDF)» già pronto."),
+        ],
+    },
+    {
+        "id": "confronto",
+        "titolo": "Confronto report",
+        "blocchi": [
+            ("p", "Affianca da 2 a 6 report, quota per quota. Negli elenchi dei report (scheda del P/N, scheda dell'OP, «Altri "
+                  "report dello stesso S/N») spunta le righe: compare la barra «N report scelti» con «Confronta». Dal report "
+                  "ci sono anche «Confronta» (pezzo prima e dopo) e «Confronta le fasi» (stesso S/N in tutti i programmi)."),
+            ("p", "Ogni colonna è un report, con il suo colore; le quote si allineano per nome e nominale e quelle unite in "
+                  "Analisi quote stanno sulla stessa riga anche fra programmi diversi. «Δ ultimo − primo» è la differenza fra "
+                  "l'ultimo e il primo report che misurano la quota, anche in % della tolleranza; la barra mostra dove cade "
+                  "ogni report. Prima le quote fuori, poi quelle che cambiano più del 20% della tolleranza."),
+            ("p", "«Confronti pronti»: «Stesso S/N, tutte le fasi», «Primo articolo e ultimi pezzi» (il primo report dell'OP "
+                  "con gli ultimi tre dello stesso programma), «Pezzo prima e dopo». «Che cambiano o fuori» nasconde il resto; "
+                  "«Esporta CSV» scarica la tabella per Excel."),
         ],
     },
     {

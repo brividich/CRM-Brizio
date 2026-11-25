@@ -36,7 +36,7 @@
           {% for r in righe %}
           {% url 'produzione:pn_quote' as url_aq %}
           <tr>
-            <td><a class="prod-op" href="{% url 'produzione:pn_scheda' %}?pn={{ r.pn|urlencode }}">{{ r.pn }}</a></td>
+            <td><a class="prod-op" href="{% url 'produzione:pn' r.pn %}">{{ r.pn }}</a></td>
             <td><svg class="prod-sett" width="108" height="24" role="img" aria-label="Report con quote fuori per settimana">{% for b in r.barre %}<rect x="{{ b.x }}" y="{{ b.y }}" width="7" height="{{ b.h }}" rx="1.5"{% if b.v %} class="is-fuori"{% endif %}><title>{{ b.v }}</title></rect>{% endfor %}</svg></td>
             <td class="prod-n">{% if r.fuori_rec %}<span class="prod-manca is-allerta">{{ r.fuori_rec }}</span>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
             <td class="prod-n">{% if r.fuori_ultimo %}<span class="prod-stato is-danger">{{ r.fuori_ultimo }}</span>{% else %}<span class="prod-zero">0</span>{% endif %}</td>

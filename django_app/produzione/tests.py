@@ -99,7 +99,7 @@ class SchedaTest(ProduzioneBase):
         self.assertEqual([d.titolo for d in c["documenti"]], ["Ciclo 1"])
         # Il FAI è del P/N: la scheda dell'OP mostra tutti i FAI del suo P/N, non solo quelli che citano l'OP.
         self.assertEqual(c["fai_pn"], [fai_pn, fai_op])
-        self.assertContains(pagina, "/produzione/pn/scheda/?pn=PN-ALFA-1")
+        self.assertContains(pagina, "/produzione/pn/PN-ALFA-1/")
         self.assertEqual([r.code for r in c["programmi"]], ["CMM-ALFA"])
         self.assertEqual(c["anomalie"], {"totale": 2, "aperte": 1})
         self.assertEqual([o["op"] for o in c["altri_op"]], ["OP/2025/900"])
@@ -205,7 +205,7 @@ class PartNumberTest(ProduzioneBase):
         DocumentoOP.objects.create(op="OP/2026/100", tipo=self.tipo, titolo="Ciclo 1")
         fai = self._fai("")
         self._fai("OP/2026/101", pn="PN-BETA-2")
-        pagina = self.client.get(reverse("produzione:pn_scheda"), {"pn": " pn-alfa-1 "})
+        pagina = self.client.get(reverse("produzione:pn_scheda"), {"pn": " pn-alfa-1 "}, follow=True)
         self.assertEqual(pagina.status_code, 200)
         c = pagina.context
         self.assertEqual(c["pn"], "PN-ALFA-1")
@@ -220,14 +220,29 @@ class PartNumberTest(ProduzioneBase):
         self.assertContains(pagina, "/tasks/fai/nuovo/?pn=PN-ALFA-1")
 
     def test_scheda_pn_senza_fai_propone_nuovo_fai(self):
-        pagina = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-BETA-2"})
+        pagina = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-BETA-2"}, follow=True)
         passi = {p["chiave"]: p for p in pagina.context["passi"]}
         self.assertEqual(passi["fai"]["stato"], "dafare")
         self.assertEqual(passi["fai"]["url"], "/tasks/fai/nuovo/?pn=PN-BETA-2")
 
     def test_pn_sconosciuto_404(self):
-        self.assertEqual(self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-NESSUNO"}).status_code, 404)
+        self.assertEqual(self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-NESSUNO"}, follow=True).status_code, 404)
         self.assertEqual(self.client.get(reverse("produzione:pn_scheda")).status_code, 404)
+        self.assertEqual(self.client.get(reverse("produzione:pn", args=["PN-NESSUNO"])).status_code, 404)
+
+    def test_indirizzo_stabile_e_sezioni(self):
+        vecchio = self.client.get(reverse("produzione:pn_scheda"), {"pn": " pn-alfa-1 ", "sez": "op"})
+        self.assertRedirects(vecchio, "/produzione/pn/PN-ALFA-1/?sez=op", status_code=301, fetch_redirect_response=False)
+        for sez in ("", "op", "report", "programmi", "fai"):
+            r = self.client.get(reverse("produzione:pn", args=["PN-ALFA-1"]), {"sez": sez})
+            self.assertEqual(r.status_code, 200, sez)
+            self.assertEqual(r.context["sezione"], sez)
+        r = self.client.get(reverse("produzione:pn", args=["PN-ALFA-1"]))
+        self.assertContains(r, "Da fare")
+        self.assertContains(r, 'aria-current="page"')
+        self.assertTrue(any("anomali" in v["testo"] for v in r.context["da_fare"]))
+        self.assertEqual(len(r.context["pezzi_mese"]), 6)
+        self.assertEqual(self.client.get(reverse("produzione:pn", args=["PN-ALFA-1"]), {"sez": "xyz"}).context["sezione"], "")
 
 
 class RicercaGlobaleTest(ProduzioneBase):

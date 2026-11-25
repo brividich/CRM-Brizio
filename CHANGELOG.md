@@ -9,6 +9,19 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: scheda P/N a sezioni con indirizzo stabile
+
+- La scheda del P/N ha un indirizzo fisso, `/produzione/pn/<P/N>/` (il vecchio `/produzione/pn/scheda/?pn=` reindirizza), e non è più una colonna lunga di riquadri: in alto la striscia del percorso (KICK-OFF, programmi, FAI, OP) con lo stato di ogni passo, sotto le sezioni Panoramica, OP, Report CMM, Programmi e FAI, ognuna col suo indirizzo (`?sez=`).
+- Panoramica: «Da fare» in una sola lista dalla più urgente (quote fuori nell'ultimo report, quote in deriva, anomalie aperte, OP senza documenti), «Pezzi misurati per mese» (ultimi 6 mesi, in rosso quelli con quote fuori), quote da tenere d'occhio e OP. Tolti il riquadro «Prossimo passo» e i riquadri vuoti che ripetevano il percorso.
+- Sezione Report CMM: programmi CMM letti con link ad Analisi quote e gli ultimi 60 report da spuntare per il confronto.
+- File: `django_app/produzione/views.py`, `urls.py` (`pn/<path:pn>/`), `services.py` (`url_pn`, `SEZIONI_PN`, `da_fare_pn`, `pezzi_per_mese`), `acl_bootstrap.py` (binding `produzione:pn`, cache v8), `templates/produzione/pn_scheda.html`, `quote.html`, `quote_cruscotto.html`, `report_cmm.html`, `report_confronta.html`, `static/produzione/css/produzione.css`, `guida.py`, `core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`, test `tests.py`, `tests_quote_migliorie.py`, `tests_report_cmm.py`.
+
+### Ordini di produzione: report CMM con tutte le quote e confronto fra report
+
+- Report CMM: tutte le quote (prima solo le fuori), con barra «Nella tolleranza», tolleranza usata, differenza dal pezzo prima, Cpk della quota e segnale di deriva; filtri Tutte / Fuori / Al limite / Diverse dal pezzo prima; pulsanti «‹ Pezzo prima», «Pezzo dopo ›» e «Confronta». Corretto il titolo della pagina, che conteneva per errore il codice della finestra «Escludi».
+- Nuova pagina «Confronto report» (`/produzione/report-cmm/confronta/`): da 2 a 6 report affiancati quota per quota, allineati anche fra programmi con le quote unite; differenza ultimo − primo in % della tolleranza, barra con la posizione di ogni report, filtro «Che cambiano o fuori», confronti pronti (stesso S/N in tutte le fasi, primo articolo e ultimi pezzi, pezzo prima e dopo), export CSV.
+- Elenchi dei report (scheda P/N, scheda OP, «Altri report dello stesso S/N»): casella per scegliere i report e barra «Confronta».
+- File: `django_app/produzione/report_cmm_pagine.py` (nuovo), `views.py`, `urls.py`, `acl_bootstrap.py` (binding `report_confronta`, cache v7), `templates/produzione/report_cmm.html`, `report_confronta.html` (nuovo), `_report_cmm_tabella.html`, `pn_scheda.html`, `scheda.html`, `static/produzione/js/confronta.js` (nuovo), `static/produzione/css/produzione.css`, `guida.py`, `core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`, test `tests_report_pagine.py`, `tests_report_cmm.py`.
 ### Sessioni in aula: fasi, presenze in un tocco, firma e test dal telefono, chiusura in un passo, Da chiudere, efficacia
 
 Analisi dei dati di produzione (25/11/2026): 92 sessioni finite mai chiuse, 11 firme su 5.834 presenze, 0 valutazioni di efficacia, 0 approvazioni MOD.040, 0 esiti di verifica.

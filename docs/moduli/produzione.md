@@ -27,6 +27,18 @@ Ogni OP con i suoi documenti di produzione. Gli OP sono la tabella legacy `ordin
 
 Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KICK-OFF rispettano i permessi del modulo KICK-OFF.
 
+### Scheda P/N a sezioni (26/11/2026)
+
+- Indirizzo stabile `/produzione/pn/<P/N>/` (nome `produzione:pn`, `services.url_pn(pn, sezione)`); il vecchio `/produzione/pn/scheda/?pn=` reindirizza (301) e resta valido per i link degli altri moduli.
+- Sezioni con `?sez=`: Panoramica (vuota), `op`, `report`, `programmi`, `fai`. Programmi e FAI solo per chi vede i KICK-OFF.
+- Panoramica: striscia del percorso, «Da fare» (`services.da_fare_pn`: quote fuori nell'ultimo report o in deriva, anomalie aperte, OP senza documenti), «Pezzi misurati per mese» (`services.pezzi_per_mese`, report CMM validi degli ultimi 6 mesi).
+
+### Report CMM e confronto (26/11/2026)
+
+- `/produzione/report-cmm/<id>/`: tutte le quote del report (le fuori in cima) con barra nella tolleranza, tolleranza usata, differenza dal pezzo prima (stesso programma), Cpk sugli ultimi 30 pezzi; filtri `?f=fuori|limite|cambiate`; pezzo prima / dopo.
+- `/produzione/report-cmm/confronta/?r=<id>&r=<id>…`: da 2 a 6 report affiancati, quote allineate per nome e nominale e con le unioni di Analisi quote; `solo=1` solo quote che cambiano oltre il 20% della tolleranza o fuori; `formato=csv` per Excel. Si apre spuntando le righe negli elenchi dei report (scheda P/N, scheda OP, report).
+- Calcoli in `produzione/report_cmm_pagine.py` (`righe_report`, `vicini`, `confronta`, `proposte`). Permesso: `produzione.op.view`.
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |

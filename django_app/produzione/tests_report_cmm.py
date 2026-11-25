@@ -151,17 +151,18 @@ class PagineTests(ArchivioBase):
         critiche = cmm.quote_critiche("PN-ALFA-1")
         self.assertEqual({c["quota"]["nome"] for c in critiche}, {"196,00", "163,00 Dia F"})
         self.assertTrue(all(c["fuori_ultimo"] for c in critiche))
-        pagina = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"})
+        pagina = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"}, follow=True)
         self.assertContains(pagina, "Quote da tenere d", html=False)
 
     def test_report_fuori_e_link_anomalia(self):
         pagina = self.client.get(reverse("produzione:report_cmm", args=[self.r1.pk]))
         self.assertEqual(pagina.status_code, 200)
-        self.assertEqual([m.nome for m in pagina.context["misure"]], ["196,00", "163,00 Dia F"])
+        self.assertEqual([r["m"].nome for r in pagina.context["righe"]][:2], ["196,00", "163,00 Dia F"])   # fuori in cima
         self.assertIn(f"op_id={self.pk}", pagina.context["url_anomalia"])
         self.assertIn(f"report_cmm={self.r1.pk}", pagina.context["url_anomalia"])
-        tutte = self.client.get(reverse("produzione:report_cmm", args=[self.r1.pk]), {"tutte": "1"})
-        self.assertEqual(len(tutte.context["misure"]), 4)
+        self.assertEqual(len(pagina.context["righe"]), 4)                                # tutte le quote
+        fuori = self.client.get(reverse("produzione:report_cmm", args=[self.r1.pk]), {"f": "fuori"})
+        self.assertEqual(len(fuori.context["righe"]), 2)
 
     def test_pdf_solo_dentro_la_radice(self):
         r = self.client.get(reverse("produzione:report_cmm_pdf", args=[self.r1.pk]))
@@ -176,7 +177,7 @@ class PagineTests(ArchivioBase):
     def test_schede_op_e_pn_mostrano_i_report(self):
         scheda = self.client.get(reverse("produzione:scheda", args=[self.pk]))
         self.assertEqual(len(scheda.context["report_cmm"]), 2)
-        pn = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"})
+        pn = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"}, follow=True)
         self.assertEqual(pn.context["report_cmm"]["n"], 2)
         self.assertContains(pn, "Analisi quote")
 

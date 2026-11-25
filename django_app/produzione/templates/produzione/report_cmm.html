@@ -1,45 +1,20 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}{{ report.seriale|default:report.file }} · Report CMM{% if prod_puo_quote and not report.escluso %}
-<dialog class="prod-dialogo" id="dialogo-escludi" aria-labelledby="escludi-titolo">
-  <form method="post" action="{% url 'produzione:report_escludi' report.id %}">
-    {% csrf_token %}<input type="hidden" name="azione" value="escludi">
-    <h2 id="escludi-titolo">Escludi {{ report.seriale|default:report.file }} dall'analisi</h2>
-    <p class="prod-nota">Non conta più in statistiche, grafici, mappa e Cpk. Il PDF resta nella cartella; si può riammettere in ogni momento.</p>
-    <label class="prod-avvisi-campo">Motivo<select name="motivo">{% for m in motivi %}<option>{{ m }}</option>{% endfor %}</select></label>
-    <label class="prod-avvisi-campo">Nota (facoltativa)<input name="nota" maxlength="300" placeholder="es. ripassato in rettifica, rimisurato"></label>
-    <p class="prod-nota">Resta scritto chi l'ha escluso e quando.</p>
-    <div class="prod-dialogo-azioni"><button type="button" class="prod-btn" data-chiudi-dialogo>Annulla</button><button type="submit" class="prod-btn prod-btn-primary">Escludi</button></div>
-  </form>
-</dialog>
-<script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
-{% endif %}
-{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125a">{% if prod_puo_quote and not report.escluso %}
-<dialog class="prod-dialogo" id="dialogo-escludi" aria-labelledby="escludi-titolo">
-  <form method="post" action="{% url 'produzione:report_escludi' report.id %}">
-    {% csrf_token %}<input type="hidden" name="azione" value="escludi">
-    <h2 id="escludi-titolo">Escludi {{ report.seriale|default:report.file }} dall'analisi</h2>
-    <p class="prod-nota">Non conta più in statistiche, grafici, mappa e Cpk. Il PDF resta nella cartella; si può riammettere in ogni momento.</p>
-    <label class="prod-avvisi-campo">Motivo<select name="motivo">{% for m in motivi %}<option>{{ m }}</option>{% endfor %}</select></label>
-    <label class="prod-avvisi-campo">Nota (facoltativa)<input name="nota" maxlength="300" placeholder="es. ripassato in rettifica, rimisurato"></label>
-    <p class="prod-nota">Resta scritto chi l'ha escluso e quando.</p>
-    <div class="prod-dialogo-azioni"><button type="button" class="prod-btn" data-chiudi-dialogo>Annulla</button><button type="submit" class="prod-btn prod-btn-primary">Escludi</button></div>
-  </form>
-</dialog>
-<script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
-{% endif %}
-{% endblock %}
+{% block title %}{{ report.seriale|default:report.file }} · Report CMM{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126a">{% endblock %}
 
 {% block content %}
 <div class="prod">
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_scheda' %}?pn={{ report.pn|urlencode }}">{{ report.pn }}</a> · Report CMM</span>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a> · Report CMM</span>
       <h1>{{ report.seriale|default:report.file }}</h1>
     </div>
     <div class="prod-filtri">
+      {% if prima %}<a class="prod-btn" href="{% url 'produzione:report_cmm' prima.id %}" title="{{ prima.seriale|default:prima.file }} · {{ prima.data|date:'d/m/Y' }}">‹ Pezzo prima</a>{% endif %}
+      {% if dopo %}<a class="prod-btn" href="{% url 'produzione:report_cmm' dopo.id %}" title="{{ dopo.seriale|default:dopo.file }} · {{ dopo.data|date:'d/m/Y' }}">Pezzo dopo ›</a>{% endif %}
+      {% if proposte.vicini %}<a class="prod-btn" href="{% url 'produzione:report_confronta' %}?{% for i in proposte.vicini %}r={{ i }}&amp;{% endfor %}">Confronta</a>{% endif %}
       {% if prod_puo_quote and not report.escluso %}<button type="button" class="prod-btn" data-apri-dialogo="escludi">Escludi dall'analisi</button>{% endif %}
       <a class="prod-btn" href="{% url 'produzione:report_cmm_pdf' report.id %}" target="_blank" rel="noopener">Apri il PDF</a>
       {% if url_anomalia %}<a class="prod-btn prod-btn-primary" href="{{ url_anomalia }}">Apri segnalazione anomalia</a>{% endif %}
@@ -50,7 +25,7 @@
 
   <div class="prod-dati">
     <div class="prod-dato"><span>OP</span>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% else %}<b>{{ report.op|default:"—" }}</b>{% endif %}</div>
-    <div class="prod-dato"><span>Programma</span><b>{{ report.programma|default:"—" }}</b></div>
+    <div class="prod-dato"><span>Programma</span><b title="{{ report.programma }}">{{ report.programma|default:"—" }}</b></div>
     <div class="prod-dato"><span>Data</span><b>{{ report.data|date:"d/m/Y"|default:"—" }}</b></div>
     <div class="prod-dato{% if report.fuori %} is-allerta{% endif %}"><span>Fuori tolleranza</span><b>{{ report.fuori }} su {{ report.righe }}</b></div>
   </div>
@@ -65,37 +40,47 @@
 
   <section class="prod-card">
     <div class="prod-card-head">
-      <h2>{% if tutte %}Tutte le quote{% else %}Quote fuori tolleranza{% endif %}</h2>
-      <a class="prod-btn prod-btn-piccolo" href="?{% if not tutte %}tutte=1{% endif %}">{% if tutte %}Solo quelle fuori{% else %}Tutte le quote{% endif %}</a>
+      <h2>Quote del report</h2>
+      <span class="prod-nota">Pezzo prima: {% if prima %}<a href="{% url 'produzione:report_cmm' prima.id %}">{{ prima.seriale|default:prima.file }}</a>{% else %}—{% endif %} · dopo: {% if dopo %}<a href="{% url 'produzione:report_cmm' dopo.id %}">{{ dopo.seriale|default:dopo.file }}</a>{% else %}—{% endif %}</span>
     </div>
-    {% if misure %}
+    <div class="prod-chips">
+      <a class="prod-chip{% if not filtro %} is-on{% endif %}" href="?">Tutte <b>{{ conta.tutte }}</b></a>
+      <a class="prod-chip{% if filtro == 'fuori' %} is-on{% endif %}" href="?f=fuori">Fuori <b>{{ conta.fuori }}</b></a>
+      <a class="prod-chip{% if filtro == 'limite' %} is-on{% endif %}" href="?f=limite" title="Oltre l'80% della tolleranza">Al limite <b>{{ conta.limite }}</b></a>
+      {% if prima %}<a class="prod-chip{% if filtro == 'cambiate' %} is-on{% endif %}" href="?f=cambiate" title="Differenza dal pezzo prima oltre il 20% della tolleranza">Diverse dal pezzo prima <b>{{ conta.cambiate }}</b></a>{% endif %}
+    </div>
+    {% if righe %}
     <div class="prod-scorri">
       <table class="prod-tab">
-        <thead><tr><th>Quota</th><th>Gruppo</th><th class="prod-n">Rilevato</th><th class="prod-n">Nominale</th><th class="prod-n">Tol +</th><th class="prod-n">Tol −</th><th class="prod-n">Fuori di</th><th></th></tr></thead>
+        <thead><tr><th>Quota</th><th>Gruppo</th><th class="prod-n">Nominale</th><th class="prod-n">Tol +</th><th class="prod-n">Tol −</th><th class="prod-n">Rilevato</th><th>Nella tolleranza</th><th class="prod-n">Usata</th><th class="prod-n">Δ pezzo prima</th><th class="prod-n">Cpk</th><th></th></tr></thead>
         <tbody>
-          {% for m in misure %}
+          {% for r in righe %}{% with m=r.m %}
           <tr>
             <td><b>{{ m.nome }}</b>{% if m.tipo %}<span class="prod-sub"> {{ m.tipo }}</span>{% endif %}</td>
-            <td>{{ m.sezione|default:"—"|truncatechars:60 }}</td>
-            <td class="prod-num">{{ m.misurato|floatformat:4 }}</td>
+            <td>{{ m.sezione|default:"—"|truncatechars:40 }}</td>
             <td class="prod-num">{{ m.nominale|floatformat:4 }}</td>
             <td class="prod-num">{{ m.tol_sup|floatformat:4 }}</td>
             <td class="prod-num">{{ m.tol_inf|floatformat:4 }}</td>
-            <td class="prod-num{% if m.fuori %} is-fuori{% endif %}">{% if m.fuori %}{{ m.fuori_di|floatformat:4 }}{% else %}—{% endif %}{% if m.da_verificare %} <span class="prod-stato is-warn" title="Il calcolo e l'eccedenza del report non coincidono">da verificare</span>{% endif %}</td>
+            <td class="prod-num{% if m.fuori %} is-fuori{% endif %}"><b>{{ m.misurato|floatformat:4 }}</b>{% if m.da_verificare %} <span class="prod-stato is-warn" title="Il calcolo e l'eccedenza del report non coincidono">da verificare</span>{% endif %}</td>
+            <td>{% if r.pos is not None %}<span class="prod-tolbar" title="Limiti {{ m.tol_inf|floatformat:4 }} / {{ m.tol_sup|floatformat:4 }}"><span class="prod-tolbar-zona"></span><span class="prod-tolbar-centro"></span><span class="prod-tolbar-x{% if m.fuori %} is-fuori{% endif %}" style="left:{{ r.pos|stringformat:'.0f' }}%"></span></span>{% endif %}</td>
+            <td class="prod-n">{% if r.u_pct is not None %}<span class="prod-stato{% if m.fuori %} is-allerta{% elif r.limite %} is-warn{% endif %}">{{ r.u_pct }}%</span>{% else %}—{% endif %}</td>
+            <td class="prod-num">{% if r.delta is not None %}{% if r.delta >= 0 %}+{% endif %}{{ r.delta|floatformat:4 }}{% else %}—{% endif %}</td>
+            <td class="prod-num{% if r.cpk is not None and r.cpk < 1 %} is-fuori{% endif %}">{% if r.cpk is not None %}{{ r.cpk|floatformat:2 }}{% else %}—{% endif %}{% if r.deriva %} <span class="prod-stato is-warn">deriva</span>{% endif %}</td>
             <td><a href="{% url 'produzione:pn_quote' %}?pn={{ report.pn|urlencode }}&amp;prog={{ report.programma_base|urlencode }}&amp;q={{ m.chiave|urlencode }}&amp;nom={{ m.nominale|stringformat:".4f" }}&amp;r={{ report.id }}">Andamento</a></td>
           </tr>
-          {% endfor %}
+          {% endwith %}{% endfor %}
         </tbody>
       </table>
     </div>
+    <p class="prod-nota-sotto">Barra: la zona verde è la tolleranza, la linea al centro il valore ideale. «Usata»: quanto della metà tolleranza è consumato (100% = al limite). Cpk sugli ultimi 30 pezzi dello stesso programma.</p>
     {% else %}
-    <p class="prod-vuoto">{% if tutte %}Nessuna quota letta da questo report.{% else %}Tutte le quote sono in tolleranza.{% endif %}</p>
+    <p class="prod-vuoto">{% if filtro %}Nessuna quota con questo filtro.{% else %}Nessuna quota letta da questo report.{% endif %}</p>
     {% endif %}
   </section>
 
   {% if altri %}
   <section class="prod-card">
-    <div class="prod-card-head"><h2>Altri report dello stesso S/N</h2></div>
+    <div class="prod-card-head"><h2>Altri report dello stesso S/N</h2>{% if proposte.fasi %}<a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:report_confronta' %}?{% for i in proposte.fasi %}r={{ i }}&amp;{% endfor %}">Confronta le fasi</a>{% endif %}</div>
     {% include "produzione/_report_cmm_tabella.html" with elenco_report=altri %}
   </section>
   {% endif %}
@@ -114,4 +99,5 @@
 </dialog>
 <script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
 {% endif %}
+<script src="{% static 'produzione/js/confronta.js' %}?v=20261126a" defer></script>
 {% endblock %}
