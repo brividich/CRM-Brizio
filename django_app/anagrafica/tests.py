@@ -2790,8 +2790,8 @@ class FormazioneComplianceTests(TestCase):
         self.assertContains(resp, "Corso obbligo")
         self.assertContains(resp, "TEST DARIO")  # 731 = Dario Test (COGNOME NOME)
 
-    # Reminder sessione T-7: email all'iscritto + invito calendario .ics
-    def test_session_reminder_email_e_ics(self):
+    # Reminder sessione T-7: solo notifica nel portale, nessuna email ai partecipanti (25/11/2026)
+    def test_session_reminder_senza_email(self):
         from datetime import date, time, timedelta
         from django.core import mail
         from django.core.management import call_command
@@ -2817,10 +2817,7 @@ class FormazioneComplianceTests(TestCase):
         TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=733, stato="ISCRITTO")
         mail.outbox = []
         call_command("send_formazione_session_reminders", verbosity=0)
-        self.assertEqual(len(mail.outbox), 1)
-        msg = mail.outbox[0]
-        self.assertIn("Corso reminder", msg.subject)
-        self.assertTrue(any(str(a[0]).endswith(".ics") for a in msg.attachments))
+        self.assertEqual(len(mail.outbox), 0)
 
 
 # ---------------------------------------------------------------------------

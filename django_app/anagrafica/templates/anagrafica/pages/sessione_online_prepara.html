@@ -117,13 +117,13 @@
       {% else %}
       <div class="so-body" style="display:flex;flex-direction:column;gap:14px;">
         {% if manca %}<div class="so-banner"><strong>Per pubblicare manca:</strong> {{ manca|join:"; " }}.</div>
-        {% elif cfg.pubblicata %}<div class="so-banner ok">Pubblicata il {{ cfg.pubblicata_il|date:"d-m-Y H:i" }}. Ripubblicando, il link va solo a chi non l'ha ancora ricevuto (per esempio i nuovi iscritti).</div>{% endif %}
+        {% elif cfg.pubblicata %}<div class="so-banner ok">Pubblicata il {{ cfg.pubblicata_il|date:"d-m-Y H:i" }}. Ripubblicando, la notifica va solo a chi non l'ha ancora ricevuta (per esempio i nuovi iscritti).</div>{% endif %}
 
         <form method="post" action="{% url 'anagrafica:sessione_online_impostazioni' sessione.pk %}" class="so-grid4" style="align-items:end;">
           {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
           <label class="so-f">Disponibile dal<input type="date" name="disponibile_dal" value="{{ cfg.disponibile_dal|date:'Y-m-d' }}"></label>
           <label class="so-f">Da completare entro<input type="date" name="scadenza" value="{{ cfg.scadenza|date:'Y-m-d' }}"></label>
-          <label class="so-f">Promemoria automatico (giorni prima, 0 = no)<input type="number" name="promemoria_giorni" min="0" max="60" value="{{ cfg.promemoria_giorni }}"></label>
+          <label class="so-f">Notifica di promemoria (giorni prima, 0 = no)<input type="number" name="promemoria_giorni" min="0" max="60" value="{{ cfg.promemoria_giorni }}"></label>
           <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Salva date</button>
         </form>
 
@@ -132,30 +132,30 @@
             <a class="hr-btn hr-btn-primary hr-btn-sm" href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}?next={{ qui|urlencode }}#aggiungi-iscritti">+ Aggiungi iscritti</a></div>
           <div class="so-scroll" style="max-height:340px;overflow:auto;">
             <table class="so-table">
-              <thead><tr><th>Partecipante</th><th>Reparto</th><th>Come riceve il link</th><th>Stato</th></tr></thead>
+              <thead><tr><th>Partecipante</th><th>Reparto</th><th>Come viene avvisato</th><th>Stato</th></tr></thead>
               <tbody>
               {% for r in righe %}
               <tr><td>{{ r.nome }}</td><td class="so-muted">{{ r.reparto }}</td>
-                <td>{% if r.ha_email and r.ha_utente %}Mail e notifica nel portale{% elif r.ha_email %}Mail{% elif r.ha_utente %}Notifica nel portale{% else %}<span class="so-ko">nessun contatto: dagli il link a voce o stampato</span>{% endif %}</td>
-                <td>{% if r.link_inviato %}<span class="so-pill success">Link inviato {{ r.link_inviato|date:"d-m" }}</span>{% else %}<span class="so-pill neutral">Da inviare</span>{% endif %}</td></tr>
+                <td>{% if r.ha_utente %}Notifica nel portale{% else %}<span class="so-ko">senza utente del portale: avvisalo voi</span>{% endif %}</td>
+                <td>{% if r.link_inviato %}<span class="so-pill success">Avvisato {{ r.link_inviato|date:"d-m" }}</span>{% else %}<span class="so-pill neutral">Da avvisare</span>{% endif %}</td></tr>
               {% empty %}<tr><td colspan="4" class="so-muted">Nessun iscritto alla sessione.</td></tr>
               {% endfor %}
               </tbody>
             </table>
           </div>
         </div>
-        <div class="so-muted">Il link porta a <code>{{ request.scheme }}://{{ request.get_host }}{% url 'anagrafica:sessione_online_player' sessione.pk %}</code>: compare anche in «Le mie attività» e tra i corsi online della persona.</div>
+        <div class="so-muted">Il link porta a <code>{{ request.scheme }}://{{ request.get_host }}{% url 'anagrafica:sessione_online_player' sessione.pk %}</code>: compare anche in «Le mie attività» e in «I miei corsi online». <strong>Il portale non manda email</strong>: solo la notifica nel portale; la mail ai partecipanti la mandate voi, copiando questo link.</div>
       </div>
       <div class="so-foot">
         <a class="hr-btn hr-btn-ghost" href="?passo=test">Indietro</a>
         <div class="so-actions">
           <form method="post" action="{% url 'anagrafica:sessione_online_pubblica' sessione.pk %}">
             {% csrf_token %}<input type="hidden" name="invia" value="0">
-            <button type="submit" class="hr-btn hr-btn-ghost"{% if manca %} disabled{% endif %}>Pubblica senza inviare</button>
+            <button type="submit" class="hr-btn hr-btn-ghost"{% if manca %} disabled{% endif %}>Pubblica senza avvisare</button>
           </form>
           <form method="post" action="{% url 'anagrafica:sessione_online_pubblica' sessione.pk %}">
             {% csrf_token %}<input type="hidden" name="invia" value="1">
-            <button type="submit" class="hr-btn hr-btn-primary"{% if manca %} disabled{% endif %}>{% if cfg.pubblicata %}Manda il link ai nuovi{% else %}Pubblica e invia{% endif %}</button>
+            <button type="submit" class="hr-btn hr-btn-primary"{% if manca %} disabled{% endif %}>{% if cfg.pubblicata %}Avvisa i nuovi nel portale{% else %}Pubblica e avvisa nel portale{% endif %}</button>
           </form>
         </div>
       </div>
