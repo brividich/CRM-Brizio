@@ -26,6 +26,7 @@ from django.db import transaction
 from django.db.models import F, Sum
 from django.utils import timezone
 
+from .elearning_fruizione import video_mancante
 from .elearning_regole import Regola, secondi_richiesti_slide
 
 INTERVALLO_MIN_SECONDI = 30
@@ -71,7 +72,8 @@ def registra_vista(enr, slide, regola: Regola, ordini: list[int]):
         if sessione is not None and sessione.slide_corrente_id != slide.pk:
             sessione.slide_corrente = slide
             sessione.save(update_fields=["slide_corrente"])
-        if not vista.completata and secondi_richiesti_slide(slide, regola) <= vista.secondi:
+        if not vista.completata and secondi_richiesti_slide(slide, regola) <= vista.secondi \
+                and not video_mancante(slide, vista.video_secondi, vista.video_durata):
             vista.completata = True
             vista.save(update_fields=["completata", "ultima_vista"])
         if enr.stato == "ISCRITTO":
@@ -144,7 +146,8 @@ def beat(enr, *, slide_id: int | None, visibile: bool, inattivo_ms: int, regola:
                 enrollment=enr, slide_id=slide_id)
             vista.secondi = (vista.secondi or 0) + credito
             campi = ["secondi", "ultima_vista"]
-            if not vista.completata and vista.secondi >= secondi_richiesti_slide(vista.slide, regola):
+            if not vista.completata and vista.secondi >= secondi_richiesti_slide(vista.slide, regola) \
+                    and not video_mancante(vista.slide, vista.video_secondi, vista.video_durata):
                 vista.completata = True
                 completata = True
                 campi.append("completata")
@@ -158,8 +161,35 @@ def beat(enr, *, slide_id: int | None, visibile: bool, inattivo_ms: int, regola:
 def secondi_mancanti_slide(enr, slide, regola: Regola) -> int:
     from ..models_elearning import TrainingElearningSlideView
     vista = TrainingElearningSlideView.objects.filter(enrollment=enr, slide=slide).first()
-    fatti = vista.secondi if vista else 0
-    return max(secondi_richiesti_slide(slide, regola) - fatti, 0)
+    tempo = max(secondi_richiesti_slide(slide, regola) - (vista.secondi if vista else 0), 0)
+    video = video_mancante(slide, vista.video_secondi if vista else 0, vista.video_durata if vista else 0)
+    return max(int(tempo), int(video)) if not (vista and vista.completata) else 0
+
+
+def registra_video(enr, slide, secondi: int, durata: int, regola: Regola, ordini: list[int]) -> dict:
+    """Secondi di video guardati (dal browser, mai più della durata). Completa la slide se basta."""
+    from ..models_elearning import TrainingElearningSlideView
+    with transaction.atomic():
+        vista = TrainingElearningSlideView.objects.select_for_update().filter(enrollment=enr, slide=slide).first()
+        if vista is None:
+            return {"ok": False}
+        tetto = int(slide.video_durata_secondi or durata or 0) or 36000
+        vista.video_secondi = max(vista.video_secondi, min(int(secondi), tetto))
+        if durata and not vista.video_durata:
+            vista.video_durata = min(int(durata), 36000)
+        campi = ["video_secondi", "video_durata", "ultima_vista"]
+        completata = False
+        if not vista.completata and vista.secondi >= secondi_richiesti_slide(slide, regola) \
+                and not video_mancante(slide, vista.video_secondi, vista.video_durata):
+            vista.completata = True
+            completata = True
+            campi.append("completata")
+        vista.save(update_fields=campi)
+    if completata:
+        enr.refresh_from_db(fields=["ultima_slide_ordine"])
+        _ricalcola_avanzamento(enr, ordini)
+    return {"ok": True, "mancano": video_mancante(slide, vista.video_secondi, vista.video_durata),
+            "slide_completata": completata}
 
 
 def chiudi_sessioni_inattive(minuti: int = 30) -> int:

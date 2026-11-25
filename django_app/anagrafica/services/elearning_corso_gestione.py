@@ -108,7 +108,12 @@ def righe_risultati(corso) -> list[dict]:
         record_validi[r.legacy_anagrafica_id] = r
     da_link = set(TrainingElearningRispostaAperta.objects.filter(corso=corso, record__isnull=False)
                   .values_list("legacy_anagrafica_id", flat=True))
-    ids = set(assegnazioni) | set(iscrizioni) | set(record_validi)
+    from ..models_elearning import TrainingElearningPartecipazioneAperta
+    aperte = {}
+    for pa in (TrainingElearningPartecipazioneAperta.objects.filter(corso=corso, legacy_anagrafica_id__isnull=False)
+               .order_by("registrato_il")):
+        aperte[pa.legacy_anagrafica_id] = pa
+    ids = set(assegnazioni) | set(iscrizioni) | set(record_validi) | set(aperte)
     anag, azi = _anagrafica(ids), _aziendale(ids)
     regola = regola_corso(corso)
     oggi = timezone.localdate()
@@ -121,6 +126,8 @@ def righe_risultati(corso) -> list[dict]:
             stato = ESONERATO
         elif rec is not None and not aperta and not (e and e.stato == "COMPLETATO"):
             stato = COMPLETATO
+        elif e is None and lid in aperte and not aperte[lid].completata_il:
+            stato = IN_CORSO
         elif e is None:
             stato = COMPLETATO if (a is not None and a.stato == "COMPLETATO") else DA_INIZIARE
         elif e.stato == "COMPLETATO":
@@ -134,6 +141,10 @@ def righe_risultati(corso) -> list[dict]:
         r = anag.get(lid, {})
         tot = (e.n_slide_totali if e else 0) or 0
         viste = (e.ultima_slide_ordine if e else 0) or 0
+        pa = aperte.get(lid)
+        if e is None and pa is not None:
+            tot = corso.slides.filter(is_active=True).count()
+            viste = len(pa.slide_viste or {})
         scadenza = a.due_date if a else None
         righe.append({
             "legacy_id": lid,
@@ -149,10 +160,10 @@ def righe_risultati(corso) -> list[dict]:
             "slide_pct": min(100, round(100 * viste / tot)) if tot else (100 if stato == COMPLETATO else 0),
             "best": e.best_punteggio_pct if e else None,
             "tentativi": e.n_tentativi if e else 0,
-            "minuti": round((e.secondi_accreditati or 0) / 60) if e else 0,
+            "minuti": round((e.secondi_accreditati or 0) / 60) if e else (round((pa.secondi or 0) / 60) if pa else 0),
             "completato_il": (e.data_completamento if e and e.data_completamento else
                               (rec.data_completamento if rec is not None else None)),
-            "da_link_aperto": lid in da_link,
+            "da_link_aperto": lid in da_link or lid in aperte,
             "esauriti": bool(e and e.stato != "COMPLETATO" and tentativi_rimasti(e, regola) == 0),
             "ha_utente": bool(r.get("utente_id")),
         })

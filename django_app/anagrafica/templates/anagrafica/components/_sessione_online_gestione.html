@@ -47,10 +47,10 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
       <div class="so-step{% if not online.n_slide %} is-next{% endif %}">
         <div class="so-actions"><span class="so-step-n {% if online.n_slide %}ok{% else %}cur{% endif %}">1</span><strong>Slide</strong></div>
         <div class="so-big">{{ online.n_slide }} slide</div>
-        <div class="so-muted">{% if online.slides %}da «{{ online.slides.0.origine|default:"caricamento" }}»{% if cfg.secondi_minimi_slide %} · almeno {{ cfg.secondi_minimi_slide }}" per slide (≈ {{ online.minuti_previsti }} min){% endif %}{% else %}PowerPoint o PDF: ogni pagina diventa una slide{% endif %}</div>
+        <div class="so-muted">{% if cfg.materiale_corso %}materiale del corso, sempre aggiornato{% if cfg.secondi_minimi_slide %} · almeno {{ cfg.secondi_minimi_slide }}" per slide{% endif %}{% elif online.slides %}da «{{ online.slides.0.origine|default:"caricamento" }}»{% if cfg.secondi_minimi_slide %} · almeno {{ cfg.secondi_minimi_slide }}" per slide (≈ {{ online.minuti_previsti }} min){% endif %}{% else %}PowerPoint o PDF: ogni pagina diventa una slide{% endif %}</div>
         {% if online.slides %}
         <div class="so-mini">
-          {% for s in online.slides|slice:":4" %}{% if s.immagine %}<img src="{% url 'anagrafica:sessione_online_slide_img' s.pk %}" alt="Slide {{ s.ordine }}" loading="lazy">{% else %}<span>{{ s.ordine }}</span>{% endif %}{% endfor %}
+          {% for s in online.slides|slice:":4" %}{% if s.url_immagine %}<img src="{{ s.url_immagine }}" alt="Slide {{ s.ordine }}" loading="lazy">{% elif s.immagine and not s.url_video %}<img src="{% url 'anagrafica:sessione_online_slide_img' s.pk %}" alt="Slide {{ s.ordine }}" loading="lazy">{% else %}<span>{{ s.ordine }}</span>{% endif %}{% endfor %}
           {% if online.n_slide > 4 %}<span>+{{ online.n_slide|add:"-4" }}</span>{% endif %}
         </div>
         {% endif %}
@@ -191,7 +191,8 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
       <label class="so-f">Tentativi (0 = liberi)<input type="number" name="max_tentativi" min="0" max="20" value="{{ cfg.max_tentativi }}"></label>
       <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Salva</button>
     </form>
-    {% with prossimo=request.path|add:"?pannello=test" %}{% include "anagrafica/components/_sessione_online_domande.html" %}{% endwith %}
+    {% if cfg.materiale_corso %}<div class="so-banner ok">Il test usa le domande del corso: si modificano in <a href="{% url 'anagrafica:formazione_corso_elearning' sessione.corso.pk %}">Slide e quiz del corso</a>.</div>
+    {% else %}{% with prossimo=request.path|add:"?pannello=test" %}{% include "anagrafica/components/_sessione_online_domande.html" %}{% endwith %}{% endif %}
   </div>
   <div class="so-foot">
     <span class="so-muted">{{ online.n_domande }} domande{% if online.n_domande_ko %} · {{ online.n_domande_ko }} da sistemare{% endif %}</span>

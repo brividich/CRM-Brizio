@@ -156,6 +156,8 @@ def sessione_online_impostazioni(request, sessione_id: int):
         cfg.disponibile_dal = _data(p.get("disponibile_dal"))
     if "scadenza" in p:
         cfg.scadenza = _data(p.get("scadenza"))
+    if "materiale_presente" in p:
+        cfg.materiale_corso = p.get("materiale_corso") == "1"
     if "mostra_correzioni_presente" in p:
         cfg.mostra_correzioni = p.get("mostra_correzioni") == "1"
     if cfg.disponibile_dal and cfg.scadenza and cfg.scadenza < cfg.disponibile_dal:
@@ -416,7 +418,7 @@ def sessione_online_export(request, sessione_id: int):
     cfg = so.config(sessione)
     if cfg is None:
         return HttpResponse("Lezione online non preparata.", status=404)
-    righe = so.righe_gestione(sessione, cfg, TrainingSessionSlide.objects.filter(sessione=sessione).count())
+    righe = so.righe_gestione(sessione, cfg, so.n_slide(sessione))
     resp = HttpResponse(content_type="text/csv; charset=utf-8")
     resp["Content-Disposition"] = f'attachment; filename="lezione_online_{sessione.codice_sessione}.csv"'
     resp.write("﻿")
@@ -488,6 +490,7 @@ def sessione_online_player(request, sessione_id: int):
         "attesa": attesa, "test_pronto": test_pronto, "scaduta": so.scaduta(cfg),
         "pct": int(100 * ((prog.slide_viste if prog else ordine)) / n),
         "testo_html": elearning_markdown.render_markdown(slide.testo) if slide.testo and not slide.immagine else "",
+        "materiale_corso": bool(cfg.materiale_corso),
         "n_domande": len(so.domande_valide(sessione)),
         "rimasti": so.tentativi_rimasti(cfg, prog) if prog else None,
     })
@@ -502,7 +505,7 @@ def sessione_online_avanti(request, sessione_id: int):
         return _nega(request, motivo)
     url = reverse("anagrafica:sessione_online_player", args=[sessione_id])
     ordine = _intero(request.POST.get("ordine"), 1, 1, 10000)
-    n = TrainingSessionSlide.objects.filter(sessione=sessione).count()
+    n = so.n_slide(sessione)
     if anteprima:
         return redirect(f"{url}?n={min(n, ordine + 1)}&anteprima=1") if ordine < n \
             else redirect(reverse("anagrafica:sessione_online_test", args=[sessione_id]) + "?anteprima=1")
@@ -527,7 +530,7 @@ def sessione_online_test(request, sessione_id: int):
         return _nega(request, motivo)
     cfg = cfg or so.config(sessione, crea=True)
     elenco = so.domande_valide(sessione)
-    n_slide = TrainingSessionSlide.objects.filter(sessione=sessione).count()
+    n_slide = so.n_slide(sessione)
     prog = None if anteprima else so.avanzamento(enrollment)
     if prog:
         if chiuso := so.motivo_test_chiuso(cfg, prog, n_slide):
@@ -586,6 +589,34 @@ def sessione_online_esito(request, sessione_id: int):
         "rimasti": so.tentativi_rimasti(cfg, prog),
         "completata": enrollment.stato == "COMPLETATO",
     })
+
+
+@login_required
+def sessione_online_corso_media(request, sessione_id: int, slide_id: int):
+    """Immagine o video di una slide del CORSO, per gli iscritti alla sessione che lo usa come materiale."""
+    from .models_formazione import TrainingSlide
+    from .views_elearning import _risposta_range
+    sessione = _sessione(sessione_id)
+    cfg = so.config(sessione)
+    if cfg is None or not cfg.materiale_corso:
+        return HttpResponse(status=404)
+    if not _helpers._can_view_formazione(request):
+        _cfg, _enr, _ant, motivo = _accesso(request, sessione)
+        if motivo:
+            return HttpResponse(status=403)
+    slide = get_object_or_404(TrainingSlide, pk=slide_id, corso_id=sessione.corso_id, is_active=True)
+    if slide.tipo == "VIDEO" and slide.video:
+        return _risposta_range(request, slide.video, "video/mp4")
+    if not slide.immagine:
+        return HttpResponse(status=404)
+    try:
+        fh = slide.immagine.open("rb")
+    except FileNotFoundError:
+        return HttpResponse(status=404)
+    resp = FileResponse(fh, content_type="image/png")
+    resp["Cache-Control"] = "private, max-age=300"
+    resp["X-Content-Type-Options"] = "nosniff"
+    return resp
 
 
 @login_required
