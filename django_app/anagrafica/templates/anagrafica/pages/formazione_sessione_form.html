@@ -58,7 +58,29 @@
       {% if form.non_field_errors %}
       <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Corso e stato" icon="i-cap" desc="Quale corso viene erogato, con stato e modalità." fields=form|section_fields:"corso,stato,modalita" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Corso e stato" icon="i-cap" desc="Quale corso viene erogato, con stato e modalità." fields=form|section_fields:"corso,stato" %}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h"><svg class="fmd-ico"><use href="#i-calendar"/></svg><span class="fmd-form-sec-t">Come si svolge</span></div>
+        <div class="sf-modi" role="radiogroup" aria-label="Modalità">
+          {% for valore, etichetta in form.fields.modalita.choices %}{% if valore %}
+          <label class="sf-modo"><input type="radio" name="{{ form.modalita.html_name }}" value="{{ valore }}"{% if form.modalita.value == valore %} checked{% endif %} required>
+            <span><strong>{{ etichetta }}</strong><small>{% for k, v in modalita_aiuto.items %}{% if k == valore %}{{ v }}{% endif %}{% endfor %}</small></span></label>
+          {% endif %}{% endfor %}
+          <div class="sf-modo sf-modo-nota"><span><strong>Vuoi che sia sempre aperto?</strong><small>Non serve una sessione: accendi «Online quando si vuole» nella pagina del corso.</small></span></div>
+        </div>
+        {% for err in form.modalita.errors %}<div class="fmd-ferr">{{ err }}</div>{% endfor %}
+      </div>
+      <style>
+      .sf-modi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px}
+      @media (max-width:900px){.sf-modi{grid-template-columns:1fr}}
+      .sf-modo{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border,#d7e0ea);border-radius:12px;padding:12px;cursor:pointer;background:var(--surface,#fff)}
+      .sf-modo:has(input:checked){border:2px solid var(--accent,#ff6b00);padding:11px;background:var(--accent-light,#fffaf6)}
+      .sf-modo strong{display:block;color:var(--fmd-navy,#0c2545);font-size:13.5px}
+      .sf-modo small{display:block;color:var(--text-mid,#4a5568);font-size:12px;margin-top:2px}
+      .sf-modo input{margin-top:3px}
+      .sf-modo-nota{border-style:dashed;cursor:default}
+      body.theme-dark .sf-modo:has(input:checked){background:rgba(255,107,0,.1)}
+      </style>
       <div class="fmd-form-sec">
         <div class="fmd-field" style="max-width:420px;">
           <label>Codice edizione</label>

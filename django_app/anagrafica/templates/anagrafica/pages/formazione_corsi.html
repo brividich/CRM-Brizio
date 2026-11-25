@@ -24,18 +24,42 @@
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>Corsi <span class="fmd-count">{{ page_obj.paginator.count }}</span></h1>
         <p class="fmd-ph-sub">Catalogo corsi · versioni · prerequisiti · modalità di erogazione e validità.</p>
       </div>
-      {% if is_editor %}
       <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_tipi_corso' %}" class="fmd-btn fmd-btn-ghost">Tipi di corso</a>
+        <a href="{% url 'anagrafica:formazione_elearning_hub' %}" class="fmd-btn fmd-btn-ghost">Cruscotto online</a>
+      {% if is_editor %}
         <a href="{% url 'anagrafica:formazione_corso_create' %}" class="fmd-btn fmd-btn-primary">
           <svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo corso
         </a>
-      </div>
       {% endif %}
+      </div>
     </div>
 
     {# ── Tabella corsi + filtri ─────────────────────────────────────────── #}
+    <style>
+    .cl-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+    .cl-chips .cl-lbl{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--text-mid,#64748b);width:84px;text-transform:uppercase}
+    .cl-chip{border:1px solid var(--border,#d7e0ea);background:var(--surface,#fff);border-radius:999px;padding:4px 11px;font-size:12.5px;text-decoration:none;color:var(--text,#1a202c);white-space:nowrap}
+    .cl-chip b{font-weight:500;color:var(--text-mid,#64748b);margin-left:3px}
+    .cl-chip.on{background:var(--fmd-navy,#0c2545);border-color:var(--fmd-navy,#0c2545);color:#fff}.cl-chip.on b{color:#cbd5e1}
+    .cl-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
+    .cl-modo{display:inline-block;font-size:11px;border-radius:999px;padding:1px 8px;margin:1px 2px 1px 0;background:#eef2f7;color:#334155;white-space:nowrap}
+    .cl-modo.sempre{background:#fff4ed;color:#b45309}.cl-modo.ONLINE{background:#f0f9ff;color:#0369a1}.cl-modo.REMOTO{background:#f5f3ff;color:#6d28d9}.cl-modo.IN_SEDE{background:#eff6ff;color:#1f6fae}
+    body.theme-dark .cl-chip.on{background:#93c5fd;border-color:#93c5fd;color:#0b1220}
+    body.theme-dark .cl-modo{background:rgba(255,255,255,.08);color:var(--text)}
+    </style>
     <section class="fmd-panel">
+      <div class="cl-chips"><span class="cl-lbl">Come si fa</span>
+        <a class="cl-chip{% if not filtro_modo %} on{% endif %}" href="?tipo={{ filtro_tipo }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">Tutti</a>
+        {% for chiave, etichetta, n in modi_conteggi %}<a class="cl-chip{% if filtro_modo == chiave %} on{% endif %}" href="?modo={{ chiave }}&tipo={{ filtro_tipo }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">{{ etichetta }}<b>{{ n }}</b></a>{% endfor %}
+      </div>
+      <div class="cl-chips"><span class="cl-lbl">Tipo</span>
+        <a class="cl-chip{% if not filtro_tipo %} on{% endif %}" href="?modo={{ filtro_modo }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">Tutti</a>
+        {% for t in tipi %}<a class="cl-chip{% if filtro_tipo == t.pk|stringformat:'s' %} on{% endif %}" href="?modo={{ filtro_modo }}&tipo={{ t.pk }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}"><span class="cl-dot" style="background:{{ t.colore }};"></span>{{ t.nome }}</a>{% endfor %}
+        <a class="cl-chip{% if filtro_tipo == 'nessuno' %} on{% endif %}" href="?modo={{ filtro_modo }}&tipo=nessuno&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">Senza tipo</a>
+      </div>
       <form method="get" class="fmd-toolbar">
+        <input type="hidden" name="modo" value="{{ filtro_modo }}"><input type="hidden" name="tipo" value="{{ filtro_tipo }}">
         <span class="fmd-search">
           <svg class="fmd-ico"><use href="#i-search"/></svg>
           <input type="text" name="q" value="{{ q_search }}" placeholder="Cerca codice o titolo…" autocomplete="off">
@@ -72,6 +96,8 @@
               <th class="fmd-c" style="width:34px;" aria-label="Espandi"></th>
               <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Codice</th>
               <th data-col="titolo" data-col-label="Titolo" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Titolo</th>
+              <th data-col="tipo" data-col-label="Tipo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Tipo</th>
+              <th data-col="modi" data-col-label="Come si fa" data-col-type="text" data-col-sortable="0" data-col-filterable="1">Come si fa</th>
               <th data-col="piano" data-col-label="Piano" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Piano</th>
               <th data-col="ente" data-col-label="Ente / Formatore" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Ente / Formatore</th>
               <th data-col="stato" data-col-label="Stato" data-col-type="select"
@@ -102,6 +128,8 @@
                 <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>
                 {% if not c.is_active %}<span class="fmd-muted" style="font-size:10.5px;margin-left:4px;">(inattivo)</span>{% endif %}
               </td>
+              <td>{% if c.tipo %}<span class="cl-dot" style="background:{{ c.tipo.colore }};"></span>{{ c.tipo.nome }}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td data-value="{% for k, e in c.modi %}{{ e }} {% endfor %}">{% for k, e in c.modi %}<span class="cl-modo {{ k }}">{{ e }}</span>{% empty %}<span class="fmd-muted">—</span>{% endfor %}</td>
               <td class="fmd-muted">
                 <a class="fmd-data-link" href="{% url 'anagrafica:formazione_piano_detail' c.piano.pk %}" style="color:inherit;">{{ c.piano.nome }}</a>
               </td>
@@ -121,7 +149,7 @@
             </tr>
             {# Riga di dettaglio: fuori da filtro/sort dell'enhancer e dal click-riga; contenuto via HTMX alla prima apertura. #}
             <tr id="fmd-exp-row-{{ c.pk }}" class="fm-detail-row" data-fm-detail-row="1" style="display:none;">
-              <td class="fmd-exp-cell" colspan="11">
+              <td class="fmd-exp-cell" colspan="13">
                 <div class="fmd-exp-inner" id="fmd-exp-body-{{ c.pk }}">
                   <span class="fmd-muted">Carico le edizioni…</span>
                 </div>
@@ -137,11 +165,11 @@
         {% if page_obj.paginator.num_pages > 1 %}
         <div class="fmd-pager">
           {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}&piano={{ filtro_piano }}&stato={{ filtro_stato }}&obbligatorio={{ filtro_obbligatorio }}&q={{ q_search }}">‹</a>
+            <a href="?page={{ page_obj.previous_page_number }}&piano={{ filtro_piano }}&stato={{ filtro_stato }}&obbligatorio={{ filtro_obbligatorio }}&q={{ q_search }}&modo={{ filtro_modo }}&tipo={{ filtro_tipo }}">‹</a>
           {% endif %}
           <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
           {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}&piano={{ filtro_piano }}&stato={{ filtro_stato }}&obbligatorio={{ filtro_obbligatorio }}&q={{ q_search }}">›</a>
+            <a href="?page={{ page_obj.next_page_number }}&piano={{ filtro_piano }}&stato={{ filtro_stato }}&obbligatorio={{ filtro_obbligatorio }}&q={{ q_search }}&modo={{ filtro_modo }}&tipo={{ filtro_tipo }}">›</a>
           {% endif %}
         </div>
         {% endif %}

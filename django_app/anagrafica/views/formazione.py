@@ -1245,6 +1245,19 @@ def formazione_piano_delete(request, piano_id: int):
 # FORMAZIONE HR — Corsi (PATCH-03)
 # ============================================================================
 
+# «Come si fa» un corso: dalle modalità delle sue sessioni e dall'online sempre aperto.
+_MODI_CORSO = [
+    ("aula", "In aula", Q(sessioni__modalita="IN_SEDE")),
+    ("esterno", "Ente esterno", Q(sessioni__modalita="ESTERNO")),
+    ("diretta", "Online in diretta", Q(sessioni__modalita="REMOTO")),
+    ("slide", "Slide + test", Q(sessioni__modalita="ONLINE")),
+    ("misto", "Misto", Q(sessioni__modalita="MISTO")),
+    ("sempre", "Online sempre aperto", Q(is_elearning=True)),
+]
+_MODI_ETICHETTE = [("IN_SEDE", "In aula"), ("ESTERNO", "Ente esterno"), ("REMOTO", "Online in diretta"),
+                   ("ONLINE", "Slide + test"), ("MISTO", "Misto"), ("sempre", "Sempre aperto")]
+
+
 @login_required
 def formazione_corsi_list(request):
     if not _helpers._can_view_formazione(request):
@@ -1257,8 +1270,10 @@ def formazione_corsi_list(request):
     filtro_obbligatorio = request.GET.get("obbligatorio", "")
     filtro_attivi = request.GET.get("attivi", "") == "1"
     q_search = (request.GET.get("q") or "").strip()
+    filtro_modo = request.GET.get("modo", "")
+    filtro_tipo = request.GET.get("tipo", "")
 
-    qs = TrainingCourse.objects.select_related("piano", "ente_formativo").prefetch_related(
+    qs = TrainingCourse.objects.select_related("piano", "ente_formativo", "tipo").prefetch_related(
         Prefetch(
             "sessioni",
             queryset=TrainingSession.objects.select_related("docente__azienda").order_by("-data_inizio"),
@@ -1279,6 +1294,16 @@ def formazione_corsi_list(request):
             Q(titolo__icontains=q_search) | Q(codice__icontains=q_search)
             | Q(ente_formativo__nome__icontains=q_search)
         )
+    if filtro_tipo == "nessuno":
+        qs = qs.filter(tipo__isnull=True)
+    elif filtro_tipo.isdigit():
+        qs = qs.filter(tipo_id=int(filtro_tipo))
+    # «Come si fa»: conteggi sul resto dei filtri, poi il filtro scelto.
+    modi_conteggi = [(chiave, etichetta, qs.filter(cond).distinct().count())
+                     for chiave, etichetta, cond in _MODI_CORSO]
+    for chiave, _etichetta, cond in _MODI_CORSO:
+        if filtro_modo == chiave:
+            qs = qs.filter(cond).distinct()
 
     paginator = Paginator(qs.order_by("piano__nome", "titolo"), 50)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -1302,8 +1327,15 @@ def formazione_corsi_list(request):
                 visti.add(nome)
                 nomi.append(nome)
         corso.enti_formatori = nomi
+        modi = {s.modalita for s in corso.sessioni.all()}
+        corso.modi = [(k, e) for k, e in _MODI_ETICHETTE if (k == "sempre" and corso.is_elearning) or k in modi]
 
+    from ..models_formazione import TrainingCourseType
     return render(request, "anagrafica/pages/formazione_corsi.html", {
+        "modi_conteggi": modi_conteggi,
+        "filtro_modo": filtro_modo,
+        "filtro_tipo": filtro_tipo,
+        "tipi": TrainingCourseType.objects.filter(is_active=True).order_by("ordine", "nome"),
         "page_obj": page_obj,
         "is_editor": is_editor,
         "filtro_piano": filtro_piano,
@@ -1500,6 +1532,50 @@ def formazione_qualifica_durata(request):
     return JsonResponse({"ok": True, "durata_mesi": q.durata_mesi or 0})
 
 
+def _come_si_fa(corso) -> dict:
+    """Riquadro «Come si fa questo corso»: online sempre aperto e sessioni, con slide e test unici."""
+    from ..services.elearning_fruizione import corso_pubblicato
+    n_slide = corso.slides.filter(is_active=True).count()
+    domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
+    n_invalid = sum(1 for d in domande if _problema_domanda(d))
+    sessioni = list(corso.sessioni.exclude(stato="ANNULLATA").order_by("-data_inizio")[:4])
+    from ..models_sessione_online import TrainingSessionOnline
+    n_sessioni_slide = TrainingSessionOnline.objects.filter(sessione__corso=corso).count()
+    return {
+        "online": corso.is_elearning,
+        "visibile": corso_pubblicato(corso),
+        "n_slide": n_slide, "n_domande": len(domande), "n_invalid": n_invalid,
+        "assegnati": TrainingAssignment.objects.filter(corso=corso).count(),
+        "completati_online": corso.iscrizioni_elearning.filter(stato="COMPLETATO").count(),
+        "sessioni": sessioni,
+        "n_sessioni": corso.sessioni.exclude(stato="ANNULLATA").count(),
+        "usati_da": int(corso.is_elearning) + n_sessioni_slide,
+    }
+
+
+@login_required
+@require_POST
+def formazione_corso_modo_online(request, corso_id: int):
+    """Accende o spegne «Online quando si vuole» (e-learning sempre aperto) sul corso."""
+    if not _helpers._can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare il corso.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    accendi = request.POST.get("azione") == "accendi"
+    corso.is_elearning = accendi
+    corso.save(update_fields=["is_elearning", "updated_at"])
+    _helpers._audit_safe(request, "formazione_corso_online", "formazione", {"corso": corso.pk, "acceso": accendi})
+    if not accendi:
+        messages.info(request, "Online spento: il corso non compare più tra i corsi online. Completamenti e sessioni restano.")
+    elif not corso.slides.filter(is_active=True).exists():
+        messages.warning(request, "Online acceso: diventa visibile appena aggiungi le slide.")
+    elif corso.stato != "ATTIVO":
+        messages.warning(request, "Online acceso: diventa visibile quando pubblichi il corso.")
+    else:
+        messages.success(request, "Online acceso: il corso è visibile in «I miei corsi online».")
+    return redirect(reverse("anagrafica:formazione_corso_detail", args=[corso.pk]) + "#come-si-fa")
+
+
 @login_required
 def formazione_corso_detail(request, corso_id: int):
     if not _helpers._can_view_formazione(request):
@@ -1648,6 +1724,7 @@ def formazione_corso_detail(request, corso_id: int):
     # Processi qualificati MOD.128 che lo chiedono («Cosa serve a una persona»).
     processi_mpq = processi_che_richiedono(corso=corso)
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
+        "come_si_fa": _come_si_fa(corso),
         "corso": corso,
         "processi_mpq": processi_mpq,
         "n_a_chi_serve": len(regole) + len(processi_mpq),
@@ -2755,6 +2832,7 @@ def formazione_sessione_create(request):
                 .order_by("data_inizio")[:8]),
         }
     return render(request, "anagrafica/pages/formazione_sessione_form.html", {
+        "modalita_aiuto": TrainingSession.MODALITA_AIUTO,
         "form": form,
         "modo": "crea",
         "rinnovo": rinnovo,

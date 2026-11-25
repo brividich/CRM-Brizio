@@ -37,9 +37,6 @@
     </div>
     {% if is_editor %}
     <div class="fmd-pagehead-actions">
-      {% if corso.is_elearning %}
-      <a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_corso_elearning' corso.pk %}"><svg class="fmd-ico"><use href="#i-cap"/></svg>Slide e quiz</a>
-      {% endif %}
       <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_corso_edit' corso.pk %}"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica corso</a>
       <form method="post" action="{% url 'anagrafica:formazione_corso_delete' corso.pk %}"
             data-hub-confirm="Eliminare il corso «{{ corso.titolo }}»? Operazione irreversibile." style="display:inline;">
@@ -56,6 +53,68 @@
     <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:formazione_sessioni_list' %}?corso={{ corso.pk }}" title="Apri l'elenco filtrato: tutte le sessioni del corso"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_sessioni }}</span></div><div class="fmd-mtr-lbl">Sessioni totali</div><div class="fmd-mtr-sub">Sessioni pianificate</div></a>
     <a class="fmd-mtr fmd-t-green kpi-link" href="#corso-dipendenti" title="Vai ai dipendenti del corso: la colonna dei completati somma a questo numero"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_completamenti }}</span></div><div class="fmd-mtr-lbl">Completamenti</div><div class="fmd-mtr-sub">Registrati, rinnovi compresi</div></a>
   </section>
+
+  {# ── Come si fa questo corso: online sempre aperto e/o sessioni; slide e test unici ── #}
+  {% with m=come_si_fa %}
+  <style>
+  .csf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  @media (max-width:900px){.csf-grid{grid-template-columns:1fr}}
+  .csf-box{border:1px solid var(--border,#d7e0ea);border-radius:12px;padding:15px;display:flex;flex-direction:column;gap:8px;background:var(--surface,#fff)}
+  .csf-box.on{border:2px solid var(--accent,#ff6b00);padding:14px;background:var(--accent-light,#fffaf6)}
+  .csf-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .csf-h strong{font-size:15px;color:var(--fmd-navy,#0c2545)}
+  .csf-num{display:flex;gap:14px;flex-wrap:wrap;color:var(--fmd-navy,#0c2545)}
+  .csf-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+  .csf-sess{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:3px 0}
+  .csf-cont{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+  @media (max-width:900px){.csf-cont{grid-template-columns:1fr}}
+  .csf-cell{border:1px solid var(--border,#d7e0ea);border-radius:10px;padding:10px 12px}
+  .csf-cell small{display:block;color:var(--text-mid,#64748b);font-size:12px}
+  .csf-cell b{font-size:20px;color:var(--fmd-navy,#0c2545)}
+  body.theme-dark .csf-box.on{background:rgba(255,107,0,.08)}
+  </style>
+  <section class="fmd-panel fmd-block" id="come-si-fa" style="margin-bottom:16px;">
+    <div class="fmd-block-head">
+      <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>Come si fa questo corso</div>
+      <div class="fmd-block-aside">Si possono usare tutti e due i modi insieme</div>
+    </div>
+    <div class="csf-grid">
+      <div class="csf-box{% if m.online %} on{% endif %}">
+        <div class="csf-h"><strong>Online quando si vuole</strong>
+          {% if m.visibile %}<span class="fmd-badge fmd-b-green">Acceso · visibile</span>
+          {% elif m.online %}<span class="fmd-badge fmd-b-amber">Acceso · {% if not m.n_slide %}mancano le slide{% else %}corso non pubblicato{% endif %}</span>
+          {% else %}<span class="fmd-badge fmd-b-grey">Spento</span>{% endif %}</div>
+        <div class="fmd-muted">Sempre aperto in «I miei corsi online»: chi è assegnato lo trova tra le sue attività, chi non ha l'utente usa il link aperto.</div>
+        {% if m.online %}<div class="csf-num"><span><b>{{ m.assegnati }}</b> assegnati</span><span><b>{{ m.completati_online }}</b> completati online</span></div>{% endif %}
+        <div class="csf-act">
+          {% if m.online %}<a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}">Risultati e assegnazioni</a>{% endif %}
+          {% if is_editor %}
+          <form method="post" action="{% url 'anagrafica:formazione_corso_modo_online' corso.pk %}" style="display:inline;"{% if m.online %} data-hub-confirm="Spegnere l'online? Il corso sparisce da «I miei corsi online»; completamenti e sessioni restano."{% endif %}>
+            {% csrf_token %}<button type="submit" class="fmd-btn {% if m.online %}fmd-btn-ghost{% else %}fmd-btn-primary{% endif %}" name="azione" value="{% if m.online %}spegni{% else %}accendi{% endif %}">{% if m.online %}Spegni{% else %}Accendi{% endif %}</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      <div class="csf-box">
+        <div class="csf-h"><strong>Con sessioni</strong><span class="fmd-badge fmd-b-grey">{{ m.n_sessioni }} session{{ m.n_sessioni|pluralize:"e,i" }}</span></div>
+        <div class="fmd-muted">Date e partecipanti: in aula, presso un ente esterno, online in diretta o con slide + test.</div>
+        {% for s in m.sessioni %}
+        <div class="csf-sess"><a href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a><span class="fmd-muted">{{ s.get_modalita_display }} · {{ s.data_inizio|date:"d-m-Y" }}</span></div>
+        {% endfor %}
+        <div class="csf-act">
+          {% if is_editor %}<a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ corso.pk }}">+ Nuova sessione</a>{% endif %}
+          {% if m.n_sessioni %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_sessioni_list' %}?corso={{ corso.pk }}">Tutte le sessioni</a>{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="csf-cont">
+      <div class="csf-cell"><small>Slide del corso</small><b>{{ m.n_slide }}</b></div>
+      <div class="csf-cell"><small>Domande del test</small><b>{{ m.n_domande }}</b>{% if m.n_invalid %} <span class="fmd-badge fmd-b-amber">{{ m.n_invalid }} da sistemare</span>{% endif %}</div>
+      <div class="csf-cell"><small>Slide e test si caricano una volta</small><span class="fmd-muted" style="font-size:12.5px;">Li usano l'online sempre aperto e le sessioni «Slide + test».</span>
+        {% if is_editor %}<div style="margin-top:6px;"><a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="{% url 'anagrafica:formazione_corso_elearning' corso.pk %}">{% if m.n_slide %}Modifica slide e test{% else %}Carica slide e test{% endif %}</a></div>{% endif %}</div>
+    </div>
+  </section>
+  {% endwith %}
 
   {# ── Report rapidi del corso ─────────────────────────────────────────────── #}
   <section class="fmd-panel fmd-block" style="margin-bottom:16px;">

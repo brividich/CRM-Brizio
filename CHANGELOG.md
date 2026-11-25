@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: corsi, tipi e modalità riordinati (il corso dice cosa, la sessione come)
+
+- **Modalità delle sessioni con nomi chiari** (i valori salvati non cambiano): In aula, in azienda · Presso ente esterno · Online in diretta · Online: slide + test · Misto: aula + test online. Nel modulo «Nuova sessione» la scelta è a schede con una riga di spiegazione (`models_formazione.py` `MODALITA_CHOICES`/`MODALITA_AIUTO`, `formazione_sessione_form.html`).
+- **Tipi di corso** (nuova tabella `TrainingCourseType`, campo `tipo` sul corso, 5 tipi iniziali): pagina «Tipi di corso» (`/anagrafica/formazione/tipi-corso/`, voce di menu accanto a «Piani formativi») con tipi, colori e conteggi, **tipo per piano** in un clic, **piani doppi** proposti (nome uguale o tagliato) con «Accorpa» (corsi, regole d'obbligo e assegnazioni passano al piano scelto, quello vecchio si disattiva) o «Non sono doppi» (`TrainingPlanNonDoppio`). File: `services/formazione_tipi.py`, `views_formazione_tipi.py`, `formazione_tipi_corso.html`; campo «Tipo di corso» nel modulo del corso.
+- **Corsi, un solo elenco**: filtri a pulsante «Come si fa» (In aula, Ente esterno, Online in diretta, Slide + test, Misto, Online sempre aperto, con i conteggi) e «Tipo», colonne «Tipo» e «Come si fa» (`views/formazione.py` `formazione_corsi_list`, `formazione_corsi.html`). La voce di menu «Gestione e-learning» si nasconde: la pagina resta raggiungibile da «Cruscotto online» nell'elenco.
+- **Scheda del corso, «Come si fa questo corso»**: riquadro «Online quando si vuole» (Accendi/Spegni, stato visibile o cosa manca, assegnati e completati, «Risultati e assegnazioni») e «Con sessioni» (ultime sessioni, «+ Nuova sessione»); slide e test del corso caricati una volta per entrambi (`formazione_corso_modo_online`, `formazione_corso_detail.html`).
+- **Correzione**: accendere l'online su un corso senza slide non lo pubblica più vuoto: un corso online è visibile solo con almeno una slide attiva (`services/elearning_fruizione.py`).
+- **I miei corsi online** (ex «Corsi online»): Da fare in ordine di scadenza (corsi sempre aperti e lezioni delle sessioni insieme), Altri corsi disponibili, Completati (`views_elearning.py`, `formazione_online_catalog.html`).
+- Migrazioni `anagrafica 0249` (modalità, tipi, menu, permessi delle rotte nuove) e `0250` (piani non doppi). Guide: guida Formazione in-app, guida e-learning, Centro guide. Test: `anagrafica/tests_formazione_corsi_modi.py`.
+
 ### KICK-OFF: «Da gestire» più semplice
 
 - **Una riga per commessa** al posto di quattro sezioni che ripetevano le stesse commesse: in cima le più urgenti, con i soli conteggi di quello che non va («5 scadute», «2 problemi aperti», «4 non assegnate», «manca VRF»…; prima le etichette rosse). «Vedi N» apre l'elenco delle voci, ognuna col link dove si risolve. In alto restano la ricerca e Portfolio / Le mie.

@@ -1,0 +1,164 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Tipi di corso | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+.tc-grid{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.tc-main{flex:999 1 560px;min-width:0}
+.tc-side{flex:1 1 340px;min-width:0}
+.tc-dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:8px;vertical-align:-1px}
+.tc-card{border:1px solid var(--border,#d7e0ea);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;background:var(--surface,#fff)}
+.tc-mini{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tc-banner{background:#fffbeb;border:1px solid #fde68a;color:#78350f;border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+.tc-form{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,2fr) 70px auto;gap:8px;align-items:end}
+@media (max-width:800px){.tc-form{grid-template-columns:1fr}}
+.tc-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--text-mid,#4a5568)}
+.tc-form input{font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--border,#d7e0ea);border-radius:8px;background:var(--surface,#fff);color:var(--text,#1a202c)}
+.tc-form input[type=color]{padding:2px;height:36px}
+body.theme-dark .tc-banner{background:rgba(214,158,46,.12);color:#fcd34d;border-color:rgba(214,158,46,.4)}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+    <div class="fmd-pagehead">
+      <div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:formazione_corsi_list' %}">Corsi</a><span class="fmd-sep"> / </span><span class="fmd-cur">Tipi di corso</span></template>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>Tipi di corso</h1>
+        <p class="fmd-ph-sub">Il tipo raggruppa i corsi e serve ai filtri dell'elenco; il piano resta il programma o il cliente di provenienza.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% include "anagrafica/partials/_formazione_guida_link.html" with ancora="tipi-corso" %}
+        <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="fmd-btn fmd-btn-ghost">Torna ai corsi</a>
+      </div>
+    </div>
+
+    {% if doppioni or prova %}
+    <div class="tc-banner"><span><strong>{{ n_da_rivedere }} pian{{ n_da_rivedere|pluralize:"o,i" }} da rivedere</strong>: nomi quasi uguali o piani di prova. Accorpando, corsi e assegnazioni passano al piano scelto; completamenti e attestati non cambiano.</span><a href="#doppioni" style="color:inherit;font-weight:600;">Rivedi</a></div>
+    {% endif %}
+
+    <div class="tc-grid">
+      <div class="tc-main">
+        <section class="fmd-panel">
+          <div class="fmd-toolbar"><span class="fmd-block-title">Tipi <span class="fmd-count">{{ tipi|length }}</span></span>
+            {% if n_senza_tipo %}<span class="fmd-badge fmd-b-amber">{{ n_senza_tipo }} corsi senza tipo</span>{% endif %}</div>
+          <div class="fmd-tablewrap" data-fm-table-skip="1">
+            <table class="fmd-table">
+              <thead><tr><th>Tipo</th><th class="fmd-r">Corsi</th><th class="fmd-r">Obbligatori</th>{% if is_editor %}<th></th>{% endif %}</tr></thead>
+              <tbody>
+              {% for t in tipi %}
+                {% if is_editor and modifica == t.pk|stringformat:"s" %}
+                <tr><td colspan="4">
+                  <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-form">
+                    {% csrf_token %}<input type="hidden" name="azione" value="modifica"><input type="hidden" name="tipo_id" value="{{ t.pk }}">
+                    <label>Nome<input name="nome" value="{{ t.nome }}" maxlength="80" required></label>
+                    <label>Cosa comprende<input name="descrizione" value="{{ t.descrizione }}" maxlength="200"></label>
+                    <label>Colore<input type="color" name="colore" value="{{ t.colore }}"></label>
+                    <span class="tc-mini"><button class="fmd-btn fmd-btn-primary" type="submit">Salva</button><a class="fmd-btn fmd-btn-ghost" href="?">Annulla</a></span>
+                  </form>
+                </td></tr>
+                {% else %}
+                <tr>
+                  <td><span class="tc-dot" style="background:{{ t.colore }};"></span><strong>{{ t.nome }}</strong>{% if t.descrizione %}<div class="fmd-muted" style="font-size:12px;margin-left:19px;">{{ t.descrizione }}</div>{% endif %}</td>
+                  <td class="fmd-r fmd-num"><a href="{% url 'anagrafica:formazione_corsi_list' %}?tipo={{ t.pk }}">{{ t.n_corsi }}</a></td>
+                  <td class="fmd-r fmd-num">{{ t.n_obbligatori }}</td>
+                  {% if is_editor %}<td class="fmd-nowrap" style="text-align:right;">
+                    <a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="?modifica={{ t.pk }}">Modifica</a>
+                    <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" style="display:inline;" data-hub-confirm="Eliminare il tipo «{{ t.nome }}»?{% if t.n_corsi %} I suoi {{ t.n_corsi }} corsi resteranno senza tipo.{% endif %}">
+                      {% csrf_token %}<input type="hidden" name="azione" value="elimina"><input type="hidden" name="tipo_id" value="{{ t.pk }}">
+                      <button class="fmd-btn fmd-btn-ghost fmd-btn-mini" style="color:#c0392b;" type="submit">Elimina</button></form>
+                  </td>{% endif %}
+                </tr>
+                {% endif %}
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if is_editor %}
+          <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-form" style="margin-top:12px;">
+            {% csrf_token %}<input type="hidden" name="azione" value="crea">
+            <label>Nuovo tipo<input name="nome" maxlength="80" required placeholder="Es. Ambiente"></label>
+            <label>Cosa comprende<input name="descrizione" maxlength="200" placeholder="Facoltativo"></label>
+            <label>Colore<input type="color" name="colore" value="#64748b"></label>
+            <button class="fmd-btn fmd-btn-primary" type="submit">Aggiungi</button>
+          </form>
+          {% endif %}
+        </section>
+
+        <section class="fmd-panel">
+          <div class="fmd-toolbar"><span class="fmd-block-title">Tipo per piano</span><span class="fmd-muted" style="font-size:12.5px;">Il modo più veloce per dare un tipo a tanti corsi: tutti i corsi di un piano insieme.</span></div>
+          <div class="fmd-tablewrap" data-fm-table-skip="1">
+            <table class="fmd-table">
+              <thead><tr><th>Piano</th><th class="fmd-r">Corsi</th><th>Tipi oggi</th>{% if is_editor %}<th>Dai a tutti i corsi senza tipo</th>{% endif %}</tr></thead>
+              <tbody>
+              {% for r in piani %}
+                <tr>
+                  <td><a class="fmd-data-link" href="{% url 'anagrafica:formazione_piano_detail' r.piano.pk %}">{{ r.piano.nome }}</a></td>
+                  <td class="fmd-r fmd-num">{{ r.n }}</td>
+                  <td>{% for nome, n in r.tipi %}<span class="fmd-badge fmd-b-grey">{{ nome }} {{ n }}</span> {% endfor %}{% if r.senza_tipo %}<span class="fmd-badge fmd-b-amber">senza tipo {{ r.senza_tipo }}</span>{% endif %}</td>
+                  {% if is_editor %}<td>
+                    {% if r.senza_tipo %}
+                    <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-mini">
+                      {% csrf_token %}<input type="hidden" name="azione" value="assegna_piano"><input type="hidden" name="piano_id" value="{{ r.piano.pk }}">
+                      <select name="tipo_id" class="fmd-select" style="min-width:170px;" aria-label="Tipo per il piano {{ r.piano.nome }}" required>
+                        <option value="">Scegli…</option>{% for t in tipi %}<option value="{{ t.pk }}">{{ t.nome }}</option>{% endfor %}
+                      </select>
+                      <button class="fmd-btn fmd-btn-ghost fmd-btn-mini" type="submit">Applica</button>
+                    </form>
+                    {% else %}<span class="fmd-muted">fatto</span>{% endif %}
+                  </td>{% endif %}
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <aside class="tc-side" id="doppioni">
+        <section class="fmd-panel">
+          <div class="fmd-block-title" style="margin-bottom:10px;">Piani da rivedere</div>
+          {% for d in doppioni %}
+          <div class="tc-card">
+            <div>«{{ d.togli.nome }}» <span class="fmd-muted">({{ d.togli.n }} cors{{ d.togli.n|pluralize:"o,i" }})</span></div>
+            <div class="fmd-muted">→ «{{ d.tieni.nome }}» ({{ d.tieni.n }} cors{{ d.tieni.n|pluralize:"o,i" }})</div>
+            {% if is_editor %}
+            <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-mini">
+              {% csrf_token %}<input type="hidden" name="togli" value="{{ d.togli.pk }}"><input type="hidden" name="tieni" value="{{ d.tieni.pk }}">
+              <button class="fmd-btn fmd-btn-primary fmd-btn-mini" name="azione" value="accorpa" type="submit" data-hub-confirm="Accorpare «{{ d.togli.nome }}» in «{{ d.tieni.nome }}»? I {{ d.togli.n }} corsi passano al secondo piano e il primo si disattiva.">Accorpa</button>
+              <button class="fmd-btn fmd-btn-ghost fmd-btn-mini" name="azione" value="non_doppi" type="submit">Non sono doppi</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% for p in prova %}
+          <div class="tc-card">
+            <div>«{{ p.nome }}» <span class="fmd-muted">({{ p.n }} cors{{ p.n|pluralize:"o,i" }})</span></div>
+            <div class="fmd-muted">Sembra un piano di prova: accorpalo nel piano giusto.</div>
+            {% if is_editor %}
+            <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-mini">
+              {% csrf_token %}<input type="hidden" name="azione" value="accorpa"><input type="hidden" name="togli" value="{{ p.pk }}">
+              <select name="tieni" class="fmd-select" required aria-label="Piano di destinazione">
+                <option value="">Sposta i corsi in…</option>{% for r in piani %}{% if r.piano.pk != p.pk %}<option value="{{ r.piano.pk }}">{{ r.piano.nome }}</option>{% endif %}{% endfor %}
+              </select>
+              <button class="fmd-btn fmd-btn-ghost fmd-btn-mini" type="submit" data-hub-confirm="Spostare i corsi di «{{ p.nome }}» e disattivarlo?">Sposta</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% if not doppioni and not prova %}<p class="fmd-muted" style="margin:0;">Nessun piano doppio trovato.</p>{% endif %}
+        </section>
+      </aside>
+    </div>
+  </div>
+</div>
+{% endblock %}

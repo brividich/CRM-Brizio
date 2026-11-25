@@ -51,6 +51,41 @@ def _nega(request, testo: str, *, htmx_status: int = 403):
 # Catalogo
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _sezioni_catalogo(cards, lezioni, oggi):
+    """«I miei corsi online» in tre parti: da fare (per scadenza), altri disponibili, completati."""
+    da_fare, disponibili, completati = [], [], []
+    for it in cards:
+        c = it["corso"]
+        voce = {"titolo": c.titolo, "codice": c.codice, "tipo": "sempre", "dettaglio": f"{it['n_slide']} slide",
+                "scadenza": it["due_date"], "in_ritardo": it["in_ritardo"], "pct": it["progress_pct"],
+                "url": reverse("anagrafica:formazione_online_player", args=[c.pk]), "best": it["best_pct"],
+                "obbligatorio": c.obbligatorio, "da_valutare": it.get("da_valutare"), "corso": c}
+        if it["stato"] == "COMPLETATO":
+            voce["cta"] = "Rivedi"
+            completati.append(voce)
+        elif it["assegnato_da_fare"] or it["stato"] in ("IN_CORSO", "NON_SUPERATO"):
+            voce["cta"] = "Continua" if it["stato"] in ("IN_CORSO", "NON_SUPERATO") else "Inizia"
+            voce["stato"] = {"IN_CORSO": "In corso", "NON_SUPERATO": "Non superato"}.get(it["stato"], "Da iniziare")
+            da_fare.append(voce)
+        else:
+            voce["cta"] = "Apri"
+            disponibili.append(voce)
+    for lz in lezioni:
+        s, cfg = lz["sessione"], lz["cfg"]
+        voce = {"titolo": s.corso.titolo, "codice": s.codice_sessione, "tipo": "sessione",
+                "dettaglio": f"Sessione {s.codice_sessione} · {lz['n_slide']} slide e test",
+                "scadenza": cfg.scadenza, "in_ritardo": bool(cfg.scadenza and cfg.scadenza < oggi and not lz["finita"]),
+                "pct": None, "url": lz["url"], "best": None, "obbligatorio": False, "stato": lz["stato_label"]}
+        if lz["finita"]:
+            voce["cta"] = "Rivedi"
+            completati.append(voce)
+        else:
+            voce["cta"] = "Inizia" if lz["stato"] == "non_iniziata" else "Continua"
+            da_fare.append(voce)
+    da_fare.sort(key=lambda v: (v["scadenza"] is None, v["scadenza"] or oggi, v["titolo"].lower()))
+    return da_fare, disponibili, completati
+
+
 @login_required
 def formazione_online_catalog(request):
     """I corsi e-learning del discente: assegnati (in evidenza) e facoltativi."""
@@ -115,8 +150,11 @@ def formazione_online_catalog(request):
         })
     cards.sort(key=lambda x: (not x["assegnato_da_fare"], x["due_date"] or oggi.max, x["corso"].titolo.lower()))
     from .services.sessione_online import lezioni_della_persona
+    lezioni = lezioni_della_persona(legacy_id) if legacy_id else []
+    da_fare, disponibili, completati = _sezioni_catalogo(cards, lezioni, oggi)
     return render(request, "anagrafica/pages/formazione_online_catalog.html", {
-        "lezioni_sessione": lezioni_della_persona(legacy_id) if legacy_id else [],
+        "da_fare": da_fare, "disponibili": disponibili, "completati": completati,
+        "lezioni_sessione": lezioni,
         "cards": cards,
         "no_anagrafica": legacy_id is None,
         "is_editor": is_editor,

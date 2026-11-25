@@ -309,6 +309,7 @@ from .formazione import (
     formazione_corso_dep_add,
     formazione_corso_dep_delete,
     formazione_corso_detail,
+    formazione_corso_modo_online,
     formazione_corso_edit,
     formazione_corso_elearning,
     formazione_corso_espansione,
