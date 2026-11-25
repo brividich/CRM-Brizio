@@ -53,16 +53,17 @@ body.theme-dark .tc-banner{background:rgba(214,158,46,.12);color:#fcd34d;border-
             {% if n_senza_tipo %}<span class="fmd-badge fmd-b-amber">{{ n_senza_tipo }} corsi senza tipo</span>{% endif %}</div>
           <div class="fmd-tablewrap" data-fm-table-skip="1">
             <table class="fmd-table">
-              <thead><tr><th>Tipo</th><th class="fmd-r">Corsi</th><th class="fmd-r">Obbligatori</th>{% if is_editor %}<th></th>{% endif %}</tr></thead>
+              <thead><tr><th>Tipo</th><th class="fmd-r">Corsi</th><th class="fmd-r">Obbligatori</th><th class="fmd-r" title="MT CN 06 §9.5: dopo quanti mesi il responsabile di reparto valuta l'efficacia dei corsi in aula">Efficacia dopo</th>{% if is_editor %}<th></th>{% endif %}</tr></thead>
               <tbody>
               {% for t in tipi %}
                 {% if is_editor and modifica == t.pk|stringformat:"s" %}
-                <tr><td colspan="4">
+                <tr><td colspan="5">
                   <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-form">
                     {% csrf_token %}<input type="hidden" name="azione" value="modifica"><input type="hidden" name="tipo_id" value="{{ t.pk }}">
                     <label>Nome<input name="nome" value="{{ t.nome }}" maxlength="80" required></label>
                     <label>Cosa comprende<input name="descrizione" value="{{ t.descrizione }}" maxlength="200"></label>
                     <label>Colore<input type="color" name="colore" value="{{ t.colore }}"></label>
+                    <label>Efficacia dopo (mesi, 0 = no)<input type="number" name="efficacia_mesi" min="0" max="36" value="{{ t.efficacia_mesi }}" style="width:90px;"></label>
                     <span class="tc-mini"><button class="fmd-btn fmd-btn-primary" type="submit">Salva</button><a class="fmd-btn fmd-btn-ghost" href="?">Annulla</a></span>
                   </form>
                 </td></tr>
@@ -71,6 +72,7 @@ body.theme-dark .tc-banner{background:rgba(214,158,46,.12);color:#fcd34d;border-
                   <td><span class="tc-dot" style="background:{{ t.colore }};"></span><strong>{{ t.nome }}</strong>{% if t.descrizione %}<div class="fmd-muted" style="font-size:12px;margin-left:19px;">{{ t.descrizione }}</div>{% endif %}</td>
                   <td class="fmd-r fmd-num"><a href="{% url 'anagrafica:formazione_corsi_list' %}?tipo={{ t.pk }}">{{ t.n_corsi }}</a></td>
                   <td class="fmd-r fmd-num">{{ t.n_obbligatori }}</td>
+                  <td class="fmd-r fmd-num">{% if t.efficacia_mesi %}{{ t.efficacia_mesi }} mesi{% else %}<span class="fmd-muted">non richiesta</span>{% endif %}</td>
                   {% if is_editor %}<td class="fmd-nowrap" style="text-align:right;">
                     <a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="?modifica={{ t.pk }}">Modifica</a>
                     <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" style="display:inline;" data-hub-confirm="Eliminare il tipo «{{ t.nome }}»?{% if t.n_corsi %} I suoi {{ t.n_corsi }} corsi resteranno senza tipo.{% endif %}">

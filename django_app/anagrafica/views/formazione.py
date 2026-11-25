@@ -2675,7 +2675,15 @@ def formazione_sessioni_list(request):
     filtro_corso = filtro_corso if filtro_corso.isdigit() else ""
     filtro_anno = filtro_anno if filtro_anno.isdigit() else ""
 
-    qs = TrainingSession.objects.select_related("corso", "corso__piano", "docente").all()
+    from ..services import formazione_aula as _aula
+    da_chiudere = request.GET.get("da_chiudere") == "1"
+    n_da_chiudere = _aula.da_chiudere().count()
+    if da_chiudere:
+        qs = (_aula.da_chiudere().select_related("corso", "corso__piano", "docente")
+              .annotate(n_iscritti_tot=Count("iscrizioni", distinct=True),
+                        n_aperti=Count("iscrizioni", filter=Q(iscrizioni__stato__in=_aula.STATI_APERTI), distinct=True)))
+    else:
+        qs = TrainingSession.objects.select_related("corso", "corso__piano", "docente").all()
     if filtro_corso:
         qs = qs.filter(corso_id=int(filtro_corso))
     if filtro_stato:
@@ -2689,8 +2697,11 @@ def formazione_sessioni_list(request):
             Q(sede__icontains=q_search)
         )
 
-    paginator = Paginator(qs.order_by("-data_inizio"), 50)
+    paginator = Paginator(qs.order_by("-data_fine" if da_chiudere else "-data_inizio"), 100 if da_chiudere else 50)
     page_obj  = paginator.get_page(request.GET.get("page"))
+    if da_chiudere:
+        for s in page_obj:
+            s.manca_testo, s.manca_tono = _aula.cosa_manca_breve(s)
 
     corsi_attivi = list(TrainingCourse.objects.filter(is_active=True).order_by("titolo"))
     anni = list(
@@ -2710,6 +2721,8 @@ def formazione_sessioni_list(request):
         "corsi_attivi": corsi_attivi,
         "anni": anni,
         "STATO_CHOICES": TrainingSession.STATO_CHOICES,
+        "da_chiudere": da_chiudere,
+        "n_da_chiudere": n_da_chiudere,
     })
 
 
@@ -2965,11 +2978,46 @@ def formazione_sessione_detail(request, sessione_id: int):
         "link_pubblico":  _link_pubblico(request, sessione.corso),
         "pannello":       request.GET.get("pannello", ""),
         "risposte_di":    _risposte_lezione_online(request, sessione),
+        "guestportal_ok": _guestportal_ok(),
+        **_contesto_aula(sessione),
     })
+
+
+def _guestportal_ok() -> bool:
+    try:
+        from fornitori import guestportal as gp
+        return bool(gp.db_configurato())
+    except Exception:
+        return False
+
+
+def _contesto_aula(sessione) -> dict:
+    """Fasi Prima · Durante · Dopo per le sessioni in aula (non online, non presso ente esterno)."""
+    if sessione.modalita in ("ONLINE",):
+        return {"aula_fase": ""}
+    from ..services import formazione_aula as aula
+    try:
+        oggi_lz = aula.lezione_di_oggi(sessione)
+        return {
+            "aula_fase": aula.fase(sessione),
+            "aula_lezione_oggi": oggi_lz,
+            "aula_firme_oggi": oggi_lz.presenze.filter(firma_ingresso=True).count() if oggi_lz else 0,
+            "aula_test_aperto": aula.test_aperto(sessione),
+        }
+    except Exception:
+        logger.exception("Fasi d'aula non calcolate (sessione %s)", sessione.pk)
+        return {"aula_fase": ""}
 
 
 def _contesto_lezione_online(request, sessione):
     from ..views_sessione_online import contesto_gestione
+    # Sessione in aula con il solo test dal telefono: il riquadro della lezione online
+    # (slide, pubblicazione) non serve, il test si gestisce dal QR d'aula.
+    if sessione.modalita not in ("ONLINE", "MISTO"):
+        from ..services.sessione_online import config, n_slide
+        cfg = config(sessione)
+        if cfg is not None and not cfg.pubblicata_il and not n_slide(sessione):
+            return None
     try:
         return contesto_gestione(request, sessione)
     except Exception:

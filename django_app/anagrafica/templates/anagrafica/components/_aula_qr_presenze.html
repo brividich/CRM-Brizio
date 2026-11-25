@@ -1,0 +1,9 @@
+<div id="au-presenze" hx-get="{% url 'anagrafica:formazione_aula_qr' sessione.pk %}" hx-trigger="every 15s" hx-swap="outerHTML">
+  <div class="hr-card-head"><div class="hr-card-title">Firme di oggi</div>
+    <span class="fm-pill fm-pill-valid">{{ presenze|length }} su {{ n_iscritti }}</span></div>
+  {% if presenze %}
+  <table class="hr-table"><thead><tr><th>Persona</th><th>Ingresso</th><th>Uscita</th></tr></thead><tbody>
+    {% for p in presenze %}<tr><td style="font-weight:500;">{{ p.nome }}</td><td>{{ p.ingresso|time:"H:i" }}</td><td>{% if p.uscita %}{{ p.uscita|time:"H:i" }}{% else %}—{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p style="color:#94a3b8;font-size:13px;margin:8px 0 0;">Ancora nessuna firma. L'elenco si aggiorna da solo ogni 15 secondi.</p>{% endif %}
+</div>

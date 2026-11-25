@@ -1,0 +1,29 @@
+{% extends "anagrafica/corso_aperto/_base.html" %}
+{% block title %}Test · {{ corso.titolo }}{% endblock %}
+{% block sottotitolo %}<p>Test finale · {{ sessione.codice_sessione }}</p>{% endblock %}
+{% block corpo %}
+{% if errori %}<div class="pb-errori" role="alert"><ul>{% for e in errori %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+{% if tentativo %}
+  <div class="pb-esito {% if tentativo.superato %}ok{% else %}ko{% endif %}" role="status">
+    <strong>{% if tentativo.superato %}Test superato{% else %}Test non superato{% endif %}</strong> ·
+    {{ tentativo.n_corrette }} risposte giuste su {{ tentativo.n_totali }} ({{ tentativo.punteggio_pct|floatformat:0 }}%, soglia {{ tentativo.soglia_pct }}%).
+  </div>
+  <a class="pb-btn pb-btn-ghost pb-btn-full" href="{% url 'corso_aperto:aula' token %}">Torna alla presenza</a>
+{% elif domande %}
+<form method="post" novalidate>{% csrf_token %}
+  <div class="pb-trappola" aria-hidden="true"><label for="t-sito">Lascia vuoto</label><input id="t-sito" name="sito_web" tabindex="-1" autocomplete="off"></div>
+  {% for d in domande %}
+  <fieldset class="pb-domanda">
+    <legend>{{ forloop.counter }}. {{ d.testo }}</legend>
+    {% if d.multipla %}<p class="pb-help">Più risposte giuste: segnale tutte.</p>{% endif %}
+    {% for oid, testo in d.opzioni %}
+    <label class="pb-opz"><input type="{% if d.multipla %}checkbox{% else %}radio{% endif %}" name="q_{{ d.id }}" value="{{ oid }}"> <span>{{ testo }}</span></label>
+    {% endfor %}
+  </fieldset>
+  {% endfor %}
+  <button class="pb-btn pb-btn-full" type="submit">Consegna il test</button>
+</form>
+{% else %}
+  <a class="pb-btn pb-btn-ghost pb-btn-full" href="{% url 'corso_aperto:aula' token %}">Torna alla presenza</a>
+{% endif %}
+{% endblock %}

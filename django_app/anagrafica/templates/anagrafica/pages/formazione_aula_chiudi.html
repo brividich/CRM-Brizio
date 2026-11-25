@@ -1,0 +1,60 @@
+{% extends "core/base.html" %}
+{% block title %}Chiudi l'edizione | {{ sessione.codice_sessione }} | Formazione{% endblock %}
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.au-sel{border:1px solid #d1d9e3;border-radius:8px;padding:6px 8px;font:inherit;font-size:13px;background:#fff;color:inherit}
+.au-carta{width:80px;border:1px solid #d1d9e3;border-radius:8px;padding:6px 8px;font:inherit;font-size:13px}
+.au-mot{font-size:12px;color:#64748b}
+.au-cosa{margin:6px 0 0;padding-left:18px;color:#475569;font-size:13.5px;line-height:1.6}
+body.theme-dark .au-sel,body.theme-dark .au-carta{background:#0f172a;border-color:#334155;color:#e2e8f0}
+</style>
+{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow"><a href="{% url 'anagrafica:formazione_sessioni_list' %}" style="color:#94a3b8;text-decoration:none;">Sessioni</a> &rsaquo; <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}" style="color:#94a3b8;text-decoration:none;">{{ sessione.codice_sessione }}</a> &rsaquo; Chiudi l'edizione</div>
+      <h2 class="hr-pagehead-title">Chiudi l'edizione · {{ sessione.corso.titolo }}</h2>
+      <p class="hr-pagehead-desc">Esiti proposti dalle presenze (minimo {{ soglia_pres }}%){% if esame %} e dalla verifica finale, che il corso richiede{% endif %}. Cambia solo quelli che non tornano.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;"><a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_guida' %}#aula">? Guida</a></div>
+  </div>
+  {% if approvata %}<div class="fm-cache-banner" role="status">🔒 Edizione approvata: per cambiare gli esiti va riaperta dalla pagina della sessione.</div>{% endif %}
+  <form method="post">{% csrf_token %}
+  <div class="hr-card">
+    <div class="hr-card-head"><div class="hr-card-title">Partecipanti</div>
+      <span style="font-size:12px;color:#64748b;">{{ n_completati }} da completare{% if n_da_decidere %} · <strong style="color:#b45309;">{{ n_da_decidere }} da decidere</strong>{% endif %}</span></div>
+    <div style="overflow-x:auto;">
+    <table class="hr-table"><thead><tr><th>Persona</th><th style="text-align:right;">Ore</th><th style="text-align:right;">Presenza</th><th>Test</th><th>Esito</th></tr></thead><tbody>
+    {% for r in righe %}
+      <tr>
+        <td style="font-weight:500;">{{ r.nome }}{% if r.motivo %}<div class="au-mot">{{ r.motivo }}</div>{% endif %}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;">{{ r.ore|floatformat:"-2" }}h</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;">{% if r.pct_presenza is not None %}{{ r.pct_presenza|floatformat:0 }}%{% else %}—{% endif %}</td>
+        <td>{% if r.test_pct is not None %}{{ r.test_pct|floatformat:0 }}% {% if r.test_ok %}<span class="fm-pill fm-pill-valid">superato</span>{% elif r.test_ok is False %}<span class="fm-pill fm-pill-expired">non superato</span>{% endif %}
+            {% elif not r.finale and not approvata %}<label class="au-mot">Su carta <input class="au-carta" name="carta_{{ r.enrollment.pk }}" inputmode="decimal" placeholder="%" aria-label="Punteggio su carta di {{ r.nome }}"></label>
+            {% else %}—{% endif %}</td>
+        <td>{% if r.finale %}<span class="fm-pill {% if r.proposto == 'COMPLETATO' %}fm-pill-valid{% else %}fm-pill-missing{% endif %}">{{ r.enrollment.get_stato_display }}</span>
+            {% else %}<select class="au-sel" name="esito_{{ r.enrollment.pk }}" aria-label="Esito di {{ r.nome }}"{% if approvata %} disabled{% endif %}>
+              {% for v, l in ESITI %}<option value="{{ v }}"{% if v == r.proposto %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% endif %}</td>
+      </tr>
+    {% empty %}<tr><td colspan="5" style="color:#94a3b8;">Nessun iscritto.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+  <div class="hr-card" style="padding:16px 20px;">
+    <div class="hr-card-title">Con «Chiudi l'edizione»</div>
+    <ul class="au-cosa">
+      <li>chi è «Completato» riceve il completamento sulla scheda e l'attestato archiviato; il test su carta (soglia {{ soglia_test }}%) viene registrato sull'iscrizione;</li>
+      {% if mesi_eff %}<li>la valutazione di efficacia va al responsabile di reparto entro il {{ data_eff|date:"d/m/Y" }} ({{ mesi_eff }} mesi, dal tipo di corso o dalla regola del corso);</li>{% endif %}
+      <li>quando tutti hanno un esito la sessione diventa «Completata» e l'approvazione MOD.040 compare tra le attività di MSM/MSO;</li>
+      <li>chi resta «Da decidere» tiene aperta l'edizione: puoi tornare qui quando vuoi.</li>
+    </ul>
+    {% if not approvata %}<div style="margin-top:12px;"><button class="hr-btn hr-btn-primary" type="submit">Chiudi l'edizione</button></div>{% endif %}
+  </div>
+  </form>
+</div>
+{% endblock %}

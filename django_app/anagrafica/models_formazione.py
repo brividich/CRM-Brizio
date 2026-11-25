@@ -301,6 +301,10 @@ class TrainingCourseType(models.Model):
     colore      = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale, es. #ef4444.")
     ordine      = models.PositiveSmallIntegerField(default=0)
     is_active   = models.BooleanField(default=True)
+    efficacia_mesi = models.PositiveSmallIntegerField(
+        default=3, verbose_name="Valuta l'efficacia dopo (mesi)",
+        help_text="MT CN 06 §9.5: dopo quanti mesi il responsabile di reparto valuta l'efficacia dei corsi in aula "
+                  "di questo tipo. 0 = non richiesta. La regola del singolo corso, se indicata, vince.")
 
     class Meta:
         ordering = ["ordine", "nome"]
@@ -1051,6 +1055,11 @@ class TrainingSession(models.Model):
     )
     docente_nome    = models.CharField(max_length=200, blank=True, help_text="Snapshot nome docente per stabilità storica")
     note            = models.TextField(blank=True)
+    token_aula      = models.CharField(
+        max_length=48, blank=True, default="", db_index=True,
+        help_text="Token del QR d'aula: firma d'ingresso/uscita e test dal telefono (/corso-aperto/aula/<token>/).")
+    chiusa_il       = models.DateTimeField(null=True, blank=True, help_text="Quando è stata chiusa con «Chiudi l'edizione».")
+    chiusa_da_nome  = models.CharField(max_length=160, blank=True, default="")
     created_at      = models.DateTimeField(auto_now_add=True)
     updated_at      = models.DateTimeField(auto_now=True)
     created_by      = models.ForeignKey(
@@ -1419,6 +1428,8 @@ class TrainingLessonAttendance(models.Model):
     ore_effettive    = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     firma_ingresso   = models.BooleanField(default=False)
     firma_uscita     = models.BooleanField(default=False)
+    ora_ingresso     = models.TimeField(null=True, blank=True)
+    ora_uscita       = models.TimeField(null=True, blank=True)
     signature_status = models.CharField(max_length=10, choices=SIGNATURE_STATUS_CHOICES, default="NESSUNA")
     signature_method = models.CharField(max_length=10, choices=SIGNATURE_METHOD_CHOICES, blank=True)
     signed_at        = models.DateTimeField(null=True, blank=True)

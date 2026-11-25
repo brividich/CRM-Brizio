@@ -462,6 +462,22 @@ GUIDA = {
             ],
         },
         {
+            "id": "sessioni-aula",
+            "titolo": "Sessioni in aula: presenze, QR d'aula, chiusura, efficacia",
+            "blocchi": [
+                ("ul", [
+                    "La sessione è divisa in Prima · Durante · Dopo, con le azioni di ogni fase in cima alla pagina.",
+                    "«Tutti presenti» e poi Presente / Ritardo-uscita / Assente su ogni riga.",
+                    "QR d'aula: firma d'ingresso e uscita dal telefono con matricola e cognome, da 30' prima a 30' dopo la lezione.",
+                    "«Apri il test ora»: test finale dal telefono con lo stesso QR (domande della sessione o del corso).",
+                    "«Chiudi l'edizione»: esiti proposti da presenze e test, test su carta in percentuale, completamenti e attestati.",
+                    "Elenco Sessioni → «Da chiudere»: sessioni finite ancora aperte, chiusura o annullamento in blocco.",
+                    "Efficacia: dopo i mesi del tipo di corso (predefinito 3) il capo valuta in Formazione → Efficacia o da «Le mie attività».",
+                    "Nessuna email ai partecipanti.",
+                ]),
+            ],
+        },
+        {
             "id": "elearning-materiali-video",
             "titolo": "Corsi online: moduli, video grandi, materiale da consultare",
             "blocchi": [
