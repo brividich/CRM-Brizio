@@ -426,6 +426,24 @@ GUIDA = {
             ],
         },
         {
+            "id": "corsi-tipi-modalita",
+            "titolo": "Corsi, tipi e modi di farli",
+            "blocchi": [
+                ("p", "Il corso dice cosa si impara; come si fa lo dice il riquadro «Come si fa questo corso» nella sua scheda: "
+                      "«Online quando si vuole» (sempre aperto: Accendi/Spegni; visibile quando è pubblicato e ha almeno una slide) "
+                      "e «Con sessioni». Slide e test del corso valgono per entrambi."),
+                ("def", [
+                    ("Modalità delle sessioni", "In aula, in azienda · Presso ente esterno · Online in diretta · Online: slide + "
+                                                "test · Misto: aula + test online."),
+                    ("Elenco Corsi", "filtri «Come si fa» con i conteggi e «Tipo» (anche «Senza tipo»)."),
+                    ("Tipi di corso", "Formazione → Tipi di corso: tipi e colori, «Tipo per piano» per dare il tipo a tutti i corsi "
+                                      "di un piano, «Piani da rivedere» per accorpare i piani doppi (corsi, regole e assegnazioni "
+                                      "passano al piano scelto, il vecchio si disattiva) o segnarli «Non sono doppi»."),
+                    ("I miei corsi online", "per il dipendente: Da fare per scadenza, Altri corsi disponibili, Completati."),
+                ]),
+            ],
+        },
+        {
             "id": "elearning-pagina-corso",
             "titolo": "Pagina di un corso online: stato, risultati, assegnazioni",
             "blocchi": [

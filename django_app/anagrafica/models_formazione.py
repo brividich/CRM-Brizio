@@ -31,6 +31,8 @@ def _nuovo_token() -> str:
 __all__ = [
     "AnagraficaFormazionePermission",
     "TrainingPlan",
+    "TrainingCourseType",
+    "TrainingPlanNonDoppio",
     "TrainingCourse",
     "TrainingCourseVersion",
     "TrainingCompletionRule",
@@ -289,6 +291,40 @@ class TrainingPlan(models.Model):
 # CORSO
 # ─────────────────────────────────────────────────────────────
 
+class TrainingCourseType(models.Model):
+    """Tipo di corso (Sicurezza, Qualità e clienti, Tecnico e mestiere, Normativo, Informatica…).
+
+    Serve a raggruppare e filtrare i corsi; il «piano» resta il programma/cliente di provenienza."""
+
+    nome        = models.CharField(max_length=80, unique=True)
+    descrizione = models.CharField(max_length=200, blank=True, default="")
+    colore      = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale, es. #ef4444.")
+    ordine      = models.PositiveSmallIntegerField(default=0)
+    is_active   = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Tipo di corso"
+        verbose_name_plural = "Tipi di corso"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class TrainingPlanNonDoppio(models.Model):
+    """Coppia di piani che il portale aveva proposto come doppioni e che non lo sono."""
+
+    piano_a = models.ForeignKey(TrainingPlan, on_delete=models.CASCADE, related_name="+")
+    piano_b = models.ForeignKey(TrainingPlan, on_delete=models.CASCADE, related_name="+")
+    deciso_da = models.CharField(max_length=160, blank=True, default="")
+    deciso_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("piano_a", "piano_b")]
+        verbose_name = "Piani non doppi"
+        verbose_name_plural = "Piani non doppi"
+
+
 class TrainingCourse(models.Model):
     """Corso formativo, appartenente a un piano."""
 
@@ -307,6 +343,10 @@ class TrainingCourse(models.Model):
     ]
 
     piano              = models.ForeignKey(TrainingPlan, on_delete=models.PROTECT, related_name="corsi")
+    tipo               = models.ForeignKey(
+        TrainingCourseType, null=True, blank=True, on_delete=models.SET_NULL, related_name="corsi",
+        verbose_name="Tipo di corso",
+    )
     categoria          = models.ForeignKey(
         "anagrafica.CategoriaCorso", null=True, blank=True,
         on_delete=models.SET_NULL, related_name="corsi",
@@ -968,13 +1008,21 @@ class TrainingSession(models.Model):
         ("COMPLETATA",  "Completata"),
         ("ANNULLATA",   "Annullata"),
     ]
+    # Nomi chiari (25/11/2026); i valori salvati restano gli stessi.
     MODALITA_CHOICES = [
-        ("IN_SEDE",  "In sede"),
-        ("REMOTO",   "Remoto / Online"),
+        ("IN_SEDE",  "In aula, in azienda"),
+        ("ESTERNO",  "Presso ente esterno"),
+        ("REMOTO",   "Online in diretta"),
         ("ONLINE",   "Online: slide + test"),
-        ("ESTERNO",  "Esterno (provider)"),
-        ("MISTO",    "Misto"),
+        ("MISTO",    "Misto: aula + test online"),
     ]
+    MODALITA_AIUTO = {
+        "IN_SEDE": "Docente interno o esterno, giornate, presenze e firme.",
+        "ESTERNO": "Il corso lo fa l'ente: carichi l'attestato e chiudi l'esito.",
+        "REMOTO": "Webinar o Teams a orario fisso: link della riunione e presenze.",
+        "ONLINE": "Ognuno quando può, entro una scadenza: slide e test, anche quelli del corso.",
+        "MISTO": "Lezione in aula e test finale online.",
+    }
 
     corso           = models.ForeignKey(TrainingCourse, on_delete=models.PROTECT, related_name="sessioni")
     codice_sessione = models.CharField(max_length=40, unique=True)

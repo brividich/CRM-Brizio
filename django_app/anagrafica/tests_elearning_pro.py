@@ -316,7 +316,7 @@ class CorsoSenzaQuizTests(_Pro):
 
 
 class CorrezioniReviewTests(_Pro):
-    def test_interruttore_online_rende_il_corso_erogabile(self):
+    def test_interruttore_online_senza_slide_non_pubblica(self):
         from .models_formazione import TrainingCourse
         from .services.elearning_fruizione import corso_pubblicato
         aula = TrainingCourse.objects.create(piano=self.corso.piano, codice="AULA1", titolo="Aula",
@@ -326,7 +326,8 @@ class CorrezioniReviewTests(_Pro):
         self.client.post(reverse("anagrafica:elearning_impostazioni_corsi"), {"corso_id": aula.pk, "azione": "online"})
         aula.refresh_from_db()
         self.assertTrue(aula.is_elearning)
-        self.assertTrue(corso_pubblicato(aula))
+        # Corso d'aula già «Attivo» senza slide: acceso ma non visibile finché non ha contenuti.
+        self.assertFalse(corso_pubblicato(aula))
 
     def test_regola_non_confermata_non_toglie_il_corso_dall_online(self):
         from .services.elearning_fruizione import corso_pubblicato

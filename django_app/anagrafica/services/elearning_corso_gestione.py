@@ -66,12 +66,15 @@ def stato_corso(corso, *, n_slide: int, n_domande: int, n_invalid: int, link) ->
         link_stato, link_testo = "spento", "Link aperto spento"
     elif link.scade_il and timezone.localdate() > link.scade_il:
         link_stato, link_testo = "scaduto", f"Link aperto scaduto il {link.scade_il:%d-%m-%Y}"
-    elif not pubblicato:
-        link_stato, link_testo = "bloccato", "Link aperto attivo, ma non funziona finché il corso è in bozza"
+    elif not pubblicato or not n_slide:
+        link_stato, link_testo = "bloccato", ("Link aperto attivo, ma non funziona finché il corso è in bozza"
+                                              if not pubblicato else "Link aperto attivo, ma il corso non ha slide")
     else:
         link_stato, link_testo = "ok", "Link aperto funzionante"
     pronto = n_slide > 0 and not n_invalid
-    if pubblicato and pronto:
+    if pubblicato and not n_slide:
+        frase = "Il corso è pubblicato ma senza slide non è visibile: aggiungile da «Slide e quiz»."
+    elif pubblicato and pronto:
         frase = "Il corso è online: i dipendenti lo trovano in «Corsi online», gli assegnati anche tra le loro attività."
     elif pubblicato:
         frase = "Il corso è online ma ha qualcosa da sistemare."
@@ -79,7 +82,7 @@ def stato_corso(corso, *, n_slide: int, n_domande: int, n_invalid: int, link) ->
         frase = "Il corso è pronto ma non è visibile: premi «Pubblica»."
     else:
         frase = "Il corso non è visibile ai dipendenti: completa i contenuti e pubblicalo."
-    return {"visibile": pubblicato, "pronto": pronto, "controlli": controlli, "frase": frase,
+    return {"visibile": pubblicato and n_slide > 0, "pronto": pronto, "controlli": controlli, "frase": frase,
             "link_stato": link_stato, "link_testo": link_testo}
 
 

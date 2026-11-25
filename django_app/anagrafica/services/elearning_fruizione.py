@@ -28,16 +28,25 @@ FILTRO_PUBBLICATI = {"is_elearning": True, "is_active": True, "stato": "ATTIVO"}
 
 
 def corsi_pubblicati():
-    from ..models_formazione import TrainingCourse
-    return TrainingCourse.objects.filter(**FILTRO_PUBBLICATI)
+    """Corsi online visibili: e-learning, attivi, pubblicati e con almeno una slide attiva.
+
+    La slide serve perché un corso d'aula già «Attivo» su cui si accende l'online
+    non diventi visibile vuoto."""
+    from django.db.models import Exists, OuterRef
+    from ..models_formazione import TrainingCourse, TrainingSlide
+    con_slide = TrainingSlide.objects.filter(corso=OuterRef("pk"), is_active=True)
+    return TrainingCourse.objects.filter(**FILTRO_PUBBLICATI).filter(Exists(con_slide))
 
 
 def filtro_pubblicati(prefisso: str) -> dict:
-    return {f"{prefisso}{k}": v for k, v in FILTRO_PUBBLICATI.items()}
+    """Filtro per modelli collegati al corso (``prefisso`` = ``"corso__"``)."""
+    return {f"{prefisso.rstrip('_')}__in": corsi_pubblicati()}
 
 
 def corso_pubblicato(corso) -> bool:
-    return bool(corso.is_elearning and corso.is_active and corso.stato == "ATTIVO")
+    if not (corso.is_elearning and corso.is_active and corso.stato == "ATTIVO"):
+        return False
+    return corso.slides.filter(is_active=True).exists()
 
 
 @dataclass
