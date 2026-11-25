@@ -225,3 +225,64 @@ def cronologia_op(titolo: str, documenti, quanti: int = 12) -> list[dict]:
                        "esito": "documento registrato"})
     eventi.sort(key=lambda e: e["quando"] or date.min, reverse=True)
     return eventi[:quanti]
+
+
+# --- Pagina del pezzo (S/N) ------------------------------------------------------------------------------
+
+MAX_FASI_PEZZO = 12
+
+
+def report_del_pezzo(pn: str, sn: str) -> list[ReportCMM]:
+    """Tutti i report CMM del pezzo (P/N + S/N, confronto su lettere e cifre), dal più vecchio, esclusi compresi."""
+    chiave = chiave_seriale(sn)
+    if not chiave:
+        return []
+    import re
+
+    cifre = re.findall(r"\d+", chiave)
+    filtro = cifre[-1][-4:] if cifre else chiave[-3:]      # le ultime cifre restano uguali anche con trattini e spazi
+    candidati = ReportCMM.objects.filter(pn=pn, righe__gt=0, seriale__icontains=filtro).order_by("data", "id")
+    return [r for r in candidati if chiave_seriale(r.seriale) == chiave]
+
+
+def pezzo(pn: str, sn: str, solo: str = "") -> dict | None:
+    """La pagina del pezzo: i suoi report (una colonna per report, al massimo gli ultimi ``MAX_FASI_PEZZO``), le
+    quote allineate come nel confronto, la storia con le anomalie, l'OP e se è il primo articolo del FAI."""
+    from core import ordini_produzione as op_db
+
+    reports = report_del_pezzo(pn, sn)
+    if not reports:
+        return None
+    validi = [r for r in reports if not r.escluso]
+    colonne = (validi or reports)[-MAX_FASI_PEZZO:]
+    dati = confronta(colonne)
+    righe = dati["righe"]
+    if solo == "fuori":
+        righe = [r for r in righe if r["fuori"]]
+    elif solo == "cambiate":
+        righe = [r for r in righe if r["cambia"]]
+    else:
+        solo = ""
+    ultimo = colonne[-1]
+    ops = list(dict.fromkeys(r.op for r in reports if r.op))
+    primi = {r.op: report_primo_articolo(r.op) for r in reports if r.op}
+    primo_articolo = any(p and p.pk == r.pk for r in reports for p in [primi.get(r.op)])
+    anomalie = op_db.anomalie_del_seriale(ultimo.seriale) if op_db.disponibile() else []
+    storia = []
+    fasi_viste: dict[str, int] = {}
+    for r in reports:
+        fasi_viste[r.programma_base] = fasi_viste.get(r.programma_base, 0) + 1
+        storia.append({"quando": r.data, "id": r.id, "tipo": "escluso" if r.escluso else ("fuori" if r.fuori else "ok"),
+                       "testo": f"{r.programma_base or '—'}{' · rimisura' if fasi_viste[r.programma_base] > 1 else ''}",
+                       "esito": ("escluso dall'analisi: " + r.escluso_motivo) if r.escluso else
+                       (f"{r.fuori} quot{'a' if r.fuori == 1 else 'e'} fuori" if r.fuori else "tutto in tolleranza"),
+                       "op": r.op})
+    storia.reverse()
+    stato = "fuori" if ultimo.fuori else "ok"
+    return {
+        "pn": pn, "sn": ultimo.seriale or sn, "reports": reports, "colonne": colonne, "righe": righe, "totale": dati["totale"],
+        "cambiate": dati["cambiate"], "n_fuori": sum(1 for r in dati["righe"] if r["fuori"]), "solo": solo, "ops": ops,
+        "primo_articolo": primo_articolo, "anomalie": anomalie, "anomalie_aperte": sum(a["aperta"] for a in anomalie),
+        "storia": storia, "stato": stato, "ultimo": ultimo, "esclusi": len(reports) - len(validi),
+        "nascosti": max(0, len(validi or reports) - MAX_FASI_PEZZO),
+    }

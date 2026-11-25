@@ -171,3 +171,23 @@ def conta_anomalie(op: dict) -> dict:
     )
     riga = righe[0] if righe else {}
     return {"totale": int(riga.get("totale") or 0), "aperte": int(riga.get("aperte") or 0)}
+
+
+def anomalie_del_seriale(seriale: str, limite: int = 30) -> list[dict]:
+    """Anomalie che citano il S/N (confronto su lettere e cifre), le più recenti prima: id, OP, descrizione, aperta."""
+    colonne = legacy_table_columns("anomalie")
+    chiave = re.sub(r"[^A-Z0-9]", "", str(seriale or "").upper())
+    if "seriale" not in colonne or len(chiave) < 2:
+        return []
+    campi = ["id", "seriale"] + [c for c in ("ex_op_nominativo", "descrizione", "chiudere") if c in colonne]
+    righe = _righe(f"SELECT {', '.join(campi)} FROM anomalie WHERE UPPER(seriale) LIKE %s ORDER BY id DESC",
+                   [f"%{chiave[-6:]}%"], 400)
+    out = []
+    for r in righe:
+        pezzi = {re.sub(r"[^A-Z0-9]", "", p.upper()) for p in re.split(r"[,;/\s]+", str(r.get("seriale") or ""))}
+        if chiave in pezzi:
+            out.append({"id": r["id"], "op": r.get("ex_op_nominativo") or "", "descrizione": r.get("descrizione") or "",
+                        "aperta": not r.get("chiudere")})
+        if len(out) >= limite:
+            break
+    return out

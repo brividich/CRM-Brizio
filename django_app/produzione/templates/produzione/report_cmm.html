@@ -9,7 +9,7 @@
   <div class="prod-head">
     <div>
       <span class="prod-eyebrow"><a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a> · Report CMM</span>
-      <h1>{{ report.seriale|default:report.file }}</h1>
+      <h1>{% if report.seriale %}<a class="prod-titolo-link" href="{% url 'produzione:pezzo' %}?pn={{ report.pn|urlencode }}&amp;sn={{ report.seriale|urlencode }}" title="Storia del pezzo">{{ report.seriale }}</a>{% else %}{{ report.file }}{% endif %}</h1>
     </div>
     <div class="prod-filtri">
       {% if prima %}<a class="prod-btn" href="{% url 'produzione:report_cmm' prima.id %}" title="{{ prima.seriale|default:prima.file }} · {{ prima.data|date:'d/m/Y' }}">‹ Pezzo prima</a>{% endif %}
@@ -80,7 +80,7 @@
 
   {% if altri %}
   <section class="prod-card">
-    <div class="prod-card-head"><h2>Altri report dello stesso S/N</h2>{% if proposte.fasi %}<a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:report_confronta' %}?{% for i in proposte.fasi %}r={{ i }}&amp;{% endfor %}">Confronta le fasi</a>{% endif %}</div>
+    <div class="prod-card-head"><h2>Altri report dello stesso S/N</h2><a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:pezzo' %}?pn={{ report.pn|urlencode }}&amp;sn={{ report.seriale|urlencode }}">Pagina del pezzo</a>{% if proposte.fasi %}<a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:report_confronta' %}?{% for i in proposte.fasi %}r={{ i }}&amp;{% endfor %}">Confronta le fasi</a>{% endif %}</div>
     {% include "produzione/_report_cmm_tabella.html" with elenco_report=altri %}
   </section>
   {% endif %}
