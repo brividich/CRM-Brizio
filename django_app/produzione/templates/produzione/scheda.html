@@ -2,77 +2,99 @@
 {% load static %}
 
 {% block title %}{{ op.op }} · Ordini di produzione{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126a">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126c">{% endblock %}
 
 {% block content %}
 <div class="prod">
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:elenco' %}">Ordini di produzione</a></span>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:elenco' %}">Ordini di produzione</a>{% if op.capocommessa %} · Capocommessa {{ op.capocommessa }}{% endif %}{% if op.car %} · CAR {{ op.car }}{% endif %}</span>
       <h1>{{ op.op }}{% if op.stato %} <span class="prod-stato">{{ op.stato }}</span>{% endif %}</h1>
+    </div>
+    <div class="prod-filtri">
+      {% if url_quote %}<a class="prod-btn" href="{{ url_quote }}">Analisi quote</a>{% endif %}
+      {% if prod_puo_documenti %}<a class="prod-btn" href="?sez=documenti&amp;aggiungi=1">Aggiungi documento</a>{% endif %}
+      <a class="prod-btn prod-btn-primary" href="{{ url_anomalie }}">Anomalie</a>
     </div>
   </div>
 
   {% include "produzione/_nav.html" %}
 
-  <div class="prod-dati">
+  <div class="prod-dati prod-dati-6">
     <div class="prod-dato"><span>P/N</span>{% if url_pn %}<a href="{{ url_pn }}">{{ op.pn }}</a>{% else %}<b>{{ op.pn|default:"—" }}</b>{% endif %}</div>
-    <div class="prod-dato"><span>Capocommessa</span><b>{{ op.capocommessa|default:"—" }}</b></div>
-    <div class="prod-dato"><span>CAR</span><b>{{ op.car|default:"—" }}</b></div>
+    {% if matrice %}
+    <div class="prod-dato"><span>Pezzi misurati</span><b>{{ matrice.conta.pezzi }}</b></div>
+    <div class="prod-dato"><span title="Misurati nell'ultima fase, senza quote fuori">All'ultima fase, OK</span><b>{{ matrice.conta.completi }}</b></div>
+    <div class="prod-dato{% if matrice.conta.con_fuori %} is-allerta{% endif %}"><span>Con quote fuori</span><b>{{ matrice.conta.con_fuori }}</b></div>
+    {% endif %}
+    <div class="prod-dato{% if anomalie.aperte %} is-allerta{% endif %}"><span>Anomalie aperte</span><b>{{ anomalie.aperte }}{% if anomalie.totale %} <small>su {{ anomalie.totale }}</small>{% endif %}</b></div>
+    <div class="prod-dato"><span>Report CMM</span><b>{{ report_cmm|length }}</b></div>
   </div>
 
-  {% if prossimo %}
-  <div class="prod-prossimo is-{{ prossimo.stato }}">
-    <div>
-      <span class="prod-prossimo-etichetta">{% if prossimo.stato == "attesa" %}In attesa{% else %}Prossimo passo{% endif %}</span>
-      <b>{{ prossimo.n }} · {{ prossimo.titolo }}</b>
-      {% if not prossimo.in_tabella %}<p>{{ prossimo.testo }}</p>{% endif %}
-    </div>
-    {% if prossimo.url %}<a class="prod-btn prod-btn-primary" href="{{ prossimo.url }}">{{ prossimo.azione }}</a>{% else %}<a class="prod-btn" href="#passo-{{ prossimo.chiave }}">Vai al passo</a>{% endif %}
-  </div>
-  {% else %}
-  <div class="prod-prossimo is-fatto">
-    <div><span class="prod-prossimo-etichetta">Percorso completo</span><b>Questo OP ha tutto in ordine.</b></div>
-  </div>
-  {% endif %}
+  <ol class="prod-percorso-pn" aria-label="Percorso dell'OP">
+    {% for p in passi %}
+    <li class="is-{{ p.stato }}"><span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span><div><b>{% if p.url %}<a href="{{ p.url }}">{{ p.titolo }}</a>{% else %}{{ p.titolo }}{% endif %}</b><small title="{{ p.testo }}">{{ p.testo }}</small></div></li>
+    {% endfor %}
+  </ol>
 
-  {% for p in passi %}
-  <section class="prod-card prod-passo is-{{ p.stato }}" id="passo-{{ p.chiave }}">
-    <div class="prod-card-head">
-      <h2><span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span> {{ p.titolo }}</h2>
-      {% if p.url and p.chiave != "documenti" and p != prossimo %}<a class="prod-btn prod-btn-piccolo" href="{{ p.url }}">{{ p.azione }}</a>{% endif %}
-    </div>
-    {% if not p.in_tabella and p != prossimo %}<p class="prod-nota prod-passo-testo">{{ p.testo }}</p>{% endif %}
+  <nav class="prod-sez" aria-label="Sezioni della scheda">
+    {% for t in sezioni %}<a href="{{ t.url }}"{% if t.chiave == sezione %} class="is-on" aria-current="page"{% endif %}>{{ t.nome }}{% if t.n is not None %} <small>{{ t.n }}</small>{% endif %}</a>{% endfor %}
+  </nav>
 
-    {% if p.chiave == "kickoff" %}
-      {% if progetti|length > 1 %}
-      <ul class="prod-lista">
-        {% for k in progetti %}<li><a href="{% url 'tasks:project_overview' k.id %}">{{ k.name|truncatechars:60 }}</a><span class="prod-sub">{{ k.get_phase_display }}</span></li>{% endfor %}
-      </ul>
-      {% endif %}
-
-    {% elif p.chiave == "programmi" %}
-      {% if programmi %}
+  {% if not sezione %}
+  <div class="prod-griglia-2 prod-griglia-op">
+    <section class="prod-card">
+      <div class="prod-card-head"><h2>Pezzi e fasi</h2><span class="prod-nota">Una riga per S/N, una colonna per fase di controllo (programma CMM); clic su una cella = il report</span></div>
+      {% if matrice.pezzi %}
       <div class="prod-scorri">
-        <table class="prod-tab">
-          <thead><tr><th>Tipo</th><th>Codice</th><th>Cartella o file</th><th>Responsabile</th><th>Stato</th>{% if progetti|length > 1 %}<th>KICK-OFF</th>{% endif %}</tr></thead>
+        <table class="prod-matrice" data-fm-table-skip="1">
+          <thead><tr><th class="prod-matrice-sn">S/N</th>{% for f in matrice.fasi %}<th title="{{ f }}">{{ f|truncatechars:22 }}</th>{% endfor %}</tr></thead>
           <tbody>
-            {% for r in programmi %}
+            {% for p in matrice.pezzi %}
             <tr>
-              <td><b>{{ r.kind }}</b></td>
-              <td>{{ r.code|default:"—" }}</td>
-              <td>{% if r.path %}<a class="prod-percorso" href="{{ r.path }}">{{ r.path }}</a>{% else %}—{% endif %}</td>
-              <td>{% if r.assigned_to %}{% firstof r.assigned_to.get_full_name r.assigned_to.username %}{% else %}—{% endif %}</td>
-              <td><span class="prod-stato">{{ r.get_status_display }}</span></td>
-              {% if progetti|length > 1 %}<td><a href="{% url 'tasks:project_tech_refs' r.project_id %}">{{ r.project.name|truncatechars:40 }}</a></td>{% endif %}
+              <th class="prod-matrice-sn" scope="row">{{ p.sn }}{% if p.anomalie %} <a class="prod-stato is-allerta" href="{{ url_anomalie }}">{{ p.anomalie }} anomali{{ p.anomalie|pluralize:"a,e" }}</a>{% endif %}</th>
+              {% for c in p.riga %}
+              <td>{% if c %}<a class="prod-cella is-{{ c.stato }}" href="{% url 'produzione:report_cmm' c.id %}" title="{{ c.data|date:'d/m/Y' }}{% if c.n > 1 %} · misurato {{ c.n }} volte{% endif %}">{% if c.stato == "fuori" %}{{ c.fuori }} fuori{% elif c.stato == "limite" %}al limite{% else %}OK{% endif %}{% if c.n > 1 %} <i>↻</i>{% endif %}</a>{% else %}<span class="prod-cella is-vuota">—</span>{% endif %}</td>
+              {% endfor %}
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      <p class="prod-legenda prod-legenda-celle"><span class="prod-cella is-ok">OK</span><span class="prod-cella is-limite">al limite</span> oltre l'80% della tolleranza <span class="prod-cella is-fuori">fuori</span><span class="prod-cella is-vuota">—</span> non misurato · ↻ rimisurato (conta l'ultima misura){% if matrice.esclusi %} · {{ matrice.esclusi }} report esclusi dall'analisi non contano{% endif %}</p>
+      {% else %}
+      <p class="prod-vuoto">Nessun report CMM letto per questo OP.</p>
       {% endif %}
+    </section>
+    <section class="prod-card">
+      <div class="prod-card-head"><h2>Cosa è successo</h2><span class="prod-nota">Report CMM e documenti, dal più recente</span></div>
+      {% if cronologia %}
+      <ol class="prod-cronologia">
+        {% for e in cronologia %}<li class="is-{{ e.tipo }}"><time>{{ e.quando|date:"d/m/Y"|default:"—" }}</time>{% if e.id %}<a href="{% url 'produzione:report_cmm' e.id %}">{{ e.testo }}</a>{% else %}{{ e.testo }}{% endif %}<small>{{ e.esito }}</small></li>{% endfor %}
+      </ol>
+      {% else %}
+      <p class="prod-vuoto">Ancora niente.</p>
+      {% endif %}
+      {% if altri_op %}
+      <h3 class="prod-sottotitolo">Altri OP dello stesso P/N</h3>
+      <div class="prod-chips">{% for o in altri_op %}<a class="prod-chip" href="{% url 'produzione:scheda' o.id %}">{{ o.op }}{% if o.stato %} · {{ o.stato }}{% endif %}</a>{% endfor %}</div>
+      {% endif %}
+    </section>
+  </div>
 
-    {% elif p.chiave == "documenti" %}
+  {% elif sezione == "report" %}
+  <section class="prod-card" id="report-cmm">
+    <div class="prod-card-head"><h2>Report CMM dell'OP</h2><span class="prod-nota">Spunta 2-6 righe per confrontarle</span></div>
+    {% if report_cmm %}
+    {% include "produzione/_report_cmm_tabella.html" with elenco_report=report_cmm %}
+    {% else %}
+    <p class="prod-vuoto">Nessun report CMM letto per questo OP.</p>
+    {% endif %}
+  </section>
+
+  {% elif sezione == "documenti" %}
+  <section class="prod-card" id="passo-documenti">
+    <div class="prod-card-head"><h2>Documenti di produzione</h2></div>
       {% if prod_puo_documenti %}
       <details class="prod-aggiungi"{% if modifica or apri_form %} open{% endif %}>
         <summary class="prod-btn prod-btn-primary">{% if modifica %}Modifica documento{% else %}Aggiungi documento{% endif %}</summary>
@@ -96,7 +118,7 @@
           <label class="prod-campo s12"><span>Note</span><textarea name="note" maxlength="2000" rows="2">{{ form.note.value|default_if_none:'' }}</textarea></label>
           <div class="prod-form-azioni">
             <button class="prod-btn prod-btn-primary" type="submit">Salva</button>
-            {% if modifica %}<a class="prod-btn" href="{% url 'produzione:scheda' op.id %}">Annulla</a>{% endif %}
+            {% if modifica %}<a class="prod-btn" href="{% url 'produzione:scheda' op.id %}?sez=documenti">Annulla</a>{% endif %}
           </div>
         </form>
       </details>
@@ -116,7 +138,7 @@
               <td>{% if d.percorso %}<a class="prod-percorso" href="{{ d.percorso }}">{{ d.percorso }}</a>{% else %}—{% endif %}</td>
               {% if prod_puo_documenti %}
               <td class="prod-azioni">
-                <a class="prod-btn prod-btn-piccolo" href="?documento={{ d.id }}#passo-documenti">Modifica</a>
+                <a class="prod-btn prod-btn-piccolo" href="?sez=documenti&amp;documento={{ d.id }}">Modifica</a>
                 <form method="post" action="{% url 'produzione:documento_elimina' op.id d.id %}">{% csrf_token %}<button class="prod-btn prod-btn-piccolo prod-btn-link" type="submit" data-hub-confirm="Eliminare questo documento?">Elimina</button></form>
               </td>
               {% endif %}
@@ -127,8 +149,12 @@
       </div>
       {% endif %}
 
-    {% elif p.chiave == "fai" %}
-      <p class="prod-passo-altro">{% if url_pn %}<a href="{{ url_pn }}#passo-fai">Scheda del P/N</a>{% endif %}{% if p.url != url_nuovo_fai and op.pn %}{% if url_pn %} · {% endif %}<a href="{{ url_nuovo_fai }}">+ Nuovo FAI del P/N</a>{% endif %}</p>
+      {% if not documenti %}<p class="prod-vuoto">Nessun documento registrato: ciclo, disegno, DIP, piano di controllo…</p>{% endif %}
+  </section>
+
+  {% elif sezione == "fai" %}
+  <section class="prod-card">
+    <div class="prod-card-head"><h2>FAI del P/N</h2>{% if op.pn %}<a class="prod-btn prod-btn-piccolo" href="{{ url_nuovo_fai }}">+ Nuovo FAI del P/N</a>{% endif %}</div>
       {% if fai_pn %}
       <div class="prod-scorri">
         <table class="prod-tab">
@@ -136,27 +162,36 @@
           <tbody>{% for f in fai_pn|slice:":10" %}{% include "produzione/_riga_fai.html" %}{% endfor %}</tbody>
         </table>
       </div>
-      {% if fai_pn|length > 10 %}<p class="prod-nota">Gli altri {{ fai_pn|length|add:"-10" }} FAI sono nella <a href="{{ url_pn }}#passo-fai">scheda del P/N</a>.</p>{% endif %}
+      {% if fai_pn|length > 10 %}<p class="prod-nota">Gli altri {{ fai_pn|length|add:"-10" }} FAI sono nella <a href="{{ url_pn }}?sez=fai">scheda del P/N</a>.</p>{% endif %}
       {% endif %}
 
-    {% elif p.chiave == "anomalie" %}
-    {% endif %}
+      {% if not fai_pn %}<p class="prod-vuoto">Nessun FAI per il P/N di questo OP.</p>{% endif %}
   </section>
-  {% endfor %}
 
-  {% if report_cmm %}
-  <section class="prod-card" id="report-cmm">
-    <div class="prod-card-head"><h2>Report CMM</h2>{% if url_quote %}<a class="prod-btn prod-btn-piccolo" href="{{ url_quote }}">Analisi quote</a>{% endif %}</div>
-    {% include "produzione/_report_cmm_tabella.html" with elenco_report=report_cmm %}
-  </section>
-  {% endif %}
-
-  {% if altri_op %}
+  {% elif sezione == "programmi" %}
   <section class="prod-card">
-    <div class="prod-card-head"><h2>Altri OP dello stesso P/N</h2>{% if url_pn %}<a class="prod-btn prod-btn-piccolo" href="{{ url_pn }}">Scheda del P/N</a>{% endif %}</div>
-    <div class="prod-chips">
-      {% for o in altri_op %}<a class="prod-chip" href="{% url 'produzione:scheda' o.id %}">{{ o.op }}{% if o.stato %} · {{ o.stato }}{% endif %}</a>{% endfor %}
-    </div>
+    <div class="prod-card-head"><h2>Programmi CAM e CMM del KICK-OFF</h2></div>
+      {% if programmi %}
+      <div class="prod-scorri">
+        <table class="prod-tab">
+          <thead><tr><th>Tipo</th><th>Codice</th><th>Cartella o file</th><th>Responsabile</th><th>Stato</th>{% if progetti|length > 1 %}<th>KICK-OFF</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for r in programmi %}
+            <tr>
+              <td><b>{{ r.kind }}</b></td>
+              <td>{{ r.code|default:"—" }}</td>
+              <td>{% if r.path %}<a class="prod-percorso" href="{{ r.path }}">{{ r.path }}</a>{% else %}—{% endif %}</td>
+              <td>{% if r.assigned_to %}{% firstof r.assigned_to.get_full_name r.assigned_to.username %}{% else %}—{% endif %}</td>
+              <td><span class="prod-stato">{{ r.get_status_display }}</span></td>
+              {% if progetti|length > 1 %}<td><a href="{% url 'tasks:project_tech_refs' r.project_id %}">{{ r.project.name|truncatechars:40 }}</a></td>{% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if not programmi %}<p class="prod-vuoto">Nessun programma nel KICK-OFF del P/N.</p>{% endif %}
   </section>
   {% endif %}
 </div>

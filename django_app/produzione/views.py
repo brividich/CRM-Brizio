@@ -496,6 +496,28 @@ def _op_o_404(pk: int) -> dict:
     return op
 
 
+SEZIONI_OP = (("", "Pezzi"), ("report", "Report CMM"), ("documenti", "Documenti"), ("fai", "FAI"), ("programmi", "Programmi"))
+
+
+def _render_scheda(request, op: dict, sezione: str, status: int = 200, **extra):
+    """Scheda dell'OP a sezioni (``?sez=``): Pezzi (matrice pezzi × fasi e cronologia), Report CMM, Documenti,
+    FAI e Programmi (questi due per chi vede i KICK-OFF)."""
+    dati = services.scheda(request, op)
+    sezioni = dict(SEZIONI_OP)
+    if sezione not in sezioni or (sezione in ("fai", "programmi") and not dati["vede_kickoff"]):
+        sezione = ""
+    if not sezione:
+        dati["matrice"] = pagine_cmm.matrice_op(op["op"], op_db.anomalie_aperte_per_seriale(op))
+        dati["cronologia"] = pagine_cmm.cronologia_op(op["op"], dati["documenti"])
+    conta = {"report": len(dati["report_cmm"]), "documenti": len(dati["documenti"]), "fai": len(dati["fai_pn"]),
+             "programmi": len(dati["programmi"])}
+    url = reverse("produzione:scheda", args=[op["id"]])
+    tab = [{"chiave": k, "nome": v, "n": conta.get(k), "url": f"{url}?sez={k}" if k else url}
+           for k, v in SEZIONI_OP if k not in ("fai", "programmi") or dati["vede_kickoff"]]
+    return render(request, "produzione/scheda.html", _ctx(request, "scheda", sezione=sezione, sezioni=tab, **dati, **extra),
+                  status=status)
+
+
 @login_required
 @require_GET
 def scheda(request, pk: int):
@@ -504,10 +526,10 @@ def scheda(request, pk: int):
     if (request.GET.get("documento") or "").isdigit():
         modifica = DocumentoOP.objects.filter(pk=int(request.GET["documento"]), op__iexact=op["op"]).first()
     form = DocumentoForm(instance=modifica) if modifica else DocumentoForm()
-    return render(request, "produzione/scheda.html", _ctx(
-        request, "scheda", form=form, modifica=modifica, tipi=TipoDocumento.objects.filter(attivo=True),
-        apri_form=request.GET.get("aggiungi") == "1", **services.scheda(request, op),
-    ))
+    apri = request.GET.get("aggiungi") == "1"
+    sezione = "documenti" if (modifica or apri) else request.GET.get("sez", "")
+    return _render_scheda(request, op, sezione, form=form, modifica=modifica, tipi=TipoDocumento.objects.filter(attivo=True),
+                          apri_form=apri)
 
 
 @login_required
@@ -521,10 +543,8 @@ def documento(request, pk: int):
         istanza = get_object_or_404(DocumentoOP, pk=int(request.POST["documento"]), op__iexact=op["op"])
     form = DocumentoForm(request.POST, instance=istanza)
     if not form.is_valid():
-        return render(request, "produzione/scheda.html", _ctx(
-            request, "scheda", form=form, modifica=istanza, tipi=TipoDocumento.objects.filter(attivo=True),
-            apri_form=True, **services.scheda(request, op),
-        ), status=400)
+        return _render_scheda(request, op, "documenti", status=400, form=form, modifica=istanza,
+                              tipi=TipoDocumento.objects.filter(attivo=True), apri_form=True)
     doc = form.save(commit=False)
     doc.op = op["op"]
     if istanza is None:
@@ -533,7 +553,7 @@ def documento(request, pk: int):
     log_action(request, "produzione_documento_salva", "produzione",
                {"id": doc.pk, "op": doc.op, "tipo": doc.tipo.etichetta, "nuovo": istanza is None})
     messages.success(request, f"{doc.tipo.etichetta} salvato.")
-    return redirect("produzione:scheda", pk)
+    return redirect(f"{reverse('produzione:scheda', args=[pk])}?sez=documenti")
 
 
 @login_required
@@ -546,7 +566,7 @@ def documento_elimina(request, pk: int, doc_id: int):
                {"id": doc.pk, "op": doc.op, "tipo": doc.tipo.etichetta, "titolo": doc.titolo})
     doc.delete()
     messages.success(request, "Documento eliminato.")
-    return redirect("produzione:scheda", pk)
+    return redirect(f"{reverse('produzione:scheda', args=[pk])}?sez=documenti")
 
 
 @login_required

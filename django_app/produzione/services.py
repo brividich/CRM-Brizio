@@ -368,10 +368,10 @@ def percorso(request, dati: dict) -> list[dict]:
     if documenti:
         tipi = list(dict.fromkeys(d.tipo.etichetta for d in documenti))
         passi.append(_passo("documenti", "Documenti di produzione", "fatto", ", ".join(tipi) + ".",
-                            "Aggiungi documento" if puo else "", "?aggiungi=1#passo-documenti" if puo else ""))
+                            "Aggiungi documento" if puo else "", "?sez=documenti&aggiungi=1" if puo else ""))
     else:
         passi.append(_passo("documenti", "Documenti di produzione", "dafare", "Nessun documento registrato: ciclo, disegno, DIP, piano di controllo…",
-                            "Aggiungi documento" if puo else "", "?aggiungi=1#passo-documenti" if puo else ""))
+                            "Aggiungi documento" if puo else "", "?sez=documenti&aggiungi=1" if puo else ""))
 
     if dati["vede_kickoff"]:
         if pn:

@@ -27,6 +27,12 @@ Ogni OP con i suoi documenti di produzione. Gli OP sono la tabella legacy `ordin
 
 Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KICK-OFF rispettano i permessi del modulo KICK-OFF.
 
+### Scheda OP a sezioni con pezzi × fasi (26/11/2026)
+
+- Sezioni con `?sez=`: Pezzi (vuota), `report`, `documenti`, `fai`, `programmi` (gli ultimi due per chi vede i KICK-OFF). `?aggiungi=1` e `?documento=<id>` aprono Documenti; dopo il salvataggio si torna a Documenti.
+- Matrice: `report_cmm_pagine.matrice_op` (report validi dell'OP per S/N e programma base; cella = ultimo report; «limite» se una quota supera l'80% della tolleranza; rimisure contate) e `cronologia_op`. Anomalie aperte per S/N: `core.ordini_produzione.anomalie_aperte_per_seriale` (stesso legame di Gestione anomalie).
+- Tolto «Prossimo passo»: il percorso è la striscia in alto.
+
 ### Scheda P/N a sezioni (26/11/2026)
 
 - Indirizzo stabile `/produzione/pn/<P/N>/` (nome `produzione:pn`, `services.url_pn(pn, sezione)`); il vecchio `/produzione/pn/scheda/?pn=` reindirizza (301) e resta valido per i link degli altri moduli.

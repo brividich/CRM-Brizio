@@ -46,10 +46,10 @@
           <td><a href="{% url 'produzione:scheda' r.ultimo_op.id %}">{{ r.ultimo_op.op }}</a>{% if r.ultimo_op.stato %} <span class="prod-stato">{{ r.ultimo_op.stato }}</span>{% endif %}</td>
           <td>{{ r.capocommessa|default:"—" }}</td>
           {% if vede_kickoff %}
-          <td class="prod-n">{% if r.n_fai %}{{ r.n_fai }}{% else %}<a class="prod-manca" href="{{ r.url }}#passo-fai">Manca</a>{% endif %}</td>
+          <td class="prod-n">{% if r.n_fai %}{{ r.n_fai }}{% else %}<a class="prod-manca" href="{{ r.url }}?sez=fai">Manca</a>{% endif %}</td>
           <td>{% if r.situazione %}<span class="prod-stato is-{{ r.situazione.classe }}" title="{{ r.situazione.nota }}">{{ r.situazione.etichetta }}</span>{% else %}—{% endif %}</td>
           {% endif %}
-          <td class="prod-n">{% if r.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ r.url }}#passo-op">{{ r.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
+          <td class="prod-n">{% if r.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ r.url }}?sez=op">{{ r.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
           <td class="prod-n">{% if r.cmm %}<a class="prod-manca{% if r.cmm.con_fuori %} is-allerta{% endif %}" href="{{ r.url_quote }}" title="{{ r.cmm.con_fuori }} report con quote fuori su {{ r.cmm.n }}">{{ r.cmm.con_fuori }}/{{ r.cmm.n }}</a>{% else %}<span class="prod-zero">—</span>{% endif %}</td>
         </tr>
         {% empty %}

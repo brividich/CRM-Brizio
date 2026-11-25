@@ -52,9 +52,9 @@
           <td>{{ op.car|default:"—" }}</td>
           <td>{% if op.stato %}<span class="prod-stato">{{ op.stato }}</span>{% endif %}</td>
           {% url 'produzione:scheda' op.id as url_op %}
-          <td class="prod-n">{% if op.n_documenti %}{{ op.n_documenti }}{% else %}<a class="prod-manca" href="{{ url_op }}#passo-documenti">Manca</a>{% endif %}</td>
-          {% if vede_kickoff %}<td class="prod-n">{% if op.n_fai %}{{ op.n_fai }}{% else %}<a class="prod-manca" href="{% if op.url_pn %}{{ op.url_pn }}{% else %}{{ url_op }}{% endif %}#passo-fai">Manca</a>{% endif %}</td>{% endif %}
-          <td class="prod-n">{% if op.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ url_op }}#passo-anomalie">{{ op.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
+          <td class="prod-n">{% if op.n_documenti %}{{ op.n_documenti }}{% else %}<a class="prod-manca" href="{{ url_op }}?sez=documenti">Manca</a>{% endif %}</td>
+          {% if vede_kickoff %}<td class="prod-n">{% if op.n_fai %}{{ op.n_fai }}{% else %}<a class="prod-manca" href="{% if op.url_pn %}{{ op.url_pn }}{% else %}{{ url_op }}{% endif %}?sez=fai">Manca</a>{% endif %}</td>{% endif %}
+          <td class="prod-n">{% if op.n_anomalie_aperte %}<a class="prod-manca is-allerta" href="{{ url_op }}">{{ op.n_anomalie_aperte }}</a>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
         </tr>
         {% empty %}
         <tr><td colspan="8" class="prod-vuoto">{% if q or stato or manca %}Nessun OP con questi filtri.{% else %}Nessun OP nell'elenco.{% endif %}</td></tr>
