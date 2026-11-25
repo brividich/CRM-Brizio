@@ -68,3 +68,16 @@ class GestioneCorsoTests(TestCase):
                                     {"export": tipo, "formato": formato})
                 self.assertEqual(r.status_code, 200, (tipo, formato))
                 self.assertIn("attachment", r["Content-Disposition"])
+
+
+class LinkApertoUrlPubblicoTests(TestCase):
+    def test_usa_site_url_in_https(self):
+        from django.test import RequestFactory, override_settings
+        from .views_elearning import url_link_aperto
+
+        class L:
+            token = "abc123"
+        req = RequestFactory().get("/", HTTP_HOST="hub.cnovicrom.local")
+        with override_settings(SITE_URL="https://hub.costruzioninovicrom.it", ELEARNING_LINK_APERTO_URL_PUBBLICO="",
+                               RECEPTION_RICHIESTE_URL_PUBBLICO=""):
+            self.assertEqual(url_link_aperto(req, L()), "https://hub.costruzioninovicrom.it/corso-aperto/abc123/")
