@@ -96,7 +96,7 @@ def pn_scheda(request):
 @login_required
 @require_GET
 def pn_quote(request):
-    """Andamento di una quota fra i report CMM del P/N (stesso programma), con il grafico."""
+    """Analisi quote del P/N: la pagina si disegna nel browser con i dati di ``api_quote``."""
     from tasks.identity import normalize_part_number
 
     pn = normalize_part_number(request.GET.get("pn") or "")
@@ -105,21 +105,38 @@ def pn_quote(request):
     programmi = cmm.programmi_del_pn(pn)
     prog = (request.GET.get("prog") or "").strip()
     if prog not in {p["programma_base"] for p in programmi}:
-        prog = programmi[0]["programma_base"] if len(programmi) == 1 else ""
-    quote = cmm.quote_del_programma(pn, prog) if prog else []
-    scelta = (request.GET.get("q") or "").strip()
-    # «q» = nome|nominale; un nome solo (link vecchi o da un report) prende la quota più recente con quel nome
-    quota = next((x for x in quote if x["id"] == scelta), None) or next(
-        (x for x in reversed(quote) if x["chiave"] == scelta), None)
-    if quota and (request.GET.get("nom") or "") and "|" not in scelta:
-        quota = next((x for x in quote if x["chiave"] == scelta and x["id"].endswith("|" + request.GET["nom"])), quota)
-    punti = cmm.andamento(pn, prog, quota) if quota else []
-    evidenzia = int(request.GET["r"]) if (request.GET.get("r") or "").isdigit() else 0
+        prog = programmi[0]["programma_base"] if programmi else ""
+    stato = {k: (request.GET.get(k) or "").strip()[:300] for k in ("q", "nom", "r", "tab", "per", "da", "a", "op", "cmp", "f", "ord")}
+    stato["prog"] = prog
     return render(request, "produzione/quote.html", _ctx(
-        request, "pn", pn=pn, programmi=programmi, prog=prog, quote=quote, quota=quota, punti=punti,
-        grafico=cmm.grafico(punti), evidenzia=evidenzia, solo_fuori=request.GET.get("fuori") == "1",
+        request, "pn", pn=pn, programmi=programmi, prog=prog, stato=stato,
         cartella=CartellaReportCMM.objects.filter(pn=pn).order_by("-letta_il").first(), attivo=cmm.attivo(),
     ))
+
+
+def _data_get(request, chiave: str):
+    from datetime import date
+
+    try:
+        return date.fromisoformat((request.GET.get(chiave) or "").strip()[:10])
+    except ValueError:
+        return None
+
+
+@require_GET
+def api_quote(request):
+    """Misure di un programma del P/N in JSON (pagina «Analisi quote»). Risponde sempre in JSON."""
+    from tasks.identity import normalize_part_number
+
+    # Il permesso «Elenco e scheda OP» lo controlla il middleware ACL (rotta legata, risposta JSON sotto /api/).
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "Autenticazione richiesta."}, status=401)
+    pn = normalize_part_number(request.GET.get("pn") or "")
+    prog = (request.GET.get("prog") or "").strip()[:200]
+    if not pn or not prog:
+        return JsonResponse({"ok": False, "error": "Servono P/N e programma."}, status=400)
+    dati = cmm.dati_programma(pn, prog, _data_get(request, "da"), _data_get(request, "a"))
+    return JsonResponse({"ok": True, **dati})
 
 
 @login_required

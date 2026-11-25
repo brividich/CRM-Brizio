@@ -101,19 +101,58 @@ class PagineTests(ArchivioBase):
         cmm.leggi_pn("PN-ALFA-1")
         self.r1 = ReportCMM.objects.get(seriale="SN001")
 
-    def test_andamento_quota_con_grafico(self):
-        url = reverse("produzione:pn_quote")
-        pagina = self.client.get(url, {"pn": "PN-ALFA-1"})
+    def test_pagina_analisi_quote(self):
+        pagina = self.client.get(reverse("produzione:pn_quote"), {"pn": "PN-ALFA-1", "q": "196,00", "tab": "mappa"})
         self.assertEqual(pagina.status_code, 200)
-        self.assertEqual(pagina.context["prog"], "PRG_PROVA")          # un solo programma: scelto da sé
-        self.assertEqual([q["nome"] for q in pagina.context["quote"]], ["178,00", "196,00", "163,00 Dia F", "160,00"])
-        self.assertEqual({q["chiave"]: q["n_fuori"] for q in pagina.context["quote"]}["196,00"], 2)
-        pagina = self.client.get(url, {"pn": "PN-ALFA-1", "prog": "PRG_PROVA", "q": "196,00", "r": self.r1.pk})
-        self.assertEqual(len(pagina.context["punti"]), 2)
-        self.assertContains(pagina, "<svg", html=False)
-        self.assertContains(pagina, 'class="is-scelto"', html=False)
-        # coordinate SVG col punto anche con la localizzazione italiana
-        self.assertNotRegex(pagina.content.decode(), r'(?:cx|cy|y1|y2|x)="-?\d+,\d')
+        self.assertEqual(pagina.context["prog"], "PRG_PROVA")          # il programma più recente, scelto da sé
+        self.assertEqual(pagina.context["stato"]["tab"], "mappa")
+        self.assertContains(pagina, 'id="aq-stato"', html=False)
+        self.assertContains(pagina, "analisi_quote.js", html=False)
+
+    def test_api_quote(self):
+        r = self.client.get(reverse("produzione:api_quote"), {"pn": "pn-alfa-1", "prog": "PRG_PROVA"})
+        self.assertEqual(r.status_code, 200)
+        d = r.json()
+        self.assertEqual(sorted(x[1] for x in d["report"]), ["SN001", "SN002"])
+        self.assertEqual([q["nome"] for q in d["quote"]], ["178,00", "196,00", "163,00 Dia F", "160,00"])
+        self.assertEqual(d["quote"][1]["id"], "196,00|131.3610")
+        v = d["valori"][1][0]                                            # [report, rilevato, tol+, tol-, fuori, fuori di, da ver.]
+        self.assertEqual(v[1:5], [131.3364, 0.025, 0.0, 1])
+        self.assertAlmostEqual(v[5], -0.0246)
+        self.assertEqual(d["tagliati"], 0)
+        # periodo: i report sono del 01/01/2026
+        vuoto = self.client.get(reverse("produzione:api_quote"), {"pn": "PN-ALFA-1", "prog": "PRG_PROVA", "da": "2026-02-01"}).json()
+        self.assertEqual((vuoto["report"], vuoto["totale"]), ([], 0))
+        self.assertEqual(self.client.get(reverse("produzione:api_quote"), {"pn": "PN-ALFA-1"}).status_code, 400)
+
+    def test_api_quote_json_anche_per_chi_non_e_entrato(self):
+        self.client.logout()
+        r = self.client.get(reverse("produzione:api_quote"), {"pn": "PN-ALFA-1", "prog": "PRG_PROVA"})
+        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r["Content-Type"], "application/json")
+
+    def test_utente_normale_vede_pagina_e_dati(self):
+        from tasks.tests_utils import _create_user_with_legacy
+
+        utente = _create_user_with_legacy(username="prod-oper", legacy_user_id=682, role_id=2, role_name="operatore")
+        self.client.force_login(utente)
+        self.assertEqual(self.client.get(reverse("produzione:pn_quote"), {"pn": "PN-ALFA-1"}).status_code, 200)
+        r = self.client.get(reverse("produzione:api_quote"), {"pn": "PN-ALFA-1", "prog": "PRG_PROVA"})
+        self.assertEqual(r.status_code, 200, r.content[:200])
+
+    def test_statistiche_e_quote_critiche(self):
+        s = cmm.statistiche([(10.01, 9.9, 10.1), (10.03, 9.9, 10.1), (9.99, 9.9, 10.1), (10.02, 9.9, 10.1), (10.0, 9.9, 10.1)])
+        self.assertAlmostEqual(s["media"], 10.01)
+        self.assertAlmostEqual(s["sd"], 0.015811, places=5)
+        self.assertAlmostEqual(s["cp"], 0.2 / (6 * s["sd"]), places=6)
+        self.assertAlmostEqual(s["cpk"], (10.1 - 10.01) / (3 * s["sd"]), places=6)
+        self.assertAlmostEqual(s["u"], 0.0)
+        self.assertIsNone(cmm.statistiche([(1, 0, 2)])["cpk"])           # meno di 5 punti
+        critiche = cmm.quote_critiche("PN-ALFA-1")
+        self.assertEqual({c["quota"]["nome"] for c in critiche}, {"196,00", "163,00 Dia F"})
+        self.assertTrue(all(c["fuori_ultimo"] for c in critiche))
+        pagina = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"})
+        self.assertContains(pagina, "Quote da tenere d", html=False)
 
     def test_report_fuori_e_link_anomalia(self):
         pagina = self.client.get(reverse("produzione:report_cmm", args=[self.r1.pk]))
@@ -139,7 +178,7 @@ class PagineTests(ArchivioBase):
         self.assertEqual(len(scheda.context["report_cmm"]), 2)
         pn = self.client.get(reverse("produzione:pn_scheda"), {"pn": "PN-ALFA-1"})
         self.assertEqual(pn.context["report_cmm"]["n"], 2)
-        self.assertContains(pn, "Andamento quote")
+        self.assertContains(pn, "Analisi quote")
 
     def test_leggi_report_accoda(self):
         with patch("produzione.tasks.accoda_lettura_pn", return_value=True) as accoda:
@@ -193,3 +232,15 @@ class CollegamentiTests(PagineTests):
         collega_programmi_cmm("PN-ALFA-1", righe)
         self.assertIn("prog=PRG_PROVA", righe[0].url_quote)
         self.assertFalse(hasattr(righe[1], "url_quote"))
+
+
+class UnilateraliTests(SimpleTestCase):
+    def test_forma_e_posizione_contano_verso_il_limite_superiore(self):
+        self.assertTrue(cmm.unilaterale(0.0, 0.0, 0.05))
+        self.assertFalse(cmm.unilaterale(8.0, 8.025, 8.034))
+        self.assertAlmostEqual(cmm.usata(0.01, 0.0, 0.0, 0.05), 0.2)      # 20%, non -60%
+        self.assertAlmostEqual(cmm.usata(8.0295, 8.0, 8.025, 8.034), 0.0)  # centro della zona
+        punti = [(0.010, 0.0, 0.05), (0.012, 0.0, 0.05), (0.011, 0.0, 0.05), (0.009, 0.0, 0.05), (0.013, 0.0, 0.05)]
+        s = cmm.statistiche(punti, 0.0)
+        self.assertIsNone(s["cp"])
+        self.assertAlmostEqual(s["cpk"], (0.05 - 0.011) / (3 * s["sd"]), places=6)

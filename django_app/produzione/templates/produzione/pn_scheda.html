@@ -61,7 +61,7 @@
             {% for r in programmi %}
             <tr>
               <td><b>{{ r.kind }}</b></td>
-              <td>{{ r.code|default:"—" }}{% if r.url_quote %} <a class="prod-btn-link" href="{{ r.url_quote }}">Andamento quote</a>{% endif %}</td>
+              <td>{{ r.code|default:"—" }}{% if r.url_quote %} <a class="prod-btn-link" href="{{ r.url_quote }}">Analisi quote</a>{% endif %}</td>
               <td>{% if r.path %}<a class="prod-percorso" href="{{ r.path }}">{{ r.path }}</a>{% else %}—{% endif %}</td>
               <td>{% if r.assigned_to %}{% firstof r.assigned_to.get_full_name r.assigned_to.username %}{% else %}—{% endif %}</td>
               <td><span class="prod-stato">{{ r.get_status_display }}</span></td>
@@ -121,13 +121,33 @@
   <section class="prod-card" id="report-cmm">
     <div class="prod-card-head">
       <h2>Report CMM</h2>
-      <a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}">Andamento quote</a>
+      <a class="prod-btn prod-btn-piccolo prod-btn-primary" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}">Analisi quote</a>
     </div>
+    {% if quote_critiche %}
+    <h3 class="prod-sottotitolo">Quote da tenere d'occhio</h3>
+    <div class="prod-scorri">
+      <table class="prod-tab">
+        <thead><tr><th>Quota</th><th>Programma</th><th class="prod-n">Fuori</th><th class="prod-n">Cpk</th><th class="prod-n">Ultima: tolleranza usata</th></tr></thead>
+        <tbody>
+          {% for c in quote_critiche %}
+          <tr>
+            <td><a class="prod-op" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}&amp;prog={{ c.prog|urlencode }}&amp;q={{ c.quota.id|urlencode }}">{{ c.quota.nome }}</a>{% if c.fuori_ultimo %} <span class="prod-stato is-danger">fuori nell'ultimo report</span>{% endif %}</td>
+            <td>{{ c.prog }}</td>
+            <td class="prod-n">{{ c.n_fuori }} su {{ c.n }}</td>
+            <td class="prod-n">{% if c.cpk is not None %}{{ c.cpk|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td class="prod-n">{% if c.u is not None %}{% widthratio c.u_abs 1 100 %}%{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="prod-nota prod-nota-sotto">Sugli ultimi 30 report di ogni programma: quote fuori nell'ultimo report, poi Cpk sotto 1,33.</p>
+    {% endif %}
     {% if report_cmm.n %}
     <p class="prod-nota">{{ report_cmm.n }} report letti{% if report_cmm.con_fuori %}, {{ report_cmm.con_fuori }} con quote fuori tolleranza{% endif %}. Gli ultimi:</p>
     {% include "produzione/_report_cmm_tabella.html" with elenco_report=report_cmm.ultimi %}
     {% else %}
-    <p class="prod-nota">{% if report_cmm.cartella.letta_il %}Nessun report CMM nella cartella del P/N.{% else %}Report non ancora letti dalla share: apri «Andamento quote» per avviare la lettura.{% endif %}</p>
+    <p class="prod-nota">{% if report_cmm.cartella.letta_il %}Nessun report CMM nella cartella del P/N.{% else %}Report non ancora letti dalla share: apri «Analisi quote» per avviare la lettura.{% endif %}</p>
     {% endif %}
   </section>
   {% endif %}

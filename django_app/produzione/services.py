@@ -250,6 +250,7 @@ def scheda_pn(request, pn: str) -> dict | None:
         "n_anomalie_aperte": sum(o["n_anomalie_aperte"] for o in ops),
         "senza_documenti": sum(1 for o in ops if not o["n_documenti"]),
         "report_cmm": report_cmm_indice.riepilogo_pn(pn_norm),
+        "quote_critiche": report_cmm_indice.quote_critiche(pn_norm),
     }
     collega_programmi_cmm(pn_norm, programmi)
     passi = _passi_kickoff(pn_norm, progetti, programmi) if kickoff else []
