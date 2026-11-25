@@ -55,6 +55,8 @@ class TrainingElearningSlideView(models.Model):
     prima_vista = models.DateTimeField(auto_now_add=True)
     ultima_vista = models.DateTimeField(auto_now=True)
     secondi = models.PositiveIntegerField(default=0)
+    video_secondi = models.PositiveIntegerField(default=0, help_text="Secondi di video guardati davvero (non saltati).")
+    video_durata = models.PositiveIntegerField(default=0, help_text="Durata del video letta dal browser.")
     completata = models.BooleanField(default=False)
 
     class Meta:
@@ -161,6 +163,8 @@ class TrainingElearningModulo(models.Model):
     corso = models.ForeignKey("anagrafica.TrainingCourse", on_delete=models.CASCADE, related_name="moduli_elearning")
     ordine = models.PositiveSmallIntegerField(default=1)
     titolo = models.CharField(max_length=200)
+    obbligatorio = models.BooleanField(default=True, help_text="Fa parte del percorso guidato per il quiz. "
+                                                               "Se no, è solo materiale da consultare.")
     creato_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:

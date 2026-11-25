@@ -78,8 +78,27 @@ def assegnato(corso, legacy_id: int) -> bool:
     ).exists()
 
 
+def slides_percorso(corso):
+    """Slide del percorso guidato: attive, senza modulo o in un modulo «Nel percorso».
+
+    I moduli tolti dal percorso restano da consultare e non servono per il quiz."""
+    from django.db.models import Q
+    return (corso.slides.filter(is_active=True).filter(Q(modulo__isnull=True) | Q(modulo__obbligatorio=True))
+            .select_related("modulo").order_by("ordine", "pk"))
+
+
+def video_mancante(slide, secondi_visti: int, durata_browser: int = 0) -> int:
+    """Secondi di video ancora da guardare (0 = va bene). Serve il 90% della durata."""
+    if not getattr(slide, "video_fino_in_fondo", False) or slide.tipo != "VIDEO":
+        return 0
+    durata = int(slide.video_durata_secondi or durata_browser or 0)
+    if not durata:
+        return 1 if not secondi_visti else 0  # durata sconosciuta: basta averlo avviato e mandato avanti
+    return max(int(durata * 0.9) - int(secondi_visti or 0), 0)
+
+
 def ordini_slide(corso) -> list[int]:
-    return list(corso.slides.filter(is_active=True).order_by("ordine", "pk").values_list("ordine", flat=True))
+    return list(slides_percorso(corso).values_list("ordine", flat=True))
 
 
 def slide_consentita(enr, ordine: int, ordini: list[int]) -> bool:

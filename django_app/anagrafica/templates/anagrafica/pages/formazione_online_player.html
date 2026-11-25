@@ -20,12 +20,13 @@
     <div class="fmd-pagehead">
       <div>
         <template data-hub-percorso-gerarchia>
-          <a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_online_catalog' %}">I miei corsi online</a><span class="fmd-sep"> / </span>
           <span class="fmd-cur">{{ corso.titolo }}</span>
         </template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ corso.titolo }}</h1>
         {% if corso.descrizione %}<p class="fmd-ph-sub">{{ corso.descrizione }}</p>{% endif %}
       </div>
+      <div class="fmd-pagehead-actions"><a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_materiale' corso.pk %}"><svg class="fmd-ico"><use href="#i-book"/></svg>Consulta il materiale</a></div>
     </div>
 
     {% if anteprima %}
@@ -63,5 +64,5 @@
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
-{% if beat_url %}<script src="{% static 'anagrafica/js/elearning_player.js' %}?v=1" defer></script>{% endif %}
+{% if beat_url %}<script src="{% static 'anagrafica/js/elearning_player.js' %}?v=20261125v" defer></script>{% endif %}
 {% endblock %}

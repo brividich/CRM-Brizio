@@ -2241,6 +2241,11 @@ class TrainingSlide(models.Model):
     )
     durata_minima_secondi = models.PositiveSmallIntegerField(
         default=0, help_text="Permanenza minima su questa slide (secondi). 0 = vale la regola del corso.")
+    video_fino_in_fondo = models.BooleanField(
+        default=False, help_text="Video: per andare avanti va guardato quasi tutto (almeno il 90%).")
+    video_durata_secondi = models.PositiveIntegerField(null=True, blank=True)
+    video_compresso = models.BooleanField(default=False)
+    video_originale_mb = models.DecimalField(max_digits=7, decimal_places=1, null=True, blank=True)
     # Raggruppamento in moduli: la sequenza resta quella di «ordine»; il modulo è
     # l'intestazione sotto cui la slide (lezione) compare nell'indice del player.
     modulo = models.ForeignKey(

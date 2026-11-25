@@ -25,7 +25,8 @@
 {% else %}
 <div class="pb-nav">
   {% if prec %}<a class="pb-btn pb-btn-ghost" href="?s={{ prec }}">Indietro</a>{% else %}<span></span>{% endif %}
-  {% if secondi_mancanti %}<span class="pb-attesa" role="status" aria-live="polite">Puoi andare avanti tra <strong id="pb-secondi">{{ secondi_mancanti }}</strong> secondi.</span>{% endif %}
+  {% if secondi_mancanti and video_fino %}<span class="pb-attesa" role="status" aria-live="polite" id="pb-video-attesa">Guarda il video fino in fondo per andare avanti.</span>
+  {% elif secondi_mancanti %}<span class="pb-attesa" role="status" aria-live="polite">Puoi andare avanti tra <strong id="pb-secondi">{{ secondi_mancanti }}</strong> secondi.</span>{% endif %}
   {% if succ %}
     <a class="pb-btn js-avanti" href="?s={{ succ }}"{% if secondi_mancanti %} aria-disabled="true"{% endif %}>Avanti</a>
   {% elif ha_quiz %}
@@ -36,7 +37,7 @@
 </div>
 {% endif %}
 {% endblock %}
-{% block script %}{% if secondi_mancanti and not consulta %}
+{% block script %}{% if secondi_mancanti and not consulta and not video_fino %}
 <script nonce="{{ csp_nonce }}">
 (function () {
   var n = {{ secondi_mancanti }}, el = document.getElementById("pb-secondi"), btn = document.querySelector(".js-avanti");
@@ -49,6 +50,45 @@
       if (el) el.parentNode.style.visibility = "hidden";
     }
   }, 1000);
+})();
+</script>
+{% endif %}
+{% if video_fino and not consulta %}
+<form id="pb-video-csrf" hidden>{% csrf_token %}</form>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  /* Video «da guardare fino in fondo»: conta i secondi guardati davvero (i salti in avanti
+     non valgono) e li manda al server ogni 10 s e alla fine. Lo sblocco lo decide il server. */
+  function tracciaVideo(video, url, campiExtra, quandoFatto) {
+    if (!video || !url || video.dataset.tracciato) return;
+    video.dataset.tracciato = "1";
+    var guardati = 0, ultimo = null, inviato = 0;
+    video.addEventListener("timeupdate", function () {
+      var t = video.currentTime;
+      if (ultimo !== null && !video.paused && t > ultimo && t - ultimo < 2.5) guardati += t - ultimo;
+      ultimo = t;
+      if (guardati - inviato >= 10) manda();
+    });
+    video.addEventListener("seeking", function () { ultimo = video.currentTime; });
+    video.addEventListener("ended", manda);
+    function manda() {
+      inviato = guardati;
+      var fd = new FormData();
+      Object.keys(campiExtra).forEach(function (k) { fd.append(k, campiExtra[k]); });
+      fd.append("secondi", Math.floor(guardati));
+      fd.append("durata", Math.floor(video.duration || 0));
+      fetch(url, { method: "POST", body: fd, credentials: "same-origin",
+                   headers: { "X-CSRFToken": campiExtra.csrfmiddlewaretoken || "" } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j && (j.slide_completata || j.mancano === 0)) quandoFatto(); })
+        .catch(function () {});
+    }
+  }
+
+  var btn = document.querySelector(".js-avanti"), msg = document.getElementById("pb-video-attesa");
+  tracciaVideo(document.querySelector(".pb-video"), "{% url 'corso_aperto:video_avanz' link.token %}",
+               { slide_id: "{{ slide.pk }}", csrfmiddlewaretoken: document.querySelector("#pb-video-csrf input").value },
+               function () { if (btn) btn.removeAttribute("aria-disabled"); if (msg) msg.style.visibility = "hidden"; });
 })();
 </script>
 {% endif %}{% endblock %}

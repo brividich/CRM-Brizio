@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Materiale · {{ corso.titolo }} | Corsi online{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+.bm-grid{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.bm-indice{flex:1 1 280px;min-width:0}
+.bm-vista{flex:999 1 560px;min-width:0}
+.bm-mod{font-weight:700;color:var(--fmd-navy,#0c2545);margin:12px 0 4px;display:flex;gap:6px;align-items:center}
+.bm-voce{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;text-decoration:none;color:var(--text,#1a202c);font-size:13.5px}
+.bm-voce:hover{background:var(--surface-alt,#f4f7fa)}
+.bm-voce.on{background:var(--fmd-navy,#0c2545);color:#fff}
+.bm-tipo{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;width:40px;flex:none;color:var(--accent,#ff6b00)}
+.bm-voce.on .bm-tipo{color:#fde68a}
+.bm-media{width:100%;border-radius:10px;background:#000;display:block}
+.bm-img{width:100%;height:auto;border-radius:10px;display:block;background:#fff}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+    <div class="fmd-pagehead">
+      <div>
+        <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:formazione_online_catalog' %}">I miei corsi online</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:formazione_online_player' corso.pk %}">{{ corso.titolo }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Materiale</span></template>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>Materiale del corso</h1>
+        <p class="fmd-ph-sub">{{ corso.titolo }} · presentazioni e video da consultare liberamente. Il quiz si apre con il percorso guidato.</p>
+      </div>
+      <div class="fmd-pagehead-actions"><a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_player' corso.pk %}">Torna al percorso</a></div>
+    </div>
+    <div class="bm-grid">
+      <section class="fmd-panel bm-indice" style="padding:12px 14px;">
+        {% for g in gruppi %}
+        <div class="bm-mod">{{ g.titolo }}{% if not g.percorso %} <span class="fmd-badge fmd-b-grey">da consultare</span>{% endif %}</div>
+        {% for s in g.voci %}
+        <a class="bm-voce{% if scelta and scelta.pk == s.pk %} on{% endif %}" href="?s={{ s.pk }}">
+          <span class="bm-tipo">{% if s.tipo == "VIDEO" %}Video{% elif s.immagine %}Slide{% else %}Testo{% endif %}</span>
+          <span style="flex:1;min-width:0;">{{ s.titolo|default:"Senza titolo" }}</span>
+        </a>
+        {% endfor %}
+        {% empty %}<p class="fmd-muted">Il corso non ha ancora materiale.</p>{% endfor %}
+      </section>
+      <section class="fmd-panel bm-vista" style="padding:16px 18px;">
+        {% if scelta %}
+          <div class="fmd-block-title" style="margin-bottom:10px;">{{ scelta.titolo }}</div>
+          {% if scelta.tipo == "VIDEO" and scelta.video %}<video class="bm-media" controls preload="metadata" playsinline controlslist="nodownload" src="{% url 'anagrafica:formazione_slide_video' scelta.pk %}"></video>
+          {% elif scelta.immagine %}<img class="bm-img" src="{% url 'anagrafica:formazione_slide_image' scelta.pk %}" alt="{{ scelta.titolo }}">
+          {% else %}<div style="font-size:15px;line-height:1.6;">{{ contenuto_html }}</div>{% endif %}
+          <div style="display:flex;justify-content:space-between;margin-top:14px;gap:8px;">
+            {% if prec %}<a class="fmd-btn fmd-btn-ghost" href="?s={{ prec.pk }}">‹ {{ prec.titolo|truncatechars:30 }}</a>{% else %}<span></span>{% endif %}
+            {% if succ %}<a class="fmd-btn fmd-btn-ghost" href="?s={{ succ.pk }}">{{ succ.titolo|truncatechars:30 }} ›</a>{% endif %}
+          </div>
+        {% else %}
+          <div class="fmd-empty"><span class="fmd-et">Scegli una voce dall'indice</span><span class="fmd-em">Puoi aprire qualsiasi presentazione o video, anche dopo aver completato il corso.</span></div>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -169,6 +169,13 @@ def run_elearning_import(job_id: int) -> dict:
     return esegui_import(job_id)
 
 
+def run_comprimi_video_slide(slide_id: int) -> dict:
+    """Compressione in background del video di una slide (ffmpeg, se presente sul server)."""
+    from anagrafica.services.elearning_video import comprimi_slide, pulisci_vecchi
+    pulisci_vecchi()
+    return comprimi_slide(slide_id)
+
+
 def run_elearning_reminders() -> dict:
     """Promemoria micro-corsi e-learning non completati (digest HR + notifica in-app).
 

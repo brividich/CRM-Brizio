@@ -183,7 +183,7 @@ def formazione_online_player(request, corso_id: int):
     accesso = fruizione.accesso_discente(corso, legacy_id, is_editor=is_editor)
     if not accesso.consentito:
         return _nega(request, accesso.motivo or "Corso non disponibile.")
-    slides = list(corso.slides.filter(is_active=True).order_by("ordine", "pk"))
+    slides = list(fruizione.slides_percorso(corso))
     ordini = [s.ordine for s in slides]
     enr = None
     slide_iniziale = ordini[0] if ordini else 1
@@ -221,7 +221,7 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
         return _nega(request, accesso.motivo or "Corso non disponibile.")
     if not request.headers.get("HX-Request"):
         return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
-    slides = list(corso.slides.filter(is_active=True).select_related("modulo").order_by("ordine", "pk"))
+    slides = list(fruizione.slides_percorso(corso))
     if not slides:
         return HttpResponse('<div class="fmd-empty"><span class="fmd-et">Nessuna slide disponibile</span></div>')
     ordini = [s.ordine for s in slides]
@@ -254,8 +254,57 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
         "secondi_mancanti": secondi_mancanti,
         "completato": completato or (enr is not None and enr.stato == "COMPLETATO"),
         "indice_corso": _indice_se_serve(slides, enr, ordini, ordine),
+        "video_avanz_url": reverse("anagrafica:formazione_online_video_avanz", args=[corso.pk]) if enr else "",
         "gradimento": bool((completato or (enr is not None and enr.stato == "COMPLETATO")) and not accesso.anteprima
                            and _gradimento_da_dare(corso, enr)),
+    })
+
+
+@login_required
+@require_POST
+def formazione_online_video_avanz(request, corso_id: int):
+    """Secondi di video guardati (JSON dal player): servono per i video «da guardare fino in fondo»."""
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    legacy_id, is_editor = _ctx_utente(request)
+    accesso = fruizione.accesso_discente(corso, legacy_id, is_editor=is_editor)
+    if not accesso.consentito or accesso.anteprima or not legacy_id:
+        return JsonResponse({"ok": False}, status=403)
+    slide = get_object_or_404(TrainingSlide, pk=request.POST.get("slide_id") or 0, corso=corso, is_active=True)
+    try:
+        secondi = max(int(float(request.POST.get("secondi") or 0)), 0)
+        durata = max(int(float(request.POST.get("durata") or 0)), 0)
+    except ValueError:
+        return JsonResponse({"ok": False}, status=400)
+    enr = fruizione.iscrizione(corso, legacy_id, len(fruizione.ordini_slide(corso)))
+    esito = tracciamento.registra_video(enr, slide, secondi, durata, regola_corso(corso), fruizione.ordini_slide(corso))
+    return JsonResponse(esito)
+
+
+@login_required
+def formazione_online_materiale(request, corso_id: int):
+    """Biblioteca del corso: tutte le presentazioni e i video, da consultare liberamente."""
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    legacy_id, is_editor = _ctx_utente(request)
+    accesso = fruizione.accesso_discente(corso, legacy_id, is_editor=is_editor)
+    if not accesso.consentito:
+        return _nega(request, accesso.motivo or "Corso non disponibile.")
+    tutte = list(corso.slides.filter(is_active=True).select_related("modulo").order_by("ordine", "pk"))
+    scelta = None
+    if (request.GET.get("s") or "").isdigit():
+        scelta = next((s for s in tutte if s.pk == int(request.GET["s"])), None)
+    gruppi, attuale = [], None
+    for s in tutte:
+        titolo = s.modulo.titolo if s.modulo_id else "Materiale del corso"
+        if attuale is None or attuale["titolo"] != titolo:
+            attuale = {"titolo": titolo, "voci": [], "percorso": not s.modulo_id or s.modulo.obbligatorio}
+            gruppi.append(attuale)
+        attuale["voci"].append(s)
+    from .services.elearning_markdown import render_markdown
+    pos = tutte.index(scelta) if scelta else -1
+    return render(request, "anagrafica/pages/formazione_online_materiale.html", {
+        "corso": corso, "gruppi": gruppi, "scelta": scelta,
+        "contenuto_html": render_markdown(scelta.contenuto) if scelta and not scelta.immagine and scelta.tipo != "VIDEO" else "",
+        "prec": tutte[pos - 1] if pos > 0 else None, "succ": tutte[pos + 1] if 0 <= pos < len(tutte) - 1 else None,
     })
 
 
@@ -471,15 +520,77 @@ def formazione_slide_video_upload(request, corso_id: int):
         durata = max(int(request.POST.get("durata_minima_secondi") or 0), 0)
     except ValueError:
         durata = 0
-    slide = TrainingSlide(corso=corso, ordine=ordine, titolo=titolo, tipo=TrainingSlide.TIPO_VIDEO,
-                          durata_minima_secondi=min(durata, 32767), created_by=request.user)
-    slide.video.save(f.name, f, save=False)
-    slide.save()
-    log_action(request, "elearning_video_caricato", MODULE, {"corso": corso.pk, "slide": slide.pk}, oggetto=slide)
+    slide = _crea_slide_video(request, corso, f, titolo, durata)
     messages.success(request, f"Video «{titolo}» aggiunto come slide {ordine}.")
     from .views import _versiona
     _versiona(request, corso, f"Video «{titolo}» aggiunto")
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+def _crea_slide_video(request, corso, f, titolo: str, durata: int):
+    from django.db.models import Max
+    from .services.elearning_video import accoda_compressione
+    ordine = (corso.slides.aggregate(m=Max("ordine"))["m"] or 0) + 1
+    modulo_id = request.POST.get("modulo_id") or None
+    slide = TrainingSlide(corso=corso, ordine=ordine, titolo=titolo, tipo=TrainingSlide.TIPO_VIDEO,
+                          durata_minima_secondi=min(durata, 32767), created_by=request.user,
+                          video_fino_in_fondo=request.POST.get("fino_in_fondo") == "1",
+                          modulo_id=int(modulo_id) if str(modulo_id or "").isdigit() else None)
+    slide.video.save(f.name, f, save=False)
+    slide.save()
+    log_action(request, "elearning_video_caricato", MODULE, {"corso": corso.pk, "slide": slide.pk}, oggetto=slide)
+    accoda_compressione(slide.pk)
+    return slide
+
+
+@login_required
+@require_POST
+def formazione_video_pezzo(request, corso_id: int):
+    """Caricamento a pezzi di un video (JSON). All'ultimo pezzo il file diventa una slide video."""
+    from .services import elearning_video as ev
+    from .views import _can_edit_formazione
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False, "errore": "Permesso negato."}, status=403)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    cfg = ElearningConfig.get_instance()
+    max_bytes = int(cfg.video_max_mb or 500) * 1024 * 1024
+    pezzo = request.FILES.get("pezzo")
+    try:
+        indice, totale = int(request.POST.get("indice")), int(request.POST.get("totale"))
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "errore": "Richiesta non valida."}, status=400)
+    upload_id = (request.POST.get("upload_id") or "").lower()
+    if pezzo is None or not (0 <= indice < totale <= 10000):
+        return JsonResponse({"ok": False, "errore": "Richiesta non valida."}, status=400)
+    try:
+        ricevuti = ev.aggiungi_pezzo(request.user.pk, upload_id, indice, pezzo, max_bytes)
+    except ev.VideoError as exc:
+        return JsonResponse({"ok": False, "errore": str(exc)}, status=400)
+    if indice < totale - 1:
+        return JsonResponse({"ok": True, "ricevuti": ricevuti})
+    from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+    f, percorso = ev.file_completo(request.user.pk, upload_id, request.POST.get("nome") or "video.mp4")
+    try:
+        validate_extension_and_mime(f, allowed_extensions={".mp4"}, allowed_mimes={"video/mp4"},
+                                    max_bytes=max_bytes, label="Video", allow_empty=False)
+        titolo = (request.POST.get("titolo") or "").strip()[:300] or "Video"
+        try:
+            durata = max(int(request.POST.get("durata_minima_secondi") or 0), 0)
+        except ValueError:
+            durata = 0
+        f.seek(0)
+        slide = _crea_slide_video(request, corso, f, titolo, durata)
+    except UploadMimeValidationError as exc:
+        return JsonResponse({"ok": False, "errore": f"Video rifiutato: {exc}"}, status=400)
+    finally:
+        f.close()
+        percorso.unlink(missing_ok=True)
+    from .views import _versiona
+    _versiona(request, corso, f"Video «{slide.titolo}» aggiunto")
+    messages.success(request, f"Video «{slide.titolo}» aggiunto come slide {slide.ordine}. "
+                              "Se sul server c'è ffmpeg viene compresso in background.")
+    return JsonResponse({"ok": True, "fatto": True,
+                         "redirect": reverse("anagrafica:formazione_corso_elearning", args=[corso.pk])})
 
 
 @login_required
