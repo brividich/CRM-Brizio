@@ -317,3 +317,27 @@ class PartecipanteViewTests(_Base):
         cfg.save()
         self.assertEqual(len(so.lezioni_della_persona(LEGACY_ID)), 1)
         self.assertEqual(so.lezioni_della_persona(LEGACY_ID)[0]["stato"], so.NON_INIZIATA)
+
+
+class MaterialeDelCorsoTests(_Base):
+    """Fase C: la sessione usa slide, video e domande del corso per riferimento."""
+
+    def test_slide_e_domande_dal_corso(self):
+        cfg = so.config(self.sessione, crea=True)
+        cfg.materiale_corso = True
+        cfg.save()
+        TrainingSlide.objects.create(corso=self.corso, ordine=1, titolo="Intro", contenuto="# Ciao")
+        q = TrainingQuizQuestion.objects.create(corso=self.corso, ordine=1, testo="2+2?")
+        TrainingQuizOption.objects.create(domanda=q, ordine=1, testo="4", corretta=True)
+        TrainingQuizOption.objects.create(domanda=q, ordine=2, testo="5")
+        self.assertEqual(so.n_slide(self.sessione), 1)
+        self.assertEqual([d.testo for d in so.domande_valide(self.sessione)], ["2+2?"])
+        self.assertEqual(so.cosa_manca(self.sessione, cfg), [])
+        prog = so.avanzamento(self.iscr)
+        prog.slide_viste = 1
+        prog.save()
+        t = so.correggi(self.iscr, cfg, {q.pk: {q.opzioni.get(corretta=True).pk}})
+        self.assertTrue(t.superato)
+        # Nessuna copia nelle tabelle della sessione.
+        self.assertFalse(TrainingSessionSlide.objects.filter(sessione=self.sessione).exists())
+        self.assertFalse(TrainingSessionQuestion.objects.filter(sessione=self.sessione).exists())

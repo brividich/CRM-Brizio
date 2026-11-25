@@ -21,7 +21,7 @@
         <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}" style="color:#94a3b8;text-decoration:none;">{{ sessione.codice_sessione }}</a> › Lezione online
       </div>
       <h2 class="hr-pagehead-title">Lezione online per {{ sessione.codice_sessione }}</h2>
-      <p class="hr-pagehead-desc">Corso: <strong>{{ sessione.corso.titolo }}</strong> · niente corso nuovo: slide e test valgono solo per questa sessione.</p>
+      <p class="hr-pagehead-desc">Corso: <strong>{{ sessione.corso.titolo }}</strong> · {% if cfg.materiale_corso %}usa slide, video e domande del corso.{% else %}niente corso nuovo: slide e test valgono solo per questa sessione.{% endif %}</p>
     </div>
     <div class="so-actions">
       {% include "anagrafica/partials/_formazione_guida_link.html" with ancora="lezione-online" %}
@@ -41,6 +41,22 @@
 
       {% if passo == "slide" %}
       <div class="so-body" style="display:flex;flex-direction:column;gap:14px;">
+        <form method="post" action="{% url 'anagrafica:sessione_online_impostazioni' sessione.pk %}" class="so-grid3" style="align-items:stretch;">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}"><input type="hidden" name="materiale_presente" value="1">
+          <button type="submit" name="materiale_corso" value="1" class="so-step{% if cfg.materiale_corso %} is-next{% endif %}" style="text-align:left;cursor:pointer;font:inherit;">
+            <strong>Usa il materiale del corso</strong>
+            <span class="so-muted">{{ slide_corso }} slide/video e {{ domande_corso }} domande del corso {{ sessione.corso.codice }}, sempre aggiornati: niente copie da tenere allineate.</span>
+            {% if cfg.materiale_corso %}<span class="so-pill success">Scelto</span>{% endif %}
+          </button>
+          <button type="submit" name="materiale_corso" value="0" class="so-step{% if not cfg.materiale_corso %} is-next{% endif %}" style="text-align:left;cursor:pointer;font:inherit;">
+            <strong>Slide e test propri della sessione</strong>
+            <span class="so-muted">Carichi un PowerPoint/PDF e scrivi le domande solo per questa sessione.</span>
+            {% if not cfg.materiale_corso %}<span class="so-pill success">Scelto</span>{% endif %}
+          </button>
+        </form>
+        {% if cfg.materiale_corso %}
+        <div class="so-banner ok">La sessione usa il materiale del corso: per cambiarlo vai a <a href="{% url 'anagrafica:formazione_corso_elearning' sessione.corso.pk %}">Slide e quiz del corso</a>. Valgono i moduli «Nel percorso».</div>
+        {% else %}
         <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:sessione_online_slide_importa' sessione.pk %}" class="so-drop">
           {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3" stroke="#2f5f89" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -58,6 +74,7 @@
           <button type="submit" class="hr-btn hr-btn-ghost">Copia le {{ slide_corso }} slide del corso {{ sessione.corso.codice }}</button>
         </form>
         {% endif %}
+        {% endif %}
 
         <form method="post" action="{% url 'anagrafica:sessione_online_impostazioni' sessione.pk %}" class="so-actions" style="align-items:flex-end;">
           {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
@@ -70,16 +87,16 @@
         {% if slides %}
         <div class="so-actions" style="justify-content:space-between;">
           <strong>{{ n_slide }} slide</strong>
-          <form method="post" action="{% url 'anagrafica:sessione_online_slide_azione' sessione.pk %}">
+          {% if not cfg.materiale_corso %}<form method="post" action="{% url 'anagrafica:sessione_online_slide_azione' sessione.pk %}">
             {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
             <button class="so-link danger" name="azione" value="svuota" type="submit" data-hub-confirm="Togliere tutte le {{ n_slide }} slide?">Togli tutte</button>
-          </form>
+          </form>{% endif %}
         </div>
         <div class="so-thumbs">
           {% for s in slides %}
           <div class="so-thumb">
-            <div class="so-thumb-img">{% if s.immagine %}<img src="{% url 'anagrafica:sessione_online_slide_img' s.pk %}" alt="Slide {{ s.ordine }}" loading="lazy">{% else %}{{ s.titolo|default:"Slide di testo" }}{% endif %}</div>
-            <form method="post" action="{% url 'anagrafica:sessione_online_slide_azione' sessione.pk %}" class="so-thumb-f">
+            <div class="so-thumb-img">{% if s.url_immagine %}<img src="{{ s.url_immagine }}" alt="Slide {{ s.ordine }}" loading="lazy">{% elif s.video %}Video · {{ s.titolo }}{% elif s.immagine %}<img src="{% url 'anagrafica:sessione_online_slide_img' s.pk %}" alt="Slide {{ s.ordine }}" loading="lazy">{% else %}{{ s.titolo|default:"Slide di testo" }}{% endif %}</div>
+            {% if cfg.materiale_corso %}<div class="so-thumb-f"><strong>{{ s.ordine }}</strong><span class="so-muted">{{ s.modulo }}</span></div>{% else %}<form method="post" action="{% url 'anagrafica:sessione_online_slide_azione' sessione.pk %}" class="so-thumb-f">
               {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}"><input type="hidden" name="slide_id" value="{{ s.pk }}">
               <strong>{{ s.ordine }}</strong>
               <span class="so-actions" style="gap:2px;">
@@ -87,7 +104,7 @@
                 {% if not forloop.last %}<button class="so-link" name="azione" value="giu" type="submit" aria-label="Sposta dopo">→</button>{% endif %}
                 <button class="so-link danger" name="azione" value="elimina" type="submit" aria-label="Togli la slide {{ s.ordine }}">Togli</button>
               </span>
-            </form>
+            </form>{% endif %}
           </div>
           {% endfor %}
         </div>
@@ -107,7 +124,9 @@
           <label class="so-f" style="flex-direction:row;align-items:center;gap:6px;padding-bottom:8px;"><input type="checkbox" name="mostra_correzioni" value="1"{% if cfg.mostra_correzioni %} checked{% endif %}> A fine test mostra le risposte giuste</label>
           <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Salva</button>
         </form>
-        {% include "anagrafica/components/_sessione_online_domande.html" with prossimo=qui %}
+        {% if cfg.materiale_corso %}
+        <div class="so-banner ok">Il test usa le {{ n_domande }} domande del corso. Si modificano in <a href="{% url 'anagrafica:formazione_corso_elearning' sessione.corso.pk %}">Slide e quiz del corso</a>.</div>
+        {% else %}{% include "anagrafica/components/_sessione_online_domande.html" with prossimo=qui %}{% endif %}
       </div>
       <div class="so-foot">
         <a class="hr-btn hr-btn-ghost" href="?passo=slide">Indietro</a>

@@ -462,6 +462,22 @@ GUIDA = {
             ],
         },
         {
+            "id": "elearning-materiali-video",
+            "titolo": "Corsi online: moduli, video grandi, materiale da consultare",
+            "blocchi": [
+                ("ul", [
+                    "Moduli «Nel percorso» (vanno seguiti per il quiz) o solo da consultare.",
+                    "«Aggiungi un video» carica a pezzi da 8 MB con barra di avanzamento; con ffmpeg sul server il video viene "
+                    "compresso in background.",
+                    "«Da guardare fino in fondo»: serve almeno il 90% del video, contano i secondi guardati davvero.",
+                    "«Consulta il materiale»: indice di presentazioni e video da leggere liberamente, con login o dal link aperto.",
+                    "Lezione online di sessione: «Usa il materiale del corso» usa slide, video e domande del corso senza copie.",
+                    "Link aperto: la partecipazione si vede nella scheda «Link aperto» (avanzamento, minuti, abbinamento); "
+                    "codice per riprendere da un altro telefono; QR per reparto; «Chiedi il PIN a chi ce l'ha».",
+                ]),
+            ],
+        },
+        {
             "id": "corso-link-aperto",
             "titolo": "Corso online per chi non ha un utente (link aperto)",
             "blocchi": [

@@ -76,11 +76,46 @@ def config(sessione: TrainingSession, *, crea: bool = False) -> TrainingSessionO
     return cfg
 
 
-def slides(sessione) -> list[TrainingSessionSlide]:
+class SlideDelCorso:
+    """Una slide del corso vista dalla sessione (materiale per riferimento, non copiato)."""
+
+    def __init__(self, sessione_id: int, slide, ordine: int):
+        from django.urls import reverse
+        self.pk = slide.pk
+        self.ordine = ordine
+        self.titolo = slide.titolo
+        self.immagine = bool(slide.immagine)
+        self.video = slide.tipo == "VIDEO" and bool(slide.video)
+        self.testo = "" if (slide.immagine or self.video) else (slide.contenuto or "")
+        self.origine = "Corso"
+        self.modulo = slide.modulo.titolo if slide.modulo_id else ""
+        self.url_immagine = reverse("anagrafica:sessione_online_corso_media", args=[sessione_id, slide.pk]) if self.immagine else ""
+        self.url_video = reverse("anagrafica:sessione_online_corso_media", args=[sessione_id, slide.pk]) if self.video else ""
+
+
+def _usa_corso(sessione) -> bool:
+    sid = getattr(sessione, "pk", sessione)
+    return TrainingSessionOnline.objects.filter(sessione_id=sid, materiale_corso=True).exists()
+
+
+def slides(sessione) -> list:
+    if _usa_corso(sessione):
+        from .elearning_fruizione import slides_percorso
+        s = sessione if hasattr(sessione, "corso") else TrainingSession.objects.select_related("corso").get(pk=sessione)
+        return [SlideDelCorso(s.pk, x, i) for i, x in enumerate(slides_percorso(s.corso), start=1)]
     return list(TrainingSessionSlide.objects.filter(sessione=sessione).order_by("ordine", "pk"))
 
 
-def domande(sessione) -> list[TrainingSessionQuestion]:
+def n_slide(sessione) -> int:
+    return len(slides(sessione)) if _usa_corso(sessione) else TrainingSessionSlide.objects.filter(sessione=sessione).count()
+
+
+def domande(sessione) -> list:
+    if _usa_corso(sessione):
+        from ..models_formazione import TrainingQuizQuestion
+        s = sessione if hasattr(sessione, "corso_id") else TrainingSession.objects.get(pk=sessione)
+        return list(TrainingQuizQuestion.objects.filter(corso_id=s.corso_id, is_active=True)
+                    .prefetch_related("opzioni").order_by("ordine", "pk"))
     return list(TrainingSessionQuestion.objects.filter(sessione=sessione)
                 .prefetch_related("opzioni").order_by("ordine", "pk"))
 
@@ -108,8 +143,8 @@ def iscrizioni(sessione):
 def cosa_manca(sessione, cfg=None) -> list[str]:
     """Cosa impedisce di pubblicare (lista vuota = si può)."""
     manca = []
-    if not TrainingSessionSlide.objects.filter(sessione=sessione).exists():
-        manca.append("nessuna slide caricata")
+    if not n_slide(sessione):
+        manca.append("nessuna slide" + (" nel corso" if _usa_corso(sessione) else " caricata"))
     tutte = domande(sessione)
     if not tutte:
         manca.append("nessuna domanda nel test")
@@ -426,8 +461,8 @@ def correggi(enrollment, cfg, scelte: dict[int, set[int]], *, user=None, iniziat
         raise LezioneOnlineError("Il test non ha domande.")
     with transaction.atomic():
         prog = avanzamento(enrollment, lock=True)
-        n_slide = TrainingSessionSlide.objects.filter(sessione=enrollment.sessione_id).count()
-        if motivo := motivo_test_chiuso(cfg, prog, n_slide):
+        n_slide_tot = n_slide(enrollment.sessione_id)
+        if motivo := motivo_test_chiuso(cfg, prog, n_slide_tot):
             raise LezioneOnlineError(motivo)
         dettaglio, giuste_n = [], 0
         for d in elenco:
@@ -677,10 +712,10 @@ def sospendi(cfg) -> None:
 
 
 def da_sollecitare(sessione, cfg) -> list:
-    n_slide = TrainingSessionSlide.objects.filter(sessione=sessione).count()
+    n_slide_tot = n_slide(sessione)
     out = []
     for e in iscrizioni(sessione).select_related("avanzamento_online"):
-        stato = stato_persona(e, getattr(e, "avanzamento_online", None), cfg, n_slide)
+        stato = stato_persona(e, getattr(e, "avanzamento_online", None), cfg, n_slide_tot)
         if stato in (NON_INIZIATA, IN_CORSO, TEST_DA_FARE):
             out.append(e)
     return out
@@ -767,10 +802,10 @@ def lezioni_della_persona(legacy_id: int) -> list[dict]:
           .order_by("sessione__lezione_online__scadenza"))
     for e in qs:
         cfg = e.sessione.lezione_online
-        n_slide = TrainingSessionSlide.objects.filter(sessione=e.sessione_id).count()
-        stato = stato_persona(e, getattr(e, "avanzamento_online", None), cfg, n_slide)
+        n_slide_s = n_slide(e.sessione_id)
+        stato = stato_persona(e, getattr(e, "avanzamento_online", None), cfg, n_slide_s)
         out.append({"enrollment": e, "sessione": e.sessione, "cfg": cfg, "stato": stato,
                     "stato_label": ETICHETTE_STATO[stato], "tono": TONO_STATO[stato],
                     "finita": stato in (SUPERATA, REGISTRATA), "url": _url_lezione(e.sessione),
-                    "n_slide": n_slide})
+                    "n_slide": n_slide_s})
     return out

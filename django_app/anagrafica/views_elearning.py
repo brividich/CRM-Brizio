@@ -292,6 +292,7 @@ def formazione_online_materiale(request, corso_id: int):
     scelta = None
     if (request.GET.get("s") or "").isdigit():
         scelta = next((s for s in tutte if s.pk == int(request.GET["s"])), None)
+    scelta = scelta or (tutte[0] if tutte else None)
     gruppi, attuale = [], None
     for s in tutte:
         titolo = s.modulo.titolo if s.modulo_id else "Materiale del corso"

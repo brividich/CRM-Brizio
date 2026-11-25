@@ -5530,7 +5530,8 @@ def formazione_elearning_manage(request, corso_id: int):
     n_da_abbinare = sum(1 for r in risposte_aperte if r.stato == "DA_ABBINARE")
     from ..models_elearning import TrainingElearningPartecipazioneAperta
     partecipazioni = list(TrainingElearningPartecipazioneAperta.objects.filter(corso=corso)[:300])
-    n_slide_tot = len(slides)
+    from ..services.elearning_fruizione import slides_percorso
+    n_slide_tot = len(slides_percorso(corso))
     for p in partecipazioni:
         p.n_viste = len(p.slide_viste or {})
         p.pct = min(100, round(100 * p.n_viste / n_slide_tot)) if n_slide_tot else 0
@@ -5543,6 +5544,7 @@ def formazione_elearning_manage(request, corso_id: int):
     assegnabili_pannello = gestione.persone_assegnabili(corso) if is_editor else []
     return render(request, "anagrafica/pages/formazione_elearning_manage.html", {
         "partecipazioni": partecipazioni,
+        "n_slide_percorso": n_slide_tot,
         "n_in_corso_aperto": sum(1 for p in partecipazioni if not p.completata_il),
         "reparti_qr": reparti_qr,
         "stato": gestione.stato_corso(corso, n_slide=len(slides), n_domande=len(domande),

@@ -755,6 +755,7 @@ urlpatterns = [
     path("formazione/corsi-online/sessione/<int:sessione_id>/test", views_sessione_online.sessione_online_test, name="sessione_online_test"),
     path("formazione/corsi-online/sessione/<int:sessione_id>/esito", views_sessione_online.sessione_online_esito, name="sessione_online_esito"),
     path("formazione/corsi-online/sessione-slide/<int:slide_id>/immagine", views_sessione_online.sessione_online_slide_img, name="sessione_online_slide_img"),
+    path("formazione/corsi-online/sessione/<int:sessione_id>/corso-media/<int:slide_id>", views_sessione_online.sessione_online_corso_media, name="sessione_online_corso_media"),
     path("formazione/sessioni/<int:sessione_id>/modifica", views.formazione_sessione_edit, name="formazione_sessione_edit"),
     path("formazione/sessioni/<int:sessione_id>/elimina", views.formazione_sessione_delete, name="formazione_sessione_delete"),
     # Lezioni inline nella sessione
