@@ -30,6 +30,9 @@ from django.utils import timezone
 
 from core.naming import chiave_testo, chiavi_confronto, nome_completo
 
+import logging
+logger = logging.getLogger(__name__)
+
 MOTIVO_CORREZIONE = "Link aperto: abbinamento corretto dall'HR"
 MOTIVO_SCARTO = "Link aperto: risposta scartata dall'HR"
 
@@ -94,6 +97,72 @@ def candidati(nome: str, cognome: str, attivi: list[dict] | None = None) -> list
         return []
     attivi = dipendenti_attivi() if attivi is None else attivi
     return sorted({d["id"] for d in attivi if d["chiave"] in chiavi})
+
+
+def norm_matricola(valore: str) -> str:
+    """Matricola confrontabile: maiuscole, solo lettere e cifre, senza zeri iniziali.
+
+    ``t 138``, ``T138`` e ``000000T138`` danno ``T138``; ``0000CNO123`` dà ``CNO123``."""
+    import re
+    testo = re.sub(r"[^A-Z0-9]", "", str(valore or "").upper())
+    return testo.lstrip("0") or ("0" if testo else "")
+
+
+def matricole_attive(ids: set[int]) -> dict[int, set[str]]:
+    """{legacy_id: matricole normalizzate}: anagrafica del portale, poi dati delle presenze (timbri)."""
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    out: dict[int, set[str]] = {}
+    try:
+        for r in fetch_anagrafica_rows(ids=sorted(ids)):
+            m = norm_matricola(r.get("matricola") or "")
+            if m and r.get("id"):
+                out.setdefault(int(r["id"]), set()).add(m)
+    except Exception:
+        logger.exception("Matricole dell'anagrafica non leggibili")
+    try:
+        from timbri.models import OperatoreTimbri
+        for lid, m in (OperatoreTimbri.objects.filter(legacy_anagrafica_id__in=ids)
+                       .exclude(matricola="").values_list("legacy_anagrafica_id", "matricola")):
+            if norm_matricola(m):
+                out.setdefault(int(lid), set()).add(norm_matricola(m))
+    except Exception:
+        logger.exception("Matricole dei timbri non leggibili")
+    return out
+
+
+def abbinamento_con_matricola(nome: str, cognome: str, matricola: str,
+                              attivi: list[dict] | None = None) -> tuple[int | None, str]:
+    """(legacy_id, nota). Abbina solo se matricola e cognome indicano la stessa persona.
+
+    - matricola di una persona attiva con lo stesso cognome → quella persona;
+    - matricola di una persona con cognome diverso → nessuno («è di un'altra persona»);
+    - matricola sconosciuta → nome e cognome, ma solo se la persona trovata non ha matricole
+      registrate (altrimenti è un errore di battitura da controllare)."""
+    attivi = dipendenti_attivi() if attivi is None else attivi
+    per_id = {d["id"]: d for d in attivi}
+    mat = norm_matricola(matricola)
+    matricole = matricole_attive(set(per_id))
+    ck = chiave_testo(cognome)
+    if mat:
+        con_mat = [lid for lid, ms in matricole.items() if mat in ms]
+        if con_mat:
+            def stesso_cognome(lid):
+                chiave = per_id[lid]["chiave"]  # «COGNOME NOME»
+                return bool(ck) and (chiave == ck or chiave.startswith(ck + " ") or ck in chiave.split())
+            giusti = [lid for lid in con_mat if stesso_cognome(lid)]
+            if len(giusti) == 1:
+                return giusti[0], ""
+            if not giusti:
+                return None, f"La matricola {matricola} è di un'altra persona: controlla nome e matricola."
+            return None, f"La matricola {matricola} risulta a più persone."
+    trovati = candidati(nome, cognome, attivi)
+    if len(trovati) == 1 and not matricole.get(trovati[0]):
+        return trovati[0], ""
+    if len(trovati) == 1:
+        return None, f"Matricola {matricola or '(vuota)'} non trovata per {cognome} {nome}: verifica."
+    return None, ("Nessun dipendente attivo con questo nome e questa matricola." if not trovati
+                  else f"{len(trovati)} dipendenti con questo nome e matricola non riconosciuta.")
 
 
 def _record_esistente(corso, legacy_id: int):
@@ -220,23 +289,23 @@ def correggi(corso, domande_ids: list[int], risposte: dict[int, set[int]], sogli
             "superato": bool(n_totali) and punteggio >= Decimal(str(soglia_pct)), "risposte": snapshot}
 
 
-def registra(corso, *, nome: str, cognome: str, esito: dict, avviato_il, ip: str, user_agent: str):
-    """Salva la risposta e prova l'abbinamento automatico. Ritorna la risposta."""
+def registra(corso, *, nome: str, cognome: str, esito: dict, avviato_il, ip: str, user_agent: str,
+             matricola: str = ""):
+    """Salva la risposta e prova l'abbinamento automatico (matricola + cognome). Ritorna la risposta."""
     from ..models_elearning import TrainingElearningRispostaAperta as R
 
     risposta = R.objects.create(
-        corso=corso, nome=nome, cognome=cognome, punteggio_pct=esito["punteggio_pct"],
+        corso=corso, nome=nome, cognome=cognome, matricola=(matricola or "")[:40], punteggio_pct=esito["punteggio_pct"],
         n_corrette=esito["n_corrette"], n_totali=esito["n_totali"], superato=esito["superato"],
         risposte_json={"risposte": esito["risposte"]}, versione_corso=corso.versione or "",
         avviato_il=avviato_il, ip=ip or None,
         ua_hash=hashlib.sha256((user_agent or "").encode()).hexdigest() if user_agent else "",
     )
-    trovati = candidati(nome, cognome)
-    if len(trovati) == 1:
-        abbina(risposta, trovati[0], user=None, stato=R.AUTO)
+    legacy_id, nota = abbinamento_con_matricola(nome, cognome, matricola)
+    if legacy_id:
+        abbina(risposta, legacy_id, user=None, stato=R.AUTO)
         risposta.refresh_from_db()
     else:
-        nota = "Nessun dipendente attivo con questo nome." if not trovati else f"{len(trovati)} dipendenti con questo nome."
-        R.objects.filter(pk=risposta.pk).update(nota=nota)
-        risposta.nota = nota
+        R.objects.filter(pk=risposta.pk).update(nota=nota[:300])
+        risposta.nota = nota[:300]
     return risposta

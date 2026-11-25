@@ -1532,6 +1532,15 @@ def formazione_qualifica_durata(request):
     return JsonResponse({"ok": True, "durata_mesi": q.durata_mesi or 0})
 
 
+def _link_pubblico(request, corso):
+    from ..views_elearning import link_pubblico_info
+    try:
+        return link_pubblico_info(request, corso)
+    except Exception:
+        logger.exception("Link pubblico non calcolato (corso %s)", getattr(corso, "pk", None))
+        return None
+
+
 def _come_si_fa(corso) -> dict:
     """Riquadro «Come si fa questo corso»: online sempre aperto e sessioni, con slide e test unici."""
     from ..services.elearning_fruizione import corso_pubblicato
@@ -1725,6 +1734,7 @@ def formazione_corso_detail(request, corso_id: int):
     processi_mpq = processi_che_richiedono(corso=corso)
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
         "come_si_fa": _come_si_fa(corso),
+        "link_pubblico": _link_pubblico(request, corso),
         "corso": corso,
         "processi_mpq": processi_mpq,
         "n_a_chi_serve": len(regole) + len(processi_mpq),
@@ -2952,6 +2962,7 @@ def formazione_sessione_detail(request, sessione_id: int):
         "gruppi_gemelli": gruppi_gemelli,
         "dividi_form":    dividi_form,
         "online":         _contesto_lezione_online(request, sessione),
+        "link_pubblico":  _link_pubblico(request, sessione.corso),
         "pannello":       request.GET.get("pannello", ""),
         "risposte_di":    _risposte_lezione_online(request, sessione),
     })

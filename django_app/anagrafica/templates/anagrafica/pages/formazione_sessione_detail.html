@@ -101,6 +101,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
   {% endif %}
   {% if gestore or can_approve %}{% include "anagrafica/components/_formazione_chiusura_panel.html" %}{% endif %}
 
+  {% include "anagrafica/components/_link_pubblico.html" %}
   {% if online %}{% include "anagrafica/components/_sessione_online_gestione.html" %}{% endif %}
 
   {# ── Edizione / gruppi gemelli: stesso corso erogato a più gruppi in parallelo ── #}

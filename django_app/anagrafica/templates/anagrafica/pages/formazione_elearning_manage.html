@@ -275,7 +275,7 @@ body.theme-dark .elg-chip[aria-pressed=true]{background:#93c5fd;border-color:#93
           <tbody>
           {% for r in risposte_aperte %}
             <tr>
-              <td><strong>{{ r.cognome }} {{ r.nome }}</strong></td>
+              <td><strong>{{ r.cognome }} {{ r.nome }}</strong>{% if r.matricola %}<div class="fmd-muted" style="font-size:12px;">matricola {{ r.matricola|upper }}</div>{% endif %}</td>
               <td class="fmd-nowrap">{{ r.inviato_il|date:"d/m/Y H:i" }}</td>
               <td>{% if r.superato %}<span class="fmd-badge fmd-b-green">Superato</span>{% else %}<span class="fmd-badge fmd-b-orange">Non superato</span>{% endif %} <span class="fmd-muted">{{ r.n_corrette }}/{{ r.n_totali }}</span></td>
               <td>

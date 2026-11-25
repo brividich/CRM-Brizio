@@ -1,0 +1,21 @@
+{% extends "anagrafica/corso_aperto/_base.html" %}
+{% block corpo %}
+<div class="pb-meta">{{ chi.cognome|upper }} {{ chi.nome }} · {{ chi.matricola|upper }} · <a href="{% url 'corso_aperto:registrati' link.token %}?cambia=1">non sei tu?</a></div>
+<h2>Materiale del corso</h2>
+<p class="pb-help">Puoi aprire liberamente presentazioni e video. Per il quiz finale serve il percorso guidato: {{ n_viste }} di {{ n_slide }} slide viste.</p>
+{% for g in gruppi %}
+<div class="pb-domanda" style="padding:12px 16px;">
+  <div style="font-weight:700;margin-bottom:6px;">{{ g.titolo }}</div>
+  {% for v in g.voci %}
+  <a class="pb-voce" href="{% url 'corso_aperto:corso' link.token %}?c={{ v.pos }}">
+    <span class="pb-voce-tipo">{% if v.slide.tipo == "VIDEO" %}Video{% elif v.slide.is_immagine %}Slide{% else %}Testo{% endif %}</span>
+    <span style="flex:1;min-width:0;">{{ v.pos }}. {{ v.slide.titolo|default:"Senza titolo" }}</span>
+    {% if v.vista %}<span class="pb-voce-ok">vista</span>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endfor %}
+<div class="pb-nav">
+  <a class="pb-btn" href="{% url 'corso_aperto:corso' link.token %}">Continua il percorso guidato</a>
+</div>
+{% endblock %}
