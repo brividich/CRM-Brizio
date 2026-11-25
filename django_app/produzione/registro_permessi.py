@@ -30,6 +30,7 @@ registra_modulo(ModuloPermessi(
         ("produzione.op.view", "lettura"),
         ("produzione.documenti.manage", "modifica"),
         ("produzione.op.manage", "modifica"),
+        ("produzione.quote.manage", "modifica"),
     ),
     proprietario=proprietario_documento,
 ))

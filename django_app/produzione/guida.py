@@ -141,9 +141,40 @@ SEZIONI: list[dict] = [
                   "posizione, concentricità…) conta da 0 al limite, e il Cpk è (limite − media) / 3σ; per le altre conta "
                   "dal centro della zona di tolleranza. Una quota è il nome scritto nel report col suo nominale: se il "
                   "programma riusa lo stesso nome con un altro nominale sono due quote."),
+            ("def", [
+                ("Misure: Ultima per S/N / Tutte", "un S/N rimisurato (es. dopo una rilavorazione) conta una volta sola, con "
+                 "l'ultima misura; «Tutte» le mostra tutte. Il riquadro «Rimisurati» dice quanti S/N sono stati misurati più volte."),
+                ("Report", "spunta a mano i report da usare (o «Ultimi 10», «Ultimi 30», «Solo l'ultimo OP»); vale per tutte le viste."),
+                ("Esclusi", "i report esclusi non contano; «Esclusi nascosti/mostrati» li fa rivedere (nel grafico il riquadro lo dice)."),
+                ("In deriva", "retta sugli ultimi 20 pezzi: se si sposta di almeno il 20% della tolleranza, è oltre metà "
+                 "tolleranza verso un limite e al ritmo attuale ci arriva entro 50 pezzi, la quota è «in deriva». Avviso giallo con "
+                 "la stima dei pezzi, linea tratteggiata arancione sul grafico, filtro e riquadro «In deriva»."),
+                ("Segnali", "regole di controllo statistico: punto oltre 3σ (cerchio), 9 punti di fila dallo stesso lato della media, 6 "
+                 "di fila in salita o discesa (fascia gialla sotto l'asse). Sotto il grafico la tabella «Segnale / Dove / Cosa vuol dire»; "
+                 "filtro «Con segnali», interruttore «Segnali»."),
+                ("Eventi", "linee verticali sul grafico: il cambio di revisione del programma (dal report, tratteggiata grigia) e le note "
+                 "scritte a mano (verde). «Note sulla quota»: scegli il S/N da cui vale, scrivi la nota (es. «cambiato inserto T12»), "
+                 "«vale per tutte le quote» la mette su tutto il programma; la × la toglie (chi l'ha scritta)."),
+                ("Anomalie", "una bandierina rossa sui pezzi che hanno una segnalazione in Gestione anomalie (stesso OP e S/N), "
+                 "sbiadita se chiusa: passando sopra si leggono numero, stato e descrizione, clic apre Gestione anomalie su quell'OP."),
+                ("Unisci un'altra quota a questa", "se la stessa caratteristica ha un altro nome (rinominata fra revisioni o misurata "
+                 "in un altro programma del P/N) si unisce qui; ★ segna le quote con stesso nominale e tolleranze. «Unite qui» "
+                 "elenca le unite, la × le separa. Serve il permesso «Gestire le quote CMM»."),
+                ("PDF di capacità", "tabella Cp/Cpk e un grafico per quota con i filtri attivi: le quote spuntate per il Confronto, "
+                 "altrimenti la quota aperta nella vista Quota, altrimenti quelle dell'elenco."),
+            ]),
             ("p", "«Esporta CSV» scarica le misure con i filtri attivi (la quota scelta nella vista Quota, altrimenti le "
                   "quote dell'elenco). L'indirizzo della pagina conserva filtri e vista: si può copiare e mandare. "
                   "«Leggi i report» rilegge subito la cartella del P/N (in background: ricarica dopo qualche minuto)."),
+            ("p", "«Quote CMM» (scheda della sezione): tutti i P/N con report, dal più grave: report con quote fuori per settimana "
+                  "(12 settimane), fuori negli ultimi 30 giorni, quote fuori nell'ultimo report, quote con Cpk sotto 1,33, quote in "
+                  "deriva, ultimo report. «Da guardare» mostra solo quelli con fuori recenti o quote in deriva."),
+            ("p", "Escludere un report (prova, rilavorazione, doppione): nella pagina del report «Escludi dall'analisi», con motivo "
+                  "e nota. Resta scritto chi e quando; «Riammetti» lo rimette. Il PDF non si tocca. Serve il permesso «Gestire le "
+                  "quote CMM» (di default solo admin)."),
+            ("p", "Avvisi: in Impostazioni › «Avvisi delle quote CMM» si sceglie chi li riceve (campanella del portale) e se "
+                  "avvisare per i report nuovi con quote fuori e per le quote che vanno in deriva (al massimo un avviso al mese per "
+                  "quota). Il FAI mostra il «Report CMM del primo articolo» del suo OP con il Cpk sui pezzi dopo."),
             ("p", "Dal report (clic su un S/N): le quote fuori tolleranza, «Andamento» per ciascuna, «Apri il PDF» e "
                   "«Apri segnalazione anomalia», che apre Gestione anomalie sull'OP con il pannello «📄 Dal report CMM "
                   "(PDF)» già pronto."),
@@ -155,6 +186,8 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Scheda «Impostazioni» (permesso «Ordini di produzione - Impostazioni»): i tipi di documento, con nome, "
                   "descrizione e ordine. Un tipo spento non si propone più, ma i documenti già registrati lo tengono."),
+            ("p", "«Avvisi delle quote CMM»: report nuovi con quote fuori tolleranza, quote in deriva, e chi riceve gli avvisi. "
+                  "Nessuno scelto = nessun avviso."),
         ],
     },
 ]

@@ -14,6 +14,7 @@ Le quote si confrontano dentro lo stesso P/N e lo stesso programma senza revisio
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 import time
@@ -25,7 +26,7 @@ from django.utils import timezone
 
 from tasks.identity import normalize_part_number
 
-from .models import CartellaReportCMM, MisuraCMM, ReportCMM
+from .models import AliasQuotaCMM, CartellaReportCMM, MisuraCMM, NotaQuotaCMM, ReportCMM
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +244,10 @@ def leggi_cartella(pn: str, percorso: str, scadenza: float | None = None) -> dic
         cartella.letta_il = timezone.now()
     cartella.in_lettura_dal = None
     cartella.save(update_fields=["letta_il", "errore", "in_lettura_dal"])
+    if stat["letti"]:
+        from .avvisi_cmm import invia_avvisi
+
+        stat["avvisi"] = invia_avvisi(pn)
     return stat
 
 
@@ -313,7 +318,7 @@ def percorso_sicuro(percorso: str) -> str:
 
 def riepilogo_pn(pn: str) -> dict:
     """Per la scheda del P/N: quanti report, quanti con quote fuori, gli ultimi e lo stato della lettura."""
-    qs = ReportCMM.objects.filter(pn=pn, righe__gt=0)
+    qs = ReportCMM.objects.filter(pn=pn, righe__gt=0, escluso=False)
     return {
         "n": qs.count(), "con_fuori": qs.filter(fuori__gt=0).count(), "ultimi": list(qs.order_by("-data", "-id")[:8]),
         "cartella": CartellaReportCMM.objects.filter(pn=pn).order_by("-letta_il").first(), "attivo": attivo(),
@@ -330,7 +335,7 @@ def conteggi_per_pn() -> dict[str, dict]:
 
     return {
         r["pn"]: {"n": r["n"], "con_fuori": r["con_fuori"]}
-        for r in ReportCMM.objects.filter(righe__gt=0).values("pn")
+        for r in ReportCMM.objects.filter(righe__gt=0, escluso=False).values("pn")
         .annotate(n=Count("id"), con_fuori=Count("id", filter=Q(fuori__gt=0)))
     }
 
@@ -344,54 +349,214 @@ def _round(v):
     return None if v is None else round(float(v), 6)
 
 
+def _split_quota(qid: str) -> tuple[str, float]:
+    chiave, _, nom = str(qid or "").rpartition("|")
+    try:
+        return chiave, float(nom)
+    except ValueError:
+        return qid, 0.0
+
+
 def dati_programma(pn: str, prog: str, da: date | None = None, a: date | None = None,
-                   limite: int = LIMITE_REPORT) -> dict:
+                   limite: int = LIMITE_REPORT, con_esclusi: bool = True) -> dict:
     """Tutte le misure del programma, compatte, per la pagina «Analisi quote».
 
-    ``report``: ``[id, S/N, OP, data ISO, file, n fuori]`` dal più vecchio (al massimo ``limite``, i più recenti);
-    ``quote``: ``{id, nome, sezione, tipo, nominale}`` nell'ordine del report più recente;
-    ``valori[i]``: per la quota i, ``[indice report, rilevato, tol+, tol-, fuori 0/1, fuori di, da verificare 0/1]``.
+    ``report``: ``[id, S/N, OP, data ISO, file, n fuori, escluso 0/1, programma con revisione, motivo esclusione]``
+    dal più vecchio (al massimo ``limite``, i più recenti, più i report delle quote unite da altri programmi);
+    ``quote``: ``{id, nome, sezione, tipo, nominale, unite}`` nell'ordine del report più recente;
+    ``valori[i]``: per la quota i, ``[indice report, rilevato, tol+, tol-, fuori 0/1, fuori di, da verificare 0/1]``;
+    ``note``: eventi scritti a mano; ``anomalie``: per indice report, le segnalazioni dello stesso OP e S/N.
     """
     qs = ReportCMM.objects.filter(pn=pn, programma_base=prog, righe__gt=0)
+    if not con_esclusi:
+        qs = qs.filter(escluso=False)
     if da:
         qs = qs.filter(data__gte=da)
     if a:
         qs = qs.filter(data__lte=a)
     totale = qs.count()
-    righe = list(qs.order_by("-data", "-id").values_list("id", "seriale", "op", "data", "file", "fuori")[:limite])[::-1]
+    campi = ("id", "seriale", "op", "data", "file", "fuori", "escluso", "programma", "escluso_motivo")
+    righe = list(qs.order_by("-data", "-id").values_list(*campi)[:limite])
+    primo = min((r[3] for r in righe if r[3]), default=None)
+
+    # Quote unite: l'origine (anche di un altro programma) entra nella quota di destinazione.
+    alias = list(AliasQuotaCMM.objects.filter(pn=pn, prog_destinazione=prog))
+    misure_alias = []
+    for al in alias:
+        chiave, nom = _split_quota(al.quota_origine)
+        m = MisuraCMM.objects.filter(report__pn=pn, report__programma_base=al.prog_origine, report__righe__gt=0,
+                                     chiave=chiave, nominale__gte=nom - 5e-5, nominale__lte=nom + 5e-5)
+        if not con_esclusi:
+            m = m.filter(report__escluso=False)
+        if primo:
+            m = m.filter(report__data__gte=primo)
+        if a:
+            m = m.filter(report__data__lte=a)
+        misure_alias.append((al, m))
+    id_noti = {r[0] for r in righe}
+    extra = set()
+    for _al, m in misure_alias:
+        extra.update(m.values_list("report_id", flat=True))
+    extra -= id_noti
+    if extra:
+        righe += list(ReportCMM.objects.filter(pk__in=list(extra)[:2000]).values_list(*campi))
+    righe.sort(key=lambda r: (r[3] or date.min, r[0]))
     indice = {r[0]: i for i, r in enumerate(righe)}
+
     quote: dict[str, dict] = {}
     valori: dict[str, list] = {}
+
+    def aggiungi(qid, rid, nome, sezione, tipo, ind, x, ts, ti, fuori, fdi, dv, nom):
+        ri = indice.get(rid)
+        if ri is None:
+            return
+        q = quote.get(qid)
+        if q is None:
+            q = quote[qid] = {"id": qid, "nominale": round(nom, 6), "unite": []}
+            valori[qid] = []
+        q.update(nome=nome, sezione=sezione, tipo=tipo, ordine=ind)
+        valori[qid].append([ri, _round(x), _round(ts), _round(ti), 1 if fuori else 0, _round(fdi), 1 if dv else 0])
+
     if righe:
+        origini_stesso_prog = {al.quota_origine: al.quota_destinazione for al in alias if al.prog_origine == prog}
         misure = MisuraCMM.objects.filter(report__pn=pn, report__programma_base=prog, report__righe__gt=0)
-        primo = righe[0][3]
+        if not con_esclusi:
+            misure = misure.filter(report__escluso=False)
         if primo:
             misure = misure.filter(report__data__gte=primo)
         if a:
             misure = misure.filter(report__data__lte=a)
-        for rid, chiave, nom, nome, sezione, tipo, ind, x, ts, ti, fuori, fdi, dv in misure.values_list(
-                "report_id", "chiave", "nominale", "nome", "sezione", "tipo", "indice", "misurato", "tol_sup",
-                "tol_inf", "fuori", "fuori_di", "da_verificare").order_by("report__data", "report_id", "indice"):
-            ri = indice.get(rid)
-            if ri is None:
-                continue
-            k = id_quota(chiave, nom)
-            q = quote.get(k)
-            if q is None:
-                q = quote[k] = {"id": k, "nominale": round(nom, 6)}
-                valori[k] = []
-            q.update(nome=nome, sezione=sezione, tipo=tipo, ordine=ind, ultimo=ri)
-            valori[k].append([ri, _round(x), _round(ts), _round(ti), 1 if fuori else 0, _round(fdi), 1 if dv else 0])
-    # Ordine delle righe nel report più recente che ha la quota (le quote sparite finiscono dove stavano).
+        colonne = ("report_id", "chiave", "nominale", "nome", "sezione", "tipo", "indice", "misurato", "tol_sup",
+                   "tol_inf", "fuori", "fuori_di", "da_verificare")
+        for rid, chiave, nom, nome, sezione, tipo, ind, x, ts, ti, fuori, fdi, dv in misure.values_list(*colonne).order_by(
+                "report__data", "report_id", "indice"):
+            qid = id_quota(chiave, nom)
+            if qid in origini_stesso_prog:
+                continue          # arriva con l'alias, sotto la destinazione
+            aggiungi(qid, rid, nome, sezione, tipo, ind, x, ts, ti, fuori, fdi, dv, nom)
+        for al, m in misure_alias:
+            dest_chiave, dest_nom = _split_quota(al.quota_destinazione)
+            for rid, chiave, nom, nome, sezione, tipo, ind, x, ts, ti, fuori, fdi, dv in m.values_list(*colonne):
+                q = quote.get(al.quota_destinazione)
+                aggiungi(al.quota_destinazione, rid, q["nome"] if q else nome, q["sezione"] if q else sezione,
+                         q["tipo"] if q else tipo, q["ordine"] if q else ind, x, ts, ti, fuori, fdi, dv, dest_nom)
+            if al.quota_destinazione in quote:
+                quote[al.quota_destinazione]["unite"].append(
+                    {"prog": al.prog_origine, "quota": al.quota_origine, "nome": _split_quota(al.quota_origine)[0], "id": al.pk})
+        for qid in valori:
+            valori[qid].sort(key=lambda v: v[0])
     elenco = sorted(quote.values(), key=lambda q: (q["ordine"], q["nome"]))
-    for q in elenco:
-        q.pop("ultimo", None)
+    note = [
+        {"id": n.pk, "ri": indice[n.report_id], "testo": n.testo, "quota": n.quota,
+         "autore": (n.creato_da.get_full_name() or n.creato_da.username) if n.creato_da_id else "",
+         "il": n.creato_il.date().isoformat() if n.creato_il else ""}
+        for n in NotaQuotaCMM.objects.filter(pn=pn, programma_base=prog).select_related("creato_da")
+        if n.report_id in indice
+    ]
     return {
-        "pn": pn, "prog": prog, "totale": totale, "limite": limite, "tagliati": max(0, totale - len(righe)),
-        "report": [[r[0], r[1] or r[4], r[2], r[3].isoformat() if r[3] else "", r[4], r[5]] for r in righe],
+        "pn": pn, "prog": prog, "totale": totale, "limite": limite, "tagliati": max(0, totale - min(totale, limite)),
+        "report": [[r[0], r[1] or r[4], r[2], r[3].isoformat() if r[3] else "", r[4], r[5], 1 if r[6] else 0, r[7], r[8]]
+                   for r in righe],
         "quote": elenco,
         "valori": [valori[q["id"]] for q in elenco],
+        "note": note,
+        "anomalie": anomalie_per_report(righe),
     }
+
+
+def anomalie_per_report(righe) -> dict:
+    """``{indice report: [{id, testo, aperta}]}``: segnalazioni di Gestione anomalie dello stesso OP e S/N."""
+    from core.legacy_utils import legacy_table_columns
+
+    colonne = legacy_table_columns("anomalie")
+    if not righe or not {"ex_op_nominativo", "seriale"} <= set(colonne):
+        return {}
+    per_op: dict[str, list] = {}
+    for i, r in enumerate(righe):
+        if r[2] and r[1]:
+            per_op.setdefault(r[2].lower(), []).append((i, r[1].upper()))
+    if not per_op:
+        return {}
+    from django.db import connection
+
+    descr = "descrizione" if "descrizione" in colonne else "seriale"
+    chiusa = "COALESCE(chiudere, 0)" if "chiudere" in colonne else "0"
+    out: dict[int, list] = {}
+    ops = list(per_op)[:200]
+    segnaposti = ",".join(["%s"] * len(ops))
+    try:
+        with connection.cursor() as cur:
+            cur.execute(f"SELECT id, LOWER(ex_op_nominativo), seriale, {descr}, {chiusa} FROM anomalie "
+                        f"WHERE LOWER(ex_op_nominativo) IN ({segnaposti})", ops)
+            dati = cur.fetchall()
+    except Exception:
+        logger.exception("anomalie per i report CMM non lette")
+        return {}
+    for aid, op, seriale, testo, ch in dati:
+        sn_anom = str(seriale or "").upper().strip()
+        if len(sn_anom) < 2:
+            continue
+        for i, sn in per_op.get(op, []):
+            if sn and (sn in sn_anom or sn_anom in sn):
+                out.setdefault(i, []).append({"id": aid, "testo": str(testo or "")[:140], "aperta": not ch})
+    return out
+
+
+def deriva(us: list[float], ultimi: int = 20) -> dict | None:
+    """Tendenza degli ultimi ``ultimi`` valori di tolleranza usata (0 = ideale, ±1 = limite).
+
+    In deriva se la retta sale (o scende) di almeno il 20% della tolleranza in quei pezzi, l'ultimo punto della
+    retta è oltre metà tolleranza nella stessa direzione e, al ritmo attuale, il limite arriva entro 50 pezzi.
+    ``{"pendenza": per pezzo, "pezzi": quanti pezzi al limite (0 se già oltre), "verso": "sup"|"inf"}``."""
+    v = [u for u in us if u is not None][-ultimi:]
+    n = len(v)
+    if n < 10:
+        return None
+    mx = (n - 1) / 2
+    my = sum(v) / n
+    den = sum((i - mx) ** 2 for i in range(n))
+    b = sum((i - mx) * (u - my) for i, u in enumerate(v)) / den
+    fine = my + b * (n - 1 - mx)
+    if abs(b * n) < 0.2 or b * fine <= 0 or abs(fine) < 0.5:
+        return None
+    limite = 1 if b > 0 else -1
+    pezzi = max(0, int(math.ceil((limite - fine) / b)))
+    if pezzi > 50:
+        return None
+    return {"pendenza": b, "pezzi": pezzi, "verso": "sup" if b > 0 else "inf"}
+
+
+def segnali(xs: list[float]) -> list[dict]:
+    """Regole di controllo (Western Electric / Nelson) su una serie di valori:
+    punto oltre 3σ dalla media, 9 punti di fila dallo stesso lato della media, 6 di fila in salita o discesa.
+    ``[{"regola", "da", "a"}]`` con indici della serie."""
+    n = len(xs)
+    if n < 9:
+        return []
+    media = sum(xs) / n
+    sd = (sum((x - media) ** 2 for x in xs) / (n - 1)) ** 0.5
+    out = []
+    if sd > 0:
+        out += [{"regola": "3sigma", "da": i, "a": i} for i, x in enumerate(xs) if abs(x - media) > 3 * sd]
+    i = 0
+    while i < n:
+        lato = xs[i] > media
+        j = i
+        while j + 1 < n and (xs[j + 1] > media) == lato and xs[j + 1] != media:
+            j += 1
+        if j - i + 1 >= 9:
+            out.append({"regola": "lato", "da": i, "a": j, "sopra": lato})
+        i = j + 1
+    i = 0
+    while i < n - 1:
+        su = xs[i + 1] > xs[i]
+        j = i
+        while j + 1 < n and ((xs[j + 1] > xs[j]) if su else (xs[j + 1] < xs[j])):
+            j += 1
+        if j - i + 1 >= 6:
+            out.append({"regola": "trend", "da": i, "a": j, "su": su})
+        i = max(j, i + 1)
+    return out
 
 
 def unilaterale(nominale: float, lsl: float, usl: float) -> bool:
@@ -434,22 +599,116 @@ def statistiche(punti: list[tuple[float, float, float]], nominale: float | None 
     return out
 
 
-def quote_critiche(pn: str, ultimi: int = 30, quante: int = 6) -> list[dict]:
-    """Le quote da guardare del P/N: sugli ultimi ``ultimi`` report di ogni programma, prima quelle fuori
-    nell'ultimo report, poi Cpk sotto 1,33 dal peggiore. Per il riquadro della scheda P/N."""
+def ultima_per_seriale(report: list) -> list[int]:
+    """Indici dei report da tenere con «ultima misura per S/N»: per ogni S/N il più recente (gli altri sono rimisure)."""
+    ultimo: dict[str, int] = {}
+    for i, r in enumerate(report):
+        chiave = re.sub(r"[^A-Z0-9]", "", str(r[1] or "").upper())
+        ultimo[chiave or f"#{i}"] = i
+    return sorted(ultimo.values())
+
+
+def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
+    """Ogni quota di ogni programma del P/N sugli ultimi ``ultimi`` report validi (esclusi fuori, rimisure fuori):
+    fuori nell'ultimo report, volte fuori, Cpk, tolleranza usata dall'ultima, deriva. In cache finché non arrivano
+    report nuovi."""
+    from django.core.cache import cache
+    from django.db.models import Max
+
+    firma = ReportCMM.objects.filter(pn=pn).aggregate(m=Max("letto_il"), e=Max("escluso_il"))
+    chiave = f"prod_cmm_analisi:{pn}:{ultimi}:{firma['m']}:{firma['e']}:{AliasQuotaCMM.objects.filter(pn=pn).count()}"
+    trovato = cache.get(chiave)
+    if trovato is not None:
+        return trovato
     out = []
     for p in programmi_del_pn(pn):
-        d = dati_programma(pn, p["programma_base"], limite=ultimi)
+        d = dati_programma(pn, p["programma_base"], limite=ultimi * 2, con_esclusi=False)
         if not d["report"]:
             continue
-        ultimo = len(d["report"]) - 1
+        tieni = set(ultima_per_seriale(d["report"])[-ultimi:])
+        ultimo = max(tieni)
         for q, vals in zip(d["quote"], d["valori"]):
-            punti = [(v[1], q["nominale"] + v[3], q["nominale"] + v[2]) for v in vals if v[1] is not None]
+            vals = [v for v in vals if v[0] in tieni and v[1] is not None]
+            if not vals:
+                continue
+            punti = [(v[1], q["nominale"] + v[3], q["nominale"] + v[2]) for v in vals]
             s = statistiche(punti, q["nominale"])
-            fuori_ultimo = bool(vals and vals[-1][0] == ultimo and vals[-1][4])
-            if fuori_ultimo or (s.get("cpk") is not None and s["cpk"] < 1.33):
-                out.append({"prog": p["programma_base"], "quota": q, "fuori_ultimo": fuori_ultimo,
-                            "n_fuori": sum(v[4] for v in vals), "n": len(vals), **{k: s.get(k) for k in ("cpk", "u")},
-                            "u_abs": abs(s["u"]) if s.get("u") is not None else None})
-    out.sort(key=lambda r: (not r["fuori_ultimo"], r["cpk"] if r["cpk"] is not None else 9))
-    return out[:quante]
+            us = [usata(v[1], q["nominale"], q["nominale"] + v[3], q["nominale"] + v[2]) for v in vals]
+            out.append({
+                "prog": p["programma_base"], "quota": q, "fuori_ultimo": bool(vals[-1][0] == ultimo and vals[-1][4]),
+                "n_fuori": sum(v[4] for v in vals), "n": len(vals), "cpk": s.get("cpk"), "u": s.get("u"),
+                "u_abs": abs(s["u"]) if s.get("u") is not None else None, "deriva": deriva(us),
+            })
+    cache.set(chiave, out, 6 * 3600)
+    return out
+
+
+def quote_critiche(pn: str, ultimi: int = 30, quante: int = 6) -> list[dict]:
+    """Le quote da guardare del P/N: fuori nell'ultimo report, poi in deriva, poi Cpk sotto 1,33 dal peggiore."""
+    righe = [r for r in analisi_pn(pn, ultimi)
+             if r["fuori_ultimo"] or r["deriva"] or (r["cpk"] is not None and r["cpk"] < 1.33)]
+    righe.sort(key=lambda r: (not r["fuori_ultimo"], not r["deriva"], r["cpk"] if r["cpk"] is not None else 9))
+    return righe[:quante]
+
+
+def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
+    """Una riga per P/N con report: fuori negli ultimi ``giorni``, fuori per settimana, quote con Cpk sotto 1,33,
+    quote in deriva, ultimo report. Ordinate dalla più grave."""
+    from datetime import timedelta
+
+    from django.db.models import Count, Max, Q
+
+    oggi = timezone.localdate()
+    dal = oggi - timedelta(days=giorni)
+    inizio_sett = oggi - timedelta(days=oggi.weekday() + 7 * (settimane - 1))
+    validi = ReportCMM.objects.filter(righe__gt=0, escluso=False)
+    righe = {r["pn"]: r for r in validi.values("pn").annotate(
+        n=Count("id"), fuori_rec=Count("id", filter=Q(fuori__gt=0, data__gte=dal)), ultima=Max("data"))}
+    if not righe:
+        return []
+    sett: dict[str, list[int]] = {pn: [0] * settimane for pn in righe}
+    for pn, d in validi.filter(fuori__gt=0, data__gte=inizio_sett).values_list("pn", "data"):
+        k = (d - inizio_sett).days // 7
+        if 0 <= k < settimane and pn in sett:
+            sett[pn][k] += 1
+    ultimi = {}
+    for pn, sn, d, rid in validi.order_by("pn", "-data", "-id").values_list("pn", "seriale", "data", "id"):
+        ultimi.setdefault(pn, (sn, d, rid))
+    out = []
+    for pn, r in righe.items():
+        analisi = analisi_pn(pn)
+        out.append({
+            "pn": pn, "n": r["n"], "fuori_rec": r["fuori_rec"], "settimane": sett[pn], "max_sett": max(sett[pn]) or 1,
+            "cpk_bassi": sum(1 for a in analisi if a["cpk"] is not None and a["cpk"] < 1.33),
+            "deriva": sum(1 for a in analisi if a["deriva"]),
+            "fuori_ultimo": sum(1 for a in analisi if a["fuori_ultimo"]),
+            "ultimo": ultimi.get(pn),
+        })
+    for r in out:
+        r["da_guardare"] = bool(r["fuori_rec"] or r["deriva"] or r["fuori_ultimo"])
+        r["barre"] = [{"x": k * 9, "h": max(1, round(v / r["max_sett"] * 20)) if v else 1, "v": v}
+                      for k, v in enumerate(r["settimane"])]
+        for b in r["barre"]:
+            b["y"] = 22 - b["h"]
+    out.sort(key=lambda r: (-r["fuori_ultimo"], -r["fuori_rec"], -r["deriva"], -r["cpk_bassi"], r["pn"]))
+    return out
+
+
+def report_primo_articolo(op: str) -> ReportCMM | None:
+    """Per il FAI: il primo report CMM valido dell'OP."""
+    if not op:
+        return None
+    return (ReportCMM.objects.filter(op__iexact=op.replace("-", "/"), righe__gt=0, escluso=False)
+            .order_by("data", "id").first())
+
+
+def capacita_dopo(report: ReportCMM, quante: int = 8) -> list[dict]:
+    """Quote del report del primo articolo con il Cpk sui pezzi successivi dello stesso programma (peggiori prima)."""
+    righe = []
+    analisi = {(a["prog"], a["quota"]["id"]): a for a in analisi_pn(report.pn, ultimi=60)}
+    for m in report.misure.all():
+        a = analisi.get((report.programma_base, id_quota(m.chiave, m.nominale)))
+        righe.append({"misura": m, "cpk": a["cpk"] if a else None, "deriva": a["deriva"] if a else None,
+                      "id": id_quota(m.chiave, m.nominale)})
+    righe.sort(key=lambda r: (not r["misura"].fuori, r["cpk"] if r["cpk"] is not None else 9))
+    return righe[:quante]

@@ -1,8 +1,36 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}{{ report.seriale|default:report.file }} · Report CMM{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125a">{% endblock %}
+{% block title %}{{ report.seriale|default:report.file }} · Report CMM{% if prod_puo_quote and not report.escluso %}
+<dialog class="prod-dialogo" id="dialogo-escludi" aria-labelledby="escludi-titolo">
+  <form method="post" action="{% url 'produzione:report_escludi' report.id %}">
+    {% csrf_token %}<input type="hidden" name="azione" value="escludi">
+    <h2 id="escludi-titolo">Escludi {{ report.seriale|default:report.file }} dall'analisi</h2>
+    <p class="prod-nota">Non conta più in statistiche, grafici, mappa e Cpk. Il PDF resta nella cartella; si può riammettere in ogni momento.</p>
+    <label class="prod-avvisi-campo">Motivo<select name="motivo">{% for m in motivi %}<option>{{ m }}</option>{% endfor %}</select></label>
+    <label class="prod-avvisi-campo">Nota (facoltativa)<input name="nota" maxlength="300" placeholder="es. ripassato in rettifica, rimisurato"></label>
+    <p class="prod-nota">Resta scritto chi l'ha escluso e quando.</p>
+    <div class="prod-dialogo-azioni"><button type="button" class="prod-btn" data-chiudi-dialogo>Annulla</button><button type="submit" class="prod-btn prod-btn-primary">Escludi</button></div>
+  </form>
+</dialog>
+<script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
+{% endif %}
+{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125a">{% if prod_puo_quote and not report.escluso %}
+<dialog class="prod-dialogo" id="dialogo-escludi" aria-labelledby="escludi-titolo">
+  <form method="post" action="{% url 'produzione:report_escludi' report.id %}">
+    {% csrf_token %}<input type="hidden" name="azione" value="escludi">
+    <h2 id="escludi-titolo">Escludi {{ report.seriale|default:report.file }} dall'analisi</h2>
+    <p class="prod-nota">Non conta più in statistiche, grafici, mappa e Cpk. Il PDF resta nella cartella; si può riammettere in ogni momento.</p>
+    <label class="prod-avvisi-campo">Motivo<select name="motivo">{% for m in motivi %}<option>{{ m }}</option>{% endfor %}</select></label>
+    <label class="prod-avvisi-campo">Nota (facoltativa)<input name="nota" maxlength="300" placeholder="es. ripassato in rettifica, rimisurato"></label>
+    <p class="prod-nota">Resta scritto chi l'ha escluso e quando.</p>
+    <div class="prod-dialogo-azioni"><button type="button" class="prod-btn" data-chiudi-dialogo>Annulla</button><button type="submit" class="prod-btn prod-btn-primary">Escludi</button></div>
+  </form>
+</dialog>
+<script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="prod">
@@ -12,6 +40,7 @@
       <h1>{{ report.seriale|default:report.file }}</h1>
     </div>
     <div class="prod-filtri">
+      {% if prod_puo_quote and not report.escluso %}<button type="button" class="prod-btn" data-apri-dialogo="escludi">Escludi dall'analisi</button>{% endif %}
       <a class="prod-btn" href="{% url 'produzione:report_cmm_pdf' report.id %}" target="_blank" rel="noopener">Apri il PDF</a>
       {% if url_anomalia %}<a class="prod-btn prod-btn-primary" href="{{ url_anomalia }}">Apri segnalazione anomalia</a>{% endif %}
     </div>
@@ -25,6 +54,12 @@
     <div class="prod-dato"><span>Data</span><b>{{ report.data|date:"d/m/Y"|default:"—" }}</b></div>
     <div class="prod-dato{% if report.fuori %} is-allerta{% endif %}"><span>Fuori tolleranza</span><b>{{ report.fuori }} su {{ report.righe }}</b></div>
   </div>
+  {% if report.escluso %}
+  <div class="prod-avviso prod-escluso">
+    <span><b>Escluso dall'analisi</b>: {{ report.escluso_motivo }}{% if report.escluso_nota %} · «{{ report.escluso_nota }}»{% endif %}{% if report.escluso_da %} · {% firstof report.escluso_da.get_full_name report.escluso_da.username %}{% endif %}{% if report.escluso_il %}, {{ report.escluso_il|date:"d/m/Y H:i" }}{% endif %}. Non conta in statistiche, grafici e Cpk.</span>
+    {% if prod_puo_quote %}<form method="post" action="{% url 'produzione:report_escludi' report.id %}">{% csrf_token %}<input type="hidden" name="azione" value="riammetti"><button class="prod-btn prod-btn-piccolo" type="submit">Riammetti</button></form>{% endif %}
+  </div>
+  {% endif %}
   {% if report.errore %}<p class="prod-avviso">{{ report.errore }}</p>{% endif %}
   {% if report.op and not op %}<p class="prod-nota">L'OP {{ report.op }} non è nell'elenco degli OP: la segnalazione si apre da Gestione anomalie.</p>{% endif %}
 
@@ -65,4 +100,18 @@
   </section>
   {% endif %}
 </div>
+{% if prod_puo_quote and not report.escluso %}
+<dialog class="prod-dialogo" id="dialogo-escludi" aria-labelledby="escludi-titolo">
+  <form method="post" action="{% url 'produzione:report_escludi' report.id %}">
+    {% csrf_token %}<input type="hidden" name="azione" value="escludi">
+    <h2 id="escludi-titolo">Escludi {{ report.seriale|default:report.file }} dall'analisi</h2>
+    <p class="prod-nota">Non conta più in statistiche, grafici, mappa e Cpk. Il PDF resta nella cartella; si può riammettere in ogni momento.</p>
+    <label class="prod-avvisi-campo">Motivo<select name="motivo">{% for m in motivi %}<option>{{ m }}</option>{% endfor %}</select></label>
+    <label class="prod-avvisi-campo">Nota (facoltativa)<input name="nota" maxlength="300" placeholder="es. ripassato in rettifica, rimisurato"></label>
+    <p class="prod-nota">Resta scritto chi l'ha escluso e quando.</p>
+    <div class="prod-dialogo-azioni"><button type="button" class="prod-btn" data-chiudi-dialogo>Annulla</button><button type="submit" class="prod-btn prod-btn-primary">Escludi</button></div>
+  </form>
+</dialog>
+<script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
+{% endif %}
 {% endblock %}

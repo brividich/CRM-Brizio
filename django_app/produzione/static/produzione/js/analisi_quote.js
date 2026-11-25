@@ -19,7 +19,19 @@
     q: iniziale.q || '', nom: iniziale.nom || '', cmp: (iniziale.cmp || '').split('~').filter(Boolean),
     filtro: iniziale.f || 'tutte', ord: iniziale.ord || '', cerca: '',
     media: true, sigma: false, perOp: false, scala: 'valore', zoom: null, pezzo2: null,
+    tutte: iniziale.tutte === '1', esclusi: iniziale.esclusi === '1', segnali: true,
+    rs: new Set((iniziale.rs || '').split('~').filter(x => /^\d+$/.test(x)).map(Number)),
   };
+  const puoQuote = root.dataset.puoQuote === '1';
+  const errore = msg => { const av = $('[data-avviso]'); av.textContent = msg; av.hidden = false; av.scrollIntoView({ block: 'nearest' }); };
+  const csrf = () => (document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || '';
+  async function posta(url, corpo) {
+    const r = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() }, body: JSON.stringify(corpo || {}) });
+    let j = {};
+    try { j = await r.json(); } catch (e) { /* risposta non JSON */ }
+    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    return j;
+  }
   let D = null;          // dati del programma
   let vis = [];          // report visibili (filtro OP)
   let info = [];         // per quota: punti visibili e statistiche
@@ -108,6 +120,9 @@
     if (S.sn) p.set('r', S.sn);
     if (S.filtro !== 'tutte') p.set('f', S.filtro);
     if (S.ord) p.set('ord', S.ord);
+    if (S.tutte) p.set('tutte', '1');
+    if (S.esclusi) p.set('esclusi', '1');
+    if (S.rs.size) p.set('rs', [...S.rs].join('~'));
     history.replaceState(null, '', `${root.dataset.urlPagina}?${p}`);
   }
 
@@ -135,6 +150,7 @@
       S.cmp = S.cmp.filter(id => D.quote.some(q => q.id === id));
       if (S.sn && !D.report.some(r => r[0] === S.sn)) S.sn = null;
       $('[data-azione="csv"]').disabled = false;
+      $('[data-azione="pdf"]').disabled = false;
       calcola();
       disegnaTutto();
     } catch (e) {
@@ -158,8 +174,19 @@
     }
     S.q = '';
   }
+  function ultimePerSn() {
+    const ultimo = new Map();
+    D.report.forEach((r, i) => { if (!r[6] || S.esclusi) ultimo.set(String(r[1] || `#${i}`).toUpperCase().replace(/[^A-Z0-9]/g, '') || `#${i}`, i); });
+    return new Set(ultimo.values());
+  }
+  let rimisurati = [];
   function calcola() {
-    vis = D.report.map(r => !S.ops.size || S.ops.has(r[2] || '—'));
+    const ultime = ultimePerSn();
+    const conta = new Map();
+    D.report.forEach((r, i) => { if (!r[6]) { const k = String(r[1] || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (k) conta.set(k, (conta.get(k) || 0) + 1); } });
+    rimisurati = [...conta.entries()].filter(([, n]) => n > 1).map(([k]) => k);
+    vis = D.report.map((r, i) => (!S.ops.size || S.ops.has(r[2] || '—')) && (S.esclusi || !r[6])
+      && (!S.rs.size || S.rs.has(r[0])) && (S.tutte || ultime.has(i)));
     info = D.quote.map((q, qi) => {
       const pts = [];
       for (const v of D.valori[qi]) {
@@ -168,9 +195,50 @@
         pts.push({ ri: v[0], x: v[1], ts: v[2], ti: v[3], f: !!v[4], fd: v[5], dv: !!v[6], lsl, usl,
           uni: unilaterale(q.nominale, lsl, usl), u: usata(v[1], q.nominale, lsl, usl) });
       }
-      return { q, qi, pts, s: statistiche(pts) };
+      const s = statistiche(pts);
+      return { q, qi, pts, s, deriva: deriva(pts.map(p => p.u)), segnali: segnali(pts.map(p => p.x)) };
     });
   }
+
+  /* Tendenza degli ultimi 20 (stessa regola del portale lato server: report_cmm_indice.deriva). */
+  function deriva(us, ultimi = 20) {
+    const v = us.filter(u => u !== null && isFinite(u)).slice(-ultimi);
+    const n = v.length;
+    if (n < 10) return null;
+    const mx = (n - 1) / 2, my = v.reduce((a, b) => a + b, 0) / n;
+    let num0 = 0, den = 0;
+    v.forEach((u, i) => { num0 += (i - mx) * (u - my); den += (i - mx) ** 2; });
+    const b = num0 / den, fine = my + b * (n - 1 - mx);
+    if (Math.abs(b * n) < 0.2 || b * fine <= 0 || Math.abs(fine) < 0.5) return null;
+    const pezzi = Math.max(0, Math.ceil(((b > 0 ? 1 : -1) - fine) / b));
+    if (pezzi > 50) return null;
+    return { pendenza: b, pezzi, verso: b > 0 ? 'sup' : 'inf', n, my, mx };
+  }
+  /* Regole di controllo: oltre 3σ, 9 di fila dallo stesso lato della media, 6 di fila in salita o discesa. */
+  function segnali(xs) {
+    const n = xs.length, out = [];
+    if (n < 9) return out;
+    const m = xs.reduce((a, b) => a + b, 0) / n;
+    const sd = Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / (n - 1));
+    if (sd > 0) xs.forEach((x, i) => { if (Math.abs(x - m) > 3 * sd) out.push({ regola: '3sigma', da: i, a: i }); });
+    for (let i = 0; i < n;) {
+      const lato = xs[i] > m; let j = i;
+      while (j + 1 < n && (xs[j + 1] > m) === lato && xs[j + 1] !== m) j++;
+      if (j - i + 1 >= 9) out.push({ regola: 'lato', da: i, a: j, sopra: lato });
+      i = j + 1;
+    }
+    for (let i = 0; i < n - 1;) {
+      const su = xs[i + 1] > xs[i]; let j = i;
+      while (j + 1 < n && (su ? xs[j + 1] > xs[j] : xs[j + 1] < xs[j])) j++;
+      if (j - i + 1 >= 6) out.push({ regola: 'trend', da: i, a: j, su });
+      i = Math.max(j, i + 1);
+    }
+    return out;
+  }
+  const testoSegnale = g => g.regola === '3sigma' ? 'Oltre 3σ' : g.regola === 'lato' ? `${g.a - g.da + 1} punti ${g.sopra ? 'sopra' : 'sotto'} la media`
+    : `${g.a - g.da + 1} punti di fila in ${g.su ? 'salita' : 'discesa'}`;
+  const spiegaSegnale = g => g.regola === '3sigma' ? 'misura anomala anche se in tolleranza: verificare il pezzo'
+    : g.regola === 'lato' ? 'il processo si è spostato: controllare utensile o azzeramento' : 'tendenza costante: usura o deriva termica';
 
   /* ── filtri globali ──────────────────────────────────────────────────── */
   function disegnaFiltri() {
@@ -198,12 +266,46 @@
         S.ops = new Set(ult ? [ult] : []); aggiorna(); disegnaFiltri();
       } })));
     $('[data-op-etichetta]').textContent = S.ops.size ? (S.ops.size === 1 ? [...S.ops][0] : `${S.ops.size} scelti`) : 'tutti';
+    disegnaFiltroReport();
+    $$('[data-filtro="misure"] button').forEach(b => b.classList.toggle('is-on', (b.dataset.v === 'tutte') === S.tutte));
+    const nEscl = D.report.filter(r => r[6]).length;
+    const be = $('[data-filtro="esclusi"]');
+    be.hidden = !nEscl;
+    be.setAttribute('aria-pressed', S.esclusi ? 'true' : 'false');
+    be.textContent = S.esclusi ? `Esclusi mostrati (${nEscl})` : `Esclusi nascosti (${nEscl})`;
     const dl = $('#aq-sn');
     dl.replaceChildren(...D.report.slice().reverse().map(r => el('option', { value: r[1] }, `${r[2] || ''} · ${dataIt(r[3])}`)));
     const scelto = D.report.find(r => r[0] === S.sn);
     $('[data-filtro="sn"]').value = scelto ? scelto[1] : '';
   }
   function aggiorna() { calcola(); disegnaTutto(); }
+  function disegnaFiltroReport() {
+    const box = $('[data-rs-lista]');
+    const cerca = ($('[data-rs-cerca]').value || '').trim().toLowerCase();
+    box.replaceChildren();
+    D.report.slice().reverse().filter(r => !cerca || `${r[1]} ${r[2]}`.toLowerCase().includes(cerca)).slice(0, 300).forEach(r => {
+      const cb = el('input', { type: 'checkbox', checked: !S.rs.size || S.rs.has(r[0]) });
+      cb.addEventListener('change', () => {
+        if (!S.rs.size) D.report.forEach(x => S.rs.add(x[0]));
+        cb.checked ? S.rs.add(r[0]) : S.rs.delete(r[0]);
+        if (S.rs.size === D.report.length) S.rs.clear();
+        aggiorna();
+      });
+      box.append(el('label', {}, cb, el('span', { text: r[1] }), el('small', { text: `${r[2] || '—'} · ${dataIt(r[3])}${r[6] ? ' · escluso' : ''}` })));
+    });
+    $('[data-rs-etichetta]').textContent = S.rs.size ? `${S.rs.size} scelti` : 'tutti';
+  }
+  const sceltaReport = modo => {
+    const tutti = D.report.map(r => r[0]);
+    S.rs = new Set(modo === 'tutti' ? [] : modo === 'u10' ? tutti.slice(-10) : modo === 'u30' ? tutti.slice(-30)
+      : modo === 'op' ? D.report.filter(r => r[2] === D.report[D.report.length - 1][2]).map(r => r[0]) : []);
+    aggiorna();
+  };
+  $$('[data-rs-modo]').forEach(b => b.addEventListener('click', () => sceltaReport(b.dataset.rsModo)));
+  $('[data-rs-cerca]').addEventListener('input', () => disegnaFiltroReport());
+  $$('[data-filtro="misure"] button').forEach(b => b.addEventListener('click', () => { S.tutte = b.dataset.v === 'tutte'; aggiorna(); }));
+  $('[data-filtro="esclusi"]').addEventListener('click', () => { S.esclusi = !S.esclusi; aggiorna(); });
+  document.addEventListener('click', e => { const pop = $('[data-pop="rs"]'); if (pop && pop.open && !pop.contains(e.target)) pop.open = false; });
 
   $('[data-filtro="prog"]').addEventListener('change', e => { S.prog = e.target.value; S.q = ''; S.cmp = []; S.zoom = null; carica(); });
   $$('[data-filtro="per"] button').forEach(b => b.addEventListener('click', () => {
@@ -242,8 +344,10 @@
       tile('Misure fuori', mis ? pct(fuori / mis) : '—', `${fuori} su ${mis}`, { allerta: fuori > 0 }),
       tile('Quote andate fuori', `${conFuori}`, 'almeno una volta', { allerta: conFuori > 0, onclick: () => scegliFiltro('fuori'), title: 'Mostra solo queste' }),
       tile('Cpk sotto 1,33', `${nonCap}`, 'processo non capace o al limite', { allerta: nonCap > 0, onclick: () => scegliFiltro('cpk'), title: 'Mostra solo queste' }),
+      tile('In deriva', `${info.filter(x => x.deriva).length}`, 'verso un limite', { allerta: info.some(x => x.deriva), onclick: () => scegliFiltro('deriva'), title: 'Mostra solo queste' }),
       tile('Ultimo report', ult ? dataIt(ult[3]) : '—', ult ? `${ult[1]} · ${ult[2] || ''}` : ''),
     );
+    if (rimisurati.length) box.append(tile('Rimisurati', `${rimisurati.length} S/N`, S.tutte ? 'contano tutte le misure' : 'conta l\'ultima misura', { title: rimisurati.join(', ') }));
     const av = $('[data-avviso]');
     av.hidden = !D.tagliati;
     if (D.tagliati) av.textContent = `Mostrati i ${D.limite} report più recenti su ${D.totale}: scegli un periodo per vedere i più vecchi.`;
@@ -255,6 +359,8 @@
     ['fuori', 'Andate fuori', x => x.s.nFuori > 0],
     ['cpk', 'Cpk < 1,33', x => x.s.cpk !== null && x.s.cpk !== undefined && x.s.cpk < 1.33],
     ['limite', 'Vicine al limite', x => vicina(x.s)],
+    ['deriva', 'In deriva', x => !!x.deriva],
+    ['segnali', 'Con segnali', x => x.segnali.length > 0],
     ['verifica', 'Da verificare', x => x.s.nVer > 0],
   ];
   function scegliFiltro(f) { S.filtro = f; disegnaLista(); if (S.tab !== 'quota' && S.tab !== 'confronto') disegnaVista(); salvaUrl(); }
@@ -312,7 +418,8 @@
       const voce = el('div', { class: `aq-voce${x.q.id === S.q ? ' is-on' : ''}`, role: 'option', tabindex: 0, 'aria-selected': x.q.id === S.q ? 'true' : 'false',
         onclick: () => apriQuota(x.q.id), onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); apriQuota(x.q.id); } } },
         cb,
-        el('div', { class: 'aq-voce-nome' }, el('b', { text: x.q.nome }), el('small', { text: `${S.ord ? (x.q.sezione || '') + ' · ' : ''}nom. ${num(x.q.nominale)}` })),
+        el('div', { class: 'aq-voce-nome' }, el('b', { text: x.q.nome }), el('small', {}, `${S.ord ? (x.q.sezione || '') + ' · ' : ''}nom. ${num(x.q.nominale)}`,
+          x.deriva ? el('span', { class: 'aq-mini is-warn', text: 'deriva' }) : null, x.q.unite && x.q.unite.length ? el('span', { class: 'aq-mini', text: 'unita' }) : null)),
         sparkline(x), badge(x));
       box.append(voce);
     });
@@ -406,6 +513,71 @@
         t.textContent = n <= 30 ? (rep[1] || '').slice(0, 11) : dataIt(rep[3]).slice(0, 5);
         svg.append(t);
       });
+      // eventi: cambio di revisione del programma e note sulla quota
+      const eventi = [];
+      for (let k = 1; k < n; k++) {
+        const a = D.report[pts[k - 1].ri][7] || '', b = D.report[pts[k].ri][7] || '';
+        const ra = (a.match(/_REV[\w-]*/i) || [''])[0].replace('_', ''), rb = (b.match(/_REV[\w-]*/i) || [''])[0].replace('_', '');
+        if (ra !== rb) eventi.push({ k, testo: `Programma ${ra || '?'} → ${rb || '?'}`, rev: true });
+      }
+      (D.note || []).filter(nt => !nt.quota || nt.quota === x.q.id).forEach(nt => {
+        const k = pts.findIndex(p => p.ri >= nt.ri);
+        if (k >= 0) eventi.push({ k, testo: nt.testo, nota: nt });
+      });
+      eventi.forEach((e, i) => {
+        const xx = X(e.k) - (n > 1 ? (X(1) - X(0)) / 2 : 0);
+        svg.append(sv('line', { class: e.rev ? 'g-evento is-rev' : 'g-evento', x1: xx, x2: xx, y1: T, y2: H - B }));
+        const larg = Math.min(260, e.testo.length * 6.4 + 14), xl = Math.min(xx + 4, W - R - larg);
+        svg.append(sv('rect', { class: e.rev ? 'g-evento-et is-rev' : 'g-evento-et', x: xl, y: T + 2 + (i % 4) * 20, width: larg, height: 17, rx: 4 }));
+        const t = sv('text', { class: 'g-evento-testo', x: xl + 7, y: T + 14 + (i % 4) * 20 });
+        t.textContent = e.testo.length > 38 ? e.testo.slice(0, 37) + '…' : e.testo;
+        svg.append(t);
+      });
+      // segnali di controllo: tratti evidenziati e punti oltre 3σ
+      if (S.segnali && !pc) x.segnali.forEach(g => {
+        if (!nelZoom(x.pts[g.da].ri) && !nelZoom(x.pts[g.a].ri)) return;
+        const k0 = pts.indexOf(x.pts[g.da]), k1 = pts.indexOf(x.pts[g.a]);
+        if (k0 < 0 || k1 < 0) return;
+        if (g.regola === '3sigma') {
+          svg.append(sv('circle', { class: 'g-segnale-punto', cx: X(k0), cy: Y(val(pts[k0])), r: 8 }));
+        } else {
+          const passo = n > 1 ? (X(1) - X(0)) / 2 : 6;
+          // fascia sotto l'asse: segna il tratto senza coprire i punti
+          svg.append(sv('rect', { class: 'g-segnale', x: X(k0) - passo, y: H - B + 2, width: X(k1) - X(k0) + 2 * passo, height: 6, rx: 3 }));
+        }
+      });
+      // deriva: retta degli ultimi 20 e previsione
+      if (x.deriva && !S.zoom) {
+        const d = x.deriva, k0 = n - d.n, uFit = i => d.my + d.pendenza * (i - d.mx);
+        const ult = pts[n - 1];
+        const aVal = u => pc ? u * 100 : (ult.uni ? u * ult.usl : (ult.usl + ult.lsl) / 2 + u * (ult.usl - ult.lsl) / 2);
+        const avanti = Math.min(d.pezzi, Math.max(2, Math.round(n * 0.15)));
+        const passo = n > 1 ? X(1) - X(0) : 10;
+        const x1 = Math.min(X(n - 1) + avanti * passo, W - R);
+        svg.append(sv('line', { class: 'g-deriva', x1: X(k0), y1: Y(aVal(uFit(0))), x2: x1, y2: Y(aVal(uFit(d.n - 1 + (x1 - X(n - 1)) / passo))) }));
+        const t = sv('text', { class: 'g-deriva-testo', x: x1 - 4, y: Y(aVal(uFit(d.n - 1))) - 12, 'text-anchor': 'end' });
+        t.textContent = d.pezzi ? `al limite tra ~${d.pezzi} pezzi` : 'al limite';
+        svg.append(t);
+      }
+      // anomalie aperte o chiuse sullo stesso OP e S/N
+      const bandiere = [];
+      pts.forEach((p, k) => {
+        const an = (D.anomalie || {})[p.ri];
+        if (!an || !an.length) return;
+        const aperta = an.some(a => a.aperta);
+        const fx = X(k), fy = Y(val(p)) - 6;
+        const f = sv('g', { class: `g-bandiera${aperta ? '' : ' is-chiusa'}`, role: 'img', 'aria-label': `${an.length} segnalazioni di anomalia` });
+        f.append(sv('path', { d: `M${fx} ${fy} v-16`, class: 'g-bandiera-asta' }),
+          sv('path', { d: `M${fx} ${fy - 16} l10 4 -10 4 z`, class: 'g-bandiera-telo' }),
+          sv('rect', { x: fx - 6, y: fy - 20, width: 18, height: 22, fill: 'transparent' }));
+        f.addEventListener('pointermove', ev => { ev.stopPropagation(); mostraTooltip(ev, [
+          el('b', { text: `${an.length} segnalazion${an.length === 1 ? 'e' : 'i'} di anomalia` }),
+          ...an.slice(0, 4).map(a => el('div', { text: `#${a.id} · ${a.aperta ? 'aperta' : 'chiusa'} · ${a.testo}` })),
+          el('div', { class: 't-sub', text: 'Clic: apri Gestione anomalie su questo OP' })]); });
+        f.addEventListener('pointerleave', nascondiTooltip);
+        f.addEventListener('click', () => { location.href = `${root.dataset.urlAnomalie}?op=${encodeURIComponent(D.report[p.ri][2] || '')}&filter=tutti`; });
+        bandiere.push(f);
+      });
       // selezionato: etichetta
       const kSel = pts.findIndex(p => D.report[p.ri][0] === S.sn);
       if (kSel >= 0) {
@@ -418,6 +590,7 @@
         mostraTooltip(ev, [
           el('b', { text: num(p.x) }), p.f ? el('span', { class: 't-fuori', text: `  fuori di ${segno(p.fd ?? 0)}` }) : null,
           el('div', { text: `${rep[1]} · ${rep[2] || '—'} · ${dataIt(rep[3])}` }),
+          rep[6] ? el('div', { class: 't-fuori', text: `Escluso dall'analisi: ${rep[8] || ''}` }) : null,
           el('div', { class: 't-sub', text: `Nominale ${num(x.q.nominale)} · limiti ${num(p.lsl)} ÷ ${num(p.usl)}` }),
           el('div', { class: 't-sub', text: `Tolleranza usata ${p.u === null ? '—' : pct(Math.abs(p.u))}${p.dv ? ' · da verificare' : ''}` }),
           el('div', { class: 't-sub', text: 'Clic: evidenzia il S/N · doppio clic: apri il report' }),
@@ -425,6 +598,7 @@
       }, onClick: k => { S.sn = D.report[pts[k].ri][0]; disegnaTutto(); },
       onDbl: k => { location.href = urlReport(D.report[pts[k].ri][0]); },
       onZoom: (k0, k1) => { S.zoom = [pts[k0].ri, pts[k1].ri]; disegnaVista(); } });
+      bandiere.forEach(f => svg.append(f));
     } else {
       const t = sv('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle' }); t.textContent = 'Nessuna misura con questi filtri.'; svg.append(t);
     }
@@ -532,8 +706,21 @@
         toggle('Media', 'media', 'Linea della media'),
         toggle('±3σ', 'sigma', 'Media ± 3 deviazioni standard'),
         toggle('Colori per OP', 'perOp', 'Colora i punti dei 3 OP più recenti'),
+        toggle('Segnali', 'segnali', 'Evidenzia i segnali di controllo statistico'),
         S.zoom ? el('button', { type: 'button', class: 'aq-toggle', onclick: () => { S.zoom = null; disegnaVista(); } }, 'Reimposta zoom') : null,
         ultimoRep ? el('a', { class: 'aq-link', href: urlReport(ultimoRep[0]) }, 'Ultimo report') : null)));
+    if (x.deriva) {
+      const d = x.deriva;
+      card.append(el('div', { class: 'aq-avviso-deriva' }, el('span', { class: 'aq-badge is-warn', text: 'In deriva' }),
+        el('span', {}, el('b', { text: x.q.nome }), ` ${d.verso === 'sup' ? 'sale' : 'scende'} verso il limite ${d.verso === 'sup' ? 'superiore' : 'inferiore'}: `,
+          el('b', { text: d.pezzi ? `al ritmo attuale ci arriva tra circa ${d.pezzi} pezzi` : 'la tendenza è già al limite' }),
+          ` (retta sugli ultimi ${d.n} pezzi, ${pct(Math.abs(d.pendenza) * d.n)} della tolleranza in quei pezzi). Controllare usura utensile o correzioni.`)));
+    }
+    if (x.q.unite && x.q.unite.length) {
+      card.append(el('div', { class: 'aq-unite' }, 'Unite qui: ', ...x.q.unite.map(u => el('span', { class: 'aq-chip-unita' }, `${u.nome} · ${u.prog}`,
+        puoQuote ? el('button', { type: 'button', title: 'Separa', 'aria-label': `Separa ${u.nome}`, onclick: async () => {
+          try { await posta(root.dataset.apiAlias + `${u.id}/elimina/`); carica(); } catch (e) { errore(e.message); } } }, '×') : null))));
+    }
     const tiles = el('div', { class: 'aq-tiles' });
     const grafici = el('div', { class: 'aq-grafici' });
     const gbox = el('div', {}), hbox = el('div', {});
@@ -561,7 +748,18 @@
     if (S.media && S.scala !== 'pct') legenda.append(el('span', {}, el('i', { class: 'is-media' }), 'Media'));
     if (S.sigma && S.scala !== 'pct') legenda.append(el('span', {}, el('i', { class: 'is-sigma' }), '±3σ'));
     if (colori) colori.m.forEach((c, op) => legenda.append(el('span', {}, el('i', { style: `border-top-color:${c};border-top-width:8px;width:8px;border-radius:50%` }), op)));
+    if (x.deriva && !S.zoom) legenda.append(el('span', {}, el('i', { class: 'is-deriva' }), 'Tendenza'));
+    if (S.segnali && x.segnali.length && S.scala !== 'pct') legenda.append(el('span', {}, el('i', { class: 'is-segnale' }), 'Segnale di controllo'));
+    if (x.pts.some(p => (D.anomalie || {})[p.ri])) legenda.append(el('span', {}, el('b', { class: 'aq-rosso', text: '⚑ ' }), 'Segnalazione di anomalia'));
     legenda.append(el('span', { text: 'Trascina sul grafico per ingrandire.' }));
+    if (S.segnali && x.segnali.length) {
+      const tb = el('tbody');
+      x.segnali.forEach(g => tb.append(el('tr', {}, el('td', {}, el('span', { class: `aq-badge ${g.regola === '3sigma' ? 'is-crit' : 'is-warn'}`, text: testoSegnale(g) })),
+        el('td', { text: g.da === g.a ? D.report[x.pts[g.da].ri][1] : `${D.report[x.pts[g.da].ri][1]} → ${D.report[x.pts[g.a].ri][1]}` }),
+        el('td', { text: spiegaSegnale(g) }))));
+      card.append(el('table', { class: 'aq-tab aq-segnali' }, el('thead', {}, el('tr', {}, el('th', { text: 'Segnale' }), el('th', { text: 'Dove' }), el('th', { text: 'Cosa vuol dire' }))), tb));
+    }
+    card.append(pannelloNote(x), puoQuote ? pannelloUnisci(x) : null);
     // tabella (la stessa informazione senza il grafico)
     const det = el('details', { class: 'aq-tabella' }, el('summary', { text: `Tabella delle ${x.pts.length} misure` }));
     det.addEventListener('toggle', () => {
@@ -577,6 +775,58 @@
       det.append(el('table', { class: 'aq-tab' }, el('thead', {}, el('tr', {}, ...['S/N', 'OP', 'Data', 'Rilevato', 'Tol +', 'Tol −', 'Toll. usata', 'Fuori di'].map(h => el('th', { text: h })))), tb));
     });
     card.append(det);
+  }
+
+  function pannelloNote(x) {
+    const box = el('details', { class: 'aq-note' }, el('summary', { text: `Note sulla quota${(D.note || []).filter(nt => !nt.quota || nt.quota === x.q.id).length ? ` (${(D.note || []).filter(nt => !nt.quota || nt.quota === x.q.id).length})` : ''}` }));
+    const elenco = el('ul', { class: 'aq-note-elenco' });
+    (D.note || []).filter(nt => !nt.quota || nt.quota === x.q.id).forEach(nt => elenco.append(el('li', {},
+      el('b', { text: D.report[nt.ri] ? D.report[nt.ri][1] : '' }), ` · ${nt.testo}`, el('small', { text: ` ${nt.autore} ${dataIt(nt.il)}${nt.quota ? '' : ' · tutte le quote'}` }),
+      el('button', { type: 'button', class: 'aq-x', title: 'Togli la nota', onclick: async () => { try { await posta(root.dataset.apiNota + `${nt.id}/elimina/`); carica(); } catch (e) { errore(e.message); } } }, '×'))));
+    const reps = x.pts.slice().reverse();
+    const sel = el('select', {}, ...reps.map(p => el('option', { value: D.report[p.ri][0], selected: D.report[p.ri][0] === S.sn }, `${D.report[p.ri][1]} · ${dataIt(D.report[p.ri][3])}`)));
+    const testo = el('input', { maxlength: 160, placeholder: 'es. cambiato inserto T12, nuovo lotto barre' });
+    const tutte = el('input', { type: 'checkbox' });
+    const aggiungi = el('button', { type: 'button', class: 'prod-btn prod-btn-primary prod-btn-piccolo', onclick: async () => {
+      if (!testo.value.trim()) { testo.focus(); return; }
+      try {
+        await posta(root.dataset.apiNota, { pn: root.dataset.pn, prog: S.prog, quota: tutte.checked ? '' : x.q.id, report: +sel.value, testo: testo.value.trim() });
+        carica();
+      } catch (e) { errore(e.message); }
+    } }, 'Aggiungi nota');
+    box.append(elenco, el('div', { class: 'aq-note-form' }, el('label', { class: 'aq-campo' }, 'Dal S/N', sel),
+      el('label', { class: 'aq-campo aq-largo' }, 'Nota', testo), el('label', { class: 'aq-check' }, tutte, 'vale per tutte le quote'), aggiungi));
+    if (eventiAperti) box.open = true;
+    box.addEventListener('toggle', () => { eventiAperti = box.open; });
+    return box;
+  }
+  let eventiAperti = false, candidati = null;
+  function pannelloUnisci(x) {
+    const box = el('details', { class: 'aq-note' }, el('summary', { text: 'Unisci un\'altra quota a questa' }));
+    box.addEventListener('toggle', async () => {
+      if (!box.open || box.querySelector('select')) return;
+      try {
+        if (!candidati) {
+          const r = await fetch(`${root.dataset.apiCandidati}?pn=${encodeURIComponent(root.dataset.pn)}`, { credentials: 'same-origin' });
+          candidati = (await r.json()).quote || [];
+        }
+      } catch (e) { candidati = []; }
+      const qui = candidati.find(c => c.prog === S.prog && c.id === x.q.id);
+      const simile = c => qui && Math.abs(c.nominale - qui.nominale) < 5e-5 && Math.abs(c.ts - qui.ts) < 5e-5 && Math.abs(c.ti - qui.ti) < 5e-5;
+      const altre = candidati.filter(c => !(c.prog === S.prog && c.id === x.q.id)).sort((a, b) => (simile(b) - simile(a)) || a.prog.localeCompare(b.prog));
+      const sel = el('select', {}, el('option', { value: '', text: '— scegli la quota —' }),
+        ...altre.slice(0, 400).map(c => el('option', { value: `${c.prog}\u0001${c.id}` }, `${simile(c) ? '★ ' : ''}${c.nome} · nom. ${num(c.nominale)} · ${c.prog}`)));
+      const esito = el('span', { class: 'aq-nota-esito' });
+      box.append(el('p', { class: 'prod-nota', text: `Le misure della quota scelta (anche di un altro programma del P/N) entrano in «${x.q.nome}». ★ = stesso nominale e stesse tolleranze. Si può separare in ogni momento.` }),
+        el('div', { class: 'aq-note-form' }, el('label', { class: 'aq-campo aq-largo' }, 'È la stessa quota di', sel),
+          el('button', { type: 'button', class: 'prod-btn prod-btn-primary prod-btn-piccolo', onclick: async () => {
+            if (!sel.value) return;
+            const [prog, id] = sel.value.split('\u0001');
+            try { await posta(root.dataset.apiAlias, { pn: root.dataset.pn, prog_origine: prog, quota_origine: id, prog_destinazione: S.prog, quota_destinazione: x.q.id }); candidati = null; carica(); }
+            catch (e) { esito.textContent = e.message; }
+          } }, 'Unisci'), esito));
+    });
+    return box;
   }
 
   /* ── mappa: quote × report, colore = tolleranza usata ────────────────── */
@@ -759,6 +1009,9 @@
       el('h2', {}, `Pezzo ${rep[1]}`, el('small', { text: `${rep[2] || '—'} · ${dataIt(rep[3])} · ogni quota in % della sua tolleranza` })),
       el('div', { class: 'aq-opzioni' },
         el('a', { class: 'aq-link', href: urlReport(rep[0]) }, 'Apri il report (PDF, segnalazione anomalia)'))));
+    const anP = (D.anomalie || {})[i1];
+    if (anP && anP.length) card.append(el('div', { class: 'aq-unite' }, el('b', { class: 'aq-rosso', text: '⚑ ' }), 'Segnalazioni su questo S/N: ',
+      ...anP.map(a => el('a', { class: 'aq-chip-unita', href: `${root.dataset.urlAnomalie}?op=${encodeURIComponent(rep[2] || '')}&filter=tutti` }, `#${a.id} · ${a.aperta ? 'aperta' : 'chiusa'} · ${a.testo.slice(0, 50)}`))));
     card.append(el('div', { class: 'aq-pezzo-scelta' },
       el('label', { class: 'aq-campo' }, 'S/N', sel(rep[0], null, v => { S.sn = v; disegnaTutto(); })),
       el('label', { class: 'aq-campo' }, 'Confronta con', sel(S.pezzo2, 'nessuno', v => { S.pezzo2 = v; disegnaVista(); }))));
@@ -808,6 +1061,20 @@
     if (i2 >= 0) leg.append(el('span', { text: `◇ ${D.report[i2][1]}` }));
     card.append(leg);
   }
+
+  /* ── PDF di capacità (filtri della pagina) ───────────────────────────── */
+  $('[data-azione="pdf"]').addEventListener('click', () => {
+    const p = new URLSearchParams({ pn: root.dataset.pn, prog: S.prog });
+    const { da, a } = periodo();
+    if (da) p.set('da', da);
+    if (a) p.set('a', a);
+    if (S.ops.size) p.set('op', [...S.ops].join('~'));
+    if (S.rs.size) p.set('rs', [...S.rs].join('~'));
+    if (S.tutte) p.set('tutte', '1');
+    const quote = S.cmp.length ? S.cmp : (S.tab === 'quota' && S.q ? [S.q] : quoteFiltrate().map(x => x.q.id));
+    if (quote.length && quote.length < info.length) p.set('quote', quote.slice(0, 80).join('~'));
+    location.href = `${root.dataset.urlPdf}?${p}`;
+  });
 
   /* ── CSV (filtri applicati) ──────────────────────────────────────────── */
   $('[data-azione="csv"]').addEventListener('click', () => {
