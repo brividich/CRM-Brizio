@@ -720,7 +720,7 @@
       t('Misure', `${s.n || 0}`, S.zoom ? el('small', { text: 'nello zoom' }) : null),
       t('Fuori', `${s.nFuori || 0}`, el('small', { text: s.n ? pct(s.nFuori / s.n) : '' }), s.nFuori ? 'is-allerta' : ''),
       t('Media', num(s.media), el('small', { text: s.n ? `scarto dal nom. ${segno(s.media - x.q.nominale)}` : '' })),
-      t('σ breve', num(s.sigma_breve), el('small', { text: `σ totale ${num(s.sd)}`, title: 'σ di breve periodo (escursioni mobili / 1,128) e di tutti i pezzi' })),
+      t('Sigma breve', num(s.sigma_breve), el('small', { text: `σ totale ${num(s.sd)}`, title: 'σ di breve periodo (escursioni mobili / 1,128) e di tutti i pezzi' })),
       t('Cpk', num(s.cpk, 2), el('small', { text: ic, title: 'Capacità della macchina (σ di breve periodo); intervallo sul peggiore fra Cpk e Ppk' })),
       t('Ppk', num(s.ppk, 2), st ? el('span', { class: `aq-stato is-${st.c}`, text: st.t + (s.metodo === 'percentili' ? ' · percentili' : '') }) : el('small', { text: 'servono 5 misure' })),
       t('Rischio', s.rischio === null || s.rischio === undefined ? '—' : `${Math.round(s.rischio * 100)}%`, el('small', { text: 'prossimo pezzo fuori' }), s.rischio >= 0.1 ? 'is-allerta' : ''),

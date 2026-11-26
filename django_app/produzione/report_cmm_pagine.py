@@ -250,7 +250,7 @@ def lettura_quota(a: dict) -> str:
         cpk = "—" if a.get("cpk") is None else f"{a['cpk']:.2f}".replace(".", ",")
         ppk = "—" if a.get("ppk") is None else f"{a['ppk']:.2f}".replace(".", ",")
         frase += f" Cpk {cpk}, Ppk {ppk}"
-        if a.get("cpk") is not None and a.get("ppk") is not None and a["ppk"] < a["cpk"] * 0.8:
+        if a.get("cpk") is not None and a.get("ppk") is not None and a["cpk"] > 0 and a["ppk"] < a["cpk"] * 0.8:
             frase += " (il processo si sposta più di quanto la macchina disperda)"
         v = a.get("verdetto")
         frase += {"capace": ": capace.", "al limite": ": al limite.", "non capace": ": non capace.",
@@ -286,9 +286,13 @@ def qualita_pn(pn: str, scelta: str = "") -> dict:
                    "segnali": [{"regola": str(g["regola"]), "da": g["da"], "a": g["a"]} for g in scelta_a.get("segnali") or []]}
         from . import spc
 
+        gruppi: dict = {}
+        for g in scelta_a.get("segnali") or []:
+            tratto = f"{g['da'] + 1}" if g["da"] == g["a"] else f"{g['da'] + 1}–{g['a'] + 1}"
+            gruppi.setdefault(g["regola"], []).append(tratto)
         scelta_a = dict(scelta_a, segnali_testo=[
-            {"titolo": spc.TESTI_REGOLE[g["regola"]][0], "spiega": spc.TESTI_REGOLE[g["regola"]][1],
-             "da": g["da"] + 1, "a": g["a"] + 1} for g in scelta_a.get("segnali") or []])
+            {"titolo": spc.TESTI_REGOLE[r][0], "spiega": spc.TESTI_REGOLE[r][1], "pezzi": ", ".join(t[:4]) + ("…" if len(t) > 4 else "")}
+            for r, t in gruppi.items()])
     tabella = sorted(tutte, key=lambda a: (-(a["rischio"] or 0), a["indice"] if a["indice"] is not None else 99, a["prog"], a["quota"]["nome"]))
     return {"programmi": elenco, "scelta": scelta_a, "grafico": grafico, "tabella": tabella,
             "lettura": lettura_quota(scelta_a) if scelta_a else "",

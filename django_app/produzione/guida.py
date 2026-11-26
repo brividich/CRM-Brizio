@@ -240,6 +240,48 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "statistica",
+        "titolo": "Statistica di processo (Cpk, Ppk, rischio, segnali)",
+        "blocchi": [
+            ("p", "Le stesse formule valgono in tutte le pagine (report, scheda P/N, Analisi quote, Quote CMM, catalogo), sugli "
+                  "ultimi 30 pezzi validi di ogni programma (Analisi quote: sui pezzi dei filtri scelti)."),
+            ("def", [
+                ("Cpk e Ppk", "Cpk = capacità della macchina, con la σ di breve periodo (differenze fra pezzi consecutivi, "
+                 "«Sigma breve»); Ppk = quello che il processo ha fatto nel tempo, con la σ di tutti i pezzi. Se il Ppk è molto "
+                 "più basso del Cpk la macchina è capace ma il processo si sposta (utensile, lotti, temperatura). Classifiche, "
+                 "conteggi «non capaci» e «da guardare» usano il peggiore dei due."),
+                ("Verdetto", "capace (almeno 1,33), al limite (da 1 a 1,33), non capace (sotto 1): si guarda il limite basso "
+                 "dell'intervallo di confidenza al 95%, scritto accanto (es. «0,65–1,18»). Sotto 25 pezzi «pochi dati»."),
+                ("Forma e posizione", "planarità, rotondità, posizione, concentricità (nominale 0, solo limite superiore) non "
+                 "hanno una distribuzione normale: indice col metodo dei percentili (ISO 22514-2), segnato «percentili»."),
+                ("Rischio", "probabilità che il prossimo pezzo esca, dal livello attuale della quota (media mobile EWMA, più la "
+                 "deriva) e dalla sua dispersione. Rosso dal 10%, giallo dall'1%."),
+                ("Limiti di controllo", "LCS e LCI = media ± 3σ di breve periodo: dove il processo resta se nulla cambia; sono "
+                 "diversi dai limiti di tolleranza LS e LI del disegno. In Analisi quote l'interruttore «Limiti di controllo»."),
+                ("Segnali", "regole di Nelson: oltre 3σ; 9 punti dallo stesso lato; 6 in salita o discesa; 14 a zig-zag; 2 su 3 "
+                 "oltre 2σ; 4 su 5 oltre 1σ; 15 vicini alla media; 8 lontani dalla media; e «Spostamento (EWMA)» per gli "
+                 "spostamenti piccoli. Ognuno dice cosa vuol dire."),
+                ("Il processo è cambiato", "il punto dove la media è cambiata di almeno 1σ (linea arancione tratteggiata sulla "
+                 "carta), con la media prima e dopo e il pezzo da cui parte."),
+                ("Deriva", "retta sugli ultimi 20 pezzi; ora con la forchetta al 95% dei pezzi al limite (es. «12 – 59 pezzi»)."),
+                ("Si muove insieme a", "quote dello stesso programma che salgono e scendono insieme (correlazione almeno 0,7 su "
+                 "almeno 15 pezzi in comune): probabilmente una causa sola."),
+                ("Gli OP sono diversi?", "test di Kruskal-Wallis fra gli OP con almeno 5 pezzi: «Sì» se p < 0,05, con l'indice di "
+                 "ogni OP dal peggiore."),
+                ("Quanto sbaglia la misura", "dalle rimisure dello stesso pezzo entro 2 giorni, quando la prima misura non aveva "
+                 "quote fuori: quanta tolleranza consuma la sola misura (6σ / tolleranza). Oltre il 30% il problema è il "
+                 "metodo di misura, non il pezzo. Servono almeno 5 coppie."),
+            ]),
+            ("p", "«Quote CMM»: «Salute» del P/N da 0 a 100 (si parte da 100 e si toglie fino a 40 per il rischio, 10 per ogni quota "
+                  "fuori nell'ultimo report fino a 20, 5 per ogni quota non capace fino a 25, 2 per ogni quota al limite fino a 10, "
+                  "5 per ogni quota in deriva fino a 15; verde da 80, giallo da 50); la tabella parte dalla salute più bassa. "
+                  "«Anomalie da aprire»: report degli ultimi 30 giorni con quote fuori, non esclusi, senza una segnalazione aperta "
+                  "per lo stesso S/N, con «Apri anomalia» già compilata; i report vecchi riletti non compaiono. Lo stesso link "
+                  "arriva nell'avviso «Anomalia da aprire». «Stessa caratteristica su P/N diversi»: scrivi «Ø40 H7» o "
+                  "«planarità» e confronta Cpk, Ppk e rischio della stessa quota su tutti i P/N."),
+        ],
+    },
+    {
         "id": "pezzo",
         "titolo": "Pagina del pezzo (S/N)",
         "blocchi": [

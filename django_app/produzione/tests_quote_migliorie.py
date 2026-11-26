@@ -263,3 +263,37 @@ class AvvisiTests(QuoteBase):
         self.assertTrue(imp.avvisa_fuori)
         self.assertFalse(imp.avvisa_deriva)
         self.assertEqual(list(imp.destinatari.all()), [self.admin])
+
+
+class SaluteAnomalieTests(QuoteBase):
+    """Salute CMM, nome della caratteristica fra P/N, anomalie da aprire solo per i report nuovi."""
+
+    def test_caratteristica_e_salute(self):
+        from . import articoli
+
+        self.assertEqual(articoli.caratteristica("021,00 Ø40  h7"), "Ø40 H7")
+        self.assertEqual(articoli.caratteristica("Diametro_Cerchio5"), "DIAMETRO_CERCHIO5")
+        buona = [{"rischio": 0.0, "fuori_ultimo": False, "verdetto": "capace", "deriva": None}]
+        self.assertEqual(articoli.salute(buona), 100)
+        cattiva = [{"rischio": 0.6, "fuori_ultimo": True, "verdetto": "non capace", "deriva": {"verso": "sup"}}] * 3
+        self.assertEqual(articoli.salute(cattiva), 100 - 40 - 20 - 15 - 15)
+
+    def test_anomalie_da_aprire_solo_report_nuovi(self):
+        from . import report_cmm_pagine as pg
+
+        with connection.cursor() as cur:
+            cur.execute("ALTER TABLE anomalie ADD COLUMN seriale TEXT")
+            cur.execute("ALTER TABLE anomalie ADD COLUMN descrizione TEXT")
+        from core.legacy_utils import legacy_table_columns
+        legacy_table_columns.cache_clear()
+        self.report("SN-VECCHIO", [("D10", 10.03, 10.0, 0.02, -0.02)], giorni=0)       # marzo: vecchio
+        self.giorno = date.today()
+        nuovo = self.report("SN-NUOVO", [("D10", 10.03, 10.0, 0.02, -0.02)], giorni=0)
+        self.report("SN-OK", [("D10", 10.0, 10.0, 0.02, -0.02)], giorni=0)
+        elenco = pg.anomalie_da_aprire()
+        self.assertEqual([x["report"].pk for x in elenco], [nuovo.pk])
+        self.assertIn(f"report_cmm={nuovo.pk}", elenco[0]["url"])
+        with connection.cursor() as cur:
+            cur.execute("INSERT INTO anomalie (ex_op_nominativo, op_lookup_id, chiudere, seriale, descrizione) "
+                        "VALUES ('OP/2026/100', 41, 0, 'SN-NUOVO', 'già segnalato')")
+        self.assertEqual(pg.anomalie_da_aprire(), [])                                  # c'è già una segnalazione aperta

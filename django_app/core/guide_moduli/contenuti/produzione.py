@@ -88,6 +88,12 @@ GUIDA = {
                       "programmi, «PDF di capacità». «Quote CMM» ha la «Mappa qualità» (P/N × ultime 12 settimane, in ogni casella "
                       "report con quote fuori su report misurati, clic = i report di quella settimana) e le «Quote da guardare» "
                       "di tutti i P/N; Impostazioni › «Avvisi delle quote CMM» sceglie chi riceve gli avvisi."),
+                ("p", "Statistica di processo, uguale in tutte le pagine: Cpk (macchina, σ di breve periodo) e Ppk (processo, σ "
+                      "totale), verdetto sul limite basso dell'intervallo al 95% (sotto 25 pezzi «pochi dati»), metodo dei "
+                      "percentili per forma e posizione, rischio che il prossimo pezzo esca, limiti di controllo, regole di Nelson "
+                      "ed EWMA, punto in cui il processo è cambiato, quote che si muovono insieme, confronto fra OP, quanta "
+                      "tolleranza consuma la misura (dalle rimisure). Quote CMM: «Salute» 0-100, «Anomalie da aprire» (solo report "
+                      "degli ultimi 30 giorni), «Stessa caratteristica su P/N diversi»."),
                 ("p", "Scheda del P/N, sezione «Qualità CMM»: programmi e quote dalla peggiore per Cpk, carta di controllo "
                       "degli ultimi 30 pezzi con distribuzione, Cpk, Cp, media, σ, fuori, deriva e una «Lettura» scritta dai "
                       "numeri; «Tabella Cpk» con tutte le quote."),
