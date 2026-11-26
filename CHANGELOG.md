@@ -15,6 +15,31 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - Le sezioni del report possono dichiarare colonne con un permesso proprio (`Sezione.colonne_riservate`, `colonne_per(request)`, fail-closed senza request), rispettato da editor, chat e motore.
 - File: `anagrafica/reportistica/sezioni.py`, `conversazione.py`, `forms.py`, `motore.py`, `anagrafica/tests_reportistica_codice_fiscale.py`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`. Nessuna migrazione.
 
+### Prestazioni: «Ruoli e permessi» non si blocca più sulla matrice
+
+- `core/acl_capability.py`: `capability_index()` tiene in cache (impronta del catalogo, indice); l'impronta (totale, attivi e ultimo `updated_at` di permessi e binding) rinnova l'indice appena cambia il catalogo, senza attendere i 300 s. Chiave `acl_capability_index_v3`.
+- `core/permessi/sync.py`: `capacita_permessi()` usa l'indice in cache invece di ricostruirlo a ogni apertura (3.469 rotte × ~140 binding, ~2 s di CPU); le etichette di `pagine_modulo_ruolo` si leggono dal catalogo attivo senza `code IN (~1.300 valori)` (4 s a freddo su SQL Server). Scheda Matrice sui dati di prod: da ~6 s a 0,5-1 s; anche «Salva matrice» ne beneficia.
+- `admin_portale/views_ruoli.py`: la scheda «Registro» andava in errore 500 per le voci `permessi_matrice` scritte dalle impostazioni Timbri (con `ruolo` per cella invece di `modulo`); ora le legge entrambe.
+- Test: `core/test_acl_capability.py` (cache rinnovata), `core/tests_permessi_eccezioni.py` (registro con voce Timbri).
+
+### Anagrafica: organigramma ufficiale disegnato a mano, con revisioni
+
+- Nuova vista «📐 Ufficiale» dell'organigramma (`/anagrafica/organigramma/ufficiale/`): organigrammi disegnati come in Word con riquadri presi da ruoli, persone, mansioni o testo libero, gruppi («team»), collegamenti e linee di staff, colori e stili. Bozza salvata da sola, «Riepilogo modifiche» rispetto alla revisione in vigore, «Pubblica» con nota, approvato da e data, storico revisioni con confronto, stampa A3/A4 con cartiglio. Avvisi dove il disegno non corrisponde più ai dati (persona cessata, ruolo non suo, ruoli dell'ambito non disegnati). Non tocca ruoli, «Riporta a», assegnazioni, capi né permessi.
+- File: `django_app/anagrafica/models_organigramma.py` (nuovo), `models.py`, `migrations/0256_organigramma_ufficiale.py` (tabelle, binding ACL copiati da diagramma e modifica ruoli, voce di menu), `services/organigramma_ufficiale.py` (nuovo), `views_organigramma_ufficiale.py` (nuovo), `urls.py`, template `pages/organigramma_ufficiale_{elenco,vedi,disegna,stampa}.html` e `partials/_org_uff_{stile,disegno}.html` (nuovi), `components/organigramma_viste.html`, `core/guide_moduli/contenuti/anagrafica.py` (sezione «organigramma-ufficiale»), `hub_tools/schema_db.py`, `docs/moduli/anagrafica.md`, test `tests_organigramma_ufficiale.py`.
+
+### Prestazioni: ricerca globale (Ctrl+K) più veloce
+
+- `core/views.py`: la decisione ACL per utente e modulo della ricerca globale resta in memoria `GLOBAL_SEARCH_ACL_CACHE_SECONDS` (120 s, legata alla versione dei permessi: una modifica a ruoli o matrice la azzera); i documenti SGI in vigore vengono da `documenti_in_vigore_memo()`.
+- `procedure_refresh/libreria.py`: `documenti_in_vigore_memo()` (`GLOBAL_SEARCH_DOCUMENTI_CACHE_SECONDS`, 60 s) e codice+titolo piegati una volta per documento.
+- `core/static/core/js/command-palette.js`: attesa dopo l'ultimo tasto da 120 a 250 ms, una richiesta per parola invece che per lettera.
+- `config/settings/base.py`, `test.py`: le due durate (0 nei test).
+- Su dati di prod: da circa 500 a circa 110 ms per ricerca, query da 17 a 13. In prod 7 ricerche della stessa persona in 4 s si accodavano fino a 5-6 s.
+
+### Gestione anomalie: chi riceve il capocommessa non resta in «Sola lettura»
+
+- Con il sistema dei ruoli l'elenco OP calcolava «può modificare» solo dal capocommessa e dal CAR del gestionale: chi riceveva il capocommessa con «Cambia capocommessa» (tutto l'OP) o «Cambia incaricato» (singola anomalia) vedeva l'anomalia «in carico a me» ma la pagina era in «Sola lettura», anche se il server gli avrebbe accettato il salvataggio. Ora l'elenco usa la stessa regola del server (`incaricati.op_incaricato`, ruolo `cc`). Caso segnalato: AN-00118 su OP/2026/486; stesso difetto su OP/2026/1729/2026/AW5025 e OP/2026/2129.
+- File: `django_app/anomalie/views.py` (`_ordini_payload`), `django_app/anomalie/tests_permessi_ambito.py`.
+
 ### Ordini di produzione: report CMM del formato vecchio (2014-2024)
 
 - Il lettore dei report CMM legge anche il formato vecchio (CALYPSO stampato con novaPDF: «Aktual», «pos Tol», «neg Tol», «<--|-->», testata anche in italiano): tolleranze di forma senza «neg Tol», posizioni con bonus di massimo materiale, eccedenza al posto della barretta, data scritta per esteso. Provato su 325 report veri dal 2012 al 2024 (22.560 quote, 4 da verificare) e su 120 del formato nuovo, invariati.

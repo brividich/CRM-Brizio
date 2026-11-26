@@ -1,6 +1,6 @@
 {% comment %}
-Selettore unico delle viste dell'organigramma: Elenco · Albero · Diagramma · Rischi.
-Parametro: attiva = elenco | albero | diagramma | rischi. Le quattro pagine restano
+Selettore unico delle viste dell'organigramma: Elenco · Albero · Diagramma · Ufficiale · Rischi.
+Parametro: attiva = elenco | albero | diagramma | ufficiale | rischi. Le pagine restano
 URL distinte (link, segnalibri ed export non cambiano): qui diventano un solo posto.
 {% endcomment %}
 <style>
@@ -20,5 +20,6 @@ body.theme-dark .ogv a.active { background:#93c5fd; color:#0c2545; }
   <a href="{% url 'anagrafica:organigramma' %}" class="{% if attiva == 'elenco' %}active{% endif %}"{% if attiva == 'elenco' %} aria-current="page"{% endif %} title="Reparti, aree, capi e persone in forza">▦ Elenco</a>
   <a href="{% url 'anagrafica:organigramma_albero' %}" class="{% if attiva == 'albero' %}active{% endif %}"{% if attiva == 'albero' %} aria-current="page"{% endif %} title="Gerarchia dei ruoli operativi">🌳 Albero</a>
   <a href="{% url 'anagrafica:organigramma_diagramma' %}" class="{% if attiva == 'diagramma' %}active{% endif %}"{% if attiva == 'diagramma' %} aria-current="page"{% endif %} title="Una tessera per posizione, da stampare">🗺 Diagramma</a>
+  <a href="{% url 'anagrafica:organigramma_ufficiale' %}" class="{% if attiva == 'ufficiale' %}active{% endif %}"{% if attiva == 'ufficiale' %} aria-current="page"{% endif %} title="Organigrammi disegnati a mano, con revisioni e PDF">📐 Ufficiale</a>
   <a href="{% url 'anagrafica:organigramma_mansioni_rischio' %}" class="{% if attiva == 'rischi' %}active{% endif %}"{% if attiva == 'rischi' %} aria-current="page"{% endif %} title="Gruppi omogenei del DVR per mansione di rischio">⚠ Rischi</a>
 </nav>

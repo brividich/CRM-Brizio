@@ -140,6 +140,19 @@ class OrdiniAmbitoRuoliTests(TestCase):
         righe = self._ordini(vedere=frozenset(), modificare=frozenset(), creare=True)
         self.assertEqual(set(righe), {"OP/1", "OP/3"})
 
+    def test_capocommessa_affidato_modifica_l_op(self):
+        """«Cambia capocommessa» su tutto l'OP: chi lo riceve non è in «Sola lettura»
+        (prima il server gli dava ragione ma l'elenco diceva can_edit=False)."""
+        from anomalie.quality_models import AnomaliaOpIncaricato
+
+        AnomaliaOpIncaricato.objects.create(op_key="op/4", op_id="OP/4", ruolo="cc", legacy_user_id=5,
+                                            nome="ROSSI MARIO", assegnato_da="SARA GIALLI")
+        righe = self._ordini(vedere=frozenset(), modificare=frozenset())
+        self.assertIn("OP/4", righe)
+        self.assertTrue(righe["OP/4"]["can_edit"])
+        # L'OP di serie del collega resta com'era.
+        self.assertFalse(righe["OP/3"]["can_edit"])
+
 
 class RegoleSalvataggioTests(TestCase):
     def test_nota_con_stato_in_attesa(self):

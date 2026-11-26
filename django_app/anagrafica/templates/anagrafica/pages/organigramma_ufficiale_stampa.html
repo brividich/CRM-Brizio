@@ -1,0 +1,53 @@
+{% load l10n %}<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>{{ org.nome }}{% if rev %} Rev.{{ rev.numero }}{% else %} (bozza){% endif %}</title>
+{% include "anagrafica/partials/_org_uff_stile.html" %}
+<style>
+@page { size:{{ formato }} landscape; margin:8mm; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:"Segoe UI", system-ui, sans-serif; color:#0f1f3a; background:#525659; }
+.barra { position:sticky; top:0; z-index:2; display:flex; gap:10px; align-items:center; justify-content:center;
+  padding:10px; background:#1f2937; color:#e5e7eb; font-size:13px; }
+.barra a, .barra button { background:#fff; color:#0f1f3a; border:none; border-radius:8px; padding:7px 12px; font:inherit; font-weight:600; cursor:pointer; text-decoration:none; }
+.barra .on { background:#93c5fd; }
+.foglio { background:#fff; margin:24px auto; padding:18px 22px; position:relative; box-shadow:0 4px 20px rgba(0,0,0,.4);
+  width:{% if formato == "A4" %}1100px{% else %}1560px{% endif %}; height:{% if formato == "A4" %}760px{% else %}1090px{% endif %}; }
+.titolo { font-size:20px; font-weight:800; letter-spacing:.02em; text-transform:uppercase; }
+.bozza { color:#b45309; font-size:13px; font-weight:700; margin-left:8px; }
+.area { position:absolute; left:22px; top:58px; width:{{ area_w }}px; height:{{ area_h }}px; display:flex; align-items:flex-start; justify-content:center; }
+.scala { transform:scale({{ scala|unlocalize }}); transform-origin:top center; flex:none; }
+.cart { position:absolute; right:22px; bottom:18px; border:1.5px solid #0f1f3a; display:grid; grid-template-columns:110px 240px; font-size:11px; background:#fff; }
+.cart div { border:.5px solid #0f1f3a; padding:4px 8px; }
+.cart .h { background:#f1f5f9; font-weight:700; }
+@media print {
+  body { background:#fff; }
+  .barra { display:none; }
+  .foglio { margin:0; box-shadow:none; padding:0; width:auto; height:auto; min-height:{% if formato == "A4" %}190mm{% else %}275mm{% endif %}; }
+  .area { left:0; top:40px; }
+  .cart { right:0; bottom:0; }
+  .cart .h { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+}
+</style>
+</head>
+<body>
+<div class="barra">
+  <span>Formato:</span>
+  <a class="{% if formato == 'A3' %}on{% endif %}" href="?{% if rev %}rev={{ rev.numero }}&{% endif %}{% if bozza %}bozza=1&{% endif %}formato=A3">A3</a>
+  <a class="{% if formato == 'A4' %}on{% endif %}" href="?{% if rev %}rev={{ rev.numero }}&{% endif %}{% if bozza %}bozza=1&{% endif %}formato=A4">A4</a>
+  <button type="button" onclick="window.print()">🖨 Stampa / Salva PDF</button>
+  <span>Nella finestra di stampa scegli «Salva come PDF» e orientamento orizzontale.</span>
+</div>
+<div class="foglio">
+  <div class="titolo">{{ org.nome }}{% if bozza %}<span class="bozza">BOZZA NON PUBBLICATA</span>{% endif %}</div>
+  <div class="area"><div class="scala">{% include "anagrafica/partials/_org_uff_disegno.html" with d=disegno only %}</div></div>
+  <div class="cart">
+    <div class="h">Documento</div><div>{{ org.nome }}</div>
+    <div class="h">Revisione</div><div>{% if rev %}Rev.{{ rev.numero }} del {{ rev.data_emissione|date:"d/m/Y" }}{% else %}Bozza del {{ oggi|date:"d/m/Y" }}{% endif %}</div>
+    <div class="h">Approvato da</div><div>{% if rev %}{{ rev.approvato_da|default:"—" }}{% else %}—{% endif %}</div>
+    {% if rev and rev.nota %}<div class="h">Note</div><div>{{ rev.nota|truncatechars:90 }}</div>{% endif %}
+  </div>
+</div>
+</body>
+</html>

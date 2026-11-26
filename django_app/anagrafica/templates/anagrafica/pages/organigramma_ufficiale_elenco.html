@@ -1,0 +1,122 @@
+{% extends "core/base.html" %}{% load l10n %}
+
+{% block title %}Organigrammi ufficiali | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/partials/_org_uff_stile.html" %}
+<style>
+.oue-page { display:flex; flex-direction:column; gap:16px; }
+.oue-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px; }
+.oue-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px;
+  display:flex; flex-direction:column; gap:8px; box-shadow:var(--shadow); }
+.oue-card h3 { margin:0; font-size:16px; }
+.oue-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.oue-meta { color:var(--text-light); font-size:12.5px; }
+.oue-thumb { height:160px; border:1px dashed var(--border); border-radius:12px; overflow:hidden; position:relative;
+  background:var(--surface-alt, #f8fafc); display:flex; align-items:center; justify-content:center; }
+.oue-thumb-in { transform-origin:center center; flex:none; }
+.oue-thumb-vuoto { color:var(--text-light); font-size:12.5px; }
+.oue-badge { border-radius:999px; padding:3px 9px; font-size:11px; font-weight:700; white-space:nowrap; }
+.oue-badge--pub { background:#dcfce7; color:#166534; }
+.oue-badge--bozza { background:#fef3c7; color:#92400e; }
+.oue-nota { border-radius:9px; padding:7px 10px; font-size:12.5px; }
+.oue-nota--bozza { background:#fefce8; border:1px solid #fde68a; color:#854d0e; }
+.oue-nota--avv { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; }
+.oue-azioni { display:flex; gap:8px; flex-wrap:wrap; margin-top:auto; padding-top:6px; }
+.oue-vuoto { background:var(--surface); border:1px dashed var(--border); border-radius:16px; padding:36px; text-align:center; color:var(--text-light); }
+dialog.oue-dlg { position:fixed; inset:0; margin:auto; height:fit-content; border:none; border-radius:18px; padding:0; width:min(520px, 94vw); box-shadow:0 20px 60px rgba(0,0,0,.25); }
+dialog.oue-dlg::backdrop { background:rgba(15,31,58,.45); }
+.oue-dlg header { padding:16px 20px; border-bottom:1px solid var(--border); font-weight:700; font-size:16px; }
+.oue-dlg .corpo { padding:14px 20px; display:flex; flex-direction:column; gap:10px; }
+.oue-dlg label { font-size:12px; font-weight:700; color:var(--text-mid); display:flex; flex-direction:column; gap:4px; }
+.oue-dlg input, .oue-dlg select { border:1px solid var(--border); border-radius:9px; padding:8px 10px; font:inherit; }
+.oue-dlg footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
+body.theme-dark .oue-badge--pub { background:#14532d; color:#bbf7d0; }
+body.theme-dark .oue-badge--bozza, body.theme-dark .oue-nota--bozza { background:#422006; color:#fde68a; border-color:#713f12; }
+body.theme-dark .oue-nota--avv { background:#431407; color:#fed7aa; border-color:#7c2d12; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="oue-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
+      <h1 class="hr-pagehead-title">Organigrammi ufficiali</h1>
+      <p class="hr-pagehead-desc">Disegnati a mano e pubblicati con revisione. Non cambiano ruoli, capi né permessi.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% include "anagrafica/components/organigramma_viste.html" with attiva="ufficiale" %}
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="hr-btn hr-btn-outline" href="{{ guida_url }}#organigramma-ufficiale">? Guida</a>
+      {% if puo_disegnare %}<button type="button" class="hr-btn hr-btn-primary" onclick="document.getElementById('oueNuovo').showModal()">＋ Nuovo organigramma</button>{% endif %}
+    </div>
+  </div>
+
+  {% if righe %}
+  <div class="oue-grid">
+    {% for r in righe %}
+    <div class="oue-card">
+      <div class="oue-top">
+        <h3>{{ r.org.nome }}</h3>
+        {% if r.rev %}<span class="oue-badge oue-badge--pub">Rev.{{ r.rev.numero }}</span>{% else %}<span class="oue-badge oue-badge--bozza">Bozza</span>{% endif %}
+      </div>
+      {% if r.org.descrizione or r.org.ambito %}<div class="oue-meta">{{ r.org.descrizione }}{% if r.org.descrizione and r.org.ambito %} · {% endif %}{% if r.org.ambito %}Ambito {{ r.org.ambito.nome }}{% endif %}</div>{% endif %}
+      <a class="oue-thumb" href="{% if r.rev %}{% url 'anagrafica:organigramma_ufficiale_vedi' r.org.pk %}{% elif puo_disegnare %}{% url 'anagrafica:organigramma_ufficiale_disegna' r.org.pk %}{% else %}#{% endif %}" aria-label="Apri {{ r.org.nome }}">
+        {% if r.anteprima.nodi %}
+          <div class="oue-thumb-in" style="transform:scale({{ r.scala|unlocalize }})">{% include "anagrafica/partials/_org_uff_disegno.html" with d=r.anteprima only %}</div>
+        {% else %}<span class="oue-thumb-vuoto">Disegno vuoto</span>{% endif %}
+      </a>
+      <div class="oue-meta">
+        {% if r.rev %}<b>Rev.{{ r.rev.numero }}</b> del {{ r.rev.data_emissione|date:"d/m/Y" }}{% if r.rev.approvato_da %} · approvato da {{ r.rev.approvato_da }}{% endif %}
+        {% else %}Mai pubblicato{% endif %}
+      </div>
+      {% if puo_disegnare and r.org.bozza is not None and r.rev %}
+        <div class="oue-nota oue-nota--bozza">✎ Bozza Rev.{{ r.rev.numero|add:1 }} in corso · {{ r.n_modifiche }} modific{{ r.n_modifiche|pluralize:"a,he" }}{% if r.org.bozza_aggiornata_da %} · {{ r.org.bozza_aggiornata_da.get_full_name|default:r.org.bozza_aggiornata_da.username }}{% endif %}{% if r.org.bozza_aggiornata_il %}, {{ r.org.bozza_aggiornata_il|date:"d/m H:i" }}{% endif %}</div>
+      {% endif %}
+      {% if r.n_avvisi %}<div class="oue-nota oue-nota--avv">⚠ {{ r.n_avvisi }} avvis{{ r.n_avvisi|pluralize:"o,i" }}: il disegno non corrisponde più ai dati del portale</div>{% endif %}
+      <div class="oue-azioni">
+        {% if r.rev %}
+          <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_ufficiale_vedi' r.org.pk %}">Apri</a>
+          <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_ufficiale_stampa' r.org.pk %}" target="_blank" rel="noopener">⬇ PDF</a>
+        {% endif %}
+        {% if puo_disegnare %}<a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:organigramma_ufficiale_disegna' r.org.pk %}">✎ Disegna</a>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="oue-vuoto">
+    Nessun organigramma ufficiale.{% if puo_disegnare %} Crea il primo con «＋ Nuovo organigramma».{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% if puo_disegnare %}
+<dialog class="oue-dlg" id="oueNuovo">
+  <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_nuovo' %}">
+    {% csrf_token %}
+    <header>Nuovo organigramma</header>
+    <div class="corpo">
+      <label>Nome<input name="nome" required maxlength="150" placeholder="es. Organigramma aziendale"></label>
+      <label>Descrizione<input name="descrizione" maxlength="300" placeholder="es. Assetto organizzativo, MOD.xx"></label>
+      <label>Ambito dei ruoli (facoltativo)
+        <select name="ambito" data-no-search>
+          <option value="">— nessuno —</option>
+          {% for a in ambiti %}<option value="{{ a.pk }}">{{ a.nome }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="oue-meta">Con un ambito, la tela segnala i ruoli di quell'ambito che hanno persone ma non sono disegnati.</div>
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" onclick="this.closest('dialog').close()">Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary">Crea e disegna</button>
+    </footer>
+  </form>
+</dialog>
+{% endif %}
+{% endblock %}
