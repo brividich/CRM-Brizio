@@ -349,7 +349,9 @@ def giro(minuti: int | None = None) -> dict:
 
         tot["articoli"] = articoli.sincronizza(cartelle)
         lette_ora = [pn for pn, _p, _m in cartelle[: tot["cartelle"]]]   # le cartelle lette in questo giro
-        articoli.aggiorna_cpk(max(30.0, scadenza - time.monotonic() + 60), pn=lette_ora)
+        tot["analizzati"] = articoli.aggiorna_cpk(max(30.0, scadenza - time.monotonic() + 60), pn=lette_ora)
+        # poi gli altri P/N con l'analisi vecchia o mai fatta (Quote CMM legge questi numeri)
+        tot["analizzati"] += articoli.aggiorna_cpk(max(60.0, scadenza - time.monotonic() + 120))
     except Exception:  # pragma: no cover - il catalogo non deve fermare la lettura dei report
         logger.exception("report CMM: sincronizzazione degli articoli")
     return tot
@@ -744,10 +746,11 @@ def settimane_mappa(settimane: int = 12) -> list[dict]:
     return [{"da": inizio + timedelta(days=7 * k), "n": (inizio + timedelta(days=7 * k)).isocalendar()[1]} for k in range(settimane)]
 
 
-def quote_da_guardare_tutte(pns: list[str], quante: int = 12) -> list[dict]:
-    """Le quote da guardare di tutti i P/N (come ``quote_critiche``): fuori nell'ultimo report, in deriva, Cpk sotto 1,33."""
+def quote_da_guardare_tutte(pns: list[str], quante: int = 12, max_pn: int = 8) -> list[dict]:
+    """Le quote da guardare (come ``quote_critiche``: fuori nell'ultimo report, in deriva, Cpk sotto 1,33) dei primi
+    ``max_pn`` P/N, già ordinati dal più grave: la loro analisi è in cache dal giro, la pagina resta veloce."""
     righe = []
-    for pn in pns:
+    for pn in pns[:max_pn]:
         for a in analisi_pn(pn):
             if a["fuori_ultimo"] or a["deriva"] or (a["cpk"] is not None and a["cpk"] < 1.33):
                 righe.append(dict(a, pn=pn))
@@ -757,7 +760,9 @@ def quote_da_guardare_tutte(pns: list[str], quante: int = 12) -> list[dict]:
 
 def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
     """Una riga per P/N con report: fuori negli ultimi ``giorni``, per settimana report con fuori su report misurati
-    (``celle``, la mappa), quote con Cpk sotto 1,33, quote in deriva, ultimo report. Ordinate dalla più grave."""
+    (``celle``, la mappa), ultimo report (letture SQL veloci) e, dall'analisi precalcolata in ``ArticoloPN``, quote
+    fuori nell'ultimo report, in deriva e con Cpk sotto 1,33 (``analisi_pronta`` falso = non ancora calcolata).
+    Ordinate dalla più grave."""
     from datetime import timedelta
 
     from django.db.models import Count, Max, Q
@@ -781,15 +786,22 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
     ultimi = {}
     for pn, sn, d, rid in validi.order_by("pn", "-data", "-id").values_list("pn", "seriale", "data", "id"):
         ultimi.setdefault(pn, (sn, d, rid))
+    from .models import ArticoloPN
+
+    calcolati = {a["pn"]: a for a in ArticoloPN.objects.filter(pn__in=list(righe)).values(
+        "pn", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "analisi_il")}
     out = []
     for pn, r in righe.items():
-        analisi = analisi_pn(pn)
+        a = calcolati.get(pn) or {}
+        pronto = a.get("analisi_il") is not None
         out.append({
             "pn": pn, "n": r["n"], "fuori_rec": r["fuori_rec"], "settimane": sett[pn], "max_sett": max(sett[pn]) or 1,
+            "analisi_pronta": pronto, "analisi_il": a.get("analisi_il"),
             "celle": [_cella_mappa(f, n, inizio_sett + timedelta(days=7 * k)) for k, (f, n) in enumerate(zip(sett[pn], misurati[pn]))],
-            "cpk_bassi": sum(1 for a in analisi if a["cpk"] is not None and a["cpk"] < 1.33),
-            "deriva": sum(1 for a in analisi if a["deriva"]),
-            "fuori_ultimo": sum(1 for a in analisi if a["fuori_ultimo"]),
+            # dall'analisi precalcolata (articoli.analizza, nel giro): la pagina non ricalcola
+            "cpk_bassi": a.get("quote_non_capaci", 0) if pronto else 0,
+            "deriva": a.get("quote_deriva", 0) if pronto else 0,
+            "fuori_ultimo": a.get("quote_fuori_ultimo", 0) if pronto else 0,
             "ultimo": ultimi.get(pn),
         })
     for r in out:
