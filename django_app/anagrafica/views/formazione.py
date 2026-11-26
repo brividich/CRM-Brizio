@@ -6114,6 +6114,8 @@ def formazione_modulo_save(request, corso_id: int):
     modulo.titolo = titolo
     if request.POST.get("obbligatorio_presente"):
         modulo.obbligatorio = request.POST.get("obbligatorio") == "1"
+        alternativa = request.POST.get("alternativa") or ""
+        modulo.alternativa = alternativa if alternativa in ("VIDEO", "SLIDE") else ""
     if ordine.isdigit():
         modulo.ordine = int(ordine)
     elif not modulo.pk:

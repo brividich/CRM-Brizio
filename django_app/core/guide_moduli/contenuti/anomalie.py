@@ -68,8 +68,9 @@ GUIDA = {
                       "chiede conferma nel portale e vale solo per chi è collegato e solo per quell'OP. La mail con il "
                       "link di decisione continua ad arrivare a chi deve decidere. «Aggiornamenti per OP» nel Menu "
                       "Anomalie elenca gli OP silenziati e permette di riattivarli."),
-                ("p", "Le decisioni prese nel portale partono in un'unica mail di riepilogo dopo 5 minuti senza "
-                      "salvataggi sull'OP (Configurazione → Notifiche); la barra «N decisioni in attesa di invio» in "
+                ("p", "Le decisioni prese nel portale (anche l'azione effettuata di «Tempi ed esiti») partono in "
+                      "un'unica mail di riepilogo dopo 5 minuti senza salvataggi sull'OP (Configurazione → Notifiche), "
+                      "con lo stato attuale di ogni anomalia e «chiusa» nell'oggetto quando lo è; la barra «N decisioni in attesa di invio» in "
                       "Gestione anomalie permette di mandarle subito con «Invia ora»."),
                 ("p", "Il dettaglio dell'anomalia ha tre blocchi: «Controllore · segnalazione» (con «Dove sono i "
                       "pezzi?»), «Capocommessa» (flag RDC, cliente, terzista, CAR, pezzi precedenti; «Segnalato» se la "

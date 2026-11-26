@@ -24,6 +24,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - Le sezioni del report possono dichiarare colonne con un permesso proprio (`Sezione.colonne_riservate`, `colonne_per(request)`, fail-closed senza request), rispettato da editor, chat e motore.
 - File: `anagrafica/reportistica/sezioni.py`, `conversazione.py`, `forms.py`, `motore.py`, `anagrafica/tests_reportistica_codice_fiscale.py`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`. Nessuna migrazione.
 
+### Gestione anomalie: la mail «Aggiornamento anomalie» dice se l'anomalia è chiusa
+
+- Il riepilogo usava la «fotografia» del salvataggio messo in coda: una chiusura arrivata dopo («Registra e chiudi» in «Tempi ed esiti», decisione qualità) non compariva (caso OP/2026/2291, 26/11). Ora all'invio chiusa e stato di avanzamento si leggono dalla tabella (`mail_action_service._stato_attuale`); l'oggetto aggiunge «· N chiusa/e», il testo «Chiuse: N di M», la mail il bollino «Anomalia chiusa».
+- L'azione effettuata registrata in «Tempi ed esiti» entra nel riepilogo dell'OP con la riga «Azione effettuata: …» (anche senza altre modifiche).
+- Lo stato ripreso alla chiusura (`chiusura_service.ultima_decisione`, migrazione 0035) considera solo le azioni che scrivono lo stato di avanzamento, non il tipo di intervento.
+- Tolto il «·» in più dopo il P/N nell'intestazione.
+- File: `django_app/anomalie/mail_action_service.py`, `views.py` (`api_anomalie_esito`), `chiusura_service.py`, `migrations/0035_chiusure_stato_richieste.py`, `templates/anomalie/email/anomalie_update_confirmation.html`, `tests_chiusure.py`.
+
 ### Prestazioni: «Ruoli e permessi» non si blocca più sulla matrice
 
 - `core/acl_capability.py`: `capability_index()` tiene in cache (impronta del catalogo, indice); l'impronta (totale, attivi e ultimo `updated_at` di permessi e binding) rinnova l'indice appena cambia il catalogo, senza attendere i 300 s. Chiave `acl_capability_index_v3`.
@@ -44,6 +52,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 - Nuova vista «📐 Ufficiale» dell'organigramma (`/anagrafica/organigramma/ufficiale/`): organigrammi disegnati come in Word con riquadri presi da ruoli, persone, mansioni o testo libero, gruppi («team»), collegamenti e linee di staff, colori e stili. Bozza salvata da sola, «Riepilogo modifiche» rispetto alla revisione in vigore, «Pubblica» con nota, approvato da e data, storico revisioni con confronto, stampa A3/A4 con cartiglio. Avvisi dove il disegno non corrisponde più ai dati (persona cessata, ruolo non suo, ruoli dell'ambito non disegnati). Non tocca ruoli, «Riporta a», assegnazioni, capi né permessi.
 - File: `django_app/anagrafica/models_organigramma.py` (nuovo), `models.py`, `migrations/0256_organigramma_ufficiale.py` (tabelle, binding ACL copiati da diagramma e modifica ruoli, voce di menu), `services/organigramma_ufficiale.py` (nuovo), `views_organigramma_ufficiale.py` (nuovo), `urls.py`, template `pages/organigramma_ufficiale_{elenco,vedi,disegna,stampa}.html` e `partials/_org_uff_{stile,disegno}.html` (nuovi), `components/organigramma_viste.html`, `core/guide_moduli/contenuti/anagrafica.py` (sezione «organigramma-ufficiale»), `hub_tools/schema_db.py`, `docs/moduli/anagrafica.md`, test `tests_organigramma_ufficiale.py`.
+### Corsi online: video o slide a scelta
+
+- Riquadro «Moduli» del corso: per ogni modulo «Per tutti», «Solo percorso video» o «Solo percorso slide» (`TrainingElearningModulo.alternativa`). Con almeno un modulo di ciascun tipo nel percorso il discente sceglie all'inizio «Guarda il video» o «Segui le slide»; stesso quiz; si cambia solo prima della prima slide.
+- Vale dal portale (`formazione_online_percorso.html`), dal link aperto (pagina del codice) e nella lezione online di sessione con il materiale del corso. Scelta salvata su iscrizione e-learning, partecipazione dal link aperto e avanzamento della lezione (`percorso`). Migrazione anagrafica `0259`.
+- File: `models_elearning.py`, `models_formazione.py`, `models_sessione_online.py`, `services/elearning_fruizione.py` (`percorsi_a_scelta`, `slides_percorso(corso, scelta)`, `percorso_di`, `info_percorsi`), `services/elearning_quiz.py`, `services/sessione_online.py`, `views_elearning.py`, `views_corso_aperto.py`, `views_sessione_online.py`, `views/formazione.py`, template moduli, player, `pronto.html`, guida corsi online, Centro guide. Test: `tests_corso_aperto_ripresa.py`.
+
 ### Link aperto: ripresa dal punto giusto, codice in vista e per email, un corso = un completamento
 
 Prova del 26/11/2026: chi ha completato il corso dal link aperto risultava ancora «Iscritto» nella sessione online dello stesso corso (il completamento c'era, ma separato) e chi riprendeva ripartiva dalla slide 1 o da una partecipazione nuova.

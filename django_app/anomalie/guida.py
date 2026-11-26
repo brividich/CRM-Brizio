@@ -575,7 +575,8 @@ SEZIONI: list[dict] = [
                 "Scartato, Reso al fornitore, Accettato in deroga), scrivi le note, allega foto o documenti.",
                 "Lascia «Chiudi l'anomalia» spuntato per chiuderla con l'azione. Dopo una rilavorazione o riparazione "
                 "per chiudere serve anche «Pezzo riverificato conforme».",
-                "Premi «Registra e chiudi» (o «Registra azione» se non la chiudi).",
+                "Premi «Registra e chiudi» (o «Registra azione» se non la chiudi). L'azione e la chiusura arrivano "
+                "nella mail di riepilogo dell'OP («Aggiornamento anomalie»), che segna le anomalie chiuse.",
             ]),
             ("ul", [
                 "Se la prima decisione è «Azione di recupero», l'anomalia non si chiude dalla decisione (né dal link "

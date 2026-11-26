@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 NOTA_RICHIESTA_CHIUSA = "Chiusa con l'anomalia: nessuna risposta registrata."
 RUOLO_CHIUSURA = "chiusura"
+# Azioni del registro il cui new_status è lo stato di avanzamento (non «azione», che
+# porta il tipo di intervento, né «qualita» / «richiesta_info»).
+AZIONI_CON_STATO = ("crea", "aggiorna", "aggiorna_avanzamento")
 # Valori di new_status nel registro che non sono una decisione del capocommessa.
 _NON_DECISIONI = {"", "in attesa", "chiusa", "torna alla qualità", "decisione qualità", "in attesa chiarimenti"}
 
@@ -55,7 +58,7 @@ def ultima_decisione(anomalia_id: int) -> str:
     """Ultimo stato di avanzamento scelto (registro attività), escluse attese libere."""
     from .mail_action_models import AnomaliaActionLog
 
-    for stato in (AnomaliaActionLog.objects.filter(anomalia_id=int(anomalia_id))
+    for stato in (AnomaliaActionLog.objects.filter(anomalia_id=int(anomalia_id), action__in=AZIONI_CON_STATO)
                   .exclude(new_status="").order_by("-id").values_list("new_status", flat=True)[:200]):
         testo = str(stato or "").strip()
         if testo.lower() not in _NON_DECISIONI:

@@ -36,7 +36,8 @@ def avanti(apps, schema_editor):
         if av.lower() not in LIBERI:
             continue
         stato = ""
-        for s in (Log.objects.filter(anomalia_id=aid).exclude(new_status="").order_by("-id")
+        for s in (Log.objects.filter(anomalia_id=aid, action__in=("crea", "aggiorna", "aggiorna_avanzamento"))
+                  .exclude(new_status="").order_by("-id")
                   .values_list("new_status", flat=True)[:200]):
             if str(s or "").strip().lower() not in NON_DECISIONI:
                 stato = str(s).strip()[:255]

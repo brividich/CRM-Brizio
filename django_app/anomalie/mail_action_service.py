@@ -575,6 +575,36 @@ def _resolve_lista_rdc_segnalazione() -> list[str]:
     return _resolve_lista_config("rdc_segnalazione")
 
 
+def _stato_attuale(updates_summary: list[dict]) -> list[dict]:
+    """Chiusa e stato di avanzamento letti adesso dalla tabella, non dalla «fotografia»
+    presa al salvataggio: una chiusura arrivata dopo (es. «Registra e chiudi» in
+    «Tempi ed esiti», decisione qualità) compare nel riepilogo. Mai bloccante."""
+    righe = [dict(u) for u in updates_summary or [] if isinstance(u, dict)]
+    ids = sorted({int(u["id"]) for u in righe if str(u.get("id") or "").isdigit()})
+    if not ids:
+        return righe
+    try:
+        from .views import _fetch_all_dict
+
+        live = {}
+        for i in range(0, len(ids), 500):
+            blocco = ids[i:i + 500]
+            for r in _fetch_all_dict(f"SELECT id, chiudere, avanzamento FROM anomalie WHERE id IN "
+                                     f"({','.join(['%s'] * len(blocco))})", blocco):
+                live[int(r["id"])] = r
+    except Exception:
+        logger.warning("riepilogo: stato attuale delle anomalie non letto", exc_info=True)
+        return righe
+    for u in righe:
+        r = live.get(int(u["id"])) if str(u.get("id") or "").isdigit() else None
+        if r is None:
+            continue
+        u["chiudere"] = bool(r.get("chiudere"))
+        if str(r.get("avanzamento") or "").strip():
+            u["avanzamento"] = str(r["avanzamento"]).strip()
+    return righe
+
+
 def righe_extra_decisione(u: dict) -> list[str]:
     """Righe della mail di riepilogo per terzista, CAR segnalati e «Segnalato».
 
@@ -586,6 +616,8 @@ def righe_extra_decisione(u: dict) -> list[str]:
         return f" — segnalato il {s['il']}" + (f" da {s['da']}" if s.get("da") else "")
 
     out = []
+    if u.get("azione_effettuata"):
+        out.append("Azione effettuata: " + str(u["azione_effettuata"])[:300])
     if u.get("segnalare") and u.get("segnalato_cliente"):
         out.append("Segnalare al cliente" + _fatto(u.get("segnalato_cliente")))
     if u.get("segnala_terzista"):
@@ -627,6 +659,7 @@ def send_anomalie_update_confirmation(
     from automazioni.services import _resolve_op_recipients
 
     anomalie_ids = [r.get("id") for r in anomalie_rows if r.get("id") is not None]
+    updates_summary = _stato_attuale(updates_summary)
     updates_summary = [{**u, "extra_decisione": righe_extra_decisione(u)} for u in updates_summary]
 
     # Anomalie con risalto, divise per tipo di azione richiesta.
@@ -684,6 +717,7 @@ def send_anomalie_update_confirmation(
     op_pn = _fetch_pn_for_ops([op_id]).get(str(op_id).strip().lower(), "")
 
     n = len(updates_summary)
+    n_chiuse = sum(1 for u in updates_summary if u.get("chiudere"))
     n_aprire = len(aprire_rdc_rows)
     n_segnalare = len(segnalare_rows)
     # P/N davanti all'OP nell'oggetto
@@ -700,6 +734,8 @@ def send_anomalie_update_confirmation(
             f"[Novicrom Hub] {pn_subj}Aggiornamento anomalie {op_id} — "
             f"{n} modific{'a' if n == 1 else 'he'} registrat{'a' if n == 1 else 'e'}"
         )
+    if n_chiuse:
+        subject += f" · {n_chiuse} chius{'a' if n_chiuse == 1 else 'e'}"
 
     def _fmt_row(u, prefix="  • "):
         flags = []
@@ -736,6 +772,7 @@ def send_anomalie_update_confirmation(
         f"Sono state registrate modifiche sulle anomalie dell'OP {op_id}"
         f"{(' · P/N ' + op_pn) if op_pn else ''}"
         f"{(' — ' + op_nominativo) if op_nominativo else ''}.",
+        *([f"Chiuse: {n_chiuse} di {n}."] if n_chiuse else []),
         "",
     ]
     if aprire_rdc_rows:
@@ -784,6 +821,7 @@ def send_anomalie_update_confirmation(
             "portal_url": portal_url,
             "silenzia_url": silenzia_url,
             "n": n,
+            "n_chiuse": n_chiuse,
             "n_aprire": n_aprire,
             "n_segnalare": n_segnalare,
         },
@@ -803,6 +841,7 @@ def send_anomalie_update_confirmation(
             "op_nominativo": op_nominativo,
             "op_pn": op_pn,
             "updates": n,
+            "chiuse": n_chiuse,
             "aprire_rdc": n_aprire,
             "segnalare_cliente": n_segnalare,
             "source_label": source_label,
