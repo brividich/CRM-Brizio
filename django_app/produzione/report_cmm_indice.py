@@ -704,7 +704,8 @@ def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
                 "prog": p["programma_base"], "quota": q, "fuori_ultimo": bool(vals[-1][0] == ultimo and vals[-1][4]),
                 "n_fuori": sum(v[4] for v in vals), "n": len(vals), "cpk": s.get("cpk"), "u": s.get("u"),
                 "u_abs": abs(s["u"]) if s.get("u") is not None else None, "deriva": deriva(us),
-                "media": s.get("media"), "sd": s.get("sd"), "cp": s.get("cp"),
+                "media": s.get("media"), "sd": s.get("sd"), "cp": s.get("cp"), "lsl": punti[-1][1], "usl": punti[-1][2],
+                "deriva_info": deriva(us),
                 # per il grafico del protocollo: [rilevato, fuori 0/1, id report] dal più vecchio
                 "serie": [[round(v[1], 6), int(v[4]), d["report"][v[0]][0]] for v in vals],
             })

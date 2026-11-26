@@ -196,3 +196,34 @@ class PezzoTests(QuoteBase):
         self.assertTrue(pdf.content.startswith(b"%PDF"))
         rep = self.client.get(reverse("produzione:report_cmm", args=[self.r2.pk]))
         self.assertContains(rep, "Pagina del pezzo")
+
+
+class QualitaPnTests(QuoteBase):
+    """Sezione «Qualità CMM» della scheda P/N: albero dalla quota peggiore, quota scelta, frase di lettura."""
+
+    def setUp(self):
+        super().setUp()
+        for i, (a, b) in enumerate([(40.004, 62.011), (40.003, 62.012), (40.005, 62.010), (40.002, 62.011),
+                                    (40.004, 62.012), (40.003, 62.011)]):
+            self.report(f"SN{i}", [q(D40, a), q(D62, b)], giorni=i)
+
+    def test_albero_scelta_e_lettura(self):
+        d = pagine.qualita_pn("PN-ALFA-1")
+        self.assertEqual(d["conta"]["quote"], 2)
+        quote = d["programmi"][0]["quote"]
+        self.assertEqual(quote[0]["quota"]["nome"], "Ø40 H7")          # media a 3,5 µm dal minimo: Cpk basso, in cima
+        self.assertEqual(d["scelta"]["chiave"], quote[0]["chiave"])     # senza scelta: la peggiore
+        self.assertEqual(d["grafico"]["lsl"], 40.0)
+        self.assertEqual(len(d["grafico"]["serie"]), 6)
+        self.assertIn("verso il limite inferiore", d["lettura"])
+        self.assertIn("sotto 1,33", d["lettura"])
+        altra = pagine.qualita_pn("PN-ALFA-1", quote[1]["chiave"])
+        self.assertEqual(altra["scelta"]["quota"]["nome"], "Ø62 k6")
+        self.assertEqual(pagine.qualita_pn("PN-ALFA-1", "sbagliata")["scelta"]["chiave"], quote[0]["chiave"])
+
+    def test_lettura_media_fuori(self):
+        a = {"media": 39.9997, "lsl": 40.0, "usl": 40.025, "quota": {"nominale": 40.0}, "deriva_info": None,
+             "cpk": -0.02, "n_fuori": 16, "n": 30}
+        frase = pagine.lettura_quota(a)
+        self.assertIn("fuori tolleranza: oltre il limite inferiore di 0,3 µm", frase)
+        self.assertIn("16 pezzi fuori su 30", frase)

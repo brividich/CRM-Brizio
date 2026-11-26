@@ -64,7 +64,8 @@
     }
     return "<svg class='prot-carta' viewBox='0 0 " + w + " " + h + "' preserveAspectRatio='none' role='img' aria-label='Andamento sugli ultimi " + s.length + " pezzi'>" +
       "<rect class='fascia' x='" + sx + "' y='" + y(q.usl).toFixed(1) + "' width='" + (w - sx - dx) + "' height='" + (y(q.lsl) - y(q.usl)).toFixed(1) + "'/>" +
-      riga(q.usl, "lim", "LS") + riga(q.lsl, "lim", "LI") + riga(media, "med", "x̄") +
+      riga(q.usl, "lim", "LS") + riga(q.lsl, "lim", "LI") +
+      riga(media, "med", Math.min(Math.abs(y(media) - y(q.usl)), Math.abs(y(media) - y(q.lsl))) < 10 ? "" : "x̄") +
       "<polyline class='linea' points='" + pts + "'/>" + punti +
       "<text x='" + (w - dx) + "' y='" + (h - 3) + "' text-anchor='end'>ultimi " + s.length + " pezzi →</text></svg>";
   }
@@ -135,4 +136,57 @@
   var prima = righe.filter(function (r) { return r.classList.contains("is-fuori"); })[0] || righe[0];
   if (dalHash && quote[dalHash[1]]) mostra(dalHash[1], true);
   else if (prima) mostra(prima.getAttribute("data-i"), false);
+})();
+
+/* Qualità CMM della scheda P/N: carta di controllo dei singoli valori e istogramma della quota scelta. */
+(function () {
+  "use strict";
+  var dati = document.getElementById("qualita-dati");
+  var box = document.querySelector("[data-carta-qualita]");
+  if (!dati || !box) return;
+  var q = JSON.parse(dati.textContent);
+  if (!q || !q.serie || q.serie.length < 2) { box.innerHTML = "<p class='prod-nota'>Servono almeno due pezzi validi.</p>"; return; }
+  function num(v) { return Number(v).toFixed(4).replace(".", ","); }
+  var s = q.serie, xs = s.map(function (p) { return p[0]; });
+  var w = 720, h = 230, sx = 34, dx = 8, top = 10, bot = 18;
+  var lo = Math.min(q.lsl, Math.min.apply(null, xs)), hi = Math.max(q.usl, Math.max.apply(null, xs));
+  var pad = (hi - lo) * 0.1 || 0.001;
+  lo -= pad; hi += pad;
+  function y(v) { return top + (hi - v) / (hi - lo) * (h - top - bot); }
+  function x(i) { return sx + i * (w - sx - dx) / (s.length - 1); }
+  var media = q.media !== null && q.media !== undefined ? q.media : xs.reduce(function (a, b) { return a + b; }, 0) / xs.length;
+  function riga(v, cls, et) {
+    return "<line class='" + cls + "' x1='" + sx + "' x2='" + (w - dx) + "' y1='" + y(v).toFixed(1) + "' y2='" + y(v).toFixed(1) + "'/>" +
+      "<text x='" + (sx - 4) + "' y='" + (y(v) + 3).toFixed(1) + "' text-anchor='end'>" + et + "</text>";
+  }
+  var pts = s.map(function (p, i) { return x(i).toFixed(1) + "," + y(p[0]).toFixed(1); }).join(" ");
+  var punti = s.map(function (p, i) {
+    var ultimo = i === s.length - 1;
+    return "<circle class='p" + (p[1] ? " is-fuori" : "") + (ultimo ? " is-qui" : "") + "' cx='" + x(i).toFixed(1) + "' cy='" + y(p[0]).toFixed(1) +
+      "' r='" + (ultimo ? 4.5 : 3) + "'><title>" + num(p[0]) + "</title></circle>";
+  }).join("");
+  box.innerHTML = "<svg class='prot-carta prot-carta-grande' viewBox='0 0 " + w + " " + h + "' role='img' aria-label='Carta di controllo di " + String(q.nome).replace(/'/g, "") + "'>" +
+    "<rect class='fascia' x='" + sx + "' y='" + y(q.usl).toFixed(1) + "' width='" + (w - sx - dx) + "' height='" + (y(q.lsl) - y(q.usl)).toFixed(1) + "'/>" +
+    riga(q.usl, "lim", "LS") + riga(q.lsl, "lim", "LI") +
+    riga(media, "med", Math.min(Math.abs(y(media) - y(q.usl)), Math.abs(y(media) - y(q.lsl))) < 12 ? "" : "x̄") +
+    "<polyline class='linea' points='" + pts + "'/>" + punti +
+    "<text x='" + (w - dx) + "' y='" + (h - 3) + "' text-anchor='end'>" + s.length + " pezzi, dal più vecchio →</text></svg>";
+
+  /* Istogramma: 10 classi fra il minimo e il massimo del grafico, limiti in rosso. */
+  var ist = document.querySelector("[data-istogramma-qualita]");
+  if (!ist) return;
+  var n = 10, classi = [], i;
+  for (i = 0; i < n; i++) classi.push(0);
+  xs.forEach(function (v) { classi[Math.min(n - 1, Math.max(0, Math.floor((v - lo) / (hi - lo) * n)))] += 1; });
+  var max = Math.max.apply(null, classi) || 1, W = 230, H = 230, base = H - 18;
+  function hx(v) { return 6 + (v - lo) / (hi - lo) * (W - 12); }
+  var barre = classi.map(function (c, k) {
+    var x0 = 6 + k * (W - 12) / n, bw = (W - 12) / n - 3, bh = c / max * (base - 14);
+    var centro = lo + (k + 0.5) * (hi - lo) / n, fuori = centro < q.lsl || centro > q.usl;
+    return "<rect class='" + (fuori ? "is-fuori" : "") + "' x='" + x0.toFixed(1) + "' y='" + (base - bh).toFixed(1) + "' width='" + bw.toFixed(1) + "' height='" + bh.toFixed(1) + "' rx='2'><title>" + c + " pezzi</title></rect>";
+  }).join("");
+  ist.innerHTML = "<div class='prot-det-sez'>Distribuzione</div><svg class='prot-istogramma' viewBox='0 0 " + W + " " + H + "' role='img' aria-label='Distribuzione dei valori'>" + barre +
+    "<line class='lim' x1='" + hx(q.lsl).toFixed(1) + "' x2='" + hx(q.lsl).toFixed(1) + "' y1='4' y2='" + base + "'/>" +
+    "<line class='lim' x1='" + hx(q.usl).toFixed(1) + "' x2='" + hx(q.usl).toFixed(1) + "' y1='4' y2='" + base + "'/>" +
+    "<text x='" + hx(q.lsl).toFixed(1) + "' y='" + (H - 4) + "' text-anchor='middle'>LI</text><text x='" + hx(q.usl).toFixed(1) + "' y='" + (H - 4) + "' text-anchor='middle'>LS</text></svg>";
 })();

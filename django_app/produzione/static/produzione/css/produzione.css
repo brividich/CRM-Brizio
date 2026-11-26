@@ -429,3 +429,21 @@ a.prod-dato:hover{border-color:var(--accent)}
 @media (max-width:900px){.prot-corpo-2{grid-template-columns:1fr}}
 .prot-tx{overflow:hidden;text-overflow:ellipsis;min-width:0}
 .prot-foglia .prot-n{flex:none;padding-left:6px}
+/* Scheda P/N: Qualità CMM */
+.prot-conta{font-size:12.5px;color:var(--text-mid);font-weight:700}
+.prot-link{color:var(--text);text-decoration:none}.prot-link:hover{text-decoration:underline}
+.prot-qualita{padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.prot-qualita-head h3{margin:0 0 2px;font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px}
+.prot-qualita-grafici{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:14px;align-items:end}
+.prot-carta-grande{height:auto;aspect-ratio:720/230}
+.prot-istogramma{display:block;width:100%;height:auto;aspect-ratio:1}
+.prot-istogramma rect{fill:color-mix(in srgb,var(--info,#2563eb) 55%,transparent)}
+.prot-istogramma rect.is-fuori{fill:color-mix(in srgb,var(--danger,#dc2626) 60%,transparent)}
+.prot-istogramma .lim{stroke:var(--danger,#dc2626);stroke-width:1.4}
+.prot-istogramma text{font-size:10px;fill:var(--text-mid)}
+.prot-indici-6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.prot-lettura{margin:0;padding:9px 12px;border-radius:10px;background:var(--warning-bg);border:1px solid color-mix(in srgb,var(--warning,#d97706) 35%,transparent);font-size:13px}
+.prot-legenda .prot-ic{width:12px;height:12px;font-size:9px;margin-right:3px}
+@media (max-width:1100px){.prot-qualita-grafici{grid-template-columns:1fr}.prot-indici-6{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.prot-tab th.nt{text-transform:none}
+.prot-lettura.is-ok{background:var(--success-bg,#dcfce7);border-color:color-mix(in srgb,var(--success,#16a34a) 35%,transparent)}

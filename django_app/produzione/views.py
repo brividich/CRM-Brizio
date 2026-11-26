@@ -158,8 +158,12 @@ def pn_scheda(request, pn: str | None = None):
         dati["report_cmm"]["ultimi"] = list(cmm.ReportCMM.objects.filter(pn=dati["pn"], righe__gt=0, escluso=False)
                                             .order_by("-data", "-id")[:60])
         dati["programmi_cmm"] = cmm.programmi_del_pn(dati["pn"])
+    if sezione == "qualita":
+        dati["qualita"] = pagine_cmm.qualita_pn(dati["pn"], request.GET.get("q", ""))
+        dati["vista_qualita"] = "tabella" if request.GET.get("vista") == "tabella" else "carta"
     tab = [{"chiave": k, "nome": v, "n": conta.get(k), "url": services.url_pn(dati["pn"], k)}
-           for k, v in services.SEZIONI_PN if k in ("", "op", "report") or dati["vede_kickoff"]]
+           for k, v in services.SEZIONI_PN
+           if k in ("", "op", "report") or (k == "qualita" and dati["report_cmm"]["n"]) or (k in ("programmi", "fai") and dati["vede_kickoff"])]
     return render(request, "produzione/pn_scheda.html", _ctx(
         request, "pn", sezione=sezione, sezioni=tab, puo_articoli=request_has_permission_code(request, PERM_ARTICOLI),
         form_articolo=ArticoloForm(instance=dati["articolo"]) if dati["articolo"] else ArticoloForm(), **dati))

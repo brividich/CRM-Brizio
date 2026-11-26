@@ -151,6 +151,82 @@ def _banda(m) -> float:
     return (m.tol_sup - m.tol_inf) or 0.0
 
 
+# --- Scheda P/N: Qualità CMM -----------------------------------------------------------------------------
+
+def _stato_quota(a: dict) -> str:
+    """Icona della quota nell'albero: fuori nell'ultimo report, da guardare (Cpk sotto 1,33 o deriva), capace,
+    senza Cpk (pochi pezzi)."""
+    if a["fuori_ultimo"]:
+        return "fuori"
+    if a["deriva"] or (a["cpk"] is not None and a["cpk"] < 1.33):
+        return "limite"
+    return "ok" if a["cpk"] is not None else "nd"
+
+
+def chiave_quota(a: dict) -> str:
+    return f"{a['prog']}::{a['quota']['id']}"
+
+
+def lettura_quota(a: dict) -> str:
+    """Una frase sulla quota scelta, solo dai numeri: dove lavora la media, la deriva, il Cpk."""
+    if a.get("media") is None or a.get("lsl") is None:
+        return ""
+    banda = a["usl"] - a["lsl"]
+    if banda <= 0:
+        return ""
+    unilat = unilaterale(a["quota"]["nominale"], a["lsl"] - a["quota"]["nominale"], a["usl"] - a["quota"]["nominale"])
+    um = lambda v: f"{v * 1000:.1f}".replace(".", ",")  # noqa: E731
+    if unilat:
+        frase = f"La media usa il {round(a['media'] / a['usl'] * 100)}% della tolleranza ({um(a['media'])} su {um(a['usl'])} µm)."
+    else:
+        dal_sup, dal_inf = a["usl"] - a["media"], a["media"] - a["lsl"]
+        if dal_sup < 0 or dal_inf < 0:
+            vicino, oltre = ("superiore", -dal_sup) if dal_sup < 0 else ("inferiore", -dal_inf)
+            frase = f"La media è fuori tolleranza: oltre il limite {vicino} di {um(oltre)} µm."
+        elif abs(dal_sup - dal_inf) < banda * 0.1:
+            frase = f"La media lavora al centro della tolleranza ({um(banda)} µm)."
+        else:
+            vicino, dist = ("superiore", dal_sup) if dal_sup < dal_inf else ("inferiore", dal_inf)
+            frase = f"La media lavora verso il limite {vicino}: ne dista {um(dist)} µm su {um(banda)} µm di tolleranza."
+    d = a.get("deriva_info")
+    if d:
+        verso = "superiore" if d.get("verso") == "sup" else "inferiore"
+        frase += (f" È in deriva verso il limite {verso}" + (f": al ritmo attuale ci arriva in circa {d['pezzi']} pezzi."
+                                                              if d.get("pezzi") else ", già raggiunto."))
+    if a["cpk"] is not None:
+        frase += f" Cpk {a['cpk']:.2f}".replace(".", ",") + (": sotto 1,33." if a["cpk"] < 1.33 else ": capace.")
+    if a["n_fuori"]:
+        frase += f" {a['n_fuori']} pezz{'o' if a['n_fuori'] == 1 else 'i'} fuori su {a['n']}."
+    return frase
+
+
+def qualita_pn(pn: str, scelta: str = "") -> dict:
+    """La sezione «Qualità CMM» della scheda P/N: albero programmi → quote (dalla peggiore per Cpk), la quota scelta
+    (``prog::id``, altrimenti la peggiore) con i dati della carta di controllo, e la tabella di tutte le quote."""
+    analisi = analisi_pn(pn)
+    gravita = {"fuori": 0, "limite": 1, "ok": 2, "nd": 3}
+    programmi: dict[str, dict] = {}
+    for a in analisi:
+        a = dict(a, stato=_stato_quota(a), chiave=chiave_quota(a), q_chiave=a["quota"]["id"].rsplit("|", 1)[0])
+        p = programmi.setdefault(a["prog"], {"nome": a["prog"] or "—", "quote": [], "stato": "nd"})
+        p["quote"].append(a)
+    for p in programmi.values():
+        p["quote"].sort(key=lambda a: (gravita[a["stato"]], a["cpk"] if a["cpk"] is not None else 99, a["quota"]["nome"]))
+        p["stato"] = min((a["stato"] for a in p["quote"]), key=lambda s: gravita[s], default="nd")
+    elenco = sorted(programmi.values(), key=lambda p: (gravita[p["stato"]], p["nome"]))
+    tutte = [a for p in elenco for a in p["quote"]]
+    scelta_a = next((a for a in tutte if a["chiave"] == scelta), None) or (tutte[0] if tutte else None)
+    grafico = None
+    if scelta_a:
+        grafico = {"nome": scelta_a["quota"]["nome"], "lsl": scelta_a["lsl"], "usl": scelta_a["usl"],
+                   "serie": scelta_a.get("serie") or [], "media": scelta_a.get("media")}
+    tabella = sorted(tutte, key=lambda a: (a["cpk"] if a["cpk"] is not None else 99, a["prog"], a["quota"]["nome"]))
+    return {"programmi": elenco, "scelta": scelta_a, "grafico": grafico, "tabella": tabella,
+            "lettura": lettura_quota(scelta_a) if scelta_a else "",
+            "conta": {"quote": len(tutte), "fuori": sum(a["stato"] == "fuori" for a in tutte),
+                      "da_guardare": sum(a["stato"] == "limite" for a in tutte)}}
+
+
 # --- Confronto -------------------------------------------------------------------------------------------
 
 def report_da_confrontare(ids) -> list[ReportCMM]:
