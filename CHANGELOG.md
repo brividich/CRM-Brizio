@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: database più veloce e stabile (indici, misure compresse, manutenzione notturna)
+
+- Misurato in produzione il 26/11: misure CMM 2,4 milioni di righe (719 MB, oltre 2 GB a regime) lette sempre per report ma ordinate per id, con un accesso alla tabella per ogni misura; statistiche ferme a 30.000 righe; quattro indici mai usati (164 MB solo quello su `chiave`, frammentato al 99%); indici mancanti segnalati da SQL Server su `pn` con `letto_il` e su `pn`/`righe` con programma, data e fuori; nessuna manutenzione automatica sull'istanza.
+- Migrazione `produzione 0008`: via gli indici su `ReportCMM.pn` (da solo), `programma_base`, `escluso` e `MisuraCMM.chiave`; nuovi indici di copertura `prod_rcmm_pn_prog_cop` (pn, programma_base + righe, escluso, data, fuori, seriale, op, letto_il, escluso_il) e `prod_rcmm_data` (data + pn, righe, escluso, fuori).
+- Migrazione `produzione 0009` (solo SQL Server, non atomica): misure in indice cluster (report_id, id) con compressione PAGE, chiave primaria non cluster, statistiche ricalcolate per intero. Prova locale su 1 milione di righe inventate: 22 s, tabella da 228 a 60 MB; in produzione stimati 30-60 s durante `migrate`. Collaudata anche all'indietro.
+- Lavoro pianificato nuovo `produzione_manutenzione_db` (03:10, `produzione/manutenzione_db.py`): statistiche dove è cambiato più del 10% delle righe, indici riorganizzati oltre il 10% e ricostruiti oltre il 30% di frammentazione; salta se il giro dei report è in corso.
+- Query: OP cercati con `=` invece di `iexact` (la collation è già senza maiuscole: stesso risultato, ma usa l'indice); ultimo report di ogni P/N in Quote CMM con una sottoquery invece di leggere tutti i report.
+- Verificato su SQL Server locale (database di prova): migrazioni avanti e indietro, Quote CMM, analisi, matrice dell'OP, Qualità CMM, manutenzione.
+- File: `produzione/models.py`, `migrations/0008_indici_letture.py`, `migrations/0009_misure_cluster_compressione.py`, `manutenzione_db.py` (nuovo), `tasks.py`, `report_cmm_indice.py`, `report_cmm_pagine.py`, `automazioni/schedules.py`, Centro guide, `hub_tools/schema_db.py`, `docs/moduli/produzione.md`. Test: `tests_quote_migliorie.py`.
+
 ### Scheda del corso: numeri coerenti con la regola unica
 
 - «A chi serve questo corso»: con la spunta «Obbligatorio per tutti i dipendenti» mostra «Tutti i dipendenti in forza (N)» invece di 0 e «Non ancora collegato».

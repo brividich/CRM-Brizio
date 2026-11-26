@@ -80,6 +80,12 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 
 - `ArticoloPN.quote_deriva`, `quote_fuori_ultimo`, `analisi_il` (migrazione `produzione 0007`). `articoli.analizza(articolo)` li calcola con `cpk_peggiore` e `quote_non_capaci` da `analisi_pn`; `articoli.da_analizzare()` sceglie i P/N con analisi mai fatta o più vecchia dell'ultimo `letto_il`/`escluso_il`. Il giro chiama `aggiorna_cpk` sui P/N letti e poi sugli altri da aggiornare; `report_escludi` ricalcola il P/N. `cruscotto()` non chiama più `analisi_pn` (`analisi_pronta` falso = «in calcolo»).
 
+### Database: indici, misure compresse, manutenzione (26/11/2026)
+
+- `produzione 0008`: indici di copertura `prod_rcmm_pn_prog_cop` e `prod_rcmm_data` su `produzione_reportcmm`; tolti `pn` singolo, `programma_base`, `escluso`, `misuracmm.chiave`.
+- `produzione 0009` (solo SQL Server, `atomic = False`): `produzione_misuracmm` con indice cluster `prod_mcmm_report_cl` (report_id, id) PAGE e `PK_produzione_misuracmm` non cluster; `UPDATE STATISTICS … WITH FULLSCAN`. Durata stimata in produzione 30-60 s: fare `migrate` con qcluster fermo.
+- `produzione/manutenzione_db.py` + schedule `produzione_manutenzione_db` (03:10): statistiche (>10% modifiche, almeno 5.000), REORGANIZE 10-30%, REBUILD oltre 30% (indici con almeno 1.000 pagine).
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |

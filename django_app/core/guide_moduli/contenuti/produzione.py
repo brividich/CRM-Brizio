@@ -128,7 +128,12 @@ GUIDA = {
                      "PRODUZIONE_REPORT_CMM_MINUTI minuti (15). L'utente del portale e quello di qcluster devono poter "
                      "leggere la share. Primo caricamento lungo: «manage.py leggi_report_cmm --minuti 120». Legge anche il "
                      "formato vecchio (fino al 2024); i report già in elenco senza quote si rileggono da soli, prima le "
-                     "cartelle che ne hanno. Avvisi solo per i report degli ultimi 30 giorni."),
+                     "cartelle che ne hanno. Avvisi solo per i report degli ultimi 30 giorni. Alla fine del giro calcola Cpk, deriva e "
+                     "fuori dei P/N cambiati (li legge «Quote CMM»)."),
+                    ("Database", "lavoro pianificato «produzione_manutenzione_db» (ogni notte alle 03:10, solo SQL Server): "
+                     "statistiche delle tabelle del modulo ricalcolate dove è cambiato più del 10% delle righe, indici "
+                     "riorganizzati oltre il 10% di frammentazione e ricostruiti oltre il 30%; non parte durante un giro. Le "
+                     "misure CMM sono ordinate per report e compresse (migrazione produzione 0009)."),
                     ("Elenco OP", "tabella ordini_produzione, la stessa di Gestione anomalie; gli OP nuovi si creano qui, "
                      "dalla scheda FAI o da Gestione anomalie, con la stessa funzione."),
                 ]),
