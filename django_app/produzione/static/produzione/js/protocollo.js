@@ -1,5 +1,26 @@
 /* Protocollo del report CMM: scelta della quota (clic, frecce ↑ ↓), dettaglio a destra con l'andamento sugli
    ultimi pezzi dello stesso programma, densità compatta ricordata nel browser. I dati vengono da #prot-dati. */
+/* Matrice del pezzo: % tolleranza / deviazione / valore, scelta ricordata nel browser. */
+(function () {
+  "use strict";
+  var mat = document.querySelector("[data-matrice]");
+  if (!mat) return;
+  var tab = mat.querySelector(".prot-mat");
+  var bott = mat.querySelectorAll("[data-vista]");
+  var KEY = "nhub.pezzo.vista";
+  function vista(v) {
+    if (tab) tab.className = tab.className.replace(/\bvista-\w+/g, "").trim() + " vista-" + v;
+    Array.prototype.forEach.call(bott, function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-vista") === v ? "true" : "false"); });
+  }
+  try { var salvata = window.localStorage.getItem(KEY); if (/^(u|dev|x)$/.test(salvata || "")) vista(salvata); } catch (e) { /* storage bloccato */ }
+  Array.prototype.forEach.call(bott, function (b) {
+    b.addEventListener("click", function () {
+      vista(b.getAttribute("data-vista"));
+      try { window.localStorage.setItem(KEY, b.getAttribute("data-vista")); } catch (e) { /* storage bloccato */ }
+    });
+  });
+})();
+
 (function () {
   "use strict";
   var sez = document.querySelector("[data-protocollo]");

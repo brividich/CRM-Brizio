@@ -2,16 +2,15 @@
 {% load static %}
 
 {% block title %}{{ sn }} · {{ pn }} · Pezzo{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126e">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126f">{% endblock %}
 
 {% block content %}
-<div class="prod">
+<div class="prod prod-largo">
   <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a><a href="{{ url_pn }}">{{ pn }}</a>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ op.op }}</a>{% endif %}</template>
   <div class="prod-head">
     <div>
       <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a> › <a href="{{ url_pn }}">{{ pn }}</a>{% for o in ops %} › {% if op and op.op == o %}<a href="{% url 'produzione:scheda' op.id %}">{{ o }}</a>{% else %}{{ o }}{% endif %}{% endfor %} › Pezzo</span>
-      <h1>{{ sn }} <span class="prod-stato prod-badge{% if stato == 'fuori' %} is-allerta{% else %} is-attivo{% endif %}">Ultimo report: {% if stato == "fuori" %}{{ ultimo.fuori }} fuori{% else %}in tolleranza{% endif %}</span></h1>
-      <p class="prod-meta"><span><b>{{ reports|length }}</b> report CMM</span>{% if esclusi %}<span>{{ esclusi }} esclusi dall'analisi</span>{% endif %}<span><b>{{ n_fuori }}</b> quote fuori almeno una volta</span>{% if anomalie %}<span><b>{{ anomalie|length }}</b> anomali{{ anomalie|length|pluralize:"a,e" }}{% if anomalie_aperte %} ({{ anomalie_aperte }} apert{{ anomalie_aperte|pluralize:"a,e" }}){% endif %}</span>{% endif %}{% if primo_articolo %}<span>Primo articolo del FAI</span>{% endif %}</p>
+      <h1>{{ sn }}</h1>
     </div>
     <div class="prod-filtri">
       {% if colonne|length > 1 %}<a class="prod-btn" href="{% url 'produzione:report_confronta' %}?{{ ids_confronto }}">Confronta le fasi</a>{% endif %}
@@ -21,50 +20,67 @@
     </div>
   </div>
 
-  <div class="prod-griglia-2 prod-griglia-op">
-    <section class="prod-card">
-      <div class="prod-card-head"><h2>Le quote del pezzo, report per report</h2><span class="prod-nota">Una colonna per report, dal più vecchio; la barra mostra dove cade ogni misura nella tolleranza</span></div>
-      <div class="prod-cmp-col">
-        {% for c in intestazioni %}<a href="{% url 'produzione:report_cmm' c.r.id %}"><i style="background:{{ c.colore }}"></i><b>{{ c.r.programma_base|default:"—"|truncatechars:26 }}</b>{{ c.r.data|date:"d/m/Y"|default:"—" }} · {% if c.r.fuori %}<span class="prod-cmp-su">{{ c.r.fuori }} fuori</span>{% else %}OK{% endif %}</a>{% endfor %}
-      </div>
-      {% if nascosti %}<p class="prod-nota">Qui gli ultimi {{ colonne|length }} report; i {{ nascosti }} più vecchi sono nella storia a destra.</p>{% endif %}
-      <div class="prod-chips">
-        <a class="prod-chip{% if not solo %} is-on{% endif %}" href="?{{ query_base }}">Tutte <b>{{ totale }}</b></a>
-        <a class="prod-chip{% if solo == 'fuori' %} is-on{% endif %}{% if n_fuori %} is-allerta{% endif %}" href="?{{ query_base }}&amp;solo=fuori">Fuori almeno una volta <b>{{ n_fuori }}</b></a>
-        {% if colonne|length > 1 %}<a class="prod-chip{% if solo == 'cambiate' %} is-on{% endif %}" href="?{{ query_base }}&amp;solo=cambiate" title="Differenza fra il primo e l'ultimo report oltre il 20% della tolleranza">Cambiate fra i report <b>{{ cambiate }}</b></a>{% endif %}
-      </div>
-      {% if righe %}
-      <div class="prod-scorri">
-        <table class="prod-tab" data-fm-table-skip="1">
-          <thead><tr><th>Quota</th>{% for c in intestazioni %}<th class="prod-n prod-cmp-th" style="color:{{ c.colore }}" title="{{ c.r.programma_base }}">{{ c.r.data|date:"d/m"|default:"—" }}</th>{% endfor %}{% if colonne|length > 1 %}<th class="prod-n">Δ ultimo − primo</th>{% endif %}<th>Nella tolleranza</th></tr></thead>
+  <div class="prot-esito">
+    <div class="prot-timbro is-{% if stato == 'fuori' %}nok{% else %}ok{% endif %}"><small>Stato pezzo</small><b>{% if stato == "fuori" %}NOK{% else %}OK{% endif %}</b></div>
+    <div class="prot-campo"><small>P/N</small><a href="{{ url_pn }}">{{ pn }}</a></div>
+    <div class="prot-campo"><small>OP</small>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ op.op }}</a>{% else %}<b>{{ ops|join:", "|default:"—" }}</b>{% endif %}</div>
+    <div class="prot-campo"><small>Fasi misurate</small><b>{{ fasi }} · {{ reports|length }} report{% if esclusi %} <span class="prot-tenue">({{ esclusi }} esclus{{ esclusi|pluralize:"o,i" }})</span>{% endif %}</b></div>
+    <div class="prot-campo prot-campo-largo"><small>Ultimo report</small><b>{{ ultimo.data|date:"d/m/Y"|default:"—" }} · {{ ultimo.programma_base|default:"—" }} · {% if ultimo.fuori %}<span class="prot-rosso">{{ ultimo.fuori }} fuori</span>{% else %}OK{% endif %}</b></div>
+    <div class="prot-campo"><small>Fuori almeno una volta</small><b>{% if n_fuori %}<span class="prot-rosso">{{ n_fuori }} quot{{ n_fuori|pluralize:"a,e" }}</span>{% else %}nessuna{% endif %}</b></div>
+    {% if anomalie %}<div class="prot-campo"><small>Anomalie</small><b>{% if anomalie_aperte %}<span class="prot-rosso">{{ anomalie_aperte }} apert{{ anomalie_aperte|pluralize:"a,e" }}</span> · {% endif %}{{ anomalie|length }}</b></div>{% endif %}
+    {% if primo_articolo %}<div class="prot-campo"><small>FAI</small><b>Primo articolo</b></div>{% endif %}
+  </div>
+  {% if stato == "fuori" and fasi_ko %}<p class="prod-nota prot-nota-esito">NOK perché l'ultimo report di {{ fasi_ko|length }} fas{{ fasi_ko|length|pluralize:"e,i" }} ha quote fuori: {{ fasi_ko|join:", " }}.</p>{% endif %}
+
+  <section class="prot" data-matrice>
+    <div class="prot-barra">
+      <span class="prot-titolo">Multi-protocollo</span>
+      <button type="button" class="prot-filtro" data-vista="u" aria-pressed="true">% tolleranza usata</button>
+      <button type="button" class="prot-filtro" data-vista="dev" aria-pressed="false">Deviazione</button>
+      <button type="button" class="prot-filtro" data-vista="x" aria-pressed="false">Valore misurato</button>
+      <span class="prot-spazio"></span>
+      <a class="prot-filtro{% if not solo %} is-on{% endif %}" href="?{{ query_base }}">Tutte <b>{{ totale }}</b></a>
+      <a class="prot-filtro{% if solo == 'fuori' %} is-on{% endif %}" href="?{{ query_base }}&amp;solo=fuori">Fuori almeno una volta <b>{{ n_fuori }}</b></a>
+      {% if colonne|length > 1 %}<a class="prot-filtro{% if solo == 'cambiate' %} is-on{% endif %}" href="?{{ query_base }}&amp;solo=cambiate" title="Differenza fra il primo e l'ultimo report oltre il 20% della tolleranza">Cambiate fra i report <b>{{ cambiate }}</b></a>{% endif %}
+    </div>
+    <div class="prot-corpo prot-corpo-2">
+      <nav class="prot-albero" aria-label="Il pezzo">
+        <h3>Report del pezzo</h3>
+        {% for e in storia %}<a class="prot-foglia prot-foglia-1" href="{% url 'produzione:report_cmm' e.id %}" title="{{ e.esito }}"><span class="prot-ic is-{% if e.tipo == 'fuori' %}fuori{% elif e.tipo == 'escluso' %}nd{% else %}ok{% endif %}" aria-hidden="true"></span><span class="prot-tx">{{ e.testo }}</span><span class="prot-n">{{ e.quando|date:"d/m/y"|default:"—" }}</span></a>{% endfor %}
+        {% if nascosti %}<p class="prot-albero-nota">Nella matrice gli ultimi {{ colonne|length }}; i {{ nascosti }} più vecchi solo qui.</p>{% endif %}
+        {% if anomalie %}
+        <h3>Anomalie</h3>
+        {% for a in anomalie %}<span class="prot-foglia prot-foglia-1" title="{{ a.descrizione }}"><span class="prot-ic is-{% if a.aperta %}fuori{% else %}nd{% endif %}" aria-hidden="true"></span>{{ a.descrizione|default:"Anomalia"|truncatechars:24 }}<span class="prot-n">{% if a.aperta %}aperta{% else %}chiusa{% endif %}</span></span>{% endfor %}
+        {% endif %}
+        {% if stesso_op %}
+        <h3>Stesso OP</h3>
+        {% for p in stesso_op %}<a class="prot-foglia prot-foglia-1" href="?pn={{ pn|urlencode }}&amp;sn={{ p.sn|urlencode }}"><span class="prot-ic is-{% if p.fuori %}fuori{% else %}ok{% endif %}" aria-hidden="true"></span>{{ p.sn }}<span class="prot-n">{{ p.data|date:"d/m"|default:"" }}</span></a>{% endfor %}
+        {% endif %}
+      </nav>
+      <div class="prot-tabella">
+        {% if righe %}
+        <table class="prot-tab prot-mat vista-u" data-fm-table-skip="1">
+          <thead><tr><th class="l">Quota</th>{% for c in intestazioni_fasi %}<th class="prot-mat-col"><a href="{% url 'produzione:report_cmm' c.r.id %}" title="{{ c.r.programma }}">{{ c.r.programma_base|default:"—"|truncatechars:34 }}{% if c.rimisura %} · R{% endif %}</a><span>{{ c.r.data|date:"d/m/y"|default:"—" }}</span></th>{% endfor %}{% if colonne|length > 1 %}<th>Δ ultimo − primo</th>{% endif %}</tr></thead>
+          {% for g in gruppi %}
           <tbody>
-            {% for riga in righe %}
+            <tr class="prot-gruppo"><th colspan="{{ colonne|length|add:2 }}" scope="rowgroup">{{ g.nome }} <span>· {{ g.righe|length }}</span></th></tr>
+            {% for riga in g.righe %}
             <tr>
-              <td><b>{{ riga.nome }}</b><div class="prod-sub">{{ riga.lsl|floatformat:4 }} – {{ riga.usl|floatformat:4 }}</div></td>
-              {% for v, colore in riga.celle %}<td class="prod-num{% if v.fuori %} is-fuori{% endif %}">{% if v %}{% if v.fuori %}<b>{{ v.x|floatformat:4 }}</b>{% else %}{{ v.x|floatformat:4 }}{% endif %}{% else %}<span class="prod-zero">—</span>{% endif %}</td>{% endfor %}
-              {% if colonne|length > 1 %}<td class="prod-num">{% if riga.delta is not None %}<span class="{% if riga.cambia and riga.delta > 0 %}prod-cmp-su{% elif riga.cambia %}prod-cmp-giu{% endif %}">{% if riga.delta >= 0 %}+{% endif %}{{ riga.delta|floatformat:4 }}</span>{% if riga.delta_pct is not None %}<div class="prod-sub">{% if riga.delta_pct >= 0 %}+{% endif %}{{ riga.delta_pct }}% toll.</div>{% endif %}{% else %}—{% endif %}</td>{% endif %}
-              <td><span class="prod-cmp-bar"><span class="prod-tolbar-zona"></span><span class="prod-tolbar-centro"></span>{% for v, colore in riga.celle %}{% if v and v.pos is not None %}<span class="prod-cmp-x" style="left:{{ v.pos|stringformat:'.0f' }}%;background:{{ colore }}"></span>{% endif %}{% endfor %}</span></td>
+              <td class="l"><b>{{ riga.nome }}</b><span class="prot-tipo prot-tipo-0">{{ riga.lsl|floatformat:4 }} – {{ riga.usl|floatformat:4 }}</span></td>
+              {% for v, c in riga.celle %}<td class="prot-cella">{% if v %}<a class="prot-liv is-{{ v.livello }}" href="{% url 'produzione:report_cmm' c.r.id %}#q-{{ v.i }}" title="{{ v.x|floatformat:4 }} · {% if v.u_pct is not None %}{{ v.u_pct }}% della tolleranza{% endif %}"><span class="v-u">{% if v.u_pct is not None %}{{ v.u_pct }}%{% else %}—{% endif %}</span><span class="v-dev">{% if v.dev > 0 %}+{% endif %}{{ v.dev|floatformat:4 }}</span><span class="v-x">{{ v.x|floatformat:4 }}</span></a>{% else %}<span class="prot-liv is-vuoto">—</span>{% endif %}</td>{% endfor %}
+              {% if colonne|length > 1 %}<td>{% if riga.delta is not None %}<span class="{% if riga.cambia and riga.delta > 0 %}prod-cmp-su{% elif riga.cambia %}prod-cmp-giu{% endif %}">{% if riga.delta >= 0 %}+{% endif %}{{ riga.delta|floatformat:4 }}</span>{% if riga.delta_pct is not None %}<span class="prot-tipo prot-tipo-0">{% if riga.delta_pct >= 0 %}+{% endif %}{{ riga.delta_pct }}% toll.</span>{% endif %}{% else %}—{% endif %}</td>{% endif %}
             </tr>
             {% endfor %}
           </tbody>
+          {% endfor %}
         </table>
+        {% else %}
+        <p class="prod-vuoto">Nessuna quota con questo filtro.</p>
+        {% endif %}
       </div>
-      {% else %}
-      <p class="prod-vuoto">Nessuna quota con questo filtro.</p>
-      {% endif %}
-    </section>
-    <section class="prod-card">
-      <div class="prod-card-head"><h2>Storia del pezzo</h2><span class="prod-nota">Report e anomalie, dal più recente</span></div>
-      <ol class="prod-cronologia">
-        {% for e in storia %}<li class="is-{{ e.tipo }}"><time>{{ e.quando|date:"d/m/Y"|default:"—" }}{% if e.op %} · {{ e.op }}{% endif %}</time><a href="{% url 'produzione:report_cmm' e.id %}">{{ e.testo }}</a><small>{{ e.esito }}</small></li>{% endfor %}
-      </ol>
-      {% if anomalie %}
-      <h3 class="prod-sottotitolo">Anomalie su questo S/N</h3>
-      <ul class="prod-dafare">
-        {% for a in anomalie %}<li class="{% if a.aperta %}is-allerta{% else %}is-attesa{% endif %}"><span class="prod-pallino"></span><b>{{ a.descrizione|default:"Anomalia"|truncatechars:70 }}</b><small>{% if a.op %}{{ a.op }} · {% endif %}{% if a.aperta %}aperta{% else %}chiusa{% endif %}</small></li>{% endfor %}
-      </ul>
-      {% endif %}
-    </section>
-  </div>
+    </div>
+    <div class="prot-legenda"><span><i class="lv-basso"></i>fino al 50%</span><span><i class="lv-medio"></i>50-80%</span><span><i class="lv-limite"></i>oltre l'80% (al limite)</span><span><i class="lv-fuori"></i>fuori</span><span class="prot-spazio"></span><span>Una colonna per report, dal più vecchio (R = rimisura) · clic su una cella: il report alla quota</span></div>
+  </section>
 </div>
+<script src="{% static 'produzione/js/protocollo.js' %}?v=20261126b" defer></script>
 {% endblock %}

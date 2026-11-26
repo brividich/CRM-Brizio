@@ -194,6 +194,16 @@ def _mappa_alias(pn: str) -> dict[tuple[str, str], tuple[str, str]]:
             for a in AliasQuotaCMM.objects.filter(pn=pn)}
 
 
+def _livello(fuori: bool, u: float | None) -> str:
+    """Colore della cella nella matrice del pezzo: fuori, al limite (oltre l'``AL_LIMITE``), oltre metà, sotto metà."""
+    if fuori:
+        return "fuori"
+    if u is None:
+        return "nd"
+    a = abs(u)
+    return "limite" if a > AL_LIMITE else ("medio" if a > 0.5 else "basso")
+
+
 def confronta(reports: list[ReportCMM], solo_cambiate: bool = False) -> dict:
     """Le quote dei report affiancate. Una riga per quota (nome + nominale); le quote unite in Analisi quote
     finiscono nella stessa riga anche fra programmi diversi. Per ogni riga: i valori, se sono fuori, la
@@ -210,10 +220,13 @@ def confronta(reports: list[ReportCMM], solo_cambiate: bool = False) -> dict:
             riga = righe.get(chiave)
             if riga is None:
                 riga = righe[chiave] = {"id": chiave, "nome": m.nome, "nominale": m.nominale, "lsl": m.nominale + m.tol_inf,
-                                        "usl": m.nominale + m.tol_sup, "ordine": (col, m.indice), "valori": [None] * len(reports)}
+                                        "usl": m.nominale + m.tol_sup, "ordine": (col, m.indice), "valori": [None] * len(reports),
+                                        "sezione": (m.sezione or "").strip()}
             if riga["valori"][col] is None:
-                riga["valori"][col] = {"x": m.misurato, "fuori": m.fuori,
-                                       "pos": _posizione(usata(m.misurato, m.nominale, m.nominale + m.tol_inf, m.nominale + m.tol_sup))}
+                u = usata(m.misurato, m.nominale, m.nominale + m.tol_inf, m.nominale + m.tol_sup)
+                riga["valori"][col] = {"x": m.misurato, "fuori": m.fuori, "i": m.indice, "dev": m.misurato - m.nominale,
+                                       "pos": _posizione(u), "u_pct": round(abs(u) * 100) if u is not None else None,
+                                       "livello": _livello(m.fuori, u)}
     out = []
     for riga in righe.values():
         presenti = [v for v in riga["valori"] if v]
@@ -354,11 +367,38 @@ def pezzo(pn: str, sn: str, solo: str = "") -> dict | None:
                        (f"{r.fuori} quot{'a' if r.fuori == 1 else 'e'} fuori" if r.fuori else "tutto in tolleranza"),
                        "op": r.op})
     storia.reverse()
-    stato = "fuori" if ultimo.fuori else "ok"
+    # esito del pezzo: l'ultimo report valido di ogni fase (le rimisure sostituiscono le misure prima)
+    ultimo_per_fase: dict[str, ReportCMM] = {}
+    for r in validi or reports:
+        ultimo_per_fase[r.programma_base] = r
+    fasi_ko = [f for f, r in ultimo_per_fase.items() if r.fuori]
+    stato = "fuori" if fasi_ko else "ok"
+    viste: dict[str, int] = {}
+    intestazioni = []
+    for r in reports:
+        viste[r.programma_base] = viste.get(r.programma_base, 0) + 1
+        if r in colonne:
+            intestazioni.append({"r": r, "rimisura": viste[r.programma_base] > 1,
+                                 "stato": "escluso" if r.escluso else ("fuori" if r.fuori else "ok")})
+    gruppi_righe: dict[str, dict] = {}
+    for riga in sorted(righe, key=lambda x: x["ordine"]):
+        g = gruppi_righe.setdefault(riga["sezione"] or "Senza gruppo", {"nome": riga["sezione"] or "Senza gruppo", "righe": []})
+        g["righe"].append(riga)
+    stesso_op = []
+    if ultimo.op:
+        visti_sn: dict[str, dict] = {}
+        for r in (ReportCMM.objects.filter(pn=pn, op__iexact=ultimo.op, righe__gt=0, escluso=False)
+                  .order_by("data", "id").only("seriale", "fuori", "data")[:MAX_REPORT_OP]):
+            k = chiave_seriale(r.seriale)
+            if k and k != chiave_seriale(ultimo.seriale):
+                visti_sn[k] = {"sn": r.seriale, "fuori": r.fuori, "data": r.data}
+        stesso_op = sorted(visti_sn.values(), key=lambda p: p["sn"])[:12]
     return {
         "pn": pn, "sn": ultimo.seriale or sn, "reports": reports, "colonne": colonne, "righe": righe, "totale": dati["totale"],
         "cambiate": dati["cambiate"], "n_fuori": sum(1 for r in dati["righe"] if r["fuori"]), "solo": solo, "ops": ops,
         "primo_articolo": primo_articolo, "anomalie": anomalie, "anomalie_aperte": sum(a["aperta"] for a in anomalie),
         "storia": storia, "stato": stato, "ultimo": ultimo, "esclusi": len(reports) - len(validi),
+        "fasi": len(ultimo_per_fase), "fasi_ko": fasi_ko, "intestazioni_fasi": intestazioni,
+        "gruppi": list(gruppi_righe.values()), "stesso_op": stesso_op,
         "nascosti": max(0, len(validi or reports) - MAX_FASI_PEZZO),
     }

@@ -174,14 +174,22 @@ class PezzoTests(QuoteBase):
         self.assertEqual(d["n_fuori"], 1)
         self.assertEqual(d["stato"], "ok")
         self.assertEqual(d["storia"][0]["testo"], "PCQF · rimisura")
+        self.assertEqual((d["fasi"], d["fasi_ko"]), (2, []))
+        self.assertEqual([c["rimisura"] for c in d["intestazioni_fasi"]], [False, False, True])
+        celle = {r["nome"]: [v["livello"] if v else None for v in r["valori"]] for r in d["righe"]}
+        self.assertEqual(celle["Ø40 H7"], ["basso", "fuori", "basso"])   # 40,010 = 20%, 40,030 fuori, 40,012 = 4%
+        self.assertEqual([p["sn"] for p in d["stesso_op"]], ["SN8"])          # gli altri pezzi dello stesso OP
         self.assertEqual([r["nome"] for r in pagine.pezzo("PN-ALFA-1", "SN7", "fuori")["righe"]], ["Ø40 H7"])
         self.assertIsNone(pagine.pezzo("PN-ALFA-1", "SN99"))
 
     def test_pagina_e_pdf(self):
         url = reverse("produzione:pezzo")
         r = self.client.get(url, {"pn": "pn-alfa-1", "sn": "SN7"})
-        self.assertContains(r, "Storia del pezzo")
+        self.assertContains(r, "Report del pezzo")
         self.assertContains(r, "Confronta le fasi")
+        self.assertContains(r, 'class="prot-timbro is-ok"')          # la rimisura PCQF sostituisce la misura fuori
+        self.assertContains(r, 'class="prot-liv is-fuori"')
+        self.assertContains(r, "PCQF · R")                           # colonna della rimisura
         self.assertEqual(self.client.get(url, {"pn": "PN-ALFA-1", "sn": "XX"}).status_code, 404)
         pdf = self.client.get(url, {"pn": "PN-ALFA-1", "sn": "SN7", "formato": "pdf"})
         self.assertEqual(pdf["Content-Type"], "application/pdf")

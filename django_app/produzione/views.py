@@ -712,7 +712,8 @@ def guida(request):
 @login_required
 @require_GET
 def pezzo(request):
-    """Pagina del pezzo (``?pn=&sn=``): tutti i suoi report, le quote fase per fase, la storia; ``formato=pdf``."""
+    """Pagina del pezzo (``?pn=&sn=``): esito, matrice quote × report (% di tolleranza, deviazione o valore), report,
+    storia e pezzi dello stesso OP; ``formato=pdf``."""
     pn = normalize_part_number(request.GET.get("pn") or "")
     sn = (request.GET.get("sn") or "").strip()
     dati = pagine_cmm.pezzo(pn, sn, request.GET.get("solo", "")) if pn and sn else None
@@ -726,10 +727,8 @@ def pezzo(request):
         resp = HttpResponse(contenuto, content_type="application/pdf")
         resp["Content-Disposition"] = f'attachment; filename="Scheda_pezzo_{pn}_{dati["sn"]}.pdf"'
         return resp
-    colori = ["#2563eb", "#0d9488", "#d97706", "#9333ea", "#db2777", "#4b5563"]
-    dati["intestazioni"] = [{"r": c, "colore": colori[i % len(colori)]} for i, c in enumerate(dati["colonne"])]
     for riga in dati["righe"]:
-        riga["celle"] = [(v, colori[i % len(colori)]) for i, v in enumerate(riga["valori"])]
+        riga["celle"] = list(zip(riga["valori"], dati["intestazioni_fasi"]))
     op = op_db.per_titolo(dati["ultimo"].op) if dati["ultimo"].op and op_db.disponibile() else None
     url_anomalia = ""
     if op:
