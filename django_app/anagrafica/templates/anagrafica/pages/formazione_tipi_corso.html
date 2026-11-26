@@ -86,10 +86,12 @@ body.theme-dark .tc-banner{background:rgba(214,158,46,.12);color:#fcd34d;border-
             </table>
           </div>
           {% if is_editor %}
-          <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-form" style="margin-top:12px;">
+          <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border:1px dashed var(--border,#d7e0ea);border-radius:10px;" title="MT CN 06 §9.5: vale per i corsi in aula che non hanno un tipo; il tipo e la regola del corso vincono">
             {% csrf_token %}<input type="hidden" name="azione" value="efficacia_senza_tipo">
-            <label title="MT CN 06 §9.5: vale per i corsi in aula che non hanno un tipo; il tipo e la regola del corso vincono">Corsi senza tipo: efficacia dopo (mesi, 0 = no)<input type="number" name="efficacia_mesi" min="0" max="36" value="{{ efficacia_senza_tipo }}" style="width:90px;"></label>
-            <button class="fmd-btn fmd-btn-ghost" type="submit">Salva</button>
+            <span style="font-size:13px;font-weight:600;">Corsi senza tipo: efficacia dopo</span>
+            <input type="number" name="efficacia_mesi" min="0" max="36" value="{{ efficacia_senza_tipo }}" class="fmd-select" style="width:80px;" aria-label="Mesi per i corsi senza tipo">
+            <span class="fmd-muted" style="font-size:12.5px;">mesi (0 = non richiesta)</span>
+            <button class="fmd-btn fmd-btn-ghost" type="submit" style="padding:5px 12px;">Salva</button>
           </form>
           <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-form" style="margin-top:12px;">
             {% csrf_token %}<input type="hidden" name="azione" value="crea">
