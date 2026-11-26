@@ -4861,6 +4861,25 @@ def api_anomalie_esito(request):
         )
     except Exception:
         logger.warning("api_anomalie_esito: timeline log fallita id=%s", local_id, exc_info=True)
+    # L'azione effettuata (e la chiusura) entra nel riepilogo delle modifiche dell'OP.
+    if tipo == AnomaliaEsito.Tipo.AZIONE:
+        try:
+            from anomalie.mail_action_service import register_pending_update
+
+            riga = (_fetch_all_dict("SELECT TOP 1 seriale, descrizione, avanzamento, note_capocommessa, aprire_rdc, "
+                                    "segnalare_cliente FROM anomalie WHERE id = %s", [local_id]) or [{}])[0]
+            register_pending_update(op_id=op_id, op_nominativo=op_id, modified_by=nome_utente, update_row={
+                "id": local_id, "seriale": str(riga.get("seriale") or ""),
+                "avanzamento": str(riga.get("avanzamento") or ""), "descrizione": str(riga.get("descrizione") or ""),
+                "note": str(riga.get("note_capocommessa") or ""), "dove_pezzi": _dove_pezzi_di(local_id),
+                "aprire_rdc": bool(riga.get("aprire_rdc")), "segnalare": bool(riga.get("segnalare_cliente")),
+                "chiudere": bool(chiudi),
+                "azione_effettuata": azione + (f" — {testo[:200]}" if testo else "")
+                                     + (" · pezzo riverificato conforme" if riverificato else ""),
+                "modified_by": nome_utente, "modified_by_legacy_id": int(legacy_user.id) if legacy_user else None,
+            })
+        except Exception:
+            logger.warning("api_anomalie_esito: riepilogo non accodato id=%s", local_id, exc_info=True)
     try:
         from anomalie.qualita_service import sync_da_anomalia
         with transaction.atomic():

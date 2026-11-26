@@ -131,3 +131,39 @@ class SalvaChiusureTests(_TabellaAnomalieMixin, TestCase):
         self.assertEqual(_fetch_sqlite("SELECT avanzamento FROM anomalie WHERE id = %s", [self.aid])[0]["avanzamento"],
                          "In attesa")
         self.assertEqual(AnomaliaRichiestaInfo.objects.filter(risposta_il__isnull=True).count(), 1)
+
+
+class RiepilogoChiusaTests(TestCase):
+    """Mail «Aggiornamento anomalie»: dice se l'anomalia è chiusa, anche se la chiusura è
+    arrivata dopo il salvataggio messo in coda (es. «Registra e chiudi» in «Tempi ed esiti»)."""
+
+    def _invia(self, righe_live, updates):
+        from django.core import mail
+
+        from anomalie.mail_action_service import send_anomalie_update_confirmation
+
+        with patch("automazioni.services._resolve_op_recipients", return_value=[]), \
+             patch("anomalie.mail_action_service._resolve_segnalante_email", return_value=("op@example.local", "Op")), \
+             patch("anomalie.mail_action_service._resolve_lista_fissa_conferma", return_value=[]), \
+             patch("anomalie.mail_action_service._fetch_pn_for_ops", return_value={}), \
+             patch("anomalie.views._fetch_all_dict", return_value=righe_live):
+            self.assertTrue(send_anomalie_update_confirmation(op_id=OP, op_nominativo=OP, anomalie_rows=[],
+                                                              updates_summary=updates))
+        return mail.outbox[-1]
+
+    def test_chiusura_arrivata_dopo_la_coda(self):
+        msg = self._invia([{"id": 320, "chiudere": 1, "avanzamento": "Azione di recupero"}],
+                          [{"id": 320, "seriale": "SN-1", "avanzamento": "Azione di recupero", "chiudere": False,
+                            "azione_effettuata": "Riparazione · pezzo riverificato conforme"}])
+        self.assertTrue(msg.subject.endswith("· 1 chiusa"), msg.subject)
+        self.assertIn("[Chiusa]", msg.body)
+        self.assertIn("Azione effettuata: Riparazione", msg.body)
+        html = msg.alternatives[0][0]
+        self.assertIn("Anomalia chiusa", html)
+        self.assertIn("Chiusa", html)
+
+    def test_riaperta_dopo_la_coda_non_risulta_chiusa(self):
+        msg = self._invia([{"id": 321, "chiudere": 0, "avanzamento": "In attesa"}],
+                          [{"id": 321, "seriale": "SN-2", "avanzamento": "Accetto lo stato", "chiudere": True}])
+        self.assertNotIn("chius", msg.subject)
+        self.assertNotIn("[Chiusa]", msg.body)

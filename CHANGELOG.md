@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Gestione anomalie: la mail «Aggiornamento anomalie» dice se l'anomalia è chiusa
+
+- Il riepilogo usava la «fotografia» del salvataggio messo in coda: una chiusura arrivata dopo («Registra e chiudi» in «Tempi ed esiti», decisione qualità) non compariva (caso OP/2026/2291, 26/11). Ora all'invio chiusa e stato di avanzamento si leggono dalla tabella (`mail_action_service._stato_attuale`); l'oggetto aggiunge «· N chiusa/e», il testo «Chiuse: N di M», la mail il bollino «Anomalia chiusa».
+- L'azione effettuata registrata in «Tempi ed esiti» entra nel riepilogo dell'OP con la riga «Azione effettuata: …» (anche senza altre modifiche).
+- Lo stato ripreso alla chiusura (`chiusura_service.ultima_decisione`, migrazione 0035) considera solo le azioni che scrivono lo stato di avanzamento, non il tipo di intervento.
+- Tolto il «·» in più dopo il P/N nell'intestazione.
+- File: `django_app/anomalie/mail_action_service.py`, `views.py` (`api_anomalie_esito`), `chiusura_service.py`, `migrations/0035_chiusure_stato_richieste.py`, `templates/anomalie/email/anomalie_update_confirmation.html`, `tests_chiusure.py`.
+
 ### Prestazioni: «Ruoli e permessi» non si blocca più sulla matrice
 
 - `core/acl_capability.py`: `capability_index()` tiene in cache (impronta del catalogo, indice); l'impronta (totale, attivi e ultimo `updated_at` di permessi e binding) rinnova l'indice appena cambia il catalogo, senza attendere i 300 s. Chiave `acl_capability_index_v3`.
