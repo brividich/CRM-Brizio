@@ -34,6 +34,7 @@ from . import views_account
 from . import views_admin_hub
 from . import views_formazione_integrita
 from . import views_ricerca
+from . import views_organigramma_ufficiale as views_org_uff
 
 app_name = "anagrafica"
 
@@ -466,6 +467,17 @@ urlpatterns = [
          name="coerenza_capi_eccezione"),
     path("organigramma/albero/", views.organigramma_albero, name="organigramma_albero"),
     path("organigramma/diagramma/", views.organigramma_diagramma, name="organigramma_diagramma"),
+    # Organigrammi ufficiali disegnati a mano (non toccano ruoli e assegnazioni)
+    path("organigramma/ufficiale/", views_org_uff.organigramma_ufficiale, name="organigramma_ufficiale"),
+    path("organigramma/ufficiale/nuovo/", views_org_uff.organigramma_ufficiale_nuovo, name="organigramma_ufficiale_nuovo"),
+    path("organigramma/ufficiale/<int:pk>/", views_org_uff.organigramma_ufficiale_vedi, name="organigramma_ufficiale_vedi"),
+    path("organigramma/ufficiale/<int:pk>/stampa/", views_org_uff.organigramma_ufficiale_stampa, name="organigramma_ufficiale_stampa"),
+    path("organigramma/ufficiale/<int:pk>/disegna/", views_org_uff.organigramma_ufficiale_disegna, name="organigramma_ufficiale_disegna"),
+    path("organigramma/ufficiale/<int:pk>/modifica/", views_org_uff.organigramma_ufficiale_modifica, name="organigramma_ufficiale_modifica"),
+    path("organigramma/ufficiale/<int:pk>/pubblica/", views_org_uff.organigramma_ufficiale_pubblica, name="organigramma_ufficiale_pubblica"),
+    path("organigramma/ufficiale/<int:pk>/scarta/", views_org_uff.organigramma_ufficiale_scarta, name="organigramma_ufficiale_scarta"),
+    path("organigramma/ufficiale/<int:pk>/api/bozza/", views_org_uff.organigramma_ufficiale_bozza, name="organigramma_ufficiale_bozza"),
+    path("organigramma/ufficiale/<int:pk>/api/riepilogo/", views_org_uff.organigramma_ufficiale_riepilogo, name="organigramma_ufficiale_riepilogo"),
 
     # Report conformità "idoneità alla mansione" (semaforo per dominio)
     path("conformita/", views.conformita_report, name="conformita_report"),

@@ -316,12 +316,13 @@ GUIDA = {
         },
         {
             "id": "organigramma-viste",
-            "titolo": "Organigramma: una pagina, quattro viste",
+            "titolo": "Organigramma: una pagina, cinque viste",
             "blocchi": [
                 ("def", [
                     ("Elenco", "reparti, aree, capi e persone in forza."),
                     ("Albero", "la gerarchia dei ruoli operativi («riporta a»)."),
                     ("Diagramma", "una tessera per posizione, da stampare."),
+                    ("Ufficiale", "gli organigrammi disegnati a mano e pubblicati con revisione (vedi sotto)."),
                     ("Rischi", "i gruppi omogenei del DVR per mansione di rischio."),
                 ]),
                 ("p", "Il selettore in alto passa da una vista all'altra; i collegamenti salvati continuano a funzionare."),
@@ -338,6 +339,43 @@ GUIDA = {
                 ("p", "«Cerca persona o ruolo…» evidenzia le tessere che contengono il testo (bastano 2 lettere): Invio o "
                       "› va alla successiva, apre i rami chiusi e centra la tela; Maiusc+Invio o ‹ torna indietro, Esc "
                       "svuota la ricerca."),
+            ],
+        },
+        {
+            "id": "organigramma-ufficiale",
+            "titolo": "Organigramma ufficiale: disegnarlo, pubblicarlo, stamparlo",
+            "blocchi": [
+                ("p", "Il «Diagramma» è calcolato dai dati; l'organigramma «Ufficiale» invece lo disegni tu, come in Word, "
+                      "e lo pubblichi con numero di revisione. Il disegno non cambia ruoli, «Riporta a», assegnazioni, capi "
+                      "né permessi: li legge soltanto per nomi, foto e avvisi."),
+                ("ul", [
+                    "«＋ Nuovo organigramma»: nome, descrizione e, se vuoi, l'ambito dei ruoli (Produttivo, ISO 45001…). "
+                    "Puoi averne più di uno.",
+                    "«✎ Disegna» apre la tela sulla bozza. A sinistra le schede Ruoli, Persone, Mansioni e Testo libero: "
+                    "trascina un elemento sulla tela (o cliccalo per metterlo al centro). Un ruolo con una sola persona "
+                    "porta anche il suo nome; un ruolo con più persone mostra quante sono.",
+                    "Riquadri: si spostano trascinandoli, si ridimensionano col quadratino in basso a destra. A destra "
+                    "scegli ruolo, persona, mansione, testo mostrato, colore e stile (Pieno, Bordo, Tratteggio).",
+                    "Collegamenti: seleziona il riquadro, «🔗 Collega», poi clicca quello superiore; oppure scegli «Sotto» "
+                    "a destra. «Linea di staff» la rende tratteggiata e di fianco (RSPP, medico, consulenti).",
+                    "Gruppi («team»): «⬚ Nuovo gruppo» e trascinaci dentro i riquadri; spostando il gruppo si sposta tutto.",
+                    "Ogni modifica si salva da sola in bozza («Salvato in bozza alle …»). Ctrl+Z annulla, Ctrl+Y ripete, "
+                    "Canc toglie il riquadro scelto, le frecce lo spostano di 10 px, Ctrl+rotella fa lo zoom.",
+                ]),
+                ("p", "«☰ Riepilogo modifiche» elenca cosa cambia rispetto alla revisione in vigore: aggiunto, spostato, "
+                      "rinominato, modificato, tolto e «solo grafica». «Pubblica…» chiede nota di revisione, «Approvato da» "
+                      "e data di emissione, e crea la revisione successiva: da quel momento tutti vedono quella. Le "
+                      "revisioni vecchie restano nello «Storico revisioni», con «Confronta»."),
+                ("p", "«⚠ avvisi» segnala dove il disegno non corrisponde più al portale: persona cessata, persona che "
+                      "nella scheda non ha il ruolo del riquadro, ruolo o mansione eliminati o disattivati, e, se hai "
+                      "scelto un ambito, i ruoli di quell'ambito con persone ma non disegnati. Gli avvisi non bloccano la "
+                      "pubblicazione e non correggono niente."),
+                ("p", "«⬇ PDF A3» / «A4» apre la pagina di stampa col cartiglio (documento, revisione, approvato da, note): "
+                      "«Stampa / Salva PDF» e scegli «Salva come PDF» in orizzontale. Dalla tela, «Anteprima PDF» stampa "
+                      "la bozza con la scritta «BOZZA NON PUBBLICATA»."),
+                ("nota", "Vedere gli organigrammi ufficiali segue il permesso del Diagramma; disegnare e pubblicare spetta a "
+                         "chi gestisce l'anagrafica (stesso permesso della modifica dei ruoli). «Scarta bozza» torna alla "
+                         "revisione in vigore; «⚙ Dati» → «Archivia» toglie l'organigramma dall'elenco."),
             ],
         },
         {
