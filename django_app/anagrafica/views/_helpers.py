@@ -77,17 +77,14 @@ def _file_field_url(file_field) -> str:
 def _cessati_legacy_ids() -> set[int]:
     """Insieme dei ``legacy_anagrafica_id`` con rapporto cessato (ex dipendenti).
 
-    Un dipendente è considerato ex dipendente quando l'anagrafica aziendale ha
-    una ``data_cessazione`` valorizzata. Questi nominativi restano a sistema con
-    il fascicolo completo ma sono esclusi dalla lista dipendenti in forza.
+    Regola unica in ``services.in_forza.cessati_ids``: cessazione del rapporto
+    corrente (una riassunzione successiva la annulla) già passata. Questi
+    nominativi restano a sistema con il fascicolo completo ma sono esclusi dalla
+    lista dipendenti in forza.
     """
-    return {
-        int(lid)
-        for lid in DipendenteAnagraficaAziendale.objects
-        .filter(data_cessazione__isnull=False)
-        .values_list("legacy_anagrafica_id", flat=True)
-        if lid
-    }
+    from ..services.in_forza import cessati_ids
+
+    return cessati_ids()
 
 
 def _audit_safe(request, azione: str, modulo: str, dettaglio: dict | None = None) -> None:
@@ -655,7 +652,7 @@ def _impostazioni_admin_check(request, tab: str | None = None):
 # ---------------------------------------------------------------------------
 
 # Le visite mediche hanno regole proprie: finestra «in scadenza» a 60 giorni.
-GIORNI_PREAVVISO_VISITE = 60
+from ..scadenze_soglie import GIORNI_PREAVVISO_VISITE  # noqa: E402
 
 
 def _build_scadenzario_voci(
@@ -1257,3 +1254,34 @@ def con_back(url: str, back: str) -> str:
     from urllib.parse import quote
 
     return f"{url}{'&' if '?' in url else '?'}back={quote(back, safe='')}"
+
+
+def _ambito_visibili(request) -> set[int] | None:
+    """Schede che il ruolo può vedere (id anagrafica), None = tutte.
+
+    Per le pagine globali (dashboard e scadenzario formazione, copertura, export):
+    stesso ambito propri/team/tutti dell'elenco dipendenti, solo con i ruoli attivi.
+    """
+    if not _ruoli_attivi():
+        return None
+    from .dipendenti import _schede_visibili
+
+    return _schede_visibili(request)
+
+
+def _filtra_ambito(qs, visibili: set[int] | None, campo: str = "legacy_anagrafica_id"):
+    """``qs`` ristretto alle schede ``visibili`` (None = nessun filtro).
+
+    Filtro a blocchi di 1000 id (limite parametri di SQL Server).
+    """
+    if visibili is None:
+        return qs
+    ids = sorted(visibili)
+    if not ids:
+        return qs.none()
+    from django.db.models import Q
+
+    cond = Q()
+    for i in range(0, len(ids), 1000):
+        cond |= Q(**{f"{campo}__in": ids[i:i + 1000]})
+    return qs.filter(cond)

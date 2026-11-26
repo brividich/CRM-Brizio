@@ -340,7 +340,7 @@ def annulla_piano(assegnazione, *, motivo: str, user=None) -> int:
     return annullati
 
 
-def _soddisfatto(adempimento, ctx, persona) -> str:
+def _soddisfatto(adempimento, ctx, persona, completamenti=None) -> str:
     """Motivo di chiusura automatica, o stringa vuota se l'adempimento e' ancora da fare."""
     return requisito_soddisfatto(
         adempimento.tipo, adempimento.riferimento_id, ctx=ctx, persona=persona,
@@ -348,16 +348,21 @@ def _soddisfatto(adempimento, ctx, persona) -> str:
         # dalla data di registrazione (vale la piu' vecchia delle due).
         dal=min(adempimento.assegnazione.created_at.date(), adempimento.assegnazione.data_inizio),
         mansione=adempimento.assegnazione.mansione, entro=adempimento.entro_il,
+        completamenti=completamenti,
     )
 
 
 def requisito_soddisfatto(tipo_voce: str, riferimento_id: int | None, *, ctx, persona,
-                          dal: date, mansione: str, entro: date | None = None) -> str:
+                          dal: date, mansione: str, entro: date | None = None,
+                          completamenti: dict | None = None) -> str:
     """Verifica condivisa (piano cambio mansione e onboarding): motivo di chiusura
     automatica, o stringa vuota se il requisito e' ancora da soddisfare.
 
     ``tipo_voce`` e' uno fra VISITA / FORMAZIONE / DPI / SDS; ``dal`` e' la data
     da cui una visita generica conta (nascita della voce, con tolleranza).
+
+    ``completamenti``: ``requisiti.ultimi_completamenti`` già calcolato per tutte le
+    persone del giro (una query invece di una per voce di formazione).
     """
     from ..models import AdempimentoCambioMansione as A, TipoVisitaMedica, VisitaMedica
 
@@ -387,7 +392,9 @@ def requisito_soddisfatto(tipo_voce: str, riferimento_id: int | None, *, ctx, pe
     if tipo_voce == A.TIPO_FORMAZIONE:
         if riferimento_id is None:
             return ""  # informazione/formazione generica: si chiude a mano
-        ultimo = requisiti.ultimi_completamenti(ctx, {persona.id: persona}).get((persona.id, riferimento_id))
+        if completamenti is None:
+            completamenti = requisiti.ultimi_completamenti(ctx, {persona.id: persona})
+        ultimo = completamenti.get((persona.id, riferimento_id))
         if ultimo and (ultimo[1] is None or ultimo[1] >= max(oggi, entro or oggi)):
             return f"Corso completato il {ultimo[0]:%d/%m/%Y}"
         return ""
@@ -419,13 +426,16 @@ def aggiorna_piani(legacy_ids=None) -> dict[str, int]:
         return {"controllati": 0, "chiusi": 0}
     ctx = requisiti.ambito()
     tutti = {d.id: d for d in ctx._tutti()}
+    # Ultimi completamenti di tutte le persone del giro, una volta sola (prima una query per voce).
+    coinvolte = {p.id: p for p in (tutti.get(ctx.canonico(a.legacy_anagrafica_id)) for a in aperti) if p}
+    completamenti = requisiti.ultimi_completamenti(ctx, coinvolte) if coinvolte else {}
     chiusi = 0
     for adempimento in aperti:
         persona = tutti.get(ctx.canonico(adempimento.legacy_anagrafica_id))
         if persona is None:
             continue
         try:
-            motivo = _soddisfatto(adempimento, ctx, persona)
+            motivo = _soddisfatto(adempimento, ctx, persona, completamenti)
         except Exception:
             logger.exception("verifica adempimento %s fallita", adempimento.pk)
             continue

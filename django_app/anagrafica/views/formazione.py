@@ -783,7 +783,7 @@ _COPERTURA_SEGMENTI = {
 }
 
 
-def _copertura_corsi_obbligatori(oggi, filtro_centro=None) -> list[dict]:
+def _copertura_corsi_obbligatori(oggi, filtro_centro=None, visibili=None) -> list[dict]:
     """Una riga per corso con scadenze obbligatorie: quante persone sono in regola,
     in scadenza, scadute o mai formate (dalla cache TrainingDeadline, come i KPI)
     e la prossima sessione pianificata. Ordinata dal corso più scoperto."""
@@ -791,6 +791,7 @@ def _copertura_corsi_obbligatori(oggi, filtro_centro=None) -> list[dict]:
     base = TrainingDeadline.objects.filter(is_required=True)
     if filtro_centro is not None:
         base = filtro_centro.applica(base)
+    base = _helpers._filtra_ambito(base, visibili)
     righe = base.values("corso_id", "stato_scadenza").annotate(n=Count("id")).order_by()
     for r in righe:
         segmento = _COPERTURA_SEGMENTI.get(r["stato_scadenza"])
@@ -861,13 +862,17 @@ def formazione_dashboard(request):
 
     oggi = _tz.localdate()
     filtro_centro = centro_filtro.leggi(request)
-    scadenze_qs = filtro_centro.applica(TrainingDeadline.objects.all())
+    # Ambito del ruolo (propri/team/tutti), come elenco dipendenti e scadenzario.
+    visibili = _helpers._ambito_visibili(request)
+    scadenze_qs = _helpers._filtra_ambito(filtro_centro.applica(TrainingDeadline.objects.all()), visibili)
 
     # KPI da TrainingEmployeeRecord (non dipende dalla cache): solo persone in forza,
     # gli ex dipendenti restano nello storico ma non sono «dipendenti con formazione».
+    # Solo completamenti con esito idoneo (un «non idoneo» non è formazione fatta).
     cessati = _helpers._cessati_legacy_ids()
     kpi_dipendenti_formazione = len({
-        lid for lid in filtro_centro.applica(TrainingEmployeeRecord.objects.all())
+        lid for lid in _helpers._filtra_ambito(
+            filtro_centro.applica(TrainingEmployeeRecord.objects.filter(idoneo=True)), visibili)
         .values_list("legacy_anagrafica_id", flat=True).distinct()
         if lid and lid not in cessati
     })
@@ -902,7 +907,7 @@ def formazione_dashboard(request):
         d.giorni = (d.data_scadenza - oggi).days if d.data_scadenza else None
 
     deadline_cache_empty = not TrainingDeadline.objects.exists()
-    copertura_corsi = _copertura_corsi_obbligatori(oggi, filtro_centro)
+    copertura_corsi = _copertura_corsi_obbligatori(oggi, filtro_centro, visibili)
     # Nessuna scadenza obbligatoria nella cache calcolata = nessun obbligo configurato
     # (non «tutti in regola»): stessa logica della pagina Copertura.
     nessun_obbligo = not deadline_cache_empty and not TrainingDeadline.objects.filter(is_required=True).exists()
@@ -4755,6 +4760,7 @@ def formazione_scadenzario(request):
         .select_related("corso", "corso__piano")
         .order_by("stato_scadenza", "data_scadenza", "legacy_anagrafica_id")
     )
+    base_qs = _helpers._filtra_ambito(base_qs, _helpers._ambito_visibili(request))
 
     if filtro_corso:
         try:
@@ -4850,6 +4856,7 @@ def formazione_copertura(request):
     info: dict = {}
     corsi_all, reparti, tutte = righe_gap_formativo(
         filtro_reparto=filtro_reparto, filtro_corso=filtro_corso, filtro_stato="", info=info,
+        visibili=_helpers._ambito_visibili(request),
     )
     righe = [r for r in tutte if r["stato"] == filtro_stato] if filtro_stato else tutte
 
@@ -4941,6 +4948,10 @@ def formazione_ccnl_dipendente_espansione(request, legacy_id: int):
     """Frammento HTMX: i corsi del dipendente nel periodo, dentro la riga espansa."""
     if not _helpers._can_view_formazione(request):
         return HttpResponse(status=403)
+    from .dipendenti import _nega_scheda
+
+    if (negata := _nega_scheda(request, legacy_id)) is not None:
+        return negata
 
     from ..services.formazione_ccnl import corsi_dipendente_nel_periodo
 
@@ -4988,6 +4999,11 @@ def formazione_plan(request, legacy_id: int | None = None):
     if not _helpers._can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
         return redirect("anagrafica:index")
+    if legacy_id is not None:
+        from .dipendenti import _nega_scheda
+
+        if (negata := _nega_scheda(request, legacy_id)) is not None:
+            return negata
 
     from datetime import timedelta
     import calendar as _calendar

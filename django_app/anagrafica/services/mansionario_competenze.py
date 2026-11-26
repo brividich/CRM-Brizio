@@ -150,8 +150,7 @@ class Requisiti:
     """
 
     def __init__(self, legacy_ids, voci, *, oggi=None):
-        from ..models import DipendenteQualifica, TrainingDeadline
-        from .skillmatrix_qualifica import _STATI_VALIDI
+        from ..models import DipendenteQualifica
 
         self.oggi = oggi or timezone.localdate()
         ids = {int(i) for i in legacy_ids if i}
@@ -165,12 +164,9 @@ class Requisiti:
         if not ids:
             return
         if corsi:
-            self.corsi_ok = {
-                (lid, cid) for lid, cid, stato in TrainingDeadline.objects.filter(
-                    legacy_anagrafica_id__in=ids, corso_id__in=corsi,
-                ).values_list("legacy_anagrafica_id", "corso_id", "stato_scadenza")
-                if stato in _STATI_VALIDI
-            }
+            # Completamenti reali (regola unica di formazione_completamento), non la cache.
+            from .formazione_completamento import ids_con_completamento_valido_multi
+            self.corsi_ok = ids_con_completamento_valido_multi(corsi, ids, oggi=self.oggi)
         if qualifiche:
             self.qualifiche_ok = {
                 (lid, tid) for lid, tid, scad in DipendenteQualifica.objects.filter(

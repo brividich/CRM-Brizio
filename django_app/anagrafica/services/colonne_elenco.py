@@ -186,7 +186,8 @@ def _carica_formazione(ids, _campi):
 
     out = {}
     for blocco in _blocchi(ids):
-        for r in (TrainingDeadline.objects.filter(legacy_anagrafica_id__in=blocco).order_by()
+        # Solo corsi obbligatori, come la tessera della scheda e lo scadenzario.
+        for r in (TrainingDeadline.objects.filter(legacy_anagrafica_id__in=blocco, is_required=True).order_by()
                   .values("legacy_anagrafica_id")
                   .annotate(scaduti=Count("pk", filter=Q(stato_scadenza="SCADUTO")),
                             in_scadenza=Count("pk", filter=Q(stato_scadenza__in=["IN_SCADENZA_30", "IN_SCADENZA_90"])))):

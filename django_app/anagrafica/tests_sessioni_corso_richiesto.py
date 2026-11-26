@@ -47,6 +47,12 @@ class _Scenario(_ScenarioSessioni):
         return iscrizione
 
     def _valido(self):
+        # Requisito formale = completamento reale valido (regola unica, non la cache).
+        from .models_formazione import TrainingEmployeeRecord
+        TrainingEmployeeRecord.objects.create(
+            corso=self.corso, legacy_anagrafica_id=self.rossi, idoneo=True,
+            data_completamento=timezone.localdate() - timedelta(days=10),
+            data_scadenza=timezone.localdate() + timedelta(days=3650))
         TrainingDeadline.objects.update_or_create(
             legacy_anagrafica_id=self.rossi, corso=self.corso,
             defaults={"is_required": True, "stato_scadenza": "UNA_TANTUM",
@@ -98,6 +104,9 @@ class RequisitoFormaleTests(_Scenario):
         s = self._aperta()
         self._valuta_tutto(s)
         TrainingDeadline.objects.filter(legacy_anagrafica_id=self.rossi, corso=self.corso).update(stato_scadenza="SCADUTO")
+        from .models_formazione import TrainingEmployeeRecord
+        TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=self.rossi, corso=self.corso).update(
+            data_scadenza=timezone.localdate() - timedelta(days=1))
         self.assertIn("«Misure»: manca il requisito formale", svc.motivo_non_firma_approvatore(self.rdd, s))
         self.assertIn("«Misure»: manca il requisito formale", svc.motivo_non_chiude(self.hr, s))
         self.assertEqual([r.voce for r, _ in svc.righe_senza_requisito(s)], [self.v_misure])
