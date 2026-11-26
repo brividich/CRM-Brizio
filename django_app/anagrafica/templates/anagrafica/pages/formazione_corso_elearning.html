@@ -133,7 +133,7 @@
       {# Moduli: raggruppano le slide (lezioni) nell'indice del player #}
       <div class="fm-import-box">
         <div class="fmd-block-title" style="font-size:13px;margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-book"/></svg> Moduli <span class="fmd-count">{{ moduli|length }}</span></div>
-        <p class="fmd-fhelp" style="margin:0 0 10px;">Un modulo è una presentazione (o un gruppo di video). Il discente vede l'indice diviso in moduli e può consultarli liberamente. <strong>Nel percorso</strong>: il modulo va seguito in ordine per aprire il quiz; se lo togli, resta solo da consultare. La sequenza resta quella dell'ordine delle slide: assegna a un modulo slide consecutive.</p>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">Un modulo è una presentazione (o un gruppo di video). Il discente vede l'indice diviso in moduli e può consultarli liberamente. <strong>Nel percorso</strong>: il modulo va seguito in ordine per aprire il quiz; se lo togli, resta solo da consultare. La sequenza resta quella dell'ordine delle slide: assegna a un modulo slide consecutive. <strong>Video o slide a scelta</strong>: metti il video in un modulo «Solo percorso video» e le slide in uno «Solo percorso slide»; all'inizio il discente sceglie «Guarda il video» o «Segui le slide», poi fa lo stesso quiz. I moduli «Per tutti» li vedono tutti.</p>
         {% for m in moduli %}
         <div class="fm-opt-row">
           <form method="post" action="{% url 'anagrafica:formazione_modulo_save' corso.pk %}" style="display:contents;">
@@ -142,6 +142,11 @@
             <input class="fm-input" type="text" name="titolo" value="{{ m.titolo }}" maxlength="200" aria-label="Titolo del modulo">
             <input type="hidden" name="obbligatorio_presente" value="1">
             <label style="display:inline-flex;gap:5px;align-items:center;font-size:12px;white-space:nowrap;" title="Se tolto, il modulo è solo da consultare: non serve per aprire il quiz"><input type="checkbox" name="obbligatorio" value="1"{% if m.obbligatorio %} checked{% endif %}> Nel percorso</label>
+            <select class="fm-input" name="alternativa" style="max-width:190px;" aria-label="Per chi è il modulo" title="Con un modulo «Solo percorso video» e uno «Solo percorso slide» il discente sceglie all'inizio">
+              <option value=""{% if not m.alternativa %} selected{% endif %}>Per tutti</option>
+              <option value="VIDEO"{% if m.alternativa == "VIDEO" %} selected{% endif %}>Solo percorso video</option>
+              <option value="SLIDE"{% if m.alternativa == "SLIDE" %} selected{% endif %}>Solo percorso slide</option>
+            </select>
             <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Salva</button>
           </form>
           <form method="post" action="{% url 'anagrafica:formazione_modulo_delete' corso.pk m.pk %}" data-hub-confirm="Eliminare il modulo? Le slide restano.">

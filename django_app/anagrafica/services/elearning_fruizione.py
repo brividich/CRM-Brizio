@@ -78,13 +78,50 @@ def assegnato(corso, legacy_id: int) -> bool:
     ).exists()
 
 
-def slides_percorso(corso):
+VIDEO, SLIDE = "VIDEO", "SLIDE"
+
+
+def percorsi_a_scelta(corso) -> bool:
+    """True se nel percorso c'è almeno un modulo «Solo percorso video» e uno «Solo percorso slide»."""
+    if corso is None:
+        return False
+    alt = set(corso.moduli_elearning.filter(obbligatorio=True).exclude(alternativa="")
+              .values_list("alternativa", flat=True))
+    return {VIDEO, SLIDE} <= alt
+
+
+def info_percorsi(corso) -> dict:
+    """Numeri per i due pulsanti della scelta: slide del percorso slide, video e minuti del percorso video."""
+    out = {}
+    for scelta in (VIDEO, SLIDE):
+        elenco = list(slides_percorso(corso, scelta))
+        secondi = sum(int(s.video_durata_secondi or 0) for s in elenco if s.tipo == "VIDEO")
+        out[scelta] = {"n": len(elenco), "n_video": sum(1 for s in elenco if s.tipo == "VIDEO"),
+                       "minuti": (secondi + 59) // 60}
+    return out
+
+
+def slides_percorso(corso, scelta: str = ""):
     """Slide del percorso guidato: attive, senza modulo o in un modulo «Nel percorso».
 
-    I moduli tolti dal percorso restano da consultare e non servono per il quiz."""
+    I moduli tolti dal percorso restano da consultare e non servono per il quiz. Se il corso offre
+    video o slide a scelta, i moduli dell'altro percorso si saltano (senza scelta vale il percorso slide)."""
     from django.db.models import Q
-    return (corso.slides.filter(is_active=True).filter(Q(modulo__isnull=True) | Q(modulo__obbligatorio=True))
-            .select_related("modulo").order_by("ordine", "pk"))
+    qs = (corso.slides.filter(is_active=True).filter(Q(modulo__isnull=True) | Q(modulo__obbligatorio=True))
+          .select_related("modulo").order_by("ordine", "pk"))
+    if percorsi_a_scelta(corso):
+        qs = qs.exclude(modulo__alternativa=SLIDE if scelta == VIDEO else VIDEO)
+    return qs
+
+
+def percorso_di(corso, legacy_id) -> str:
+    """Percorso scelto dal discente nel ciclo corrente ('' se non ha scelto)."""
+    if not legacy_id:
+        return ""
+    from ..models_formazione import TrainingElearningEnrollment
+    return (TrainingElearningEnrollment.objects
+            .filter(corso=corso, legacy_anagrafica_id=legacy_id, ciclo=ciclo_corrente(corso, legacy_id))
+            .values_list("percorso", flat=True).first()) or ""
 
 
 def video_mancante(slide, secondi_visti: int, durata_browser: int = 0) -> int:
@@ -97,8 +134,8 @@ def video_mancante(slide, secondi_visti: int, durata_browser: int = 0) -> int:
     return max(int(durata * 0.9) - int(secondi_visti or 0), 0)
 
 
-def ordini_slide(corso) -> list[int]:
-    return list(slides_percorso(corso).values_list("ordine", flat=True))
+def ordini_slide(corso, scelta: str = "") -> list[int]:
+    return list(slides_percorso(corso, scelta).values_list("ordine", flat=True))
 
 
 def slide_consentita(enr, ordine: int, ordini: list[int]) -> bool:

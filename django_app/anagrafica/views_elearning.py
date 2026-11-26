@@ -194,7 +194,24 @@ def formazione_online_player(request, corso_id: int):
     accesso = fruizione.accesso_discente(corso, legacy_id, is_editor=is_editor)
     if not accesso.consentito:
         return _nega(request, accesso.motivo or "Corso non disponibile.")
-    slides = list(fruizione.slides_percorso(corso))
+    a_scelta = fruizione.percorsi_a_scelta(corso)
+    # L'anteprima dell'autore mostra il percorso slide.
+    scelta = fruizione.percorso_di(corso, legacy_id) if a_scelta and not accesso.anteprima else ""
+    if a_scelta and not accesso.anteprima and legacy_id:
+        if request.method == "POST":
+            nuova = request.POST.get("percorso") or ""
+            if nuova in (fruizione.VIDEO, fruizione.SLIDE):
+                enr = fruizione.iscrizione(corso, legacy_id, len(fruizione.ordini_slide(corso, nuova)))
+                if not enr.percorso or not enr.ultima_slide_ordine:
+                    enr.percorso = nuova
+                    enr.save(update_fields=["percorso", "updated_at"])
+            return redirect("anagrafica:formazione_online_player", corso_id=corso.pk)
+        if not scelta or request.GET.get("cambia") == "1":
+            enr_ora = fruizione.iscrizione(corso, legacy_id, len(fruizione.ordini_slide(corso, scelta)))
+            if not scelta or not enr_ora.ultima_slide_ordine:
+                return render(request, "anagrafica/pages/formazione_online_percorso.html", {
+                    "corso": corso, "info": fruizione.info_percorsi(corso), "scelta": scelta})
+    slides = list(fruizione.slides_percorso(corso, scelta))
     ordini = [s.ordine for s in slides]
     enr = None
     slide_iniziale = ordini[0] if ordini else 1
@@ -219,6 +236,8 @@ def formazione_online_player(request, corso_id: int):
         "beat_url": reverse("anagrafica:formazione_online_beat", args=[corso.pk]) if enr else "",
         "beat_intervallo": tracciamento.INTERVALLO_MIN_SECONDI,
         "minuti_fatti": (enr.secondi_accreditati or 0) // 60 if enr else 0,
+        "percorso": scelta, "a_scelta": a_scelta,
+        "puo_cambiare": bool(a_scelta and enr and not enr.ultima_slide_ordine),
     })
 
 
@@ -232,7 +251,7 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
         return _nega(request, accesso.motivo or "Corso non disponibile.")
     if not request.headers.get("HX-Request"):
         return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
-    slides = list(fruizione.slides_percorso(corso))
+    slides = list(fruizione.slides_percorso(corso, "" if accesso.anteprima else fruizione.percorso_di(corso, legacy_id)))
     if not slides:
         return HttpResponse('<div class="fmd-empty"><span class="fmd-et">Nessuna slide disponibile</span></div>')
     ordini = [s.ordine for s in slides]
@@ -286,8 +305,8 @@ def formazione_online_video_avanz(request, corso_id: int):
         durata = max(int(float(request.POST.get("durata") or 0)), 0)
     except ValueError:
         return JsonResponse({"ok": False}, status=400)
-    enr = fruizione.iscrizione(corso, legacy_id, len(fruizione.ordini_slide(corso)))
-    esito = tracciamento.registra_video(enr, slide, secondi, durata, regola_corso(corso), fruizione.ordini_slide(corso))
+    enr = fruizione.iscrizione(corso, legacy_id, len(fruizione.ordini_slide(corso, fruizione.percorso_di(corso, legacy_id))))
+    esito = tracciamento.registra_video(enr, slide, secondi, durata, regola_corso(corso), fruizione.ordini_slide(corso, fruizione.percorso_di(corso, legacy_id)))
     return JsonResponse(esito)
 
 
@@ -358,7 +377,7 @@ def formazione_online_beat(request, corso_id: int):
         dati = json.loads(request.body or b"{}")
     except ValueError:
         return JsonResponse({"ok": False, "motivo": "payload"}, status=400)
-    ordini = fruizione.ordini_slide(corso)
+    ordini = fruizione.ordini_slide(corso, fruizione.percorso_di(corso, legacy_id))
     enr = fruizione.iscrizione(corso, legacy_id, len(ordini))
     try:
         slide_id = int(dati.get("slide_id")) if dati.get("slide_id") is not None else None
@@ -421,7 +440,7 @@ def formazione_online_quiz(request, corso_id: int):
         })
 
     regola = regola_corso(corso)
-    ordini = fruizione.ordini_slide(corso)
+    ordini = fruizione.ordini_slide(corso, fruizione.percorso_di(corso, legacy_id))
     enr = fruizione.iscrizione(corso, legacy_id, len(ordini))
 
     if request.method != "POST":

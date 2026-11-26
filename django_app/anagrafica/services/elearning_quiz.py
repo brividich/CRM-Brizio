@@ -109,7 +109,7 @@ def tutte_completate(enr) -> bool:
     """Tutte le slide attive completate (anche quelle aggiunte dopo l'inizio del corso)."""
     from ..models_elearning import TrainingElearningSlideView
     from .elearning_fruizione import slides_percorso
-    attive = set(slides_percorso(enr.corso).values_list("pk", flat=True))
+    attive = set(slides_percorso(enr.corso, getattr(enr, "percorso", "")).values_list("pk", flat=True))
     fatte = set(TrainingElearningSlideView.objects.filter(
         enrollment=enr, completata=True, slide_id__in=attive).values_list("slide_id", flat=True))
     return bool(attive) and attive <= fatte

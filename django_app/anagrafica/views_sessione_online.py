@@ -467,11 +467,25 @@ def sessione_online_player(request, sessione_id: int):
     if motivo:
         return _nega(request, motivo)
     cfg = cfg or so.config(sessione, crea=True)
-    elenco = so.slides(sessione)
+    prog = None if anteprima else so.avanzamento(enrollment)
+    if prog is not None and cfg.materiale_corso:
+        # Video o slide a scelta (materiale del corso): si sceglie prima della prima slide.
+        from .services import elearning_fruizione as fruizione
+        if request.method == "POST":
+            scelta = request.POST.get("percorso") or ""
+            if scelta in ("VIDEO", "SLIDE") and fruizione.percorsi_a_scelta(sessione.corso) \
+                    and (not prog.percorso or not prog.slide_viste):
+                prog.percorso = scelta
+                prog.save(update_fields=["percorso"])
+            return redirect("anagrafica:sessione_online_player", sessione_id=sessione_id)
+        cambia = request.GET.get("cambia") == "1" and not prog.slide_viste
+        if so.deve_scegliere_percorso(sessione, prog) or (cambia and fruizione.percorsi_a_scelta(sessione.corso)):
+            return render(request, "anagrafica/pages/formazione_online_percorso.html", {
+                "corso": sessione.corso, "info": fruizione.info_percorsi(sessione.corso), "scelta": prog.percorso})
+    elenco = so.slides(sessione, prog.percorso if prog else "")
     n = len(elenco)
     if not n:
         return _nega(request, "La lezione non ha ancora slide.")
-    prog = None if anteprima else so.avanzamento(enrollment)
     if prog and prog.superata_il and "n" not in request.GET:
         return redirect("anagrafica:sessione_online_esito", sessione_id=sessione_id)
     massimo = n if anteprima else min(n, prog.slide_viste + 1)
@@ -505,7 +519,7 @@ def sessione_online_avanti(request, sessione_id: int):
         return _nega(request, motivo)
     url = reverse("anagrafica:sessione_online_player", args=[sessione_id])
     ordine = _intero(request.POST.get("ordine"), 1, 1, 10000)
-    n = so.n_slide(sessione)
+    n = so.n_slide(sessione, "" if anteprima else so.avanzamento(enrollment).percorso)
     if anteprima:
         return redirect(f"{url}?n={min(n, ordine + 1)}&anteprima=1") if ordine < n \
             else redirect(reverse("anagrafica:sessione_online_test", args=[sessione_id]) + "?anteprima=1")
@@ -530,8 +544,8 @@ def sessione_online_test(request, sessione_id: int):
         return _nega(request, motivo)
     cfg = cfg or so.config(sessione, crea=True)
     elenco = so.domande_valide(sessione)
-    n_slide = so.n_slide(sessione)
     prog = None if anteprima else so.avanzamento(enrollment)
+    n_slide = so.n_slide(sessione, prog.percorso if prog else "")
     if prog:
         if chiuso := so.motivo_test_chiuso(cfg, prog, n_slide):
             messages.info(request, chiuso)

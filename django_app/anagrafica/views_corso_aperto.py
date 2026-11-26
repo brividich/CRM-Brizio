@@ -65,6 +65,7 @@ def _stato_da_partecipazione(p) -> dict:
     """Stato del browser ricostruito dal server: slide viste, secondi di video, tempo dalla registrazione."""
     return {"avvio": p.registrato_il.timestamp(), "viste": dict(p.slide_viste or {}),
             "chi": {"nome": p.nome, "cognome": p.cognome, "matricola": p.matricola}, "pid": p.pk,
+            "percorso": p.percorso or "",
             "video": {str(k): [int(v or 0), 0] for k, v in (p.video_visti or {}).items()}}
 
 
@@ -138,10 +139,16 @@ def _sincronizza(stato) -> None:
     p.save(update_fields=campi)
 
 
-def _slides(corso) -> list:
-    """Slide del percorso guidato (moduli «Nel percorso» e slide senza modulo)."""
+def _slides(corso, stato=None) -> list:
+    """Slide del percorso guidato (moduli «Nel percorso» e slide senza modulo; con video o slide a
+    scelta, solo i moduli del percorso scelto)."""
     from .services.elearning_fruizione import slides_percorso
-    return list(slides_percorso(corso))
+    return list(slides_percorso(corso, (stato or {}).get("percorso", "")))
+
+
+def _deve_scegliere(corso, stato) -> bool:
+    from .services.elearning_fruizione import percorsi_a_scelta
+    return percorsi_a_scelta(corso) and stato.get("percorso") not in ("VIDEO", "SLIDE")
 
 
 def _slides_tutte(corso) -> list:
@@ -239,25 +246,39 @@ def registrati(request, token: str):
     return render(request, "anagrafica/corso_aperto/registrati.html",
                   {"link": link, "corso": corso_obj, "dati": dati, "errori": errori, "reparto": reparto,
                    "chiede_pin": servizio.chiede_pin(link),
-                   "n_slide": len(_slides(corso_obj))}, status=400 if errori else 200)
+                   "n_slide": len(_slides(corso_obj, stato))}, status=400 if errori else 200)
 
 
-@require_GET
-@risposta_pubblica
+@require_http_methods(["GET", "POST"])
+@risposta_pubblica_con_form
 def pronto(request, token: str):
-    """Dopo la registrazione: il codice per riprendere, ben in vista, prima di iniziare."""
+    """Dopo la registrazione: il codice per riprendere, ben in vista, prima di iniziare; con video o
+    slide a scelta, qui si sceglie (e si cambia finché non si è aperta nessuna slide del percorso)."""
+    from .services.elearning_fruizione import info_percorsi, percorsi_a_scelta
     link = _link(token)
     stato = _stato(request, link)
     if not _registrato(stato):
         return redirect("corso_aperto:registrati", token=token)
-    slides = _slides(link.corso)
+    a_scelta = percorsi_a_scelta(link.corso)
+    slides = _slides(link.corso, stato)
     p = _partecipazione(stato)
     n_viste = sum(1 for s in slides if str(s.ordine) in (stato.get("viste") or {}))
+    if request.method == "POST":
+        scelta = request.POST.get("percorso") or ""
+        if a_scelta and scelta in ("VIDEO", "SLIDE") and (not stato.get("percorso") or not n_viste):
+            stato["percorso"] = scelta
+            _salva(request, link, stato)
+            if p is not None:
+                type(p).objects.filter(pk=p.pk).update(percorso=scelta)
+        return _ricorda(redirect("corso_aperto:corso", token=token), link, stato)
+    scegliere = a_scelta and (not stato.get("percorso") or (request.GET.get("cambia") == "1" and not n_viste))
     return _ricorda(render(request, "anagrafica/corso_aperto/pronto.html", {
         "link": link, "corso": link.corso, "chi": stato["chi"], "codice": getattr(p, "codice", ""),
         "email": stato.get("email", ""), "ripresa": bool(stato.get("ripresa")) and n_viste > 0,
         "n_viste": n_viste, "n_slide": len(slides),
         "da_slide": _punto_di_ripresa(stato, slides) + 1 if slides else 1,
+        "scegliere": scegliere, "info": info_percorsi(link.corso) if scegliere else {},
+        "percorso": stato.get("percorso", "") if a_scelta else "", "puo_cambiare": a_scelta and not n_viste,
     }), link, stato)
 
 
@@ -288,11 +309,13 @@ def materiale(request, token: str):
 def corso(request, token: str):
     link = _link(token)
     corso_obj = link.corso
-    slides = _slides(corso_obj)
+    stato = _stato(request, link)
+    slides = _slides(corso_obj, stato)
     if not slides:
         raise Http404
     regola = regola_corso(corso_obj)
-    stato = _stato(request, link)
+    if _registrato(stato) and _deve_scegliere(corso_obj, stato) and not request.GET.get("c"):
+        return redirect("corso_aperto:pronto", token=token)
     if not _registrato(stato):
         url = reverse("corso_aperto:registrati", args=[token])
         if request.GET.get("rep"):
@@ -464,11 +487,13 @@ def _testo(valore, massimo: int) -> str:
 def quiz_finale(request, token: str):
     link = _link(token)
     corso_obj = link.corso
-    slides = _slides(corso_obj)
-    regola = regola_corso(corso_obj)
     stato = _stato(request, link)
+    slides = _slides(corso_obj, stato)
+    regola = regola_corso(corso_obj)
     if not _registrato(stato):
         return redirect("corso_aperto:registrati", token=token)
+    if _deve_scegliere(corso_obj, stato):
+        return redirect("corso_aperto:pronto", token=token)
     url_corso = reverse("corso_aperto:corso", args=[token])
     blocco = _blocco_quiz(stato, slides, regola) if slides else "Il corso non ha slide."
     if blocco:

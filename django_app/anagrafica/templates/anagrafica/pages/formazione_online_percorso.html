@@ -1,0 +1,50 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ corso.titolo }} | Corsi online{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+.pc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px;margin-top:6px}
+.pc-scelta{display:flex;flex-direction:column;gap:8px;align-items:flex-start;text-align:left;width:100%;border:1px solid var(--border,#d7e0ea);border-radius:14px;padding:18px;background:var(--surface,#fff);cursor:pointer;font:inherit;color:inherit}
+.pc-scelta:hover,.pc-scelta:focus-visible{border-color:var(--fmd-cyan,#0ea5e9);box-shadow:0 0 0 3px rgba(14,165,233,.15)}
+.pc-scelta strong{font-size:17px;display:flex;gap:8px;align-items:center}
+.pc-scelta .fmd-ico{font-size:22px;color:var(--fmd-cyan,#0ea5e9)}
+.pc-scelta.on{border-color:var(--fmd-cyan,#0ea5e9)}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap" style="max-width:760px;">
+    <div class="fmd-pagehead">
+      <div>
+        <template data-hub-percorso-gerarchia>
+          <a href="{% url 'anagrafica:formazione_online_catalog' %}">I miei corsi online</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">{{ corso.titolo }}</span>
+        </template>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ corso.titolo }}</h1>
+        <p class="fmd-ph-sub">Come preferisci seguire il corso? Il quiz finale è lo stesso.</p>
+      </div>
+    </div>
+    <form method="post" class="pc-grid">
+      {% csrf_token %}
+      <button type="submit" name="percorso" value="VIDEO" class="pc-scelta{% if scelta == 'VIDEO' %} on{% endif %}">
+        <strong><svg class="fmd-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4z" fill="currentColor"/></svg>Guarda il video</strong>
+        <span class="fmd-muted">{% if info.VIDEO.n_video == 1 %}Un video{% elif info.VIDEO.n_video %}{{ info.VIDEO.n_video }} video{% else %}{{ info.VIDEO.n }} passi{% endif %}{% if info.VIDEO.minuti %} · circa {{ info.VIDEO.minuti }} minuti{% endif %}{% if info.VIDEO.n_video and info.VIDEO.n > info.VIDEO.n_video %} · {{ info.VIDEO.n }} passi in tutto{% endif %}</span>
+      </button>
+      <button type="submit" name="percorso" value="SLIDE" class="pc-scelta{% if scelta == 'SLIDE' %} on{% endif %}">
+        <strong><svg class="fmd-ico"><use href="#i-book"/></svg>Segui le slide</strong>
+        <span class="fmd-muted">{{ info.SLIDE.n }} slide da leggere con calma</span>
+      </button>
+    </form>
+    <p class="fmd-muted" style="margin-top:12px;font-size:13px;">Puoi cambiare idea finché non hai iniziato. «Consulta il materiale» resta aperto per entrambi.</p>
+  </div>
+</div>
+{% endblock %}
