@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Quote CMM: nessun calcolo durante la richiesta, mappa più leggera
+
+- «Quote da guardare» legge solo le righe salvate dal giro in `produzione_quotacapacita` (scritte da `articoli.analizza`, anche dopo «Escludi dall'analisi»): la pagina non esegue mai `analisi_pn`; un P/N non ancora analizzato non compare. Prima, con il percorso vecchio, la cache di `analisi_pn` era spesso fredda (la rilettura dei report cambia di continuo `letto_il`): misurato in sola lettura sui dati di produzione da 11 a 17 s per gli 8 P/N più grandi, tutto CPU che bloccava Waitress; ora la lettura delle righe salvate costa 0,02-0,10 s (SQL Server locale, 25.350 quote, volume come in produzione).
+- `cruscotto()`: l'ultimo report di ogni P/N con `ROW_NUMBER() OVER (PARTITION BY pn …)`, una riga per P/N; la sottoquery in `.annotate()` non raggruppava e restituiva una riga per report (35.621 invece di 845). Niente più `IN` con centinaia di P/N (mssql-django li trasforma in tabella temporanea). Misurato in sola lettura: da 2,17 a 0,39 s.
+- File: `produzione/report_cmm_indice.py` (`cruscotto`, `quote_da_guardare_tutte`). Test: `tests_quote_migliorie.py` (la pagina non chiama `analisi_pn`, P/N non analizzato assente, esclusione che aggiorna le righe). Nessuna migrazione.
+
 ### Ordini di produzione: statistica di processo (Cpk/Ppk, percentili, rischio, segnali, cambi, famiglie, OP, ripetibilità)
 
 - Numeri giusti: il «Cpk» era in realtà un Ppk (σ di tutti i pezzi). Ora Cpk con la σ di breve periodo (macchina) e Ppk con la σ totale (processo), mostrati insieme; conteggi, classifiche e «da guardare» sul peggiore dei due. Quote di forma e posizione col metodo dei percentili (ISO 22514-2, Weibull) invece della normale. Intervallo di confidenza al 95% e verdetto sul suo limite basso; sotto 25 pezzi «pochi dati».

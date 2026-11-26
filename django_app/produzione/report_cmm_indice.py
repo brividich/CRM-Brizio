@@ -794,8 +794,16 @@ def quote_da_guardare_tutte(pns: list[str], quante: int = 15) -> list:
 
     from .models import QuotaCapacita
 
-    return list(QuotaCapacita.objects.filter(pn__in=pns).filter(Q(fuori_ultimo=True) | Q(deriva=True) | Q(indice__lt=spc.CAPACE))
-                .order_by("-fuori_ultimo", "-rischio", "indice")[:quante])
+    # niente «pn IN (centinaia di P/N)»: si scorrono le quote da guardare già ordinate e si tengono quelle dei P/N scelti
+    scelti, out = set(pns), []
+    qs = (QuotaCapacita.objects.filter(Q(fuori_ultimo=True) | Q(deriva=True) | Q(indice__lt=spc.CAPACE))
+          .order_by("-fuori_ultimo", "-rischio", "indice"))
+    for q in qs.iterator(chunk_size=200):
+        if q.pn in scelti:
+            out.append(q)
+            if len(out) >= quante:
+                break
+    return out
 
 
 def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
@@ -823,17 +831,19 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
             misurati[pn][k] += 1
             if f:
                 sett[pn][k] += 1
-    # ultimo report di ogni P/N: un id per P/N con una sottoquery sull'indice (pn, …) invece di leggere tutti i report
-    from django.db.models import OuterRef, Subquery
 
-    ultimo_id = Subquery(validi.filter(pn=OuterRef("pn")).order_by("-data", "-id").values("id")[:1])
-    ids = [r["u"] for r in validi.values("pn").annotate(u=ultimo_id).values("u").distinct()]
-    ultimi = {pn: (sn, d, rid) for rid, pn, sn, d in
-              ReportCMM.objects.filter(pk__in=ids).values_list("id", "pn", "seriale", "data")}
+    # con ROW_NUMBER() per P/N: una riga per P/N (una sottoquery in .annotate() non raggruppa e dava una riga per
+    # report), senza liste lunghe in IN (mssql-django le trasforma in una tabella temporanea)
+    from django.db.models import F, Window
+    from django.db.models.functions import RowNumber
+
+    numerati = validi.annotate(rn=Window(RowNumber(), partition_by=[F("pn")], order_by=[F("data").desc(), F("id").desc()]))
+    ultimi = {pn: (sn, d, rid) for pn, sn, d, rid in numerati.filter(rn=1).values_list("pn", "seriale", "data", "id")}
     from .models import ArticoloPN
 
-    calcolati = {a["pn"]: a for a in ArticoloPN.objects.filter(pn__in=list(righe)).values(
-        "pn", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "analisi_il", "rischio_max", "salute")}
+    # tutto il catalogo (qualche centinaio di righe) e filtro in Python: niente IN con centinaia di P/N
+    calcolati = {a["pn"]: a for a in ArticoloPN.objects.values(
+        "pn", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "analisi_il", "rischio_max", "salute") if a["pn"] in righe}
     out = []
     for pn, r in righe.items():
         a = calcolati.get(pn) or {}

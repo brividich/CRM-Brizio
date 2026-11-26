@@ -93,6 +93,10 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 - Migrazione `produzione 0010`: tabella `produzione_quotacapacita` (una riga per quota: Cpk, Ppk, indice, verdetto, metodo, rischio, deriva, fuori, famiglia, `caratteristica` = nome senza numerazione) e `ArticoloPN.rischio_max`, `salute`; le riempie `articoli.analizza`. Quote CMM legge da qui (salute, rischio, quote da guardare, `?car=`).
 - Anomalie da aprire (`report_cmm_pagine.anomalie_da_aprire`, solo report con data negli ultimi 30 giorni) e avviso «Anomalia da aprire» con il link a `apertura_segnalazione?op_id&report_cmm`. `core.ordini_produzione.anomalie_del_seriale`: confronto senza separatori anche in SQL e `aperta` corretta (prima «0»/«False» testuali contavano come chiuse).
 
+### Quote CMM senza calcoli nella richiesta (27/11/2026)
+
+- `quote_da_guardare_tutte` scorre `QuotaCapacita` (flag fuori/deriva/indice < 1,33, ordinate come `quote_critiche`) e tiene i P/N scelti, senza `pn IN (…)`; `cruscotto()` prende l'ultimo report con `ROW_NUMBER()` e legge tutto `ArticoloPN` filtrando in Python. La richiesta non chiama mai `analisi_pn` (test con `assert_not_called`).
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |
