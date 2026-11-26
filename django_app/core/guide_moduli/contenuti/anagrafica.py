@@ -660,7 +660,7 @@ GUIDA = {
                     "area e mansione, «Seleziona tutti» i filtrati.",
                     "Azioni sulla riga: «Risposte» (pannello con ogni tentativo), «Sollecita», «Manda link», "
                     "«Tentativo in più», «Registra», «Azzera» (riparte dalla prima slide; i tentativi restano a registro).",
-                    "Azioni in blocco sopra la tabella: «Sollecita chi non ha finito» e «Registra completamenti»; valgono "
+                    "Chi supera il test va a libretto da solo. Azioni in blocco sopra la tabella: «Sollecita chi non ha finito» e «Registra completamenti» (per chi era bloccato); valgono "
                     "per i selezionati o, se non selezioni nessuno, per tutti quelli interessati.",
                     "Chi supera il test ha presenza 100%, ore del corso e verifica «Test scritto» col punteggio "
                     "sull'iscrizione. «Registra» porta il completamento a libretto con le regole del corso, come "
