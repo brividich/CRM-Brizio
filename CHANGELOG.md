@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Link aperto: il quiz si consegna una volta sola
+
+- Ogni quiz servito ha un gettone monouso (`cache.add` atomico): doppio clic, pagina ricaricata, seconda scheda, sessione rimessa com'era prima dell'invio o gettone inventato danno «Quiz già consegnato» (409) senza salvare nulla.
+- Consegna sotto blocco della partecipazione (`select_for_update`): due invii in parallelo passano uno alla volta.
+- Partecipazione completata: il quiz non si riapre («Corso già completato», resta il materiale); una nuova registrazione con la stessa matricola e lo stesso cognome o il codice di ripresa ritrovano la partecipazione completata invece di aprirne un'altra.
+- Pulsante «Consegna il quiz» spento al primo clic.
+- File: `views_corso_aperto.py`, `services/elearning_link_aperto.py`, template `corso_aperto/quiz.html`, `pronto.html`. Test: `tests_corso_aperto_ripresa.py` (UnaSolaConsegnaTests), `tests_elearning_link_aperto.py` adeguati.
+
 ### Ricerca globale: trova le pagine interne di tutti i moduli
 
 - `core/ricerca_pagine.py` (nuovo): indice delle pagine dei sottomenu dei moduli (template `components/subnav.html`, `_nav.html`…, sottomenu Anagrafica a database, `assets.maintenance_nav`, Navigation Registry `subnav`/`admin_subnav`), con il nome del modulo preso dal menu principale; ogni voce che corrisponde passa da ACL (`_global_search_module_allowed`) e cancelli in-view (`section_gate_allows`).

@@ -372,8 +372,10 @@ GIORNI_RIPRESA = 60
 
 
 def partecipazione_da_riprendere(corso, dati: dict):
-    """Partecipazione non finita della stessa persona (stessa matricola e stesso cognome) sullo
-    stesso corso: chi si registra di nuovo riprende da dove era rimasto invece di ripartire."""
+    """Partecipazione della stessa persona (stessa matricola e stesso cognome) sullo stesso corso
+    negli ultimi giorni: chi si registra di nuovo riprende da dove era rimasto invece di ripartire.
+    Prima una non finita; altrimenti l'ultima completata (il quiz non si ripete con una nuova
+    registrazione)."""
     from datetime import timedelta
 
     from ..models_elearning import TrainingElearningPartecipazioneAperta as P
@@ -382,10 +384,9 @@ def partecipazione_da_riprendere(corso, dati: dict):
     if not mat or not ck:
         return None
     da = timezone.now() - timedelta(days=GIORNI_RIPRESA)
-    for p in P.objects.filter(corso=corso, completata_il__isnull=True, registrato_il__gte=da).order_by("-pk")[:200]:
-        if norm_matricola(p.matricola) == mat and chiave_testo(p.cognome) == ck:
-            return p
-    return None
+    stesse = [p for p in P.objects.filter(corso=corso, registrato_il__gte=da).order_by("-pk")[:300]
+              if norm_matricola(p.matricola) == mat and chiave_testo(p.cognome) == ck]
+    return next((p for p in stesse if not p.completata_il), None) or next(iter(stesse), None)
 
 
 def email_persona(legacy_id: int | None) -> str:

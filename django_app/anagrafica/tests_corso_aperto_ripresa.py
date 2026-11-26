@@ -156,9 +156,10 @@ class PercorsoVideoOSlideTests(_Base):
         self.anonimo.post(self.url("pronto"), {"percorso": "VIDEO"})
         r = self.anonimo.get(self.url())
         self.assertEqual((r.context["slide"].pk, r.context["n_slide"]), (self.v.pk, 1))
-        self.assertEqual(self.anonimo.get(self.url("quiz")).status_code, 200)
+        q = self.anonimo.get(self.url("quiz"))
+        self.assertEqual(q.status_code, 200)
         self.assertEqual(P.objects.get().percorso, "VIDEO")
-        r = self.anonimo.post(self.url("quiz"), {f"q_{self.q.pk}": [self.giusta.pk]})
+        r = self.anonimo.post(self.url("quiz"), {f"q_{self.q.pk}": [self.giusta.pk], "consegna": q.context["consegna"]})
         self.assertContains(r, "Corso completato")
 
     def test_scelta_bloccata_dopo_la_prima_slide(self):
@@ -173,3 +174,78 @@ class PercorsoVideoOSlideTests(_Base):
         self.corso.moduli_elearning.filter(alternativa="VIDEO").update(alternativa="")
         self.assertFalse(f.percorsi_a_scelta(self.corso))
         self.assertEqual(f.ordini_slide(self.corso), [1, 2, 3])
+
+
+class UnaSolaConsegnaTests(_Base):
+    """Il quiz del link aperto non si consegna due volte: doppio clic, pagina ricaricata, altra scheda,
+    gettone vecchio o assente, nuova registrazione dopo il completamento."""
+
+    def _quiz(self, c=None):
+        c = c or self.anonimo
+        r = c.get(self.url("quiz"))
+        self.assertEqual(r.status_code, 200)
+        return r.context["consegna"]
+
+    def _post(self, gettone, opzione=None, c=None):
+        c = c or self.anonimo
+        return c.post(self.url("quiz"), {f"q_{self.q.pk}": [(opzione or self.giusta).pk], "consegna": gettone})
+
+    def test_stesso_invio_due_volte(self):
+        from .models_elearning import TrainingElearningRispostaAperta as R
+        self.segui_corso()
+        g = self._quiz()
+        self.assertContains(self._post(g, self.sbagliata), "Quiz non superato")
+        r = self._post(g)  # ripetuto (doppio clic o pagina ricaricata): non vale
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(R.objects.count(), 1)
+        self.assertFalse(TrainingEmployeeRecord.objects.exists())
+
+    def test_senza_gettone_o_gettone_inventato(self):
+        from .models_elearning import TrainingElearningRispostaAperta as R
+        self.segui_corso()
+        self._quiz()
+        self.assertEqual(self._post("").status_code, 409)
+        self.assertEqual(self._post("inventato").status_code, 409)
+        self.assertFalse(R.objects.exists())
+
+    def test_gettone_di_un_quiz_superato_da_un_altra_scheda(self):
+        from .models_elearning import TrainingElearningRispostaAperta as R
+        self.segui_corso()
+        vecchio = self._quiz()
+        nuovo = self._quiz()  # seconda scheda: il gettone vecchio non vale più
+        self.assertEqual(self._post(vecchio).status_code, 409)
+        self.assertContains(self._post(nuovo), "Corso completato")
+        self.assertEqual(R.objects.count(), 1)
+
+    def test_gettone_riusato_dopo_aver_ripristinato_la_sessione(self):
+        """Chi salva la sessione prima dell'invio e la rimette dopo non consegna di nuovo."""
+        from .models_elearning import TrainingElearningRispostaAperta as R
+        self.segui_corso()
+        g = self._quiz()
+        chiave = f"corso_aperto:{self.link.pk}:{self.link.token[:12]}"
+        copia = dict(self.anonimo.session[chiave])
+        self._post(g, self.sbagliata)
+        s = self.anonimo.session
+        s[chiave] = copia
+        s.save()
+        self.assertEqual(self._post(g).status_code, 409)
+        self.assertEqual(R.objects.count(), 1)
+
+    def test_nuova_registrazione_dopo_il_completamento(self):
+        from .models_elearning import TrainingElearningRispostaAperta as R
+        self.segui_corso()
+        self._post(self._quiz())
+        altro = Client()
+        self.registra(altro)  # stessa matricola e cognome: ritrova la partecipazione completata
+        self.assertContains(altro.get(self.url("pronto")), "già completato")
+        self.assertEqual(altro.get(self.url("quiz")).status_code, 409)
+        self.assertEqual(P.objects.count(), 1)
+        self.assertEqual(R.objects.count(), 1)
+
+    def test_codice_di_una_partecipazione_completata(self):
+        self.segui_corso()
+        self._post(self._quiz())
+        p = P.objects.get()
+        altro = Client()
+        altro.post(self.url("registrati"), {"codice": p.codice, "cognome_ripresa": "rossi sintetico"})
+        self.assertEqual(altro.get(self.url("quiz")).status_code, 409)

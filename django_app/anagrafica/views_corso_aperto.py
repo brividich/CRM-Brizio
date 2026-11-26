@@ -18,11 +18,13 @@ La logica (correzione, abbinamento, completamento) è in ``services/elearning_li
 from __future__ import annotations
 
 import random
+import secrets
 import time
 from datetime import datetime
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -277,7 +279,9 @@ def pronto(request, token: str):
         "email": stato.get("email", ""), "ripresa": bool(stato.get("ripresa")) and n_viste > 0,
         "n_viste": n_viste, "n_slide": len(slides),
         "da_slide": _punto_di_ripresa(stato, slides) + 1 if slides else 1,
-        "scegliere": scegliere, "info": info_percorsi(link.corso) if scegliere else {},
+        "scegliere": scegliere and not getattr(p, "completata_il", None),
+        "info": info_percorsi(link.corso) if scegliere else {},
+        "completata_il": getattr(p, "completata_il", None),
         "percorso": stato.get("percorso", "") if a_scelta else "", "puo_cambiare": a_scelta and not n_viste,
     }), link, stato)
 
@@ -478,6 +482,24 @@ def _domande_da_servire(corso, regola) -> list:
     return servite
 
 
+def _prima_consegna(link, token: str) -> bool:
+    """True una sola volta per gettone: un doppio clic, una pagina ricaricata o un'altra scheda
+    non consegnano lo stesso quiz due volte (``cache.add`` è atomico, anche sulla cache su DB)."""
+    try:
+        return bool(cache.add(f"corso_aperto:consegna:{link.pk}:{token}", 1, timeout=86400))
+    except Exception:  # noqa: BLE001 - cache giù: resta il blocco sulla partecipazione
+        return True
+
+
+def _gia_completato(request, link, p):
+    url = reverse("corso_aperto:materiale", args=[link.token])
+    quando = timezone.localtime(p.completata_il).strftime("%d-%m-%Y")
+    return render(request, "anagrafica/corso_aperto/esito.html", {
+        "link": link, "corso": link.corso, "titolo": "Corso già completato",
+        "testo": f"Hai completato questo corso il {quando}: il quiz non si ripete. Il materiale resta da consultare.",
+        "torna": url}, status=409)
+
+
 def _testo(valore, massimo: int) -> str:
     return " ".join(str(valore or "").split())[:massimo]
 
@@ -495,6 +517,9 @@ def quiz_finale(request, token: str):
     if _deve_scegliere(corso_obj, stato):
         return redirect("corso_aperto:pronto", token=token)
     url_corso = reverse("corso_aperto:corso", args=[token])
+    p_ora = _partecipazione(stato)
+    if p_ora is not None and p_ora.completata_il:
+        return _gia_completato(request, link, p_ora)
     blocco = _blocco_quiz(stato, slides, regola) if slides else "Il corso non ha slide."
     if blocco:
         return render(request, "anagrafica/corso_aperto/esito.html",
@@ -507,21 +532,32 @@ def quiz_finale(request, token: str):
             raise Http404
         stato["quiz"] = [d.id for d in domande]
         stato["quiz_il"] = time.time()
+        stato["quiz_token"] = secrets.token_urlsafe(18)  # una consegna per ogni quiz servito
         _salva(request, link, stato)
         return render(request, "anagrafica/corso_aperto/quiz.html",
-                      {"link": link, "corso": corso_obj, "domande": domande, "dati": {}, "errori": []})
+                      {"link": link, "corso": corso_obj, "domande": domande, "dati": {}, "errori": [],
+                       "consegna": stato["quiz_token"]})
 
     ip = client_ip(request) or ""
     if _troppe(ip):
         return render(request, "anagrafica/corso_aperto/esito.html",
                       {"link": link, "corso": corso_obj, "titolo": "Troppi invii",
                        "testo": "Abbiamo ricevuto troppi quiz in poco tempo. Riprova tra un'ora."}, status=429)
+    consegna = request.POST.get("consegna") or ""
+    if not consegna or not stato.get("quiz_token") or not secrets.compare_digest(consegna, stato["quiz_token"]) \
+            or not _prima_consegna(link, consegna):
+        return render(request, "anagrafica/corso_aperto/esito.html", {
+            "link": link, "corso": corso_obj, "titolo": "Quiz già consegnato",
+            "testo": "Questo quiz è già stato inviato (doppio clic, pagina ricaricata o un'altra scheda). "
+                     "Se devi riprovare, apri di nuovo il quiz dal corso.",
+            "torna": url_corso}, status=409)
     domande_ids = [int(i) for i in stato.get("quiz") or [] if str(i).isdigit()]
     if not domande_ids:
         return redirect("corso_aperto:quiz", token=token)
     if request.POST.get("sito_web"):
         # Campo trappola compilato: un programma automatico. Finto esito, nessun salvataggio.
         stato.pop("quiz", None)
+        stato.pop("quiz_token", None)
         _salva(request, link, stato)
         return render(request, "anagrafica/corso_aperto/esito.html",
                       {"link": link, "corso": corso_obj, "titolo": "Quiz inviato", "testo": ""})
@@ -543,13 +579,21 @@ def quiz_finale(request, token: str):
 
     esito = servizio.correggi(corso_obj, domande_ids, risposte, regola.soglia_pct)
     avvio = stato.get("avvio")
-    risposta = servizio.registra(
-        corso_obj, nome=dati["nome"], cognome=dati["cognome"], matricola=dati.get("matricola", ""), esito=esito,
-        partecipazione=_partecipazione(stato),
-        avviato_il=timezone.make_aware(datetime.fromtimestamp(avvio)) if avvio else None,
-        ip=ip if ip not in _LOOPBACK else "", user_agent=request.headers.get("User-Agent", "")[:500],
-    )
+    from .models_elearning import TrainingElearningPartecipazioneAperta as P
+    with transaction.atomic():
+        # Blocco sulla partecipazione: due consegne in parallelo passano una alla volta e la
+        # seconda trova il corso già completato.
+        p_lock = P.objects.select_for_update().filter(pk=stato.get("pid")).first() if stato.get("pid") else None
+        if p_lock is not None and p_lock.completata_il:
+            return _gia_completato(request, link, p_lock)
+        risposta = servizio.registra(
+            corso_obj, nome=dati["nome"], cognome=dati["cognome"], matricola=dati.get("matricola", ""), esito=esito,
+            partecipazione=p_lock,
+            avviato_il=timezone.make_aware(datetime.fromtimestamp(avvio)) if avvio else None,
+            ip=ip if ip not in _LOOPBACK else "", user_agent=request.headers.get("User-Agent", "")[:500],
+        )
     stato.pop("quiz", None)
+    stato.pop("quiz_token", None)
     _salva(request, link, stato)
     return render(request, "anagrafica/corso_aperto/esito.html", {
         "link": link, "corso": corso_obj, "superato": risposta.superato, "inviato": True,

@@ -61,8 +61,10 @@ class _Base(TestCase):
         if nome is not None or cognome is not None:
             # Un'altra persona sullo stesso browser: nuova registrazione e nuovo percorso.
             self.segui_corso(c, nome=nome or "", cognome=cognome or "", matricola=matricola)
-        self.assertEqual(c.get(self.url("quiz")).status_code, 200)
-        return c.post(self.url("quiz"), {f"q_{self.q.pk}": [opzione.pk]})
+        r = c.get(self.url("quiz"))
+        if r.status_code != 200:
+            return r  # es. corso già completato: il quiz non si riapre
+        return c.post(self.url("quiz"), {f"q_{self.q.pk}": [opzione.pk], "consegna": r.context["consegna"]})
 
 
 class AccessoPubblicoTests(_Base):
@@ -137,10 +139,11 @@ class ConsegnaTests(_Base):
         self.assertFalse(TrainingEmployeeRecord.objects.exists())
 
     def test_nome_sconosciuto_o_omonimi_da_abbinare(self):
+        AnagraficaDipendente.objects.create(nome="Mario", cognome="Rossi Sintetico")  # omonimo
         self.segui_corso()
         self.consegna(self.giusta, nome="Nessuno", cognome="Sconosciuto")
-        AnagraficaDipendente.objects.create(nome="Mario", cognome="Rossi Sintetico")
-        self.consegna(self.giusta)
+        # Torna Mario (stessa matricola e cognome): riprende la sua partecipazione non finita.
+        self.consegna(self.giusta, nome="Mario", cognome="Rossi Sintetico")
         self.assertEqual(list(R.objects.values_list("stato", flat=True)), [R.DA_ABBINARE, R.DA_ABBINARE])
         self.assertFalse(TrainingEmployeeRecord.objects.exists())
 
@@ -172,23 +175,26 @@ class ConsegnaTests(_Base):
         r = R.objects.get()
         self.assertEqual(r.stato, R.DA_ABBINARE)
         self.assertIn("altra persona", r.nota)
-        with mock.patch.object(la, "matricole_attive", return_value={self.dip.id: {"T138"}}):
-            self.consegna(self.giusta, nome="Mario", cognome="rossi sintetico", matricola="t 138")
+        # Matricola corretta (diversa da quella sbagliata di prima): nuova partecipazione, abbinata.
+        with mock.patch.object(la, "matricole_attive", return_value={self.dip.id: {"T139"}}):
+            self.consegna(self.giusta, nome="Mario", cognome="rossi sintetico", matricola="t 139")
         self.assertEqual(R.objects.order_by("-pk").first().stato, R.AUTO)
 
     def test_campo_trappola_non_salva(self):
         self.segui_corso()
-        self.anonimo.get(self.url("quiz"))
+        r = self.anonimo.get(self.url("quiz"))
         self.anonimo.post(self.url("quiz"), {f"q_{self.q.pk}": [self.giusta.pk], "nome": "a", "cognome": "b",
-                                             "sito_web": "x"})
+                                             "sito_web": "x", "consegna": r.context["consegna"]})
         self.assertFalse(R.objects.exists())
 
-    def test_secondo_superamento_stessa_versione_riusa_il_record(self):
+    def test_dopo_il_superamento_il_quiz_non_si_ripete(self):
         self.segui_corso()
         self.consegna(self.giusta)
-        self.consegna(self.giusta)
+        r = self.consegna(self.giusta)
+        self.assertEqual(r.status_code, 409)
+        self.assertContains(r, "Corso già completato", status_code=409)
         self.assertEqual(TrainingEmployeeRecord.objects.count(), 1)
-        self.assertEqual(R.objects.filter(record__isnull=False).count(), 2)
+        self.assertEqual(R.objects.count(), 1)
 
 
 class ControlloHrTests(_Base):
