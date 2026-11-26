@@ -302,7 +302,8 @@
     if (apiCache[q]) { search(q); return; }
     if (q.length < 3) lastDocs = null;
     render(q);
-    timer = setTimeout(function () { search(q); }, 120);
+    // 250 ms: chi scrive di seguito manda una sola richiesta, non una per lettera.
+    timer = setTimeout(function () { search(q); }, 250);
   });
 
   input.addEventListener("keydown", function (e) {
