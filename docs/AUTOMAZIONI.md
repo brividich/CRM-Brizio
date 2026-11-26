@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 117
+**Totale automazioni disponibili:** 120
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -354,6 +354,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ## Assistente AI
 
+### `ai_daily_brief_notturno`
+
+- **Quando gira:** ogni giorno, alle 06:10
+- **Task eseguito:** `ai_assistant.tasks.run_daily_brief_notturno`
+- **Cosa fa:** Riepilogo AI del giorno preparato all'alba per chi lo ha aperto negli ultimi 14 giorni: alla prima apertura della home è già pronto, invece dei 20-25 s di Ollama a persona. Esce subito se il brief AI è spento.
+
 ### `ai_index_sgi_documents`
 
 - **Quando gira:** ogni giorno, alle 03:30
@@ -581,6 +587,18 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 30 minuti
 - **Task eseguito:** `presenti.tasks.run_pubblica_pdf_presenti`
 - **Cosa fa:** PRESENTI IN AZIENDA — PDF dei presenti su SharePoint (CN-PRESENZE.pdf), al posto dello script ReportPresenze del diskstation. No-op se disattivato nelle Impostazioni del modulo.
+
+### `produzione_manutenzione_db`
+
+- **Quando gira:** ogni giorno, alle 03:10
+- **Task eseguito:** `produzione.tasks.run_manutenzione_db`
+- **Cosa fa:** ORDINI DI PRODUZIONE — manutenzione notturna di statistiche e indici delle tabelle del modulo (produzione/manutenzione_db.py, solo SQL Server): sull'istanza non c'è un piano di manutenzione.
+
+### `produzione_report_cmm_giro`
+
+- **Quando gira:** ogni giorno, ogni ora al minuto 40
+- **Task eseguito:** `produzione.tasks.run_giro_report_cmm`
+- **Cosa fa:** ORDINI DI PRODUZIONE — archivio dei report CMM: ogni ora legge i PDF nuovi o cambiati della share Collaudo (sola lettura), prima le cartelle mai lette, per al massimo PRODUZIONE_REPORT_CMM_MINUTI. Il primo caricamento si completa in più giri.
 
 ### `reception_avvisi_referenti`
 
