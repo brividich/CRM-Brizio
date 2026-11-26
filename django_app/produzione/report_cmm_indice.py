@@ -394,7 +394,7 @@ def riepilogo_pn(pn: str) -> dict:
 
 
 def report_dell_op(titolo: str) -> list[ReportCMM]:
-    return list(ReportCMM.objects.filter(op__iexact=titolo, righe__gt=0).order_by("-data", "-id")[:50]) if titolo else []
+    return list(ReportCMM.objects.filter(op=titolo, righe__gt=0).order_by("-data", "-id")[:50]) if titolo else []
 
 
 def conteggi_per_pn() -> dict[str, dict]:
@@ -783,9 +783,13 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
             misurati[pn][k] += 1
             if f:
                 sett[pn][k] += 1
-    ultimi = {}
-    for pn, sn, d, rid in validi.order_by("pn", "-data", "-id").values_list("pn", "seriale", "data", "id"):
-        ultimi.setdefault(pn, (sn, d, rid))
+    # ultimo report di ogni P/N: un id per P/N con una sottoquery sull'indice (pn, …) invece di leggere tutti i report
+    from django.db.models import OuterRef, Subquery
+
+    ultimo_id = Subquery(validi.filter(pn=OuterRef("pn")).order_by("-data", "-id").values("id")[:1])
+    ids = [r["u"] for r in validi.values("pn").annotate(u=ultimo_id).values("u").distinct()]
+    ultimi = {pn: (sn, d, rid) for rid, pn, sn, d in
+              ReportCMM.objects.filter(pk__in=ids).values_list("id", "pn", "seriale", "data")}
     from .models import ArticoloPN
 
     calcolati = {a["pn"]: a for a in ArticoloPN.objects.filter(pn__in=list(righe)).values(
@@ -818,7 +822,7 @@ def report_primo_articolo(op: str) -> ReportCMM | None:
     """Per il FAI: il primo report CMM valido dell'OP."""
     if not op:
         return None
-    return (ReportCMM.objects.filter(op__iexact=op.replace("-", "/"), righe__gt=0, escluso=False)
+    return (ReportCMM.objects.filter(op=op.replace("-", "/"), righe__gt=0, escluso=False)
             .order_by("data", "id").first())
 
 

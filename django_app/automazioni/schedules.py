@@ -629,6 +629,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {"q_options": {"timeout": 900}},
     },
     {
+        # ORDINI DI PRODUZIONE — manutenzione notturna di statistiche e indici delle tabelle del modulo
+        # (produzione/manutenzione_db.py, solo SQL Server): sull'istanza non c'è un piano di manutenzione.
+        "name": "produzione_manutenzione_db",
+        "func": "produzione.tasks.run_manutenzione_db",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "10 3 * * *",       # ogni notte alle 03:10, fuori dal giro dei report (ai 40)
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 900}},
+    },
+    {
         # ANAGRAFICA HR — ricalcolo notturno delle scadenze dal motore unico dei requisiti:
         # cache formazione (TrainingDeadline, prima mai ricalcolata: stati vecchi nello
         # scadenzario e nei promemoria) e scadenza effettiva delle visite (ricalcolo
