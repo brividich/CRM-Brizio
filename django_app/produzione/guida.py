@@ -137,6 +137,11 @@ SEZIONI: list[dict] = [
                   "P/N il riquadro «Report CMM» mostra «Quote da tenere d'occhio» (sugli ultimi 30 report di ogni "
                   "programma: fuori nell'ultimo report, poi Cpk sotto 1,33) e gli ultimi report; nella scheda dell'OP "
                   "ci sono i report di quell'OP."),
+            ("p", "Si leggono sia i report di oggi sia quelli del formato vecchio (CALYPSO stampato con novaPDF, colonne "
+                  "«Aktual», «pos Tol», «neg Tol», «<--|-->», fino al 2024, anche con la testata in italiano «Nome piano», "
+                  "«No. di disegno»). I report vecchi già in elenco senza quote si rileggono da soli nei giri successivi: "
+                  "finché non tocca a loro, la pagina del report dice «Report non ancora riletto con il lettore aggiornato». "
+                  "Gli avvisi partono solo per i report degli ultimi 30 giorni, mai per quelli vecchi."),
             ("p", "«Analisi quote» (dalla scheda del P/N). In alto i filtri, che valgono per tutto quello che c'è sotto: "
                   "Programma (il «Part Program Name» senza revisione), Periodo (Tutto, 12 mesi, 90 giorni, 30 giorni, "
                   "«Dal… al…»), OP (uno o più, «Solo l'ultimo») ed «Evidenzia S/N», che segna un pezzo in tutte le viste. "

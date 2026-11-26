@@ -74,7 +74,7 @@
     </div>
     <p class="prod-nota-sotto">Barra: la zona verde è la tolleranza, la linea al centro il valore ideale. «Usata»: quanto della metà tolleranza è consumato (100% = al limite). Cpk sugli ultimi 30 pezzi dello stesso programma.</p>
     {% else %}
-    <p class="prod-vuoto">{% if filtro %}Nessuna quota con questo filtro.{% else %}Nessuna quota letta da questo report.{% endif %}</p>
+    <p class="prod-vuoto">{% if filtro %}Nessuna quota con questo filtro.{% elif report.da_rileggere %}Report non ancora riletto con il lettore aggiornato: il giro dei report lo rilegge (oppure «Leggi i report» in Quote CMM).{% else %}Nessuna quota letta da questo report.{% endif %}</p>
     {% endif %}
   </section>
 

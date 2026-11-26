@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: report CMM del formato vecchio (2014-2024)
+
+- Il lettore dei report CMM legge anche il formato vecchio (CALYPSO stampato con novaPDF: «Aktual», «pos Tol», «neg Tol», «<--|-->», testata anche in italiano): tolleranze di forma senza «neg Tol», posizioni con bonus di massimo materiale, eccedenza al posto della barretta, data scritta per esteso. Provato su 325 report veri dal 2012 al 2024 (22.560 quote, 4 da verificare) e su 120 del formato nuovo, invariati.
+- I report già in elenco senza quote si rileggono da soli nei giri successivi (versione del lettore sul report, migrazione `produzione 0006`), prima le cartelle che ne hanno; la pagina del report dice se è ancora da rileggere.
+- Gli avvisi delle quote fuori partono solo per i report degli ultimi 30 giorni: la rilettura dei report vecchi non manda notifiche.
+- File: `django_app/anomalie/report_cmm.py`, `anomalie/tests_report_cmm.py`, `produzione/report_cmm_indice.py`, `produzione/avvisi_cmm.py`, `produzione/models.py`, `produzione/migrations/0006_report_lettore.py`, `produzione/templates/produzione/report_cmm.html`, `produzione/guida.py`, `core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`, test `produzione/tests_report_cmm.py`, `produzione/tests_quote_migliorie.py`.
+
 ### Ordini di produzione: pagina del pezzo (S/N) con scheda PDF
 
 - Nuova pagina del pezzo (`/produzione/pezzo/?pn=&sn=`): tutti i report CMM di un S/N (anche scritto in modi diversi), le quote report per report con la barra nella tolleranza e la differenza fra primo e ultimo, filtri «Fuori almeno una volta» e «Cambiate fra i report», storia con rimisure, esclusi e anomalie del S/N, segnale «Primo articolo del FAI». «Confronta le fasi» e «Scheda pezzo (PDF)» da allegare o mandare al cliente.

@@ -438,11 +438,16 @@ def _valore_cella(testo: str) -> float | None:
     gradi = int(m.group(2)) + int(m.group(3) or 0) / 60 + _num(m.group(4) or "0") / 3600
     return round(-gradi if m.group(1) else gradi, 4)
 _COLONNE_VALORI = ("actual", "nominal", "pos", "neg", "diff", "ecc")
+_SINONIMI_COLONNE = {"aktual": "actual"}
 # Etichette dell'intestazione del report -> chiave restituita al browser.
 _ETICHETTE_TESTATA = (
     ("Part Program Name", "programma"), ("Part Number", "part_number"), ("Working Sheet", "odl"),
     ("Serial Number", "seriale"), ("Description", "descrizione"), ("Inspector", "ispettore"),
     ("CMM Model", "cmm"), ("CMM S/N", "cmm_sn"), ("Criticality", "criticita"), ("Date", "data"),
+    # testata in italiano dei report vecchi
+    ("Nome piano", "programma"), ("No. di disegno", "part_number"), ("Ordine", "odl"),
+    ("Numero pezzo incrementale", "seriale"), ("Commento:", "descrizione"), ("Firma:", "ispettore"),
+    ("Data", "data"), ("CMM", "cmm"),
 )
 
 
@@ -463,8 +468,11 @@ def _righe_pdf(parole: list[tuple]) -> list[list[tuple]]:
 
 
 def _colonne_da_intestazione(riga: list[tuple]) -> dict | None:
-    """Riga «Name ID Actual Nominal Pos Tol Neg Tol Diff +/-» -> centro x di ogni colonna."""
-    testi = [w[4].lower() for w in riga]
+    """Riga «Name ID Actual Nominal Pos Tol Neg Tol Diff +/-» -> centro x di ogni colonna.
+
+    Formato vecchio (CALYPSO stampato con novaPDF, fino al 2024): «Name ID Aktual Nominal pos Tol neg Tol
+    Diff <--|-->»; nella colonna «<--|-->» c'e' la barretta grafica oppure, fuori tolleranza, l'eccedenza."""
+    testi = [_SINONIMI_COLONNE.get(w[4].lower(), w[4].lower()) for w in riga]
     if not {"actual", "nominal", "diff"} <= set(testi):
         return None
 
@@ -475,7 +483,7 @@ def _colonne_da_intestazione(riga: list[tuple]) -> dict | None:
     for i, t in enumerate(testi):
         w = riga[i]
         chiave = {"name": "name", "id": "id", "actual": "actual", "nominal": "nominal", "diff": "diff",
-                  "+/-": "ecc", "±": "ecc", "pos": "pos", "neg": "neg"}.get(t)
+                  "+/-": "ecc", "±": "ecc", "<--|-->": "ecc", "pos": "pos", "neg": "neg"}.get(t)
         if not chiave or chiave in col:
             continue  # pagina con intestazione doppia: parole ripetute
         if chiave == "name":
@@ -490,6 +498,7 @@ def _colonne_da_intestazione(riga: list[tuple]) -> dict | None:
     col.setdefault("name", 30.0)
     col.setdefault("id", col["actual"] - 55)
     col.setdefault("ecc", col["diff"] + 50)
+    col["vecchio"] = any(w[4].lower() in ("aktual", "<--|-->") for w in riga)
     return col
 
 
@@ -584,9 +593,15 @@ def righe_da_pagina_pdf(parole: list[tuple], pagina: int = 1, sezione: str = "")
             ecc_sospesa = _valore_cella(valori["ecc"])  # anche in gradi/primi/secondi
             continue
         numeri = {k: v for k, v in ((k, _valore_cella(v)) for k, v in valori.items()) if v is not None}
+        if col["vecchio"] and "pos" in numeri and "neg" not in numeri:
+            numeri["neg"] = 0.0  # formato vecchio: tolleranza di forma o posizione, «neg Tol» vuota
         if not {"actual", "nominal", "pos", "neg"} <= set(numeri):
             continue  # valore senza tolleranze (coordinate «Valore X_…»): non si giudica
         a, n, p, m = numeri["actual"], numeri["nominal"], numeri["pos"], numeri["neg"]
+        if col["vecchio"] and n == 0 and m > 0:
+            # Posizione nel formato vecchio: in «neg Tol» c'e' la tolleranza effettiva (con il bonus di
+            # massimo materiale, mai sotto quella a disegno); l'eccedenza stampata si calcola su questa.
+            p, m = max(p, m), 0.0
         d = numeri.get("diff")
         coerente = d is not None and abs((a - n) - d) <= max(0.0011, abs(d) * 0.002)
         if not coerente and d is not None and n and abs((math.degrees(a) - n) - d) <= 0.006:

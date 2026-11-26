@@ -2,13 +2,16 @@
 
 Li riceve chi è scelto in Ordini di produzione › Impostazioni («Chi riceve gli avvisi»), come notifica
 in-app (campanella e, se l'utente l'ha chiesta, push). Ogni report avvisa una volta sola (``avvisato``);
-una quota in deriva si riavvisa al massimo ogni 30 giorni.
+una quota in deriva si riavvisa al massimo ogni 30 giorni. Si avvisa solo per i report degli ultimi
+``GIORNI_AVVISO`` giorni: la prima lettura di una cartella (anni di report) non manda avvisi su pezzi vecchi.
 """
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from django.core.cache import cache
+from django.utils import timezone
 from django.urls import reverse
 from urllib.parse import urlencode
 
@@ -16,6 +19,7 @@ from .models import ImpostazioniQuoteCMM, ReportCMM
 
 logger = logging.getLogger(__name__)
 _DERIVA_RIPETI = 30 * 24 * 3600
+GIORNI_AVVISO = 30
 
 
 def _destinatari(imp: ImpostazioniQuoteCMM) -> list[int]:
@@ -40,8 +44,10 @@ def invia_avvisi(pn: str) -> dict:
         imp = ImpostazioniQuoteCMM.attuali()
         dest = _destinatari(imp)
         nuovi = list(ReportCMM.objects.filter(pn=pn, avvisato=False))
+        da = timezone.localdate() - timedelta(days=GIORNI_AVVISO)
+        recenti = [r for r in nuovi if r.data and r.data >= da]
         if dest and imp.avvisa_fuori:
-            for r in nuovi:
+            for r in recenti:
                 if r.escluso or not r.righe or not r.fuori:
                     continue
                 nomi = list(r.misure.filter(fuori=True).values_list("nome", flat=True)[:3])
@@ -52,7 +58,7 @@ def invia_avvisi(pn: str) -> dict:
                     invia_notifica(lid, "generico", msg[:500], url)
                 esito["fuori"] += 1
         ReportCMM.objects.filter(pk__in=[r.pk for r in nuovi]).update(avvisato=True)
-        if dest and imp.avvisa_deriva and nuovi:
+        if dest and imp.avvisa_deriva and recenti:
             for a in cmm.analisi_pn(pn):
                 d = a["deriva"]
                 if not d:
