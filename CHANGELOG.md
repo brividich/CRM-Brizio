@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Link aperto: chi ha già fatto il corso non lo riprende
+
+- Se la persona abbinata ha già un completamento valido del corso (aula, portale, una prova precedente), il link aperto mostra «Corso già completato»: niente ripresa del percorso da una partecipazione rimasta a metà, niente quiz; il materiale resta consultabile. Un completamento scaduto si può rifare (`views_corso_aperto._completato_il`).
+- Test: `tests_corso_aperto_ripresa.py` (GiaCompletatoAltroveTests).
+
 ### Corsi online: niente tempo minimo per cambiare slide
 
 - «Avanti» vale subito su portale, link aperto e lezione online di sessione: `elearning_regole.secondi_richiesti_slide` e `sessione_online.secondi_da_attendere` restituiscono 0. I campi «Permanenza minima per slide» (regola FAD), «Visione minima» (video) e «Tempo minimo su ogni slide» (lezione) escono dai moduli e non si applicano più (i valori restano nel database). Restano il tempo minimo complessivo del corso e i video «da guardare fino in fondo».
