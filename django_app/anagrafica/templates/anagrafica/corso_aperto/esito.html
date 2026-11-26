@@ -14,6 +14,7 @@
   {% endif %}
 {% else %}
   {% if testo %}<p>{{ testo }}</p>{% endif %}
+  {% if concludi %}<form method="post">{% csrf_token %}<div class="pb-trappola" aria-hidden="true"><label for="c-sito">Lascia vuoto</label><input id="c-sito" name="sito_web" tabindex="-1" autocomplete="off"></div><button class="pb-btn pb-btn-full" type="submit">Concludi il corso</button></form>{% endif %}
   {% if torna %}<div class="pb-nav"><a class="pb-btn pb-btn-ghost" href="{{ torna }}">Torna al corso</a></div>{% endif %}
 {% endif %}
 {% endblock %}

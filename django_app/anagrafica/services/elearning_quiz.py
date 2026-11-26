@@ -76,6 +76,11 @@ def blocco(enr, regola: Regola, ordini: list[int], *, adesso=None) -> str:
 
     if enr.stato == "COMPLETATO":
         return "Hai già completato questo corso."
+    from .formazione_completamento import collega_iscrizione_a_completamento
+    gia = collega_iscrizione_a_completamento(enr)
+    if gia is not None:
+        # Completamento valido da un'altra strada (aula, link aperto, import) e nessun rinnovo aperto.
+        return f"Hai già completato questo corso il {gia.data_completamento:%d-%m-%Y}."
     if regola.richiede_tutte_slide and not tutte_completate(enr):
         return "Il quiz si apre dopo aver completato tutte le slide."
     if regola.tempo_minimo_minuti and (enr.secondi_accreditati or 0) < regola.tempo_minimo_minuti * 60:

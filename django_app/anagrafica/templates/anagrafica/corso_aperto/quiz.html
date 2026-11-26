@@ -1,6 +1,7 @@
 {% extends "anagrafica/corso_aperto/_base.html" %}
 {% block sottotitolo %}<p>Quiz finale</p>{% endblock %}
 {% block corpo %}
+{% if tempo_quiz_minuti %}<p class="pb-help">Hai {{ tempo_quiz_minuti }} minuti per consegnare il quiz: oltre, il tentativo non è valido.</p>{% endif %}
 {% if errori %}<div class="pb-errori" role="alert"><ul>{% for e in errori %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
 <form method="post" novalidate class="js-una-consegna">
   {% csrf_token %}<input type="hidden" name="consegna" value="{{ consegna }}">

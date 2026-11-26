@@ -2254,6 +2254,9 @@ def formazione_corso_assegna(request, corso_id: int):
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
 
     from ..services.elearning_fruizione import ciclo_per_nuova_assegnazione
+    from ..services.formazione_completamento import ids_in_regola
+    in_regola = ids_in_regola(corso, ids)
+    ids = [lid for lid in ids if lid not in in_regola]
     n_new = 0
     for lid in ids:
         _, created = TrainingAssignment.objects.get_or_create(
@@ -2266,10 +2269,13 @@ def formazione_corso_assegna(request, corso_id: int):
         )
         if created:
             n_new += 1
+    gia = f" {len(in_regola)} già in regola, non assegnati." if in_regola else ""
     if n_new:
-        messages.success(request, f"{n_new} dipendenti assegnati al corso.")
+        messages.success(request, f"{n_new} dipendenti assegnati al corso.{gia}")
+    elif in_regola and not ids:
+        messages.info(request, gia.strip())
     else:
-        messages.info(request, "I dipendenti selezionati erano già assegnati al corso.")
+        messages.info(request, f"I dipendenti selezionati erano già assegnati al corso.{gia}")
     return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
 
 
@@ -5575,23 +5581,38 @@ def formazione_elearning_hub(request):
         .annotate(
             n_slide=Count("slides", filter=Q(slides__is_active=True), distinct=True),
             n_domande=Count("quiz_domande", filter=Q(quiz_domande__is_active=True), distinct=True),
-            # Persone distinte (un rinnovo apre un nuovo ciclo: non è un secondo iscritto).
-            n_iscritti=Count("iscrizioni_elearning__legacy_anagrafica_id", distinct=True),
         )
         .order_by("-is_active", "stato", "titolo")
     )
+    # «Iscritti»: persone distinte con un'assegnazione, un'iscrizione e-learning o una partecipazione
+    # dal link aperto abbinata (un rinnovo apre un nuovo ciclo: non è un secondo iscritto).
+    from ..models_elearning import TrainingElearningPartecipazioneAperta, TrainingElearningRispostaAperta
+    _iscritti_per_corso: dict[int, set] = defaultdict(set)
+    for _qs in (TrainingAssignment.objects.filter(corso__in=corsi),
+                TrainingElearningEnrollment.objects.filter(corso__in=corsi),
+                TrainingElearningPartecipazioneAperta.objects.filter(corso__in=corsi,
+                                                                     legacy_anagrafica_id__isnull=False)):
+        for _cid, _lid in _qs.values_list("corso_id", "legacy_anagrafica_id").distinct():
+            _iscritti_per_corso[_cid].add(_lid)
+    # Quiz superati dal link aperto ancora da abbinare (conteggio sul DB, non sull'elenco tagliato).
+    _da_abbinare = dict(TrainingElearningRispostaAperta.objects
+                        .filter(corso__in=corsi, superato=True, stato=TrainingElearningRispostaAperta.DA_ABBINARE)
+                        .values("corso_id").annotate(n=Count("pk")).order_by().values_list("corso_id", "n"))
     # «Completati»: persone con un completamento valido (idoneo, non scaduto) da qualunque strada
     # (e-learning, link aperto, aula), come nella pagina del corso. Una query per tutti i corsi.
     _oggi_hub = django_timezone.localdate()
     _completati_per_corso: dict[int, set] = defaultdict(set)
     for _cid, _lid in (TrainingEmployeeRecord.objects
-                       .filter(corso__in=corsi, idoneo=True)
+                       .filter(corso__in=corsi, idoneo=True, data_completamento__lte=_oggi_hub)
                        .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=_oggi_hub))
                        .values_list("corso_id", "legacy_anagrafica_id")):
         _completati_per_corso[_cid].add(_lid)
     for c in corsi:
         c.n_completati = len(_completati_per_corso.get(c.pk, ()))
-    tot = {"corsi": len(corsi), "pubblicati": 0, "iscritti": 0, "completati": 0, "problemi": 0}
+        c.n_iscritti = len(_iscritti_per_corso.get(c.pk, ()))
+        c.n_da_abbinare = _da_abbinare.get(c.pk, 0)
+    tot = {"corsi": len(corsi), "pubblicati": 0, "iscritti": 0, "completati": 0, "problemi": 0,
+           "da_abbinare": sum(_da_abbinare.values())}
     rows = []
     for c in corsi:
         n_invalid = sum(
@@ -5665,20 +5686,22 @@ def formazione_elearning_manage(request, corso_id: int):
     from ..views_elearning import url_link_aperto
     link_aperto = TrainingElearningLinkAperto.objects.filter(corso=corso).first()
     risposte_aperte = list(TrainingElearningRispostaAperta.objects.filter(corso=corso)[:300])
-    if risposte_aperte:
-        nomi_ra = nomi or _helpers._build_nomi_map()
-        for r in risposte_aperte:
-            r.nome_abbinato = nomi_ra.get(r.legacy_anagrafica_id, "") if r.legacy_anagrafica_id else ""
-    n_da_abbinare = sum(1 for r in risposte_aperte if r.stato == "DA_ABBINARE")
     from ..models_elearning import TrainingElearningPartecipazioneAperta
     partecipazioni = list(TrainingElearningPartecipazioneAperta.objects.filter(corso=corso)[:300])
+    if not nomi and (risposte_aperte or partecipazioni):
+        nomi = _helpers._build_nomi_map()
+    for r in risposte_aperte:
+        r.nome_abbinato = nomi.get(r.legacy_anagrafica_id, "") if r.legacy_anagrafica_id else ""
+    # Conteggio sul DB: l'elenco qui sopra si ferma a 300 risposte.
+    n_da_abbinare = TrainingElearningRispostaAperta.objects.filter(
+        corso=corso, stato=TrainingElearningRispostaAperta.DA_ABBINARE).count()
     from ..services.elearning_fruizione import slides_percorso
     n_slide_tot = len(slides_percorso(corso))
     for p in partecipazioni:
         p.n_viste = len(p.slide_viste or {})
         p.pct = min(100, round(100 * p.n_viste / n_slide_tot)) if n_slide_tot else 0
         p.minuti = round((p.secondi or 0) / 60)
-        p.nome_abbinato = (nomi or _helpers._build_nomi_map()).get(p.legacy_anagrafica_id, "") if p.legacy_anagrafica_id else ""
+        p.nome_abbinato = nomi.get(p.legacy_anagrafica_id, "") if p.legacy_anagrafica_id else ""
     reparti_qr = sorted({a for a in DipendenteAnagraficaAziendale.objects.filter(data_cessazione__isnull=True)
                         .exclude(area="").values_list("area", flat=True)}, key=str.lower)
 
@@ -5848,6 +5871,9 @@ def formazione_elearning_assign(request, corso_id: int):
             due = None
 
     from ..services.elearning_notifications import notify_corso_assegnato
+    from ..services.formazione_completamento import ids_in_regola
+    in_regola = ids_in_regola(corso, ids)
+    ids = [lid for lid in ids if lid not in in_regola]
     n_new = 0
     for lid in ids:
         from ..services.elearning_fruizione import ciclo_per_nuova_assegnazione
@@ -5861,10 +5887,13 @@ def formazione_elearning_assign(request, corso_id: int):
                 notify_corso_assegnato(corso.pk, lid)
             except Exception:
                 logger.debug("Hook notifica assegnazione e-learning fallito", exc_info=True)
+    gia = f" {len(in_regola)} già in regola, non assegnati." if in_regola else ""
     if n_new:
-        messages.success(request, f"{n_new} dipendente/i assegnato/i al corso.")
+        messages.success(request, f"{n_new} dipendente/i assegnato/i al corso.{gia}")
+    elif in_regola and not ids:
+        messages.info(request, gia.strip())
     else:
-        messages.info(request, "I dipendenti selezionati erano già assegnati.")
+        messages.info(request, f"I dipendenti selezionati erano già assegnati.{gia}")
     return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
 
 

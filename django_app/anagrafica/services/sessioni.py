@@ -267,9 +267,11 @@ def _collega_edizione(riga: Riga, *, attore_nome: str = "", iscrizione=None, rec
             or not s.aperta or s.firma_approvatore_il):
         return False
     if iscrizione is None:
-        from .formazione_completamento import completamento_valido
-        record = record if record is not None and record.corso_id == corso.pk else completamento_valido(
-            corso, riga.legacy_anagrafica_id)
+        from .formazione_completamento import completamento_valido, record_valido
+        if record is not None and record.corso_id == corso.pk:
+            record = record if record_valido(record) else None
+        else:
+            record = completamento_valido(corso, riga.legacy_anagrafica_id)
         if record is None:
             return False
         if record.enrollment_id and TrainingEnrollment.objects.filter(
@@ -296,7 +298,9 @@ def _collega_edizione(riga: Riga, *, attore_nome: str = "", iscrizione=None, rec
 
 def collega_completamento(record) -> int:
     """Completamento a libretto idoneo (qualunque strada): entra nelle righe aperte che chiedono quel corso."""
-    if record is None or not record.idoneo:
+    from .formazione_completamento import record_valido
+
+    if not record_valido(record):
         return 0
     righe = (Riga.objects.filter(legacy_anagrafica_id=record.legacy_anagrafica_id, voce__corso_id=record.corso_id,
                                  edizione__isnull=True, sessione__stato__in=S.STATI_APERTI,

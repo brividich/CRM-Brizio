@@ -125,6 +125,9 @@ def righe_risultati(corso) -> list[dict]:
     regola = regola_corso(corso)
     oggi = timezone.localdate()
     stati_p = stati_persona_corso(corso, ids, oggi=oggi)
+    # Ex dipendenti: restano nell'elenco (storico) ma fuori da totali, percentuali e ritardi.
+    from .training_eligibility import _cessati_ids
+    cessati = _cessati_ids() & ids
     righe = []
     for lid in ids:
         a, e = assegnazioni.get(lid), iscrizioni.get(lid)
@@ -171,7 +174,9 @@ def righe_risultati(corso) -> list[dict]:
             "assegnato": a is not None,
             "assegnazione": a,
             "scadenza": scadenza,
-            "in_ritardo": bool(scadenza and scadenza < oggi and stato not in (COMPLETATO, ESONERATO)),
+            "in_ritardo": bool(scadenza and scadenza < oggi and stato not in (COMPLETATO, ESONERATO)
+                               and lid not in cessati),
+            "cessato": lid in cessati,
             "stato": stato, "etichetta": etichetta or ETICHETTE[stato], "tono": TONI[stato],
             "enrollment": e,
             "slide": f"{viste}/{tot}" if tot else "—",
@@ -189,6 +194,8 @@ def righe_risultati(corso) -> list[dict]:
 
 
 def numeri(righe: list[dict]) -> dict:
+    """Numeri della pagina del corso: solo persone in forza (gli ex dipendenti non contano)."""
+    righe = [r for r in righe if not r.get("cessato")]
     conta = {k: 0 for k in ETICHETTE}
     for r in righe:
         conta[r["stato"]] += 1
@@ -231,17 +238,18 @@ def domande_difficili(corso, limite: int = 6) -> list[dict]:
 
 def persone_assegnabili(corso) -> list[dict]:
     from ..models import DipendenteAnagraficaAziendale
-    from ..models_formazione import TrainingAssignment, TrainingElearningEnrollment
+    from ..models_formazione import TrainingAssignment
 
     attivi = list(DipendenteAnagraficaAziendale.objects.filter(data_cessazione__isnull=True)
                   .values_list("legacy_anagrafica_id", flat=True))
     anag, azi = _anagrafica(attivi), _aziendale(attivi)
-    assegnati = set(TrainingAssignment.objects.filter(corso=corso).values_list("legacy_anagrafica_id", flat=True))
-    completati = set(TrainingElearningEnrollment.objects.filter(corso=corso, stato="COMPLETATO")
-                     .values_list("legacy_anagrafica_id", flat=True))
+    # Escluso solo chi ha già un'assegnazione aperta: chi ha completato (o è stato esonerato) un ciclo
+    # precedente resta assegnabile per il rinnovo.
+    assegnati = set(TrainingAssignment.objects.filter(corso=corso).exclude(stato__in=("COMPLETATO", "ESONERATO"))
+                    .values_list("legacy_anagrafica_id", flat=True))
     # Completato = ha un completamento valido del corso, da qualunque strada (aula, link aperto, sessione).
     from .formazione_completamento import ids_con_completamento_valido
-    completati |= ids_con_completamento_valido(corso, attivi)
+    completati = ids_con_completamento_valido(corso, attivi)
     out = []
     for lid in attivi:
         r = anag.get(lid)
@@ -262,8 +270,8 @@ def persone_assegnabili(corso) -> list[dict]:
 def persone_iscrivibili(sessione) -> list[dict]:
     """Dipendenti attivi non ancora iscritti alla sessione, con lo stato rispetto al corso.
 
-    ``stato``: ``da_formare`` (nessun completamento valido), ``in_scadenza`` (scade entro 90
-    giorni), ``in_regola``. ``assegnato`` = ha un'assegnazione aperta del corso."""
+    ``stato``: ``da_formare`` (nessun completamento valido), ``in_scadenza`` (scade entro
+    ``GIORNI_PREAVVISO`` giorni), ``in_regola``. ``assegnato`` = ha un'assegnazione aperta del corso."""
     from datetime import timedelta
 
     from ..models import DipendenteAnagraficaAziendale
@@ -276,10 +284,12 @@ def persone_iscrivibili(sessione) -> list[dict]:
     iscritti = set(TrainingEnrollment.objects.filter(sessione=sessione).values_list("legacy_anagrafica_id", flat=True))
     assegnati = set(TrainingAssignment.objects.filter(corso=corso).exclude(stato__in=("COMPLETATO", "ESONERATO"))
                     .values_list("legacy_anagrafica_id", flat=True))
+    from ..scadenze_soglie import GIORNI_PREAVVISO
     oggi = timezone.localdate()
-    tra90 = oggi + timedelta(days=90)
+    tra90 = oggi + timedelta(days=GIORNI_PREAVVISO)
     migliore: dict[int, object] = {}
-    for lid, scad in TrainingEmployeeRecord.objects.filter(corso=corso).values_list("legacy_anagrafica_id", "data_scadenza"):
+    for lid, scad in (TrainingEmployeeRecord.objects.filter(corso=corso, idoneo=True, data_completamento__lte=oggi)
+                      .values_list("legacy_anagrafica_id", "data_scadenza")):
         attuale = migliore.get(lid, "assente")
         if scad is None or attuale is None:
             migliore[lid] = None  # una tantum o senza scadenza: in regola per sempre

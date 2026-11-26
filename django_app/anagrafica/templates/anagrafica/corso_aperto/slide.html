@@ -29,6 +29,8 @@
   {% elif secondi_mancanti %}<span class="pb-attesa" role="status" aria-live="polite">Puoi andare avanti tra <strong id="pb-secondi">{{ secondi_mancanti }}</strong> secondi.</span>{% endif %}
   {% if succ %}
     <a class="pb-btn js-avanti" href="?s={{ succ }}"{% if secondi_mancanti %} aria-disabled="true"{% endif %}>Avanti</a>
+  {% elif senza_quiz %}
+    <a class="pb-btn js-avanti" href="{% url 'corso_aperto:quiz' link.token %}"{% if secondi_mancanti %} aria-disabled="true"{% endif %}>Concludi il corso</a>
   {% elif ha_quiz %}
     <a class="pb-btn js-avanti" href="{% url 'corso_aperto:quiz' link.token %}"{% if secondi_mancanti %} aria-disabled="true"{% endif %}>Vai al quiz finale</a>
   {% else %}
