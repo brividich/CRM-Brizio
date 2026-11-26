@@ -59,8 +59,8 @@
       <div style="font-size:20px;font-weight:800;color:#0c2545;">{{ fm_n_attestati }}</div>
       <div style="font-size:11px;color:#64748b;margin-top:2px;">Attestati</div>
     </div>
-    <a class="kpi-link" href="{% url 'anagrafica:formazione_scadenzario' %}?dipendente={{ legacy_id }}"
-       title="Apri lo scadenzario filtrato: scadute, in scadenza e mai frequentate di questa persona"
+    <a class="kpi-link" href="{% url 'anagrafica:formazione_scadenzario' %}?dipendente={{ legacy_id }}&obbligatori=1"
+       title="Apri lo scadenzario filtrato: corsi obbligatori scaduti, in scadenza entro 90 giorni o mai frequentati di questa persona"
        style="display:block;text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
       <div style="font-size:20px;font-weight:800;color:{% if fm_n_scadenze_urgenti %}#b91c1c{% else %}#065f46{% endif %};">
         {{ fm_n_scadenze_urgenti }}

@@ -26,7 +26,7 @@
       </div>
       <div class="fmd-pagehead-actions">
         <a href="{% url 'anagrafica:formazione_tipi_corso' %}" class="fmd-btn fmd-btn-ghost">Tipi di corso</a>
-        <a href="{% url 'anagrafica:formazione_elearning_hub' %}" class="fmd-btn fmd-btn-ghost">Cruscotto online</a>
+        <a href="{% url 'anagrafica:formazione_elearning_hub' %}" class="fmd-btn fmd-btn-ghost">Corsi online</a>
       {% if is_editor %}
         <a href="{% url 'anagrafica:formazione_corso_create' %}" class="fmd-btn fmd-btn-primary">
           <svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo corso
@@ -50,17 +50,17 @@
     </style>
     <section class="fmd-panel">
       <div class="cl-chips"><span class="cl-lbl">Come si fa</span>
-        <a class="cl-chip{% if not filtro_modo %} on{% endif %}" href="?tipo={{ filtro_tipo }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">Tutti</a>
-        {% for chiave, etichetta, n in modi_conteggi %}<a class="cl-chip{% if filtro_modo == chiave %} on{% endif %}" href="?modo={{ chiave }}&tipo={{ filtro_tipo }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">{{ etichetta }}<b>{{ n }}</b></a>{% endfor %}
+        <a class="cl-chip{% if not filtro_modo %} on{% endif %}" href="?{{ qs_senza_modo }}">Tutti</a>
+        {% for chiave, etichetta, n in modi_conteggi %}<a class="cl-chip{% if filtro_modo == chiave %} on{% endif %}" href="?{{ qs_senza_modo }}modo={{ chiave }}">{{ etichetta }}<b>{{ n }}</b></a>{% endfor %}
       </div>
       <div class="cl-chips"><span class="cl-lbl">Tipo</span>
-        <a class="cl-chip{% if not filtro_tipo %} on{% endif %}" href="?modo={{ filtro_modo }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">Tutti</a>
-        {% for t in tipi %}<a class="cl-chip{% if filtro_tipo == t.pk|stringformat:'s' %} on{% endif %}" href="?modo={{ filtro_modo }}&tipo={{ t.pk }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}"><span class="cl-dot" style="background:{{ t.colore }};"></span>{{ t.nome }}</a>{% endfor %}
-        <a class="cl-chip{% if filtro_tipo == 'nessuno' %} on{% endif %}" href="?modo={{ filtro_modo }}&tipo=nessuno&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">Senza tipo</a>
-        {% if n_da_rivedere %}<a class="cl-chip{% if filtro_rinnovo %} on{% endif %}" href="?rinnovo={% if filtro_rinnovo %}0{% else %}1{% endif %}" title="Corsi una tantum con parole che fanno pensare a un rinnovo (aggiornamento, antincendio, primo soccorso, carrelli, preposto, PLE, gru…)">Una tantum da rivedere ({{ n_da_rivedere }})</a>{% endif %}
+        <a class="cl-chip{% if not filtro_tipo %} on{% endif %}" href="?{{ qs_senza_tipo }}">Tutti</a>
+        {% for t in tipi %}<a class="cl-chip{% if filtro_tipo == t.pk|stringformat:'s' %} on{% endif %}" href="?{{ qs_senza_tipo }}tipo={{ t.pk }}"><span class="cl-dot" style="background:{{ t.colore }};"></span>{{ t.nome }}</a>{% endfor %}
+        <a class="cl-chip{% if filtro_tipo == 'nessuno' %} on{% endif %}" href="?{{ qs_senza_tipo }}tipo=nessuno">Senza tipo</a>
+        {% if n_da_rivedere %}<a class="cl-chip{% if filtro_rinnovo %} on{% endif %}" href="?{{ qs_senza_rinnovo }}{% if not filtro_rinnovo %}rinnovo=1{% endif %}" title="Corsi una tantum con parole che fanno pensare a un rinnovo (aggiornamento, antincendio, primo soccorso, carrelli, preposto, PLE, gru…)">Una tantum da rivedere ({{ n_da_rivedere }})</a>{% endif %}
       </div>
       <form method="get" class="fmd-toolbar">
-        <input type="hidden" name="modo" value="{{ filtro_modo }}"><input type="hidden" name="tipo" value="{{ filtro_tipo }}">
+        <input type="hidden" name="modo" value="{{ filtro_modo }}"><input type="hidden" name="tipo" value="{{ filtro_tipo }}">{% if filtro_rinnovo %}<input type="hidden" name="rinnovo" value="1">{% endif %}
         <span class="fmd-search">
           <svg class="fmd-ico"><use href="#i-search"/></svg>
           <input type="text" name="q" value="{{ q_search }}" placeholder="Cerca codice o titolo…" autocomplete="off">
@@ -179,11 +179,11 @@
         {% if page_obj.paginator.num_pages > 1 %}
         <div class="fmd-pager">
           {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}&piano={{ filtro_piano }}&stato={{ filtro_stato }}&obbligatorio={{ filtro_obbligatorio }}&q={{ q_search }}&modo={{ filtro_modo }}&tipo={{ filtro_tipo }}">‹</a>
+            <a href="?{{ qs_filtri }}page={{ page_obj.previous_page_number }}">‹</a>
           {% endif %}
           <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
           {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}&piano={{ filtro_piano }}&stato={{ filtro_stato }}&obbligatorio={{ filtro_obbligatorio }}&q={{ q_search }}&modo={{ filtro_modo }}&tipo={{ filtro_tipo }}">›</a>
+            <a href="?{{ qs_filtri }}page={{ page_obj.next_page_number }}">›</a>
           {% endif %}
         </div>
         {% endif %}

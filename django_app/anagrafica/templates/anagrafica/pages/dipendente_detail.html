@@ -1826,6 +1826,19 @@
                 </div>
               </details>
               {% endif %}
+              {% if q.precedenti %}
+              <details class="dp-qual-dates dp-qual-precedenti" style="margin-top:4px;">
+                <summary style="cursor:pointer;font-size:11px;color:#64748b;font-weight:700;">Registrazioni precedenti ({{ q.precedenti|length }})</summary>
+                <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px;padding-left:6px;border-left:2px solid #e2e8f0;">
+                  {% for p in q.precedenti %}
+                  <div class="dp-td-mid" style="font-size:11px;">
+                    {% if p.data_conseguimento %}<strong>{{ p.data_conseguimento|date:"d-m-Y" }}</strong>{% else %}—{% endif %}{% if p.data_scadenza %} → {{ p.data_scadenza|date:"d-m-Y" }}{% endif %}{% if p.ente %} · {{ p.ente }}{% endif %}{% if p.numero %} · n° {{ p.numero }}{% endif %}
+                    <span style="color:#94a3b8;">(superata dal rinnovo)</span>
+                  </div>
+                  {% endfor %}
+                </div>
+              </details>
+              {% endif %}
               {% if is_admin %}{% for corso in q.tipo.corsi.all|slice:":1" %}
               <div class="dp-qual-dates" style="margin-top:4px;">
                 <a href="{% url 'anagrafica:formazione_corso_detail' corso.pk %}" style="background:#eef2ff;color:#3730a3;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-decoration:none;">📚 Iscrivi a un'edizione di «{{ corso.titolo|truncatechars:30 }}»</a>

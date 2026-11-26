@@ -257,8 +257,9 @@ class ElearningManageTests(TestCase):
     def test_manage_render_con_iscritti(self):
         resp = self.client.get(reverse("anagrafica:formazione_elearning_manage", args=[self.corso.pk]))
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.context["counts"]["iscritti"], 1)
-        self.assertEqual(resp.context["counts"]["completati"], 1)
+        self.assertContains(resp, "Corso gestito")
+        # I conteggi degli iscritti non usati dalla pagina non si calcolano più.
+        self.assertNotIn("counts", resp.context)
 
     def test_pubblica_ok(self):
         # Prompt 05: si pubblica solo con le regole FAD confermate dall'RSPP.
