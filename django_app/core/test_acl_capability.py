@@ -12,9 +12,10 @@ import json
 from io import StringIO
 
 from django.core.management import call_command
+from django.core.cache import cache
 from django.test import TestCase
 
-from core.acl_capability import STALE_MISSING_ROUTE, STALE_SHADOWED, build_capability_index
+from core.acl_capability import STALE_MISSING_ROUTE, STALE_SHADOWED, build_capability_index, capability_index
 from core.models import PermissionDefinition, RoutePermissionBinding
 
 
@@ -180,3 +181,32 @@ class CapabilityReportCommandTests(TestCase):
         call_command("acl_capability_report", stdout=StringIO())
         after = (PermissionDefinition.objects.count(), RoutePermissionBinding.objects.count())
         self.assertEqual(before, after)
+
+
+class CapabilityIndexCacheTests(TestCase):
+    """L'indice costa ~2 s di CPU in produzione: in cache, ma mai vecchio dopo un cambio di catalogo."""
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+
+    def test_in_cache_e_rinnovato_quando_cambiano_permessi_o_binding(self):
+        permission = PermissionDefinition.objects.create(
+            code="legacy.demo.demo_lista", label="Demo - Lista", module="demo"
+        )
+        primo = capability_index()
+        self.assertEqual(primo.capabilities[permission.code], "lettura")
+        with self.assertNumQueries(2):  # solo l'impronta del catalogo
+            self.assertIs(type(capability_index()), type(primo))
+
+        binding = RoutePermissionBinding.objects.create(
+            permission=permission,
+            path_pattern="/admin-portale/accessi",
+            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
+            is_active=True,
+        )
+        self.assertEqual(capability_index().capabilities[permission.code], "amministrazione")
+
+        # Un ``update`` non tocca ``updated_at``: conta il numero degli attivi.
+        RoutePermissionBinding.objects.filter(pk=binding.pk).update(is_active=False)
+        self.assertEqual(capability_index().capabilities[permission.code], "lettura")
