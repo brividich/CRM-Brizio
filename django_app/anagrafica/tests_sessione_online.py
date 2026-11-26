@@ -104,17 +104,16 @@ class ServizioTests(_Base):
         self.assertEqual(so.copia_domande_dal_corso(self.sessione), 1)
         self.assertEqual(TrainingSessionSlide.objects.get(sessione=self.sessione).testo, "# Ciao")
 
-    def test_sequenza_e_tempo_minimo(self):
+    def test_sequenza_senza_tempo_minimo(self):
         cfg = self._pronta(secondi_minimi_slide=20)
         prog = so.avanzamento(self.iscr)
         self.assertFalse(so.apri_slide(prog, 2, 3))          # non si salta avanti
         self.assertTrue(so.apri_slide(prog, 1, 3))
-        self.assertGreater(so.completa_slide(prog, 1, cfg), 0)  # troppo presto
         prog.slide_aperta_il = timezone.now() - timedelta(seconds=25)
         prog.save()
-        self.assertEqual(so.completa_slide(prog, 1, cfg), 0)
+        self.assertEqual(so.completa_slide(prog, 1, cfg), 0)  # nessuna attesa
         self.assertEqual(prog.slide_viste, 1)
-        self.assertGreaterEqual(prog.secondi, 20)
+        self.assertGreaterEqual(prog.secondi, 20)            # il tempo passato si conta comunque
 
     def test_correzione_e_iscrizione(self):
         cfg = self._pronta(secondi_minimi_slide=0)
@@ -290,13 +289,14 @@ class PartecipanteViewTests(_Base):
         r = self.client.get(reverse("anagrafica:sessione_online_esito", args=[self.sessione.pk]))
         self.assertContains(r, "Test superato")
 
-    def test_tempo_minimo_dal_server(self):
+    def test_nessun_tempo_minimo_sulla_slide(self):
+        """Dal 26/11/2026 «Avanti» vale subito, anche con un vecchio tempo minimo salvato."""
         cfg = self._pronta(secondi_minimi_slide=60)
         cfg.pubblicata_il = timezone.now()
         cfg.save()
         self.client.get(reverse("anagrafica:sessione_online_player", args=[self.sessione.pk]))
         self.client.post(reverse("anagrafica:sessione_online_avanti", args=[self.sessione.pk]), {"ordine": 1})
-        self.assertEqual(so.avanzamento(self.iscr).slide_viste, 0)
+        self.assertEqual(so.avanzamento(self.iscr).slide_viste, 1)
 
     def test_non_iscritto_negato(self):
         cfg = self._pronta()
