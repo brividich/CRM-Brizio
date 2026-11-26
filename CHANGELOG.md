@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: organigramma ufficiale disegnato a mano, con revisioni
+
+- Nuova vista «📐 Ufficiale» dell'organigramma (`/anagrafica/organigramma/ufficiale/`): organigrammi disegnati come in Word con riquadri presi da ruoli, persone, mansioni o testo libero, gruppi («team»), collegamenti e linee di staff, colori e stili. Bozza salvata da sola, «Riepilogo modifiche» rispetto alla revisione in vigore, «Pubblica» con nota, approvato da e data, storico revisioni con confronto, stampa A3/A4 con cartiglio. Avvisi dove il disegno non corrisponde più ai dati (persona cessata, ruolo non suo, ruoli dell'ambito non disegnati). Non tocca ruoli, «Riporta a», assegnazioni, capi né permessi.
+- File: `django_app/anagrafica/models_organigramma.py` (nuovo), `models.py`, `migrations/0256_organigramma_ufficiale.py` (tabelle, binding ACL copiati da diagramma e modifica ruoli, voce di menu), `services/organigramma_ufficiale.py` (nuovo), `views_organigramma_ufficiale.py` (nuovo), `urls.py`, template `pages/organigramma_ufficiale_{elenco,vedi,disegna,stampa}.html` e `partials/_org_uff_{stile,disegno}.html` (nuovi), `components/organigramma_viste.html`, `core/guide_moduli/contenuti/anagrafica.py` (sezione «organigramma-ufficiale»), `hub_tools/schema_db.py`, `docs/moduli/anagrafica.md`, test `tests_organigramma_ufficiale.py`.
+
 ### Prestazioni: ricerca globale (Ctrl+K) più veloce
 
 - `core/views.py`: la decisione ACL per utente e modulo della ricerca globale resta in memoria `GLOBAL_SEARCH_ACL_CACHE_SECONDS` (120 s, legata alla versione dei permessi: una modifica a ruoli o matrice la azzera); i documenti SGI in vigore vengono da `documenti_in_vigore_memo()`.

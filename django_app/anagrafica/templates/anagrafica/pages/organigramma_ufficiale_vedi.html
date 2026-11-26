@@ -1,0 +1,92 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ org.nome }} | Organigramma ufficiale{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/partials/_org_uff_stile.html" %}
+<style>
+.content:has(> .ouv-page) { width:100%; max-width:none; }
+.ouv-page { display:flex; flex-direction:column; gap:14px; }
+.ouv-grid { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:14px; }
+.ouv-tela { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius, 14px);
+  overflow:auto; height:calc(calc(100 * var(--vh, 1vh)) - 290px); min-height:420px; padding:10px; }
+.ouv-side { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius, 14px); padding:14px; overflow:auto;
+  height:calc(calc(100 * var(--vh, 1vh)) - 290px); min-height:420px; }
+.ouv-side h2 { font-size:14px; margin:0 0 8px; }
+.ouv-rev { padding:9px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
+.ouv-rev b { display:block; font-size:13px; }
+.ouv-rev small { color:var(--text-light); display:block; margin-top:2px; white-space:pre-line; }
+.ouv-rev.is-sel { background:color-mix(in srgb, var(--primary-mid, #2563eb) 7%, transparent); margin:0 -8px; padding:9px 8px; border-radius:8px; }
+.ouv-rev .az { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+.ouv-badge { border-radius:999px; padding:2px 8px; font-size:10.5px; font-weight:700; background:#dcfce7; color:#166534; margin-left:4px; }
+.ouv-badge--old { background:#fef3c7; color:#92400e; }
+.ouv-avviso { background:#fefce8; border:1px solid #fde68a; color:#854d0e; border-radius:10px; padding:8px 12px; font-size:13px; }
+.ouv-conf { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px 16px; }
+.ouv-conf h2 { font-size:14px; margin:0 0 6px; }
+.oux-riga { display:flex; gap:10px; align-items:flex-start; padding:7px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.oux-riga small { color:var(--text-light); display:block; }
+.oux-k { font-size:10.5px; font-weight:800; border-radius:6px; padding:3px 7px; min-width:86px; text-align:center; text-transform:uppercase; flex:none; }
+.oux-k--aggiunto { background:#dcfce7; color:#166534; } .oux-k--tolto { background:#fee2e2; color:#991b1b; }
+.oux-k--spostato { background:#e0e7ff; color:#3730a3; } .oux-k--rinominato, .oux-k--modificato { background:#fef3c7; color:#92400e; }
+.oux-k--grafica { background:#f1f5f9; color:#475569; }
+@media (max-width:1000px) { .ouv-grid { grid-template-columns:1fr; } .ouv-side { height:auto; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="ouv-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow"><a href="{% url 'anagrafica:organigramma_ufficiale' %}" style="color:inherit">Organigrammi ufficiali</a></div>
+      <h1 class="hr-pagehead-title">{{ org.nome }}
+        <span class="ouv-badge{% if rev != in_vigore %} ouv-badge--old{% endif %}" style="vertical-align:middle;font-size:12px">Rev.{{ rev.numero }} · {{ rev.data_emissione|date:"d/m/Y" }}</span>
+      </h1>
+      {% if org.descrizione %}<p class="hr-pagehead-desc">{{ org.descrizione }}</p>{% endif %}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% include "anagrafica/components/organigramma_viste.html" with attiva="ufficiale" %}
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="hr-btn hr-btn-outline" href="{{ guida_url }}#organigramma-ufficiale">? Guida</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_ufficiale_stampa' org.pk %}?rev={{ rev.numero }}&formato=A3" target="_blank" rel="noopener">⬇ PDF A3</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_ufficiale_stampa' org.pk %}?rev={{ rev.numero }}&formato=A4" target="_blank" rel="noopener">⬇ PDF A4</a>
+      {% if puo_disegnare %}<a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:organigramma_ufficiale_disegna' org.pk %}">✎ Disegna</a>{% endif %}
+    </div>
+  </div>
+
+  {% if rev != in_vigore %}
+    <div class="ouv-avviso">Stai guardando la Rev.{{ rev.numero }}, non più in vigore. <a href="{% url 'anagrafica:organigramma_ufficiale_vedi' org.pk %}">Vai alla Rev.{{ in_vigore.numero }} in vigore</a>.</div>
+  {% endif %}
+
+  {% if confronto %}
+  <div class="ouv-conf">
+    <h2>Modifiche dalla Rev.{{ confronto.da.numero }} alla Rev.{{ confronto.a.numero }}</h2>
+    {% for r in confronto.righe %}
+      <div class="oux-riga"><span class="oux-k oux-k--{{ r.tipo }}">{% if r.tipo == "grafica" %}solo grafica{% else %}{{ r.tipo }}{% endif %}</span><div><b>{{ r.titolo }}</b>{% if r.dettaglio %}<small>{{ r.dettaglio }}</small>{% endif %}</div></div>
+    {% empty %}<div class="oux-riga">Nessuna differenza.</div>{% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="ouv-grid">
+    <div class="ouv-tela">{% include "anagrafica/partials/_org_uff_disegno.html" with d=disegno only %}</div>
+    <aside class="ouv-side">
+      <h2>Storico revisioni</h2>
+      {% for r in revisioni %}
+        <div class="ouv-rev{% if r.pk == rev.pk %} is-sel{% endif %}">
+          <b>Rev.{{ r.numero }} · {{ r.data_emissione|date:"d/m/Y" }}{% if r.pk == in_vigore.pk %}<span class="ouv-badge">in vigore</span>{% endif %}</b>
+          <small>{% if r.approvato_da %}Approvato da {{ r.approvato_da }}{% endif %}{% if r.approvato_da and r.nota %} · {% endif %}{{ r.nota }}</small>
+          {% if r.pk != rev.pk or forloop.counter > 1 %}
+          <div class="az">
+            {% if r.pk != rev.pk %}<a class="hr-btn hr-btn-outline hr-btn-sm" href="?rev={{ r.numero }}">Apri</a>
+            <a class="hr-btn hr-btn-outline hr-btn-sm" href="?rev={{ rev.numero }}&confronta={{ r.numero }}">Confronta con Rev.{{ rev.numero }}</a>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </aside>
+  </div>
+</div>
+{% endblock %}
