@@ -177,7 +177,7 @@ def _g_amministrazione(request, q, ql) -> list[Gruppo]:
 
 
 def _g_report(request, q, ql) -> list[Gruppo]:
-    from ..models_reportistica import ReportGenerato, ReportModello
+    from ..models_reportistica import ReportModello
     from ..reportistica.permessi import can_view
 
     if not can_view(request):
@@ -189,7 +189,9 @@ def _g_report(request, q, ql) -> list[Gruppo]:
         mod.voci.append(_voce(m.nome, reverse("anagrafica:reportistica_genera", args=[m.pk]),
                               " · ".join(x for x in (", ".join(m.norme or []), m.destinatario) if x) or "modello", "i-grid"))
     arc = Gruppo("archivio", "Archivio dei generati", "i-doc")
-    for d in (ReportGenerato.objects.defer("contenuto")
+    from ..reportistica.archivio import visibili
+
+    for d in (visibili(request)
               .filter(Q(titolo__icontains=q) | Q(destinatario__icontains=q) | Q(modello_nome__icontains=q))
               .order_by("-generato_il")[:LIMITE]):
         arc.voci.append(_voce(d.titolo, reverse("anagrafica:reportistica_archivio_download", args=[d.pk]),

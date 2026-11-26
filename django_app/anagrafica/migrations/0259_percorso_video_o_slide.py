@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0257_corso_unico_allinea_sessioni_online'),
+        ('anagrafica', '0258_reportgenerato_contenuto_eliminato'),
     ]
 
     operations = [
