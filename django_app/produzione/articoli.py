@@ -190,7 +190,7 @@ def analizza(a: ArticoloPN) -> None:
     """Cpk peggiore, quote non capaci (Cpk < 1,33), quote in deriva e quote fuori nell'ultimo report del P/N, con le
     stesse regole di ``analisi_pn`` (Quote CMM, scheda P/N e catalogo leggono questi numeri)."""
     righe = cmm.analisi_pn(a.pn)
-    valori = [r["cpk"] for r in righe if r["cpk"] is not None]
+    valori = [r["indice"] for r in righe if r["indice"] is not None]      # il peggiore fra Cpk e Ppk
     a.cpk_peggiore = min(valori) if valori else None
     a.quote_non_capaci = sum(1 for v in valori if v < 1.33)
     a.quote_deriva = sum(1 for r in righe if r["deriva"])

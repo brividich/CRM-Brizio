@@ -28,10 +28,10 @@ class CalcoliTests(SimpleTestCase):
     def test_segnali(self):
         xs = [10.0, 10.02, 9.98, 10.01, 9.99] * 2 + [10.03] * 9 + [10.0, 9.97, 10.01]
         regole = {g["regola"] for g in cmm.segnali(xs)}
-        self.assertIn("lato", regole)
+        self.assertIn(2, regole)                                          # Nelson 2: 9 punti dallo stesso lato
         sale = [1, 2, 3, 4, 5, 6, 7, 5, 4, 3]
-        self.assertTrue(any(g["regola"] == "trend" and g["su"] for g in cmm.segnali(sale)))
-        self.assertTrue(any(g["regola"] == "3sigma" for g in cmm.segnali([0.0] * 30 + [5.0] + [0.0] * 5)))
+        self.assertTrue(any(g["regola"] == 3 and g["sopra"] for g in cmm.segnali(sale)))   # Nelson 3: 6 in salita
+        self.assertTrue(any(g["regola"] == 1 for g in cmm.segnali([0.0] * 30 + [5.0] + [0.0] * 5)))
 
     def test_ultima_per_seriale(self):
         report = [[1, "SN1", "OP", "2026-01-01"], [2, "SN2", "OP", "2026-01-02"], [3, "sn-1", "OP", "2026-01-03"]]
