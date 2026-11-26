@@ -107,6 +107,12 @@ def _legacy_ids_pertinenti(corso, dipendenti: dict[int, dict]) -> tuple[set[int]
     has_rules = bool(rules)
     ids: set[int] = set()
 
+    # 0) spunta «Obbligatorio per tutti i dipendenti»: tenuti tutti quelli in forza
+    #    (stessa regola del motore dei requisiti, origine «Corso obbligatorio per tutti»).
+    if getattr(corso, "obbligatorio", False) and getattr(corso, "is_active", True):
+        has_rules = True
+        ids.update(dipendenti.keys())
+
     # 1) regole dirette per singolo dipendente
     ids.update(int(r.legacy_anagrafica_id) for r in rules if r.legacy_anagrafica_id)
 
@@ -285,6 +291,15 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
         ):
             completati_prereq.setdefault(lid, set()).add(cid)
 
+    # Completamento idoneo non scaduto (qualunque strada): già a posto anche se la scadenza
+    # in TrainingDeadline non è ancora stata ricalcolata.
+    from django.db.models import Q as _Q
+    validi = set(
+        TrainingEmployeeRecord.objects.filter(corso=corso, idoneo=True, legacy_anagrafica_id__in=base)
+        .filter(_Q(data_scadenza__isnull=True) | _Q(data_scadenza__gte=oggi))
+        .values_list("legacy_anagrafica_id", flat=True)
+    ) if base else set()
+
     idonei: list[dict] = []
     non_idonei: list[dict] = []
     for lid in base:
@@ -297,6 +312,8 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
         stato = d.stato_scadenza if d else "MAI_FREQUENTATO"
         if stato in STATI_GIA_VALIDO:
             continue  # già a posto
+        if d is None and lid in validi:
+            continue  # completamento valido, scadenza non ancora ricalcolata
 
         mancanti: list[str] = []
         if prereq_ids:
