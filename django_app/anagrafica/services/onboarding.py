@@ -544,9 +544,9 @@ def registra_formazione_pregressa(
                 plan_name_snapshot=corso.piano.nome if corso.piano_id else "",
                 validity_months_snapshot=validita,
             )
-            TrainingDeadline.objects.filter(
-                legacy_anagrafica_id=legacy_id, corso_id=corso_id
-            ).update(needs_refresh=True)
+            from .formazione_completamento import dopo_completamento
+            dopo_completamento(TrainingEmployeeRecord.objects.filter(
+                legacy_anagrafica_id=legacy_id, corso_id=corso_id).order_by("-pk").first(), user, storico=True)
             creati += 1
         except Exception:
             logger.warning("Registrazione formazione pregressa fallita (corso=%s)", corso_id, exc_info=True)

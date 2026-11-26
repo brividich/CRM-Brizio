@@ -1298,6 +1298,10 @@ def formazione_corsi_list(request):
         qs = qs.filter(tipo__isnull=True)
     elif filtro_tipo.isdigit():
         qs = qs.filter(tipo_id=int(filtro_tipo))
+    filtro_rinnovo = request.GET.get("rinnovo") == "1"
+    from ..services.formazione_catalogo import ids_una_tantum_da_rivedere
+    if filtro_rinnovo:
+        qs = qs.filter(pk__in=ids_una_tantum_da_rivedere())
     # «Come si fa»: conteggi sul resto dei filtri, poi il filtro scelto.
     modi_conteggi = [(chiave, etichetta, qs.filter(cond).distinct().count())
                      for chiave, etichetta, cond in _MODI_CORSO]
@@ -1335,6 +1339,8 @@ def formazione_corsi_list(request):
         "modi_conteggi": modi_conteggi,
         "filtro_modo": filtro_modo,
         "filtro_tipo": filtro_tipo,
+        "filtro_rinnovo": filtro_rinnovo,
+        "n_da_rivedere": len(ids_una_tantum_da_rivedere()),
         "tipi": TrainingCourseType.objects.filter(is_active=True).order_by("ordine", "nome"),
         "page_obj": page_obj,
         "is_editor": is_editor,
@@ -1346,6 +1352,44 @@ def formazione_corsi_list(request):
         "piani": piani,
         "STATO_CHOICES": TrainingCourse.STATO_CHOICES,
     })
+
+
+@login_required
+@require_POST
+def formazione_corsi_azione(request):
+    """Azioni in blocco sui corsi selezionati nell'elenco: tipo e validità."""
+    if not _helpers._can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare i corsi.")
+        return redirect("anagrafica:formazione_corsi_list")
+    from ..services import formazione_catalogo as cat
+    ids = [int(x) for x in request.POST.getlist("corso_id") if str(x).isdigit()]
+    torna = _helpers.back_sicuro(request, request.POST.get("next")) or reverse("anagrafica:formazione_corsi_list")
+    if not ids:
+        messages.error(request, "Seleziona almeno un corso.")
+        return redirect(torna)
+    azione = request.POST.get("azione")
+    try:
+        if azione == "tipo":
+            n, nome = cat.assegna_tipo(ids, request.POST.get("tipo_id") or "")
+            messages.success(request, f"{n} cors{'o' if n == 1 else 'i'}: tipo «{nome}».")
+        elif azione == "validita":
+            esito = cat.imposta_validita(ids, request.POST.get("validita_mesi") or "",
+                                         riempi_scadenze=request.POST.get("riempi") == "1", user=request.user)
+            testo = f"{esito['corsi']} cors{'o' if esito['corsi'] == 1 else 'i'}: validità " + (
+                f"{esito['mesi']} mesi" if esito["mesi"] else "una tantum") + "."
+            if esito["scadenze"]:
+                testo += f" Scadenze aggiunte a {esito['scadenze']} completamenti che non l'avevano."
+            messages.success(request, testo)
+        else:
+            raise cat.CatalogoError("Azione non riconosciuta.")
+    except cat.CatalogoError as exc:
+        messages.error(request, str(exc))
+        return redirect(torna)
+    from core.audit import log_action
+    log_action(request, f"formazione_corsi_{azione}", "anagrafica",
+               {"corsi": ids[:200], "tipo": request.POST.get("tipo_id"), "mesi": request.POST.get("validita_mesi"),
+                "riempi": request.POST.get("riempi") == "1"})
+    return redirect(torna)
 
 
 @login_required
@@ -3431,63 +3475,9 @@ def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> Trainin
 
 
 def _post_completamento(record: TrainingEmployeeRecord, created_by) -> None:
-    """Effetti collaterali comuni a OGNI completamento, da qualunque strada arrivi
-    (iscrizione a sessione, e-learning, registrazione diretta senza sessione):
-    invalidazione/ricalcolo scadenze, allineamento qualifica, archiviazione
-    attestato. Tutti fail-safe: un errore qui non deve annullare il completamento."""
-    corso = record.corso
-
-    # Invalida cache scadenze per questo dipendente × corso
-    TrainingDeadline.objects.filter(
-        corso=corso,
-        legacy_anagrafica_id=record.legacy_anagrafica_id,
-    ).update(needs_refresh=True)
-
-    # Tenta ricalcolo immediato (stub — NON lancia eccezione se non ancora implementato)
-    try:
-        from ..services.training_deadline_service import refresh_deadlines
-        refresh_deadlines(legacy_id=record.legacy_anagrafica_id, corso_id=corso.pk)
-    except NotImplementedError:
-        pass  # PATCH-06 implementerà il ricalcolo completo
-
-    # Valutazione di efficacia: se il corso la prevede, il completamento apre la
-    # pendenza datata. Qui perché è il punto unico attraversato da tutte le
-    # strade del completamento (aula, e-learning, registrazione diretta).
-    try:
-        from ..services.formazione_efficacia import pianifica_valutazione_efficacia
-        pianifica_valutazione_efficacia(record)
-    except Exception:
-        pass  # fail-safe: non deve mai annullare un completamento
-
-    # Allineamento qualifica (competency management): se il corso rilascia/rinnova una
-    # qualifica e il completamento è idoneo, crea/aggiorna la DipendenteQualifica corrente
-    # collegandola al record (la prova formativa). Riusa la convenzione "una qualifica
-    # corrente per (dip, tipo), niente duplicati". Fail-safe: non deve bloccare il
-    # completamento.
-    try:
-        if corso.qualifica_id and record.idoneo:
-            qual, _ = _helpers._upsert_dipendente_qualifica(
-                record.legacy_anagrafica_id, corso.qualifica,
-                record.data_completamento, record.data_scadenza,
-                user=created_by,
-            )
-            if qual.record_formazione_id != record.pk:
-                qual.record_formazione = record
-                qual.save(update_fields=["record_formazione"])
-    except Exception:
-        logger.exception("Allineamento qualifica fallito per record %s", record.pk)
-
-    # Archiviazione automatica dell'attestato nel box documenti del dipendente
-    # (se abilitata da Impostazioni → Template attestato). Fail-safe: un errore
-    # qui NON deve impedire la registrazione del completamento.
-    try:
-        from ..models_formazione import AttestatoFormazioneConfig
-        cfg = AttestatoFormazioneConfig.get_instance()
-        if cfg.auto_salva_attestato:
-            from ..services.attestato_pdf import archivia_attestato
-            archivia_attestato(record, cfg=cfg, user=created_by)
-    except Exception:
-        logger.exception("Archiviazione automatica attestato fallita per record %s", record.pk)
+    """Effetti comuni a ogni completamento: un solo punto (services/formazione_completamento.py)."""
+    from ..services.formazione_completamento import dopo_completamento
+    dopo_completamento(record, created_by)
 
 
 def _crea_record_diretto(
@@ -4721,10 +4711,9 @@ def formazione_scadenzario(request):
 
 @login_required
 def formazione_copertura(request):
-    """Report «copertura / gap formativo»: per i corsi *obbligatori* (bersaglio di una
-    regola di obbligo attiva) elenca i dipendenti **non in regola** (corso scaduto, in
-    scadenza o mai frequentato), con reparto e mansione. Riusa il motore di idoneità
-    (`candidati_corso`, che restituisce proprio i candidati = chi non è già a posto).
+    """Report «copertura / gap formativo»: per i corsi *obbligatori* (definizione unica di
+    obbligo del motore dei requisiti: mansione, rischi, regole, processi) elenca i dipendenti
+    **non in regola** (corso scaduto, in scadenza o mai frequentato), con reparto, mansione e il perché.
     Filtri GET: reparto, corso, stato."""
     if not _helpers._can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")

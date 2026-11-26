@@ -123,6 +123,10 @@ class AttestatoFormazioneConfig(models.Model):
         "previsti dal D.Lgs. 81/2008."
     )
 
+    efficacia_mesi_senza_tipo = models.PositiveSmallIntegerField(
+        default=3,
+        help_text="MT CN 06 §9.5: mesi dopo cui valutare l'efficacia dei corsi in aula che non hanno un tipo "
+                  "(0 = non richiesta). Il tipo di corso e la regola del corso vincono.")
     intestazione_eyebrow     = models.CharField(max_length=80, default="Formazione interna")
     sezione_label            = models.CharField(max_length=120, default="NOVICROM HUB · Attestazione formativa")
     titolo_partecipazione    = models.CharField(max_length=120, default="Attestato di partecipazione")

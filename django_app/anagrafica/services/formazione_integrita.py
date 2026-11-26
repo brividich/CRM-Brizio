@@ -448,3 +448,52 @@ def correggi(oggi: date | None = None) -> dict[str, int]:
                 _ricalcola_presenza_enrollment(enr)
                 fatti["iscrizioni_ricalcolate"] += 1
     return fatti
+
+
+
+# ── Completamenti con data futura (analisi 26/11/2026: 40, tutti da import) ──
+
+def record_futuri(oggi: date | None = None) -> list:
+    """Completamenti datati dopo oggi, con la data proposta: la fine dell'edizione se è già passata."""
+    from ..models_formazione import TrainingEmployeeRecord
+
+    oggi = oggi or timezone.localdate()
+    out = []
+    for r in (TrainingEmployeeRecord.objects.filter(data_completamento__gt=oggi)
+              .select_related("corso", "sessione").order_by("data_completamento", "pk")):
+        s = r.sessione
+        r.data_proposta = s.data_fine if s is not None and s.data_fine and s.data_fine <= oggi else None
+        r.edizione_futura = bool(s is not None and s.data_inizio and s.data_inizio > oggi)
+        out.append(r)
+    return out
+
+
+def porta_alla_data_reale(record, user) -> bool:
+    """Data del completamento = fine dell'edizione (se già passata); scadenza ricalcolata con la
+    validità registrata. False se la data reale non si conosce."""
+    from ..models_formazione import TrainingDeadline, TrainingEmployeeRecord, aggiungi_mesi
+
+    oggi = timezone.localdate()
+    s = record.sessione
+    if record.data_completamento <= oggi or s is None or not s.data_fine or s.data_fine > oggi:
+        return False
+    if s.is_approvata:
+        raise EdizioneChiusa(motivo_blocco_edizione(s))
+    nuova = s.data_fine
+    mesi = record.validity_months_snapshot
+    campi = {"data_completamento": nuova}
+    if mesi:
+        campi["data_scadenza"] = aggiungi_mesi(nuova, mesi)
+    nota = (f"Data corretta dal {record.data_completamento:%d-%m-%Y} al {nuova:%d-%m-%Y} (era nel futuro) "
+            f"da {nome_utente(user)} il {oggi:%d-%m-%Y}.")
+    campi["note"] = ((record.note + "\n") if record.note else "") + nota
+    with transaction.atomic():
+        TrainingEmployeeRecord.objects.filter(pk=record.pk).update(**campi)
+        TrainingDeadline.objects.filter(corso_id=record.corso_id, legacy_anagrafica_id=record.legacy_anagrafica_id
+                                        ).update(needs_refresh=True)
+    try:
+        from .training_deadline_service import refresh_deadlines
+        refresh_deadlines(legacy_id=record.legacy_anagrafica_id, corso_id=record.corso_id)
+    except Exception:  # noqa: BLE001
+        logger.exception("Ricalcolo scadenze dopo la correzione della data non riuscito")
+    return True

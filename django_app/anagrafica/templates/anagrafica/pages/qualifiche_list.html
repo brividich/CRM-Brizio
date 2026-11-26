@@ -73,7 +73,7 @@ body.theme-dark .ql-scad-date-orange{color:#fdba74}
       </div>
       <div class="fmd-pagehead-actions">
         {% include "anagrafica/partials/_export_buttons.html" with export_key="qualifiche" %}
-        <a href="{% url 'anagrafica:qualifica_sessioni_list' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Sessioni di rinnovo</a>
+        {% if n_da_allineare %}<form method="post" action="{% url 'anagrafica:qualifiche_allinea' %}" style="display:inline;" data-hub-confirm="Riportare sulle schede {{ n_da_allineare }} qualifiche dai corsi già completati? Si usa la data del completamento; le qualifiche più recenti non cambiano.">{% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-primary" title="Completamenti su corsi collegati a una qualifica che la scheda non riporta ancora"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Allinea dai corsi fatti ({{ n_da_allineare }})</button></form>{% endif %}
         {% if is_admin and not solo_processi %}<a href="#nuovo-tipo" class="fmd-btn fmd-btn-primary" data-apri-nuovo><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo tipo</a>{% endif %}
       </div>
     </div>

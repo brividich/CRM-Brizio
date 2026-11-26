@@ -11,6 +11,7 @@
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% load anagrafica_extras %}{% copertura_schede %}
 {% include "anagrafica/components/_fm_icons.html" %}
 
 <div class="fmd">
@@ -80,7 +81,7 @@
               <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.nome }}</a></td>
               <td class="fmd-muted">{{ r.reparto }}</td>
               <td class="fmd-muted">{{ r.mansione }}</td>
-              <td><a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}" style="color:inherit;">{{ r.corso.titolo|truncatechars:48 }}</a></td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}" style="color:inherit;">{{ r.corso.titolo|truncatechars:48 }}</a>{% if r.perche %}<div class="fmd-muted" style="font-size:11.5px;">{{ r.perche|truncatechars:80 }}</div>{% endif %}</td>
               <td>
                 {% if r.stato == "SCADUTO" %}<span class="fmd-badge fmd-b-red">Scaduto</span>
                 {% elif r.stato == "IN_SCADENZA_30" %}<span class="fmd-badge fmd-b-orange">In scadenza ≤30gg</span>

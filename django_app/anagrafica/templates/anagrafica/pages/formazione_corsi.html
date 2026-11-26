@@ -57,6 +57,7 @@
         <a class="cl-chip{% if not filtro_tipo %} on{% endif %}" href="?modo={{ filtro_modo }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">Tutti</a>
         {% for t in tipi %}<a class="cl-chip{% if filtro_tipo == t.pk|stringformat:'s' %} on{% endif %}" href="?modo={{ filtro_modo }}&tipo={{ t.pk }}&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}"><span class="cl-dot" style="background:{{ t.colore }};"></span>{{ t.nome }}</a>{% endfor %}
         <a class="cl-chip{% if filtro_tipo == 'nessuno' %} on{% endif %}" href="?modo={{ filtro_modo }}&tipo=nessuno&q={{ q_search|urlencode }}&piano={{ filtro_piano }}&obbligatorio={{ filtro_obbligatorio }}">Senza tipo</a>
+        {% if n_da_rivedere %}<a class="cl-chip{% if filtro_rinnovo %} on{% endif %}" href="?rinnovo={% if filtro_rinnovo %}0{% else %}1{% endif %}" title="Corsi una tantum con parole che fanno pensare a un rinnovo (aggiornamento, antincendio, primo soccorso, carrelli, preposto, PLE, gru…)">Una tantum da rivedere ({{ n_da_rivedere }})</a>{% endif %}
       </div>
       <form method="get" class="fmd-toolbar">
         <input type="hidden" name="modo" value="{{ filtro_modo }}"><input type="hidden" name="tipo" value="{{ filtro_tipo }}">
@@ -88,6 +89,19 @@
         {% include "anagrafica/partials/_export_buttons.html" with export_key="formazione_corsi" %}
       </form>
 
+      {% if page_obj and is_editor %}
+      <form method="post" id="cl-bulk" action="{% url 'anagrafica:formazione_corsi_azione' %}" class="fmd-toolbar cl-bulk">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <label class="fmd-muted" style="display:inline-flex;gap:6px;align-items:center;font-size:12.5px;"><input type="checkbox" class="js-cl-tutti"> Seleziona la pagina</label>
+        <span class="fmd-muted js-cl-n" style="font-size:12.5px;">0 selezionati</span>
+        <select name="tipo_id" class="fmd-select" aria-label="Tipo da assegnare"><option value="">Tipo…</option>{% for t in tipi %}<option value="{{ t.pk }}">{{ t.nome }}</option>{% endfor %}<option value="nessuno">— togli il tipo</option></select>
+        <button type="submit" name="azione" value="tipo" class="fmd-btn fmd-btn-ghost">Assegna tipo</button>
+        <span class="fmd-spacer"></span>
+        <label style="display:inline-flex;gap:6px;align-items:center;font-size:12.5px;">Validità <input type="number" name="validita_mesi" min="0" max="240" placeholder="mesi" style="width:80px;" class="fmd-select"></label>
+        <label class="fmd-muted" style="display:inline-flex;gap:6px;align-items:center;font-size:12.5px;" title="Solo i completamenti senza data di scadenza ricevono completamento + validità; le scadenze già scritte (attestato) non cambiano"><input type="checkbox" name="riempi" value="1"> aggiungi la scadenza ai completamenti che non l'hanno</label>
+        <button type="submit" name="azione" value="validita" class="fmd-btn fmd-btn-ghost" data-hub-confirm="Cambiare la validità dei corsi selezionati? 0 = una tantum.">Imposta validità</button>
+      </form>
+      {% endif %}
       {% if page_obj %}
       <div class="fmd-tablewrap">
         <table class="fmd-table" data-table-id="formazione.corsi.list">
@@ -113,7 +127,7 @@
           <tbody>
             {% for c in page_obj %}
             <tr id="fmd-corso-row-{{ c.pk }}">
-              <td class="fmd-c">
+              <td class="fmd-c fmd-nowrap">{% if is_editor %}<input type="checkbox" form="cl-bulk" name="corso_id" value="{{ c.pk }}" class="js-cl-sel" aria-label="Seleziona {{ c.titolo }}" style="margin-right:4px;">{% endif %}
                 <button type="button" class="fmd-exp-btn" id="fmd-exp-btn-{{ c.pk }}"
                         aria-expanded="false" aria-controls="fmd-exp-row-{{ c.pk }}"
                         title="Mostra le edizioni e le giornate"
@@ -191,6 +205,14 @@
 /* Apre/chiude la riga di dettaglio del corso. Il caricamento del contenuto è
    di HTMX (hx-trigger="click once" sullo stesso pulsante): qui si governa solo
    la visibilità, così riaprire una riga già caricata non rifà la richiesta. */
+(function () {
+  var tutti = document.querySelector(".js-cl-tutti"), n = document.querySelector(".js-cl-n");
+  function conta() { if (n) n.textContent = document.querySelectorAll(".js-cl-sel:checked").length + " selezionati"; }
+  document.querySelectorAll(".js-cl-sel").forEach(function (c) { c.addEventListener("change", conta); });
+  if (tutti) tutti.addEventListener("change", function () {
+    document.querySelectorAll(".js-cl-sel").forEach(function (c) { c.checked = tutti.checked; }); conta();
+  });
+})();
 function fmdToggleCorso(pk) {
   var row = document.getElementById('fmd-exp-row-' + pk);
   var btn = document.getElementById('fmd-exp-btn-' + pk);

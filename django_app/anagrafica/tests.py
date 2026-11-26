@@ -2908,7 +2908,9 @@ class AttestatoArchivioTests(TestCase):
         cfg.save()
         enr = self._make_enrollment()
         with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
-            rec = _crea_employee_record(enr, self.admin)
+            # L'attestato si archivia dopo il commit (services/formazione_completamento.py).
+            with self.captureOnCommitCallbacks(execute=True):
+                rec = _crea_employee_record(enr, self.admin)
             self.assertIsNotNone(rec)
             self.assertEqual(
                 DocumentoDipendente.objects.filter(

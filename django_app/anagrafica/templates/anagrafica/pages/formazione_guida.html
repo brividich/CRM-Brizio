@@ -165,10 +165,22 @@
     <section class="fmd-panel elg-sec" id="efficacia">
       <h2><svg class="fmd-ico"><use href="#i-check"/></svg>Efficacia della formazione (MT CN 06 §9.5)</h2>
       <ul>
-        <li>Ogni completamento di un corso in aula apre una valutazione di efficacia dopo i mesi del <strong>tipo di corso</strong> («Efficacia dopo», predefinito 3; 0 = non richiesta). La regola del singolo corso, se indicata, vince. E-learning e lezioni online non la aprono.</li>
+        <li>Ogni completamento di un corso in aula apre una valutazione di efficacia dopo i mesi del <strong>tipo di corso</strong> («Efficacia dopo», predefinito 3; 0 = non richiesta). I corsi <strong>senza tipo</strong> usano «Corsi senza tipo: efficacia dopo» nella pagina Tipi di corso (predefinito 3). La regola del singolo corso, se indicata, vince. E-learning e lezioni online non la aprono.</li>
+        <li><strong>Tipo e validità in blocco</strong>: nell'elenco Corsi spunta i corsi (o «Seleziona la pagina»), poi «Assegna tipo» oppure «Imposta validità» (mesi, 0 = una tantum). Con «aggiungi la scadenza ai completamenti che non l'hanno» i completamenti senza scadenza ricevono completamento + validità; le scadenze già scritte (attestato) non cambiano. Il filtro «Una tantum da rivedere» mostra i corsi senza validità con parole da rinnovo (aggiornamento, antincendio, primo soccorso, carrelli, preposto, PLE, gru…).</li>
         <li>La valutazione compare 15 giorni prima della scadenza in «Le mie attività» del capo della persona (regola capo e team) e nella pagina Formazione → Efficacia.</li>
         <li>Si sceglie «Efficace», «Parzialmente efficace» o «Non efficace», come è stata verificata (test teorico, prova pratica supervisionata, verifica sul campo) e, se l'esito non è pieno, cosa si fa: senza azione non si salva.</li>
         <li>Chi approva il MOD.040 vede in «Le mie attività» le edizioni chiuse da approvare e, 6 mesi dopo la fine, la «Verifica assenza NC».</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="completamento">
+      <h2><svg class="fmd-ico"><use href="#i-check"/></svg>Un corso, un completamento</h2>
+      <ul>
+        <li>Qualunque strada chiuda un corso (aula, sessione online, completamento diretto, e-learning, link aperto, import, formazione pregressa) passa dallo stesso punto: scadenze ricalcolate, qualifica del corso sulla scheda, assegnazioni dello stesso corso chiuse, iscrizioni alle sessioni online dello stesso corso «Completato». Per i completamenti di oggi anche valutazione di efficacia e attestato archiviato.</li>
+        <li>«Ha già fatto il corso» vuol dire ha un completamento valido (non scaduto), da qualunque strada: chi l'ha fatto in aula non riceve promemoria e-learning e nel pannello «Assegna» risulta già completato; dal link aperto non nasce un secondo completamento.</li>
+        <li><strong>Qualifiche dai corsi fatti</strong>: nella pagina Qualifiche, «Allinea dai corsi fatti (N)» riporta sulle schede le qualifiche dei corsi collegati completati prima del collegamento, con la data del completamento.</li>
+        <li><strong>Completamenti con data futura</strong>: in Integrità dati l'elenco con «Porta alla data reale» (fine dell'edizione, se già passata, e scadenza ricalcolata) o «Annulla con motivo». Gli import non registrano più date future.</li>
+        <li><strong>Copertura e lacune</strong>: «Corsi obbligatori» usa la stessa definizione di obbligo di scadenzario e cruscotto (mansione, rischi, regole, processi) e dice il perché; in alto le schede delle pagine di copertura (lacune di mansione, matrice competenze, copertura macchine, matrice sicurezza). Soglie uniche: urgente entro 30 giorni, in scadenza entro 90, anche per le qualifiche.</li>
       </ul>
     </section>
 

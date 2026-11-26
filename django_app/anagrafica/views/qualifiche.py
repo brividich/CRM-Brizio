@@ -18,6 +18,8 @@ from django.urls import reverse
 # funzioni (come `tz`/`_tz`) e `datetime.timezone` è un'altra cosa ancora.
 from django.views.decorators.http import require_POST
 
+from ..scadenze_soglie import GIORNI_PREAVVISO, GIORNI_URGENTE
+
 from django.contrib.auth.decorators import login_required
 from core import naming
 from core.csv_export import BOM, CSV_CONTENT_TYPE, safe_csv_writer
@@ -94,7 +96,7 @@ def qualifiche_list(request):
     )
 
     oggi = tz.localdate()
-    soglia = oggi + timedelta(days=60)
+    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
 
     # Qualifiche in scadenza o scadute
     scadenze_qs = list(
@@ -192,7 +194,9 @@ def qualifiche_list(request):
     mostra_processi = cat_filter in ("", CAT_PROCESSI)
     solo_processi = cat_filter == CAT_PROCESSI
 
+    from ..services.formazione_qualifiche import da_allineare
     return render(request, "anagrafica/pages/qualifiche_list.html", {
+        "n_da_allineare": len(da_allineare()) if is_admin else 0,
         "tipi": tipi,
         "tipi_grouped": tipi_grouped,
         "processi_qualificati": processi_qualificati,
@@ -263,8 +267,8 @@ def qualifiche_dashboard(request):
     from django.utils import timezone as _tz
 
     oggi = _tz.localdate()
-    soglia_30 = oggi + timedelta(days=30)
-    soglia_60 = oggi + timedelta(days=60)
+    soglia_30 = oggi + timedelta(days=GIORNI_URGENTE)
+    soglia_60 = oggi + timedelta(days=GIORNI_PREAVVISO)
     is_admin = _helpers._is_anagrafica_admin(request)
 
     tipi_attivi = TipoQualifica.objects.filter(is_active=True).count()
@@ -485,8 +489,8 @@ def qualifiche_scadenzario(request):
     from django.utils import timezone as _tz
 
     oggi = _tz.localdate()
-    soglia_30 = oggi + timedelta(days=30)
-    soglia_60 = oggi + timedelta(days=60)
+    soglia_30 = oggi + timedelta(days=GIORNI_URGENTE)
+    soglia_60 = oggi + timedelta(days=GIORNI_PREAVVISO)
 
     filtro_stato = (request.GET.get("stato") or "").strip()      # scaduta/30/60/valide/tutte/""
     filtro_cat = (request.GET.get("categoria") or "").strip().upper()
@@ -628,7 +632,7 @@ def tipo_qualifica_detail(request, tipo_id: int):
     tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
     is_admin = _helpers._qualifiche_can_edit(request)
     oggi = _tz.localdate()
-    soglia = oggi + timedelta(days=60)
+    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
 
     corsi = list(tipo.corsi.select_related("piano").order_by("titolo"))
     corso_ids = [c.id for c in corsi]
@@ -2003,3 +2007,19 @@ def skm_impostazioni(request):
         "form": form,
         "config": config,
     })
+
+
+@login_required
+@require_POST
+def qualifiche_allinea(request):
+    """Riporta sulla scheda le qualifiche dei corsi già completati (completamenti precedenti al collegamento)."""
+    if not _helpers._is_anagrafica_admin(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:qualifiche_list")
+    from ..services.formazione_qualifiche import allinea
+    n = allinea(user=request.user)
+    from core.audit import log_action
+    log_action(request, "qualifiche_allinea_da_completamenti", "anagrafica", {"qualifiche": n})
+    messages.success(request, f"{n} qualific{'a' if n == 1 else 'he'} riportat{'a' if n == 1 else 'e'} dai completamenti."
+                     if n else "Niente da allineare: le schede riportano già le qualifiche dei corsi fatti.")
+    return redirect("anagrafica:qualifiche_list")

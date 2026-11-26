@@ -40,10 +40,10 @@
       <form method="get" class="fmd-toolbar" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
         <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Stato
           <select name="stato" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;">
-            <option value="" {% if filtro_stato == "" %}selected{% endif %}>Da gestire (scadute + ≤60gg)</option>
+            <option value="" {% if filtro_stato == "" %}selected{% endif %}>Da gestire (scadute + ≤90gg)</option>
             <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Solo scadute</option>
             <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>In scadenza ≤30gg</option>
-            <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>In scadenza ≤60gg</option>
+            <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>In scadenza ≤90gg</option>
             <option value="valide" {% if filtro_stato == "valide" %}selected{% endif %}>Solo valide</option>
             <option value="tutte" {% if filtro_stato == "tutte" %}selected{% endif %}>Tutte</option>
           </select>
@@ -95,7 +95,7 @@
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Qualifiche <span class="fmd-count">{{ totale }}</span></div>
         <div class="fmd-block-aside">
-          {{ counts.scaduta }} scadute · {{ counts.s30 }} ≤30gg · {{ counts.s60 }} ≤60gg · {{ counts.valida }} valide
+          {{ counts.scaduta }} scadute · {{ counts.s30 }} ≤30gg · {{ counts.s60 }} ≤90gg · {{ counts.valida }} valide
         </div>
       </div>
 
@@ -121,7 +121,7 @@
                   <td>
                     {% if v.stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>
                     {% elif v.stato == "s30" %}<span class="fmd-badge fmd-b-orange">≤30gg</span>
-                    {% elif v.stato == "s60" %}<span class="fmd-badge fmd-b-amber">≤60gg</span>
+                    {% elif v.stato == "s60" %}<span class="fmd-badge fmd-b-amber">≤90gg</span>
                     {% elif v.stato == "permanente" %}<span class="fmd-badge fmd-b-cyan">Permanente</span>
                     {% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}
                   </td>
@@ -181,7 +181,7 @@
               <td>
                 {% if v.stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>
                 {% elif v.stato == "s30" %}<span class="fmd-badge fmd-b-orange">≤30gg</span>
-                {% elif v.stato == "s60" %}<span class="fmd-badge fmd-b-amber">≤60gg</span>
+                {% elif v.stato == "s60" %}<span class="fmd-badge fmd-b-amber">≤90gg</span>
                 {% elif v.stato == "permanente" %}<span class="fmd-badge fmd-b-cyan">Permanente</span>
                 {% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}
               </td>

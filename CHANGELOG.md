@@ -9,6 +9,19 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: interventi dall'analisi del 26/11 (punti 1, 2, 3, 4, 5, 7, 8, 9)
+
+- **Efficacia per i corsi senza tipo** (nessuno dei 774 corsi aveva un tipo, quindi 0 valutazioni): `AttestatoFormazioneConfig.efficacia_mesi_senza_tipo` (predefinito 3), modificabile in Tipi di corso; il tipo e la regola del corso vincono.
+- **Elenco Corsi**: selezione e azioni in blocco «Assegna tipo» e «Imposta validità» (con «aggiungi la scadenza ai completamenti che non l'hanno», le scadenze scritte non cambiano); filtro «Una tantum da rivedere» (`services/formazione_catalogo.py`).
+- **Qualifiche dai corsi fatti**: «Allinea dai corsi fatti (N)» nella pagina Qualifiche (`services/formazione_qualifiche.py`).
+- **Un solo punto di uscita del completamento** (`services/formazione_completamento.dopo_completamento`): usato da aula, completamento diretto, e-learning, link aperto, import (`formazione_import`, `import_asr`, con `storico`) e formazione pregressa; chiude assegnazioni e sessioni online dello stesso corso; la copia in `views/_helpers.py` è tolta. Il link aperto riusa qualunque completamento valido (niente doppioni) e la correzione HR non annulla mai un completamento nato altrove.
+- **Completamenti con data futura**: elenco in Integrità dati con «Porta alla data reale» / «Annulla con motivo»; gli import non registrano date future; l'import da file calcola la scadenza.
+- **«Completato» = completamento valido** nei promemoria e-learning e nel pannello «Assegna».
+- **Copertura** sul motore dei requisiti (prima solo regole di obbligo, vuota in produzione), con il perché; soglie uniche 30/90 giorni (`anagrafica/scadenze_soglie.py`) anche per le qualifiche.
+- **Copertura e lacune**: barra di schede comune alle 5 pagine (tag `copertura_schede`, solo le pagine permesse).
+- Migrazione anagrafica `0261` (campo efficacia senza tipo, permessi `formazione_corsi_azione` e `qualifiche_allinea` copiati dalle rotte sorelle).
+- File: `services/formazione_completamento.py`, `formazione_catalogo.py`, `formazione_qualifiche.py` (nuovi), `scadenze_soglie.py` (nuovo), `services/formazione_efficacia.py`, `formazione_integrita.py`, `training_eligibility.py`, `training_deadline_service.py`, `elearning_link_aperto.py`, `elearning_promemoria.py`, `elearning_corso_gestione.py`, `formazione_import.py`, `onboarding.py`, `management/commands/import_asr.py`, `views/formazione.py`, `views/_helpers.py`, `views/qualifiche.py`, `views_formazione_integrita.py`, `views_formazione_tipi.py`, `templatetags/anagrafica_extras.py`, template corsi, tipi di corso, qualifiche, integrità, copertura e pagine di copertura, guida formazione, Centro guide. Test: `tests_formazione_interventi.py`, `tests.py` (attestato dopo il commit).
+
 ### Formazione: locandina con QR, tabella della lezione collegata agli altri canali
 
 - **Locandina** A4 da stampare per bacheche: edizioni (`formazione/sessioni/<id>/locandina/`) e corsi online (`formazione/corsi/<id>/locandina/`). Titolo, descrizione, quando/dove/docente (in aula) o «entro il» (online), durata e un QR grande: link aperto (online, se attivo), lezione nel portale, oppure QR d'aula per firmare; con più QR si sceglie in alto. Pulsanti «Locandina con QR» nel riquadro del link pubblico e nella lezione online, «Locandina» nelle fasi della sessione in aula. Migrazione anagrafica `0260` (permessi copiati da chi gestisce le presenze).

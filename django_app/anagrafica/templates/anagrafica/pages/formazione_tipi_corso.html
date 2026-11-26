@@ -87,6 +87,11 @@ body.theme-dark .tc-banner{background:rgba(214,158,46,.12);color:#fcd34d;border-
           </div>
           {% if is_editor %}
           <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-form" style="margin-top:12px;">
+            {% csrf_token %}<input type="hidden" name="azione" value="efficacia_senza_tipo">
+            <label title="MT CN 06 §9.5: vale per i corsi in aula che non hanno un tipo; il tipo e la regola del corso vincono">Corsi senza tipo: efficacia dopo (mesi, 0 = no)<input type="number" name="efficacia_mesi" min="0" max="36" value="{{ efficacia_senza_tipo }}" style="width:90px;"></label>
+            <button class="fmd-btn fmd-btn-ghost" type="submit">Salva</button>
+          </form>
+          <form method="post" action="{% url 'anagrafica:formazione_tipi_corso_azione' %}" class="tc-form" style="margin-top:12px;">
             {% csrf_token %}<input type="hidden" name="azione" value="crea">
             <label>Nuovo tipo<input name="nome" maxlength="80" required placeholder="Es. Ambiente"></label>
             <label>Cosa comprende<input name="descrizione" maxlength="200" placeholder="Facoltativo"></label>

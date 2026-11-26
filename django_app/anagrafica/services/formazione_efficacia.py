@@ -56,7 +56,18 @@ def mesi_efficacia_richiesti(corso, record=None) -> int:
     if getattr(record.sessione, "modalita", "") == "ONLINE":
         return 0
     tipo = getattr(corso, "tipo", None)
-    return int(getattr(tipo, "efficacia_mesi", 0) or 0) if tipo is not None else 0
+    if tipo is not None:
+        return int(getattr(tipo, "efficacia_mesi", 0) or 0)
+    return mesi_efficacia_senza_tipo()
+
+
+def mesi_efficacia_senza_tipo() -> int:
+    """Mesi predefiniti per i corsi in aula senza tipo (Tipi di corso → «Corsi senza tipo»)."""
+    try:
+        from ..models_formazione import AttestatoFormazioneConfig
+        return int(AttestatoFormazioneConfig.get_instance().efficacia_mesi_senza_tipo or 0)
+    except Exception:  # noqa: BLE001 - configurazione illeggibile: meglio nessuna valutazione che un errore
+        return 0
 
 
 def pianifica_valutazione_efficacia(record) -> object | None:
