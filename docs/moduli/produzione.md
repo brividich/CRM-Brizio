@@ -64,6 +64,14 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 - `/produzione/report-cmm/confronta/?r=<id>&r=<id>…`: da 2 a 6 report affiancati, quote allineate per nome e nominale e con le unioni di Analisi quote; `solo=1` solo quote che cambiano oltre il 20% della tolleranza o fuori; `formato=csv` per Excel. Si apre spuntando le righe negli elenchi dei report (scheda P/N, scheda OP, report).
 - Calcoli in `produzione/report_cmm_pagine.py` (`righe_report`, `vicini`, `confronta`, `proposte`). Permesso: `produzione.op.view`.
 
+### Pagine in stile protocollo CMM (26/11/2026)
+
+- Report (`report_cmm.html`): testata con timbro d'esito (`nok`, `verifica`, `ok`, `escluso`, `vuoto`), protocollo a tre parti: albero dei gruppi (`report_cmm_pagine.gruppi`, sezione del report), tabella con deviazione, «Fuori di» e grafico SVG (`report_cmm_pagine.grafico`: limiti a 15 e 85, avviso all'80%, barra dal centro; unilaterali da 10 a 80), dettaglio a destra da `json_script` (`report_cmm_pagine.pannello`) disegnato da `produzione/js/protocollo.js` con la serie degli ultimi 30 pezzi (`analisi_pn` ora restituisce `serie`, `media`, `sd`, `cp`, `lsl`, `usl`, `deriva_info`; chiave cache `prod_cmm_analisi2`).
+- Pezzo (`pezzo.html`): stato dall'ultimo report di ogni fase (`fasi_ko`), matrice quote × report con livello per cella (`_livello`: basso fino al 50%, medio, limite oltre l'80%, fuori), viste % / deviazione / valore ricordate in `localStorage`, pezzi dello stesso OP (`stesso_op`).
+- Scheda P/N: sezione `?sez=qualita` (`report_cmm_pagine.qualita_pn`, `lettura_quota`), `&q=<programma>::<id quota>` sceglie la quota, `&vista=tabella` la tabella Cpk. La sezione `report` accetta `?da=AAAA-MM-GG&a=AAAA-MM-GG` (dalla mappa) e non ripete più le quote critiche.
+- Quote CMM: `cruscotto()` restituisce `celle` (report fuori / misurati per settimana, `_cella_mappa`), `settimane_mappa()` e `quote_da_guardare_tutte()`.
+- Pagine di dettaglio senza `_nav.html`: percorso nell'eyebrow e `<template data-hub-percorso-gerarchia>`, badge con `prod-badge` (fuori dal nome nel percorso in alto), «? Guida» fra i pulsanti. Il catalogo si intitola «Catalogo P/N». Nessuna migrazione; serve `collectstatic` (`produzione.css`, `protocollo.js`).
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |
@@ -82,4 +90,4 @@ Nella matrice di Ruoli e permessi il modulo è «Ordini di produzione» (area Pr
 
 ## Deploy
 
-`migrate produzione`, `collectstatic` (`produzione/css/produzione.css`, `produzione/css/nuovo_op.css`, `produzione/js/nuovo_op.js`, `produzione/js/analisi_quote.js`, `produzione/css/analisi_quote.css`, bundle di Gestione anomalie), registrazione degli schedule (`produzione_report_cmm_giro`), riavvio di qcluster. L'utente del portale e quello di qcluster devono poter **leggere** `\\novisrv\Area Controllo\Collaudo`.
+`migrate produzione`, `collectstatic` (`produzione/css/produzione.css`, `produzione/js/protocollo.js`, `produzione/css/nuovo_op.css`, `produzione/js/nuovo_op.js`, `produzione/js/analisi_quote.js`, `produzione/css/analisi_quote.css`, bundle di Gestione anomalie), registrazione degli schedule (`produzione_report_cmm_giro`), riavvio di qcluster. L'utente del portale e quello di qcluster devono poter **leggere** `\\novisrv\Area Controllo\Collaudo`.

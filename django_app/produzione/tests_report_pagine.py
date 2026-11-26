@@ -38,14 +38,43 @@ class ReportPaginaTests(QuoteBase):
         url = reverse("produzione:report_cmm", args=[self.r3.pk])
         r = self.client.get(url)
         self.assertContains(r, "Ø62 k6")                         # anche quelle in tolleranza
-        self.assertContains(r, "‹ Pezzo prima")
-        self.assertNotContains(r, "Pezzo dopo ›")
-        self.assertContains(r, "prod-tolbar-x is-fuori")
+        self.assertContains(r, "‹ SN2")                          # pezzo prima nella barra del protocollo
+        self.assertNotContains(r, "title=\"Pezzo dopo")
+        self.assertContains(r, 'class="prot-riga is-fuori"')
+        self.assertContains(r, 'class="prot-timbro is-nok"')
+        self.assertContains(r, 'id="prot-dati"')                  # dati del pannello di dettaglio
+        self.assertNotContains(r, 'class="prod-nav"')             # niente schede del modulo nel dettaglio
         r = self.client.get(url + "?f=fuori")
         self.assertContains(r, "Ø40 H7")
         self.assertNotContains(r, "<b>Ø62 k6</b>")
         r = self.client.get(url + "?f=limite")
         self.assertContains(r, "<b>Ø62 k6</b>")
+
+    def test_protocollo_grafico_gruppi_pannello(self):
+        # bilaterale: limiti a 15 e 85, barra dal centro (50) alla misura
+        g = pagine.grafico(40.0, 40.0, 40.025, 40.0125)
+        self.assertEqual((g["zona_x"], g["lim2"], g["x"], g["barra_w"]), (15.0, 85.0, 50.0, 0.0))
+        self.assertEqual(g["nom_x"], 15.0)                        # nominale sul limite inferiore (H7)
+        self.assertEqual((g["avviso_x"], g["avviso_w"]), (22.0, 56.0))   # avviso all'80%
+        fuori = pagine.grafico(40.0, 40.0, 40.025, 39.990)
+        self.assertEqual(fuori["x"], 2.0)                         # fuori scala: tenuto nel grafico
+        self.assertTrue(fuori["fuori_scala"])
+        # unilaterale (forma): zero a 10, limite a 80
+        u = pagine.grafico(0.0, 0.0, 0.02, 0.01)
+        self.assertEqual((u["zona_x"], u["lim2"], u["x"], u["barra_x"]), (10.0, 80.0, 45.0, 10.0))
+        self.assertIsNone(pagine.grafico(40.0, 40.0, 40.0, 40.0))
+        dati = pagine.righe_report(self.r3)
+        stati = {r["m"].nome: r["stato"] for r in dati["righe"]}
+        self.assertEqual(stati, {"Ø40 H7": "fuori", "Ø62 k6": "limite"})
+        d40 = next(r for r in dati["righe"] if r["m"].nome == "Ø40 H7")
+        self.assertAlmostEqual(d40["ecc"], 0.005)                 # 40,030 oltre 40,025
+        gr = pagine.gruppi(dati["righe"])
+        self.assertEqual([r["m"].indice for g in gr for r in g["righe"]], sorted(r["m"].indice for r in dati["righe"]))
+        self.assertEqual(gr[0]["stato"], "fuori")
+        pan = pagine.pannello(dati["righe"], self.r3)
+        p40 = next(p for p in pan if p["nome"] == "Ø40 H7")
+        self.assertEqual([round(s[0], 3) for s in p40["serie"]], [40.010, 40.020, 40.030])
+        self.assertEqual(p40["serie"][-1][2], self.r3.pk)         # il pezzo del report, cerchiato nel grafico
 
     def test_confronto(self):
         dati = pagine.confronta([self.r1, self.r2, self.r3])
@@ -145,17 +174,56 @@ class PezzoTests(QuoteBase):
         self.assertEqual(d["n_fuori"], 1)
         self.assertEqual(d["stato"], "ok")
         self.assertEqual(d["storia"][0]["testo"], "PCQF · rimisura")
+        self.assertEqual((d["fasi"], d["fasi_ko"]), (2, []))
+        self.assertEqual([c["rimisura"] for c in d["intestazioni_fasi"]], [False, False, True])
+        celle = {r["nome"]: [v["livello"] if v else None for v in r["valori"]] for r in d["righe"]}
+        self.assertEqual(celle["Ø40 H7"], ["basso", "fuori", "basso"])   # 40,010 = 20%, 40,030 fuori, 40,012 = 4%
+        self.assertEqual([p["sn"] for p in d["stesso_op"]], ["SN8"])          # gli altri pezzi dello stesso OP
         self.assertEqual([r["nome"] for r in pagine.pezzo("PN-ALFA-1", "SN7", "fuori")["righe"]], ["Ø40 H7"])
         self.assertIsNone(pagine.pezzo("PN-ALFA-1", "SN99"))
 
     def test_pagina_e_pdf(self):
         url = reverse("produzione:pezzo")
         r = self.client.get(url, {"pn": "pn-alfa-1", "sn": "SN7"})
-        self.assertContains(r, "Storia del pezzo")
+        self.assertContains(r, "Report del pezzo")
         self.assertContains(r, "Confronta le fasi")
+        self.assertContains(r, 'class="prot-timbro is-ok"')          # la rimisura PCQF sostituisce la misura fuori
+        self.assertContains(r, 'class="prot-liv is-fuori"')
+        self.assertContains(r, "PCQF · R")                           # colonna della rimisura
         self.assertEqual(self.client.get(url, {"pn": "PN-ALFA-1", "sn": "XX"}).status_code, 404)
         pdf = self.client.get(url, {"pn": "PN-ALFA-1", "sn": "SN7", "formato": "pdf"})
         self.assertEqual(pdf["Content-Type"], "application/pdf")
         self.assertTrue(pdf.content.startswith(b"%PDF"))
         rep = self.client.get(reverse("produzione:report_cmm", args=[self.r2.pk]))
         self.assertContains(rep, "Pagina del pezzo")
+
+
+class QualitaPnTests(QuoteBase):
+    """Sezione «Qualità CMM» della scheda P/N: albero dalla quota peggiore, quota scelta, frase di lettura."""
+
+    def setUp(self):
+        super().setUp()
+        for i, (a, b) in enumerate([(40.004, 62.011), (40.003, 62.012), (40.005, 62.010), (40.002, 62.011),
+                                    (40.004, 62.012), (40.003, 62.011)]):
+            self.report(f"SN{i}", [q(D40, a), q(D62, b)], giorni=i)
+
+    def test_albero_scelta_e_lettura(self):
+        d = pagine.qualita_pn("PN-ALFA-1")
+        self.assertEqual(d["conta"]["quote"], 2)
+        quote = d["programmi"][0]["quote"]
+        self.assertEqual(quote[0]["quota"]["nome"], "Ø40 H7")          # media a 3,5 µm dal minimo: Cpk basso, in cima
+        self.assertEqual(d["scelta"]["chiave"], quote[0]["chiave"])     # senza scelta: la peggiore
+        self.assertEqual(d["grafico"]["lsl"], 40.0)
+        self.assertEqual(len(d["grafico"]["serie"]), 6)
+        self.assertIn("verso il limite inferiore", d["lettura"])
+        self.assertIn("sotto 1,33", d["lettura"])
+        altra = pagine.qualita_pn("PN-ALFA-1", quote[1]["chiave"])
+        self.assertEqual(altra["scelta"]["quota"]["nome"], "Ø62 k6")
+        self.assertEqual(pagine.qualita_pn("PN-ALFA-1", "sbagliata")["scelta"]["chiave"], quote[0]["chiave"])
+
+    def test_lettura_media_fuori(self):
+        a = {"media": 39.9997, "lsl": 40.0, "usl": 40.025, "quota": {"nominale": 40.0}, "deriva_info": None,
+             "cpk": -0.02, "n_fuori": 16, "n": 30}
+        frase = pagine.lettura_quota(a)
+        self.assertIn("fuori tolleranza: oltre il limite inferiore di 0,3 µm", frase)
+        self.assertIn("16 pezzi fuori su 30", frase)

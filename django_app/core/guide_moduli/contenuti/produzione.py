@@ -85,15 +85,22 @@ GUIDA = {
                 ("p", "Filtri anche per misure (ultima per S/N o tutte), report scelti a mano ed esclusi. Quote in deriva "
                       "(retta sugli ultimi 20 pezzi, stima dei pezzi al limite), segnali di controllo (oltre 3σ, 9 dallo stesso "
                       "lato, 6 in salita/discesa), eventi (cambio revisione, note), bandierine delle anomalie, quote unite fra "
-                      "programmi, «PDF di capacità». «Quote CMM» elenca tutti i P/N dal più grave; Impostazioni › «Avvisi delle "
-                      "quote CMM» sceglie chi riceve gli avvisi."),
-                ("p", "La scheda del P/N mostra le «Quote da tenere d'occhio». Dal report di un S/N: tutte le quote con "
-                      "barra nella tolleranza, tolleranza usata, differenza dal pezzo prima e Cpk; filtri Fuori, Al limite, "
-                      "Diverse dal pezzo prima; «‹ Pezzo prima / Pezzo dopo ›», «Apri il PDF», «Apri segnalazione anomalia» "
-                      "con il pannello «📄 Dal report CMM (PDF)» già pronto."),
-                ("p", "Pagina del pezzo (clic sul S/N nel titolo del report o nella tabella «Pezzi e fasi» dell'OP): tutte "
-                      "le quote del S/N report per report, storia con rimisure e anomalie, «Confronta le fasi» e «Scheda "
-                      "pezzo (PDF)»."),
+                      "programmi, «PDF di capacità». «Quote CMM» ha la «Mappa qualità» (P/N × ultime 12 settimane, in ogni casella "
+                      "report con quote fuori su report misurati, clic = i report di quella settimana) e le «Quote da guardare» "
+                      "di tutti i P/N; Impostazioni › «Avvisi delle quote CMM» sceglie chi riceve gli avvisi."),
+                ("p", "Scheda del P/N, sezione «Qualità CMM»: programmi e quote dalla peggiore per Cpk, carta di controllo "
+                      "degli ultimi 30 pezzi con distribuzione, Cpk, Cp, media, σ, fuori, deriva e una «Lettura» scritta dai "
+                      "numeri; «Tabella Cpk» con tutte le quote."),
+                ("p", "Il report di un S/N è un protocollo: timbro «Esito» (NOK, DA VERIFICARE, OK, ESCLUSO), quote per "
+                      "gruppo a sinistra, tabella con deviazione, grafico (tolleranza, fascia all'80%, barra verde/gialla/rossa), "
+                      "«Fuori di» e «Usata», dettaglio della quota a destra con l'andamento sugli ultimi 30 pezzi (frecce ↑ ↓ "
+                      "per scorrere); filtri Fuori, Al limite, Cambiate dal pezzo prima; «‹ S/N / S/N ›», «Compatta», «PDF "
+                      "originale», «Apri segnalazione anomalia» con il pannello «📄 Dal report CMM (PDF)» già pronto."),
+                ("p", "Pagina del pezzo (clic sul S/N nel titolo del report o nella tabella «Pezzi e fasi» dell'OP): timbro "
+                      "«Stato pezzo» dall'ultimo report di ogni fase (la rimisura sostituisce la misura fuori), «Multi-protocollo» "
+                      "quote × report colorato dalla tolleranza usata (% / deviazione / valore, clic = report alla quota), "
+                      "report, anomalie e altri pezzi dello stesso OP, «Confronta le fasi» e «Scheda pezzo (PDF)». Nelle pagine "
+                      "di dettaglio niente schede del modulo: percorso «Ordini di produzione › P/N › OP» e «? Guida»."),
                 ("p", "Confronto report: spunta da 2 a 6 righe negli elenchi dei report e premi «Confronta». Quote "
                       "allineate (anche quelle unite fra programmi), differenza fra ultimo e primo in % della tolleranza, "
                       "confronti pronti (stesso S/N in tutte le fasi, primo articolo e ultimi pezzi, pezzo prima e dopo), "

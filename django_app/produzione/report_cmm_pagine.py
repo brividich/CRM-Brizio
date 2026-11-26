@@ -9,7 +9,7 @@ from datetime import date
 from django.db.models import Q
 
 from .models import AliasQuotaCMM, ReportCMM
-from .report_cmm_indice import analisi_pn, id_quota, report_primo_articolo, usata
+from .report_cmm_indice import analisi_pn, id_quota, report_primo_articolo, unilaterale, usata
 
 MAX_CONFRONTO = 6
 SOGLIA_CAMBIO = 0.20  # «cambia»: differenza fra primo e ultimo oltre il 20% della tolleranza
@@ -42,9 +42,41 @@ def _posizione(u: float | None) -> float | None:
     return max(1.0, min(99.0, 50 + u * 35))
 
 
+def grafico(nominale: float, lsl: float, usl: float, x: float) -> dict | None:
+    """Geometria del grafico di deviazione del protocollo, in unità 0–100 della larghezza.
+
+    Bilaterali: limiti a 15 e 85, avviso all'``AL_LIMITE`` della metà tolleranza, barra dal centro della
+    tolleranza alla misura, nominale tratteggiato (``nom_x``, assente se cade fuori dal grafico).
+    Unilaterali (forma, posizione): lo zero (ideale) a 10, il limite a 80, barra da zero alla misura."""
+    banda = usl - lsl
+    if banda <= 0:
+        return None
+    if unilaterale(nominale, lsl, usl):
+        a, b = 10.0, 80.0
+        pos = lambda t: a + t / usl * (b - a)  # noqa: E731
+        zona, avviso = (a, b), (a, pos(usl * AL_LIMITE))
+        origine = a
+    else:
+        a, b = 15.0, 85.0
+        pos = lambda t: a + (t - lsl) / banda * (b - a)  # noqa: E731
+        c, mezza = (lsl + usl) / 2, banda / 2
+        zona, avviso = (a, b), (pos(c - mezza * AL_LIMITE), pos(c + mezza * AL_LIMITE))
+        origine = 50.0  # la barra parte dal centro della tolleranza, come «Usata»
+    xm = max(2.0, min(98.0, pos(x)))
+    return {
+        "zona_x": round(zona[0], 2), "zona_w": round(zona[1] - zona[0], 2),
+        "avviso_x": round(avviso[0], 2), "avviso_w": round(avviso[1] - avviso[0], 2),
+        "lim2": round(zona[1], 2), "nom": round(origine, 2), "x": round(xm, 2),
+        "nom_x": round(pos(nominale), 2) if 2 <= pos(nominale) <= 98 else None,
+        "barra_x": round(min(origine, xm), 2), "barra_w": round(abs(xm - origine), 2),
+        "fuori_scala": pos(x) < 2 or pos(x) > 98,
+    }
+
+
 def righe_report(report: ReportCMM) -> dict:
-    """Tutte le quote del report con tolleranza usata, posizione nella barra, differenza dal pezzo prima e Cpk
-    della quota (ultimi 30 pezzi del programma). Prima le fuori, poi quelle da verificare, poi l'ordine del report."""
+    """Tutte le quote del report con tolleranza usata, grafico di deviazione, stato (``fuori``, ``verifica``,
+    ``limite``, ``ok``), differenza dal pezzo prima, Cpk e serie degli ultimi 30 pezzi del programma.
+    Prima le fuori, poi quelle da verificare, poi l'ordine del report (``gruppi`` le ridà nell'ordine del report)."""
     prima, dopo = vicini(report)
     prec = {}
     if prima:
@@ -56,23 +88,143 @@ def righe_report(report: ReportCMM) -> dict:
         lsl, usl = m.nominale + m.tol_inf, m.nominale + m.tol_sup
         u = usata(m.misurato, m.nominale, lsl, usl)
         a = analisi.get(qid)
+        limite = u is not None and abs(u) > AL_LIMITE and not m.fuori
+        ecc = None
+        if m.fuori:
+            ecc = m.misurato - usl if m.misurato > usl else m.misurato - lsl
         righe.append({
             "m": m, "id": qid, "u": u, "u_pct": round(abs(u) * 100) if u is not None else None,
-            "pos": _posizione(u), "limite": u is not None and abs(u) > AL_LIMITE and not m.fuori,
+            "pos": _posizione(u), "limite": limite,
+            "stato": "fuori" if m.fuori else ("verifica" if m.da_verificare else ("limite" if limite else "ok")),
+            "dev": m.misurato - m.nominale, "ecc": ecc, "lsl": lsl, "usl": usl,
+            "g": grafico(m.nominale, lsl, usl, m.misurato),
             "delta": (m.misurato - prec[qid]) if qid in prec else None,
-            "cpk": a["cpk"] if a else None, "deriva": bool(a and a["deriva"]),
+            "prima": prec.get(qid),
+            "cpk": a["cpk"] if a else None, "cp": a.get("cp") if a else None, "deriva": bool(a and a["deriva"]),
+            "media": a.get("media") if a else None, "sd": a.get("sd") if a else None,
+            "n_fuori": a["n_fuori"] if a else None, "n": a["n"] if a else None,
+            "serie": (a.get("serie") or []) if a else [],
         })
     righe.sort(key=lambda r: (not r["m"].fuori, not r["m"].da_verificare, r["m"].indice))
     conta = {
         "tutte": len(righe), "fuori": sum(r["m"].fuori for r in righe), "limite": sum(r["limite"] for r in righe),
+        "verifica": sum(1 for r in righe if r["stato"] == "verifica"),
         "cambiate": sum(1 for r in righe if r["delta"] is not None and r["u"] is not None and _banda(r["m"])
                         and abs(r["delta"]) / _banda(r["m"]) > SOGLIA_CAMBIO),
     }
     return {"righe": righe, "prima": prima, "dopo": dopo, "conta": conta}
 
 
+_GRAVITA = {"fuori": 3, "verifica": 2, "limite": 1, "ok": 0}
+
+
+def gruppi(righe: list[dict]) -> list[dict]:
+    """Le righe raggruppate per sezione del report (come nel protocollo CMM), nell'ordine del report; per ogni
+    gruppo lo stato peggiore e i contatori."""
+    out: dict[str, dict] = {}
+    for r in sorted(righe, key=lambda r: r["m"].indice):
+        nome = (r["m"].sezione or "").strip() or "Senza gruppo"
+        g = out.setdefault(nome, {"nome": nome, "righe": [], "stato": "ok", "fuori": 0})
+        g["righe"].append(r)
+        g["fuori"] += r["stato"] == "fuori"
+        if _GRAVITA[r["stato"]] > _GRAVITA[g["stato"]]:
+            g["stato"] = r["stato"]
+    return list(out.values())
+
+
+def pannello(righe: list[dict], report: ReportCMM) -> list[dict]:
+    """I dati del pannello di dettaglio (a destra del protocollo), uno per riga, per ``json_script``."""
+    out = []
+    for r in righe:
+        m = r["m"]
+        out.append({
+            "i": m.indice, "nome": m.nome, "tipo": m.tipo, "stato": r["stato"], "nom": m.nominale, "sup": m.tol_sup,
+            "inf": m.tol_inf, "x": m.misurato, "dev": r["dev"], "ecc": r["ecc"], "u": r["u_pct"], "prima": r["prima"],
+            "cpk": r["cpk"], "cp": r["cp"], "deriva": r["deriva"], "media": r["media"], "sd": r["sd"],
+            "n_fuori": r["n_fuori"], "n": r["n"], "lsl": r["lsl"], "usl": r["usl"], "chiave": m.chiave,
+            "serie": r["serie"], "corrente": report.pk,
+        })
+    return out
+
+
 def _banda(m) -> float:
     return (m.tol_sup - m.tol_inf) or 0.0
+
+
+# --- Scheda P/N: Qualità CMM -----------------------------------------------------------------------------
+
+def _stato_quota(a: dict) -> str:
+    """Icona della quota nell'albero: fuori nell'ultimo report, da guardare (Cpk sotto 1,33 o deriva), capace,
+    senza Cpk (pochi pezzi)."""
+    if a["fuori_ultimo"]:
+        return "fuori"
+    if a["deriva"] or (a["cpk"] is not None and a["cpk"] < 1.33):
+        return "limite"
+    return "ok" if a["cpk"] is not None else "nd"
+
+
+def chiave_quota(a: dict) -> str:
+    return f"{a['prog']}::{a['quota']['id']}"
+
+
+def lettura_quota(a: dict) -> str:
+    """Una frase sulla quota scelta, solo dai numeri: dove lavora la media, la deriva, il Cpk."""
+    if a.get("media") is None or a.get("lsl") is None:
+        return ""
+    banda = a["usl"] - a["lsl"]
+    if banda <= 0:
+        return ""
+    unilat = unilaterale(a["quota"]["nominale"], a["lsl"] - a["quota"]["nominale"], a["usl"] - a["quota"]["nominale"])
+    um = lambda v: f"{v * 1000:.1f}".replace(".", ",")  # noqa: E731
+    if unilat:
+        frase = f"La media usa il {round(a['media'] / a['usl'] * 100)}% della tolleranza ({um(a['media'])} su {um(a['usl'])} µm)."
+    else:
+        dal_sup, dal_inf = a["usl"] - a["media"], a["media"] - a["lsl"]
+        if dal_sup < 0 or dal_inf < 0:
+            vicino, oltre = ("superiore", -dal_sup) if dal_sup < 0 else ("inferiore", -dal_inf)
+            frase = f"La media è fuori tolleranza: oltre il limite {vicino} di {um(oltre)} µm."
+        elif abs(dal_sup - dal_inf) < banda * 0.1:
+            frase = f"La media lavora al centro della tolleranza ({um(banda)} µm)."
+        else:
+            vicino, dist = ("superiore", dal_sup) if dal_sup < dal_inf else ("inferiore", dal_inf)
+            frase = f"La media lavora verso il limite {vicino}: ne dista {um(dist)} µm su {um(banda)} µm di tolleranza."
+    d = a.get("deriva_info")
+    if d:
+        verso = "superiore" if d.get("verso") == "sup" else "inferiore"
+        frase += (f" È in deriva verso il limite {verso}" + (f": al ritmo attuale ci arriva in circa {d['pezzi']} pezzi."
+                                                              if d.get("pezzi") else ", già raggiunto."))
+    if a["cpk"] is not None:
+        frase += f" Cpk {a['cpk']:.2f}".replace(".", ",") + (": sotto 1,33." if a["cpk"] < 1.33 else ": capace.")
+    if a["n_fuori"]:
+        frase += f" {a['n_fuori']} pezz{'o' if a['n_fuori'] == 1 else 'i'} fuori su {a['n']}."
+    return frase
+
+
+def qualita_pn(pn: str, scelta: str = "") -> dict:
+    """La sezione «Qualità CMM» della scheda P/N: albero programmi → quote (dalla peggiore per Cpk), la quota scelta
+    (``prog::id``, altrimenti la peggiore) con i dati della carta di controllo, e la tabella di tutte le quote."""
+    analisi = analisi_pn(pn)
+    gravita = {"fuori": 0, "limite": 1, "ok": 2, "nd": 3}
+    programmi: dict[str, dict] = {}
+    for a in analisi:
+        a = dict(a, stato=_stato_quota(a), chiave=chiave_quota(a), q_chiave=a["quota"]["id"].rsplit("|", 1)[0])
+        p = programmi.setdefault(a["prog"], {"nome": a["prog"] or "—", "quote": [], "stato": "nd"})
+        p["quote"].append(a)
+    for p in programmi.values():
+        p["quote"].sort(key=lambda a: (gravita[a["stato"]], a["cpk"] if a["cpk"] is not None else 99, a["quota"]["nome"]))
+        p["stato"] = min((a["stato"] for a in p["quote"]), key=lambda s: gravita[s], default="nd")
+    elenco = sorted(programmi.values(), key=lambda p: (gravita[p["stato"]], p["nome"]))
+    tutte = [a for p in elenco for a in p["quote"]]
+    scelta_a = next((a for a in tutte if a["chiave"] == scelta), None) or (tutte[0] if tutte else None)
+    grafico = None
+    if scelta_a:
+        grafico = {"nome": scelta_a["quota"]["nome"], "lsl": scelta_a["lsl"], "usl": scelta_a["usl"],
+                   "serie": scelta_a.get("serie") or [], "media": scelta_a.get("media")}
+    tabella = sorted(tutte, key=lambda a: (a["cpk"] if a["cpk"] is not None else 99, a["prog"], a["quota"]["nome"]))
+    return {"programmi": elenco, "scelta": scelta_a, "grafico": grafico, "tabella": tabella,
+            "lettura": lettura_quota(scelta_a) if scelta_a else "",
+            "conta": {"quote": len(tutte), "fuori": sum(a["stato"] == "fuori" for a in tutte),
+                      "da_guardare": sum(a["stato"] == "limite" for a in tutte)}}
 
 
 # --- Confronto -------------------------------------------------------------------------------------------
@@ -118,6 +270,16 @@ def _mappa_alias(pn: str) -> dict[tuple[str, str], tuple[str, str]]:
             for a in AliasQuotaCMM.objects.filter(pn=pn)}
 
 
+def _livello(fuori: bool, u: float | None) -> str:
+    """Colore della cella nella matrice del pezzo: fuori, al limite (oltre l'``AL_LIMITE``), oltre metà, sotto metà."""
+    if fuori:
+        return "fuori"
+    if u is None:
+        return "nd"
+    a = abs(u)
+    return "limite" if a > AL_LIMITE else ("medio" if a > 0.5 else "basso")
+
+
 def confronta(reports: list[ReportCMM], solo_cambiate: bool = False) -> dict:
     """Le quote dei report affiancate. Una riga per quota (nome + nominale); le quote unite in Analisi quote
     finiscono nella stessa riga anche fra programmi diversi. Per ogni riga: i valori, se sono fuori, la
@@ -134,10 +296,13 @@ def confronta(reports: list[ReportCMM], solo_cambiate: bool = False) -> dict:
             riga = righe.get(chiave)
             if riga is None:
                 riga = righe[chiave] = {"id": chiave, "nome": m.nome, "nominale": m.nominale, "lsl": m.nominale + m.tol_inf,
-                                        "usl": m.nominale + m.tol_sup, "ordine": (col, m.indice), "valori": [None] * len(reports)}
+                                        "usl": m.nominale + m.tol_sup, "ordine": (col, m.indice), "valori": [None] * len(reports),
+                                        "sezione": (m.sezione or "").strip()}
             if riga["valori"][col] is None:
-                riga["valori"][col] = {"x": m.misurato, "fuori": m.fuori,
-                                       "pos": _posizione(usata(m.misurato, m.nominale, m.nominale + m.tol_inf, m.nominale + m.tol_sup))}
+                u = usata(m.misurato, m.nominale, m.nominale + m.tol_inf, m.nominale + m.tol_sup)
+                riga["valori"][col] = {"x": m.misurato, "fuori": m.fuori, "i": m.indice, "dev": m.misurato - m.nominale,
+                                       "pos": _posizione(u), "u_pct": round(abs(u) * 100) if u is not None else None,
+                                       "livello": _livello(m.fuori, u)}
     out = []
     for riga in righe.values():
         presenti = [v for v in riga["valori"] if v]
@@ -278,11 +443,38 @@ def pezzo(pn: str, sn: str, solo: str = "") -> dict | None:
                        (f"{r.fuori} quot{'a' if r.fuori == 1 else 'e'} fuori" if r.fuori else "tutto in tolleranza"),
                        "op": r.op})
     storia.reverse()
-    stato = "fuori" if ultimo.fuori else "ok"
+    # esito del pezzo: l'ultimo report valido di ogni fase (le rimisure sostituiscono le misure prima)
+    ultimo_per_fase: dict[str, ReportCMM] = {}
+    for r in validi or reports:
+        ultimo_per_fase[r.programma_base] = r
+    fasi_ko = [f for f, r in ultimo_per_fase.items() if r.fuori]
+    stato = "fuori" if fasi_ko else "ok"
+    viste: dict[str, int] = {}
+    intestazioni = []
+    for r in reports:
+        viste[r.programma_base] = viste.get(r.programma_base, 0) + 1
+        if r in colonne:
+            intestazioni.append({"r": r, "rimisura": viste[r.programma_base] > 1,
+                                 "stato": "escluso" if r.escluso else ("fuori" if r.fuori else "ok")})
+    gruppi_righe: dict[str, dict] = {}
+    for riga in sorted(righe, key=lambda x: x["ordine"]):
+        g = gruppi_righe.setdefault(riga["sezione"] or "Senza gruppo", {"nome": riga["sezione"] or "Senza gruppo", "righe": []})
+        g["righe"].append(riga)
+    stesso_op = []
+    if ultimo.op:
+        visti_sn: dict[str, dict] = {}
+        for r in (ReportCMM.objects.filter(pn=pn, op__iexact=ultimo.op, righe__gt=0, escluso=False)
+                  .order_by("data", "id").only("seriale", "fuori", "data")[:MAX_REPORT_OP]):
+            k = chiave_seriale(r.seriale)
+            if k and k != chiave_seriale(ultimo.seriale):
+                visti_sn[k] = {"sn": r.seriale, "fuori": r.fuori, "data": r.data}
+        stesso_op = sorted(visti_sn.values(), key=lambda p: p["sn"])[:12]
     return {
         "pn": pn, "sn": ultimo.seriale or sn, "reports": reports, "colonne": colonne, "righe": righe, "totale": dati["totale"],
         "cambiate": dati["cambiate"], "n_fuori": sum(1 for r in dati["righe"] if r["fuori"]), "solo": solo, "ops": ops,
         "primo_articolo": primo_articolo, "anomalie": anomalie, "anomalie_aperte": sum(a["aperta"] for a in anomalie),
         "storia": storia, "stato": stato, "ultimo": ultimo, "esclusi": len(reports) - len(validi),
+        "fasi": len(ultimo_per_fase), "fasi_ko": fasi_ko, "intestazioni_fasi": intestazioni,
+        "gruppi": list(gruppi_righe.values()), "stesso_op": stesso_op,
         "nascosti": max(0, len(validi or reports) - MAX_FASI_PEZZO),
     }
