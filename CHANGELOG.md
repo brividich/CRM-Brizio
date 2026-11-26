@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Gestione anomalie: chi riceve il capocommessa non resta in «Sola lettura»
+
+- Con il sistema dei ruoli l'elenco OP calcolava «può modificare» solo dal capocommessa e dal CAR del gestionale: chi riceveva il capocommessa con «Cambia capocommessa» (tutto l'OP) o «Cambia incaricato» (singola anomalia) vedeva l'anomalia «in carico a me» ma la pagina era in «Sola lettura», anche se il server gli avrebbe accettato il salvataggio. Ora l'elenco usa la stessa regola del server (`incaricati.op_incaricato`, ruolo `cc`). Caso segnalato: AN-00118 su OP/2026/486; stesso difetto su OP/2026/1729/2026/AW5025 e OP/2026/2129.
+- File: `django_app/anomalie/views.py` (`_ordini_payload`), `django_app/anomalie/tests_permessi_ambito.py`.
+
 ### Ordini di produzione: report CMM del formato vecchio (2014-2024)
 
 - Il lettore dei report CMM legge anche il formato vecchio (CALYPSO stampato con novaPDF: «Aktual», «pos Tol», «neg Tol», «<--|-->», testata anche in italiano): tolleranze di forma senza «neg Tol», posizioni con bonus di massimo materiale, eccedenza al posto della barretta, data scritta per esteso. Provato su 325 report veri dal 2012 al 2024 (22.560 quote, 4 da verificare) e su 120 del formato nuovo, invariati.
