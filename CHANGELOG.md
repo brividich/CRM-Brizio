@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: «Ruoli e permessi» non si blocca più sulla matrice
+
+- `core/acl_capability.py`: `capability_index()` tiene in cache (impronta del catalogo, indice); l'impronta (totale, attivi e ultimo `updated_at` di permessi e binding) rinnova l'indice appena cambia il catalogo, senza attendere i 300 s. Chiave `acl_capability_index_v3`.
+- `core/permessi/sync.py`: `capacita_permessi()` usa l'indice in cache invece di ricostruirlo a ogni apertura (3.469 rotte × ~140 binding, ~2 s di CPU); le etichette di `pagine_modulo_ruolo` si leggono dal catalogo attivo senza `code IN (~1.300 valori)` (4 s a freddo su SQL Server). Scheda Matrice sui dati di prod: da ~6 s a 0,5-1 s; anche «Salva matrice» ne beneficia.
+- `admin_portale/views_ruoli.py`: la scheda «Registro» andava in errore 500 per le voci `permessi_matrice` scritte dalle impostazioni Timbri (con `ruolo` per cella invece di `modulo`); ora le legge entrambe.
+- Test: `core/test_acl_capability.py` (cache rinnovata), `core/tests_permessi_eccezioni.py` (registro con voce Timbri).
+
 ### Anagrafica: organigramma ufficiale disegnato a mano, con revisioni
 
 - Nuova vista «📐 Ufficiale» dell'organigramma (`/anagrafica/organigramma/ufficiale/`): organigrammi disegnati come in Word con riquadri presi da ruoli, persone, mansioni o testo libero, gruppi («team»), collegamenti e linee di staff, colori e stili. Bozza salvata da sola, «Riepilogo modifiche» rispetto alla revisione in vigore, «Pubblica» con nota, approvato da e data, storico revisioni con confronto, stampa A3/A4 con cartiglio. Avvisi dove il disegno non corrisponde più ai dati (persona cessata, ruolo non suo, ruoli dell'ambito non disegnati). Non tocca ruoli, «Riporta a», assegnazioni, capi né permessi.
