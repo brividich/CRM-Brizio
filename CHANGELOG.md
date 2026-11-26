@@ -16,6 +16,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - Riquadro «Sessioni»: conteggio per stato (pianificate, in corso, completate) al posto di «Sessioni pianificate» fisso; aprendo la scheda lo stato delle edizioni si aggiorna come in Sessioni.
 - Scheda «Persone» rinominata «Da assegnare»; i candidati di un corso obbligatorio per tutti sono i dipendenti in forza non ancora a posto (`training_eligibility._legacy_ids_pertinenti`), esclusi quelli con completamento valido anche se la scadenza non è ancora ricalcolata.
 - File: `services/training_eligibility.py`, `views/formazione.py`, `formazione_corso_detail.html`, guida formazione; test `tests_scheda_corso_coerente.py`.
+### Organigramma ufficiale: stile HUB e stile Documento (come l'Allegato C in Word)
+
+- Ogni organigramma ufficiale si disegna in due stili, scelti dalla barra della tela: **HUB** (colori del portale, sigle in etichette, iniziali delle persone) e **Documento** (bianco e nero, ruoli e responsabili in blu, come l'allegato in Word). Stesso disegno, cambia solo l'aspetto a video e in stampa.
+- Riquadri più ricchi: **reparto** in testa, più ruoli dello stesso responsabile, responsabili = tutti i titolari del ruolo, **elenco collaboratori automatico** («Cognome Nome – SIGLA», si aggiorna quando cambiano le assegnazioni; si può togliere una persona o spegnere le sigle) più righe scritte a mano, **icone** (datore di lavoro, medico, RSPP/ASPP, preposto, antincendio, primo soccorso, RLS, lavoratori…). Collegamento **di lato** per i sotto-reparti in colonna e partenza della linea da sinistra/centro/destra; i riquadri che si allungano spingono giù quelli sotto.
+- **📄 Foglio**: titolo, sottotitolo, intestazione, azienda, logo (dalle impostazioni grafiche) e piè di pagina con `{rev}` → «Rev.N»; entra nella revisione pubblicata.
+- Stampa in **A3, A4 orizzontale e A4 verticale** e **più organigrammi in un PDF** («⬇ Stampa insieme» nell'elenco, `?con=`).
+- Riquadri, elenchi e linee li disegna uno script unico per tela, pagina pubblicata, anteprime e stampa; i nomi tutti maiuscoli dell'anagrafica si vedono «Cognome Nome».
+- File: `anagrafica/services/organigramma_ufficiale.py` (`normalizza_foglio`, `catalogo`, `pacchetto`, `testo_piede`, campi nuovi, riepilogo e avvisi), `views_organigramma_ufficiale.py` (stampa multipla e formati), template `organigramma_ufficiale_{elenco,vedi,disegna,stampa}.html`, `partials/_org_uff_render.html` (nuovo, sostituisce `_org_uff_stile.html`), `partials/_org_uff_disegno.html`, guida in-app (`core/guide_moduli/contenuti/anagrafica.py`), `docs/moduli/anagrafica.md`. Test: `tests_organigramma_ufficiale.py`. Nessuna migrazione, nessun `collectstatic`.
 
 ### Quote CMM veloce: analisi delle quote precalcolata per P/N
 
