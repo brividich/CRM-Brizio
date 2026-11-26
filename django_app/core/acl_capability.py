@@ -35,9 +35,9 @@ from core.permission_taxonomy import (
     strongest_capability,
 )
 
-# v2: l'indice porta anche i collegamenti permesso -> rotte. Chiave nuova perche'
-# in produzione la cache e' su database: un oggetto v1 in cache non ha i campi.
-CACHE_KEY = "acl_capability_index_v2"
+# v3: in cache (impronta del catalogo, indice). Chiave nuova a ogni cambio di forma
+# perche' in produzione la cache e' su database e sopravvive ai riavvii.
+CACHE_KEY = "acl_capability_index_v3"
 CACHE_TTL_SECONDS = 300
 
 STALE_MISSING_ROUTE = "rotta_inesistente"
@@ -169,20 +169,49 @@ def build_capability_index() -> CapabilityIndex:
     return index
 
 
+def _impronta_catalogo() -> str:
+    """Quanti e quando cambiati per permessi e binding: due aggregati leggeri.
+
+    Entra nella chiave della cache, cosi' un bootstrap o una modifica dalla
+    pagina Accessi rendono subito vecchio l'indice senza aspettare il TTL.
+    """
+    from django.db.models import Count, Max, Q
+
+    from core.models import PermissionDefinition, RoutePermissionBinding
+
+    parti = []
+    for model in (PermissionDefinition, RoutePermissionBinding):
+        # Anche gli attivi: un ``.update(is_active=...)`` non tocca ``updated_at``.
+        riga = model.objects.aggregate(
+            n=Count("pk"), attivi=Count("pk", filter=Q(is_active=True)), ultimo=Max("updated_at")
+        )
+        ultimo = riga["ultimo"].isoformat() if riga["ultimo"] else ""
+        parti.append(f"{riga['n']}:{riga['attivi']}:{ultimo}")
+    return "|".join(parti)
+
+
 def capability_index(*, use_cache: bool = True) -> CapabilityIndex:
-    """Indice con cache breve: la pagina Accessi lo chiede a ogni render."""
+    """Indice con cache breve: Accessi e la matrice dei ruoli lo chiedono a ogni render.
+
+    Costruirlo confronta ogni rotta con ogni binding (centinaia di migliaia di
+    confronti, ~1-2 s di CPU in produzione): va calcolato una volta sola.
+    """
     if not use_cache:
         return build_capability_index()
+    try:
+        impronta = _impronta_catalogo()
+    except DatabaseError:
+        return CapabilityIndex()
     cached = cache.get(CACHE_KEY)
-    if isinstance(cached, CapabilityIndex):
-        return cached
+    if isinstance(cached, tuple) and len(cached) == 2 and cached[0] == impronta and isinstance(cached[1], CapabilityIndex):
+        return cached[1]
     try:
         index = build_capability_index()
     except DatabaseError:
         # Meglio nessuna classificazione che una pagina rotta: chi chiama
         # ricade sulla capacita' del solo nome.
         return CapabilityIndex()
-    cache.set(CACHE_KEY, index, timeout=CACHE_TTL_SECONDS)
+    cache.set(CACHE_KEY, (impronta, index), timeout=CACHE_TTL_SECONDS)
     return index
 
 

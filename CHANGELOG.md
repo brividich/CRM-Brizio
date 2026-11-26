@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: «Ruoli e permessi» non si blocca più sulla matrice
+
+- `core/acl_capability.py`: `capability_index()` tiene in cache (impronta del catalogo, indice); l'impronta (totale, attivi e ultimo `updated_at` di permessi e binding) rinnova l'indice appena cambia il catalogo, senza attendere i 300 s. Chiave `acl_capability_index_v3`.
+- `core/permessi/sync.py`: `capacita_permessi()` usa l'indice in cache invece di ricostruirlo a ogni apertura (3.469 rotte × ~140 binding, ~2 s di CPU); le etichette di `pagine_modulo_ruolo` si leggono dal catalogo attivo senza `code IN (~1.300 valori)` (4 s a freddo su SQL Server). Scheda Matrice sui dati di prod: da ~6 s a 0,5-1 s; anche «Salva matrice» ne beneficia.
+- `admin_portale/views_ruoli.py`: la scheda «Registro» andava in errore 500 per le voci `permessi_matrice` scritte dalle impostazioni Timbri (con `ruolo` per cella invece di `modulo`); ora le legge entrambe.
+- Test: `core/test_acl_capability.py` (cache rinnovata), `core/tests_permessi_eccezioni.py` (registro con voce Timbri).
+
 ### Prestazioni: ricerca globale (Ctrl+K) più veloce
 
 - `core/views.py`: la decisione ACL per utente e modulo della ricerca globale resta in memoria `GLOBAL_SEARCH_ACL_CACHE_SECONDS` (120 s, legata alla versione dei permessi: una modifica a ruoli o matrice la azzera); i documenti SGI in vigore vengono da `documenti_in_vigore_memo()`.
