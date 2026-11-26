@@ -206,6 +206,11 @@ def api_qualita_salva(request):
               note=" · ".join(x for x in (av_qualita, (data.get("note_qualita") or "")[:300]) if x),
               prev=avanzamento or "In attesa", new="Chiusa" if chiusa else (av_qualita or "Decisione qualità"),
               modifiche=modifiche)
+    # Appena chiusa: stato finale e richieste di informazioni (chiusura_service).
+    if chiusa and not row.get("chiudere"):
+        from .chiusura_service import dopo_chiusura
+
+        dopo_chiusura(local_id, chi=chi)
     try:
         log_action(request, "anomalia_decisione_qualita", "anomalie",
                    {"local_id": local_id, "op_id": op_id, "avanzamento_qualita": av_qualita, "chiusa": chiusa})

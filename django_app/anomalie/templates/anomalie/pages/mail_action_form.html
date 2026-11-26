@@ -408,7 +408,15 @@
   var AVANZAMENTO_RISPOSTA = { cliente: "In attesa risposta cliente", terzista: "In attesa risposta terzista" };
   var AVANZAMENTO_INFO = "In attesa di ulteriori informazioni";
   var STATI_RISPOSTA = ['in attesa risposta cliente', 'in attesa risposta terzista'];
-  var STATI_ATTESA = STATI_RISPOSTA.concat(['in attesa di ulteriori informazioni']);
+  // Varianti di Configurazione ricondotte allo stato che intendono (come il server).
+  function statoCanonico(v) {
+    var a = String(v || '').split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+    if (a.indexOf('attesa') >= 0 && a.indexOf('risposta') >= 0) {
+      if (a.indexOf('terzista') >= 0) return 'in attesa risposta terzista';
+      if (a.indexOf('cliente') >= 0) return 'in attesa risposta cliente';
+    }
+    return a;
+  }
 
   function buildAvanzamentoOptions(isAprireRdc, conRdcOCliente, conTerzista) {
     var dynamicFirst = isAprireRdc ? "Apertura ORE/RIPI" : "Azione di recupero";
@@ -422,18 +430,20 @@
     return out;
   }
 
-  // Stessa regola del server (views.chiusura_automatica): «Aprire RDC» chiude solo con
-  // il numero RDC, «Segnalare…» solo con «Segnalato…»; gli stati d'attesa tengono
-  // aperta l'anomalia. «Chiudi l'anomalia» (a mano) chiude comunque.
+  // Stessa regola del server (views.chiusura_automatica): «Aprire RDC» chiude con il
+  // numero RDC anche in attesa della risposta del cliente, «Segnalare…» solo con
+  // «Segnalato…»; senza RDC l'attesa della risposta tiene aperta l'anomalia.
+  // «Chiudi l'anomalia» (a mano) chiude comunque.
   var CC_PUO_CHIUDERE = {{ cc_puo_chiudere|yesno:"true,false" }};
   function shouldAutoClose(isAprireRdc, avanz, numRdc, segnalare, segnalatoCli, terzista, segnalatoTer, chiarimenti) {
-    var a = String(avanz || '').trim().toLowerCase();
-    if (STATI_ATTESA.indexOf(a) >= 0 || chiarimenti) return false;
+    var a = statoCanonico(avanz);
+    if (chiarimenti || a === AVANZAMENTO_INFO.toLowerCase()) return false;
     if (segnalare && !segnalatoCli) return false;
     if (terzista && !segnalatoTer) return false;
     if (isAprireRdc) return !!String(numRdc || '').trim();
+    if (STATI_RISPOSTA.indexOf(a) >= 0) return false;
     if (segnalare || terzista) return true;
-    return CC_PUO_CHIUDERE && (a === 'accetto lo stato' || a === 'apertura ore/ripi');
+    return CC_PUO_CHIUDERE && (a === 'accetto lo stato' || a === 'apertura ore/ripi' || a.indexOf('accettato con riserva') === 0);
   }
   function el(prefix, id) { return document.getElementById(prefix + id); }
   // «A quale CAR?»: i nomi spuntati nel riquadro della riga.
@@ -522,7 +532,7 @@
         ? 'Alla conferma la mail «Segnala a CAR» va solo a: ' + scelti.join(', ') + ' (chi l'ha già ricevuta non la riceve di nuovo).'
         : 'Scegli almeno un CAR: senza scelta la segnalazione non parte.';
     }
-      var attesa = STATI_RISPOSTA.indexOf(statoEffettivoDi(id).toLowerCase()) >= 0;
+      var attesa = STATI_RISPOSTA.indexOf(statoCanonico(statoEffettivoDi(id))) >= 0;
       var t = el('passi-t-', id);
       if (t) t.textContent = (auto || manuale) ? '✓ Alla conferma l\'anomalia si chiude'
         : (attesa ? 'Alla conferma resta in attesa della risposta' : 'Alla conferma passa alla qualità');
@@ -720,7 +730,7 @@
     // Una nota scritta non può lasciare l'anomalia «In attesa» (stesso controllo del server).
     var pill = document.getElementById('stato-' + id);
     var statoEffettivo = String((av.disabled ? '' : av.value) || (pill ? pill.dataset.stato : '') || '').trim().toLowerCase();
-    if (risposta && !chiudiManuale && STATI_RISPOSTA.indexOf(statoEffettivo) >= 0) {
+    if (risposta && !chiudiManuale && STATI_RISPOSTA.indexOf(statoCanonico(statoEffettivo)) >= 0) {
       if (esito) {
         esito.classList.add('visible', 'is-error');
         esito.textContent = 'Hai scritto la risposta: scegli lo stato definitivo (oppure spunta «Chiudi l’anomalia»).';

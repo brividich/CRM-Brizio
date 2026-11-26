@@ -49,7 +49,7 @@ def allinea(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("anagrafica", "0255_aula_qr_chiusura_efficacia"),
+        ("anagrafica", "0256_organigramma_ufficiale"),
     ]
 
     operations = [

@@ -636,7 +636,8 @@ class MailActionDecisioneTests(LegacyTableMixin, TestCase):
 
         aid = self.ids[0]
         AnomaliaSchedaQualita.objects.create(anomalia_id=aid, op_titolo=OP)
-        payload = {str(aid): {"avanzamento": "", "note": "Avvisato per telefono", "aprire_rdc": False,
+        # «Chiudi» a mano con una nota chiede lo stato (26/11): qui «Accetto lo stato».
+        payload = {str(aid): {"avanzamento": "Accetto lo stato", "note": "Avvisato per telefono", "aprire_rdc": False,
                               "segnalare": True, "segnalato_cliente": True, "chiudi_manuale": True,
                               "chiudere": True, "numero_rdc": ""}}
         with tempfile.TemporaryDirectory() as cartella,                 patch("anomalie.views._attachment_dir_for_local", return_value=Path(cartella)),                 patch("anomalie.views._mark_attachment_pending"):
@@ -649,7 +650,7 @@ class MailActionDecisioneTests(LegacyTableMixin, TestCase):
             salvati = [f.name for f in Path(cartella).iterdir()]
         self.assertTrue(any(n.endswith("__risposta.eml") for n in salvati), salvati)
         row = self.riga(aid)
-        self.assertEqual(row["avanzamento"], "In attesa")
+        self.assertEqual(row["avanzamento"], "Accetto lo stato")
         with connection.cursor() as cur:
             cur.execute("SELECT chiudere FROM anomalie WHERE id = %s", [aid])
             self.assertEqual(cur.fetchone()[0], 1)

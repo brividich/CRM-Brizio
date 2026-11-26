@@ -168,6 +168,19 @@ class EccezioniPaginaRuoliTests(PersoneMixin, TestCase):
         self.assertFalse(EccezionePermessoPersona.objects.filter(legacy_user_id=legacy.id).exists())
         self.assertTrue(decisione(self.ricarica(user), "assenze", "vedere").consentito)
 
+    def test_registro_regge_la_voce_delle_impostazioni_timbri(self):
+        # Le impostazioni Timbri scrivono «ruolo» per cella invece di «modulo»: il registro andava in 500.
+        AuditLog.objects.create(
+            azione="permessi_matrice", modulo="permessi",
+            dettaglio={"origine": "impostazioni timbri", "modifiche": [
+                {"ruolo": "Preposto", "azione": "vedere", "prima": "no", "dopo": "team"},
+            ]},
+        )
+        registro = self.client.get("/admin-portale/ruoli-portale/?tab=registro")
+        self.assertEqual(registro.status_code, 200)
+        self.assertContains(registro, "impostazioni timbri")
+        self.assertContains(registro, "Preposto.vedere")
+
     def test_motivo_obbligatorio_e_voce_valida(self):
         _user, legacy = self.persona("Persona")
         self.client.post(self.url(legacy), {"voce": "assenze::vedere", "limite": "", "motivo": " "})

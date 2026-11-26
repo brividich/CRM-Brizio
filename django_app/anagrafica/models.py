@@ -3383,3 +3383,5 @@ from .models_struttura import *  # noqa: E402, F401, F403
 from .models_richieste import *  # noqa: E402, F401, F403
 # Sessioni formative: la richiesta approvata diventa formazione, competenza per competenza.
 from .models_sessioni import *  # noqa: E402, F401, F403
+# Organigrammi ufficiali disegnati a mano, con revisioni (non toccano ruoli e assegnazioni).
+from .models_organigramma import *  # noqa: E402, F401, F403

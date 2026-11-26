@@ -57,7 +57,9 @@ def capacita_permessi() -> dict[str, str]:
     from core.acl_capability import capability_index
     from core.models import PermissionDefinition
 
-    indice = capability_index(use_cache=False)
+    # Indice in cache (si rinnova da solo se cambiano permessi o binding):
+    # ricostruirlo a ogni apertura della matrice costava ~2 s di CPU.
+    indice = capability_index()
     forzate = {
         code: capacita for spec in moduli_registrati().values() for code, capacita in spec.capacita_forzate
     }
@@ -324,7 +326,13 @@ def pagine_modulo_ruolo(ruolo, *, capacita=None, per_modulo=None) -> dict[str, l
     specs = moduli_registrati()
     riservate = pagine_azioni_proprie()
     tutti = {c for codes in per_modulo.values() for c in codes}
-    etichette = dict(PermissionDefinition.objects.filter(code__in=tutti).values_list("code", "label"))
+    # Niente ``code IN (...)`` con ~1.300 valori: su SQL Server la compilazione a freddo
+    # costava 4 s. Tutto il catalogo attivo in una lettura, filtro in Python.
+    etichette = {
+        code: label
+        for code, label in PermissionDefinition.objects.filter(is_active=True).values_list("code", "label")
+        if code in tutti
+    }
     grant = {g.permission_id: g for g in GroupPermissionGrant.objects.filter(group=ruolo)}
     risultato: dict[str, list[dict]] = {}
     for chiave, codes in per_modulo.items():

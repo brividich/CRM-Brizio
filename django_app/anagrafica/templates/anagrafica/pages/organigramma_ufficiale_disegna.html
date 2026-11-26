@@ -1,0 +1,838 @@
+{% extends "core/base.html" %}
+
+{% block title %}Disegna {{ org.nome }} | Organigramma ufficiale{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/partials/_org_uff_stile.html" %}
+<style>
+.content:has(> .oud-page) { width:100%; max-width:none; }
+.oud-page { display:flex; flex-direction:column; gap:12px; }
+.oud-badge { border-radius:999px; padding:3px 9px; font-size:11.5px; font-weight:700; vertical-align:middle; white-space:nowrap; }
+.oud-badge--bozza { background:#fef3c7; color:#92400e; }
+.oud-badge--info { background:#e0e7ff; color:#3730a3; }
+.oud-bar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border);
+  border-radius:14px; padding:8px 10px; }
+.oud-bar .sp { flex:1; }
+.oud-bar .hr-btn { padding:7px 11px; }
+.oud-bar .hr-btn.is-on { background:#e0e7ff; border-color:#6366f1; color:#3730a3; }
+.oud-zoom { min-width:46px; text-align:center; font-weight:700; font-size:13px; font-variant-numeric:tabular-nums; }
+.oud-stato { font-size:12.5px; color:var(--text-light); white-space:nowrap; }
+.oud-stato.is-err { color:#b91c1c; font-weight:700; }
+.oud-btn-avv { background:#fff7ed !important; border-color:#fdba74 !important; color:#9a3412 !important; }
+.oud-grid { display:grid; grid-template-columns:250px minmax(0,1fr) 280px; gap:12px;
+  height:calc(calc(100 * var(--vh, 1vh)) - 280px); min-height:520px; }
+.oud-pal, .oud-props { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px;
+  display:flex; flex-direction:column; min-height:0; }
+.oud-tabs { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:8px; }
+.oud-tabs button { border:none; background:var(--surface-alt, #f1f4f9); border-radius:8px; padding:6px 4px; font:inherit;
+  font-size:12px; font-weight:700; color:var(--text-mid); cursor:pointer; }
+.oud-tabs button.on { background:var(--hr-navy, #0c2545); color:#fff; }
+.oud-cerca { border:1px solid var(--border); border-radius:9px; padding:7px 10px; font:inherit; font-size:12.5px; margin-bottom:8px; width:100%; box-sizing:border-box; }
+.oud-lista { overflow:auto; min-height:0; flex:1; }
+.oud-palh { font-size:10.5px; font-weight:800; color:var(--text-light); letter-spacing:.08em; margin:10px 0 5px; text-transform:uppercase; }
+.oud-chip { border:1px solid var(--border); border-left:4px solid #2563eb; border-radius:9px; padding:6px 9px; margin-bottom:5px;
+  display:flex; justify-content:space-between; gap:6px; background:var(--surface); cursor:grab; user-select:none; width:100%;
+  text-align:left; font:inherit; color:inherit; }
+.oud-chip:hover { border-color:#93c5fd; }
+.oud-chip b { font-size:12.5px; display:block; }
+.oud-chip small { color:var(--text-light); font-size:11px; display:block; }
+.oud-chip .k { font-size:10.5px; color:var(--text-light); flex:none; }
+.oud-chip--persona { border-left-color:#0f2a5c; } .oud-chip--mansione { border-left-color:#0d9488; }
+.oud-chip--testo { border-left-color:#64748b; } .oud-chip--gruppo { border-left-color:#4f46e5; }
+.oud-chip.is-usato { opacity:.55; }
+.oud-canvas { position:relative; overflow:auto; border:1px solid var(--border); border-radius:14px; background-color:var(--surface);
+  background-image:radial-gradient(var(--border) 1px, transparent 1px); background-size:20px 20px; background-attachment:local; }
+.oud-canvas.is-pan { cursor:grabbing; }
+.oud-canvas.is-collega, .oud-canvas.is-collega .ouf-b, .oud-canvas.is-collega .ouf-g { cursor:crosshair; }
+.oud-zoomwrap { position:relative; }
+.oud-scene { position:absolute; left:0; top:0; transform-origin:0 0; }
+.oud-scene .ouf-b, .oud-scene .ouf-g { cursor:move; touch-action:none; }
+.oud-scene .ouf-b.is-sel, .oud-scene .ouf-g.is-sel { outline:2px solid #2563eb; outline-offset:3px; overflow:visible; }
+.oud-scene .ouf-b.is-figlio { outline:2px dashed #f59e0b; outline-offset:3px; }
+.ouf-rs { position:absolute; right:-7px; bottom:-7px; width:11px; height:11px; background:#2563eb; border:2px solid #fff;
+  border-radius:3px; cursor:nwse-resize; z-index:2; }
+.ouf-w { position:absolute; top:-8px; right:-8px; background:#f59e0b; color:#fff; border-radius:999px; width:18px; height:18px;
+  display:grid; place-items:center; font-size:11px; font-weight:800; z-index:2; }
+.oud-scene .ouf-b:has(.ouf-w) { overflow:visible; }
+.oud-vuota[hidden] { display:none; }
+.oud-vuota { position:absolute; inset:0; display:grid; place-items:center; color:var(--text-light); font-size:14px; pointer-events:none; text-align:center; padding:20px; }
+.oud-hint { position:absolute; left:50%; top:10px; transform:translateX(-50%); background:#0f2a5c; color:#fff; font-size:12.5px;
+  font-weight:600; padding:7px 12px; border-radius:999px; z-index:5; box-shadow:0 6px 20px rgba(0,0,0,.2); }
+.oud-props { overflow:auto; }
+.oud-props h4 { margin:0 0 6px; font-size:13.5px; }
+.oud-fl { font-size:10.5px; color:var(--text-light); font-weight:800; margin:10px 0 4px; letter-spacing:.05em; text-transform:uppercase; }
+.oud-props select, .oud-props input[type=text] { width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:8px;
+  padding:6px 8px; font:inherit; font-size:12.5px; background:var(--surface); color:inherit; }
+.oud-sw { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.oud-sw button { width:22px; height:22px; border-radius:6px; border:none; cursor:pointer; padding:0; }
+.oud-sw button.on { outline:2px solid #0f2a5c; outline-offset:2px; }
+.oud-sw input[type=color] { width:26px; height:24px; border:none; padding:0; background:none; cursor:pointer; }
+.oud-seg { display:flex; gap:5px; }
+.oud-seg button { flex:1; border:1px solid var(--border); border-radius:8px; padding:5px; font:inherit; font-size:11.5px; background:var(--surface); color:inherit; cursor:pointer; }
+.oud-seg button.on { border-color:#0f2a5c; background:#e8eefb; font-weight:700; color:#0f2a5c; }
+.oud-ok { font-size:11.5px; color:#15803d; margin-top:4px; }
+.oud-ko { font-size:11.5px; color:#b45309; margin-top:4px; }
+.oud-avv { display:block; width:100%; text-align:left; color:#9a3412; background:#fff7ed; border:1px solid #fed7aa; border-radius:9px;
+  padding:6px 9px; margin-top:5px; font:inherit; font-size:12px; cursor:pointer; }
+.oud-avv[disabled] { cursor:default; }
+.oud-az { display:flex; gap:6px; margin-top:12px; flex-wrap:wrap; }
+.oud-aiuto { font-size:12.5px; color:var(--text-mid); line-height:1.5; }
+.oud-aiuto li { margin-bottom:3px; }
+dialog.oud-dlg { position:fixed; inset:0; margin:auto; height:fit-content; border:none; border-radius:18px; padding:0; width:min(640px, 94vw); box-shadow:0 20px 60px rgba(0,0,0,.25); background:var(--surface); color:inherit; }
+dialog.oud-dlg::backdrop { background:rgba(15,31,58,.45); }
+.oud-dlg header { padding:15px 20px; border-bottom:1px solid var(--border); font-weight:700; font-size:16px; display:flex; justify-content:space-between; align-items:center; }
+.oud-dlg .corpo { padding:12px 20px; max-height:60vh; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+.oud-dlg label { font-size:12px; font-weight:700; color:var(--text-mid); display:flex; flex-direction:column; gap:4px; }
+.oud-dlg input, .oud-dlg select, .oud-dlg textarea { border:1px solid var(--border); border-radius:9px; padding:8px 10px; font:inherit; background:var(--surface); color:inherit; }
+.oud-dlg textarea { min-height:70px; resize:vertical; }
+.oud-dlg footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.oud-nota { font-size:12px; color:var(--text-light); }
+.oux-riga { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.oux-riga small { color:var(--text-light); display:block; margin-top:2px; }
+.oux-k { font-size:10.5px; font-weight:800; border-radius:6px; padding:3px 7px; min-width:86px; text-align:center; text-transform:uppercase; flex:none; }
+.oux-k--aggiunto { background:#dcfce7; color:#166534; } .oux-k--tolto { background:#fee2e2; color:#991b1b; }
+.oux-k--spostato { background:#e0e7ff; color:#3730a3; } .oux-k--rinominato, .oux-k--modificato { background:#fef3c7; color:#92400e; }
+.oux-k--grafica { background:#f1f5f9; color:#475569; }
+.oud-sw input[type=color] { width:28px; height:24px; min-height:0; padding:0; border:1px solid var(--border); border-radius:6px; }
+body.theme-dark .oud-tabs button { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .oud-tabs button.on { background:#93c5fd; color:#0c2545; }
+body.theme-dark .oud-avv, body.theme-dark .oud-btn-avv { background:#431407 !important; border-color:#7c2d12 !important; color:#fed7aa !important; }
+body.theme-dark .oud-seg button.on { background:#1e3a8a; color:#dbeafe; border-color:#93c5fd; }
+body.theme-dark .oud-sw button.on { outline-color:#93c5fd; }
+body.theme-dark .oud-badge--bozza { background:#422006; color:#fde68a; }
+body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
+@media (max-width:1100px) { .oud-grid { grid-template-columns:200px minmax(0,1fr); } .oud-props { grid-column:1 / -1; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="oud-page" data-no-search>
+  {% include "anagrafica/components/flash_messages.html" %}
+  {% csrf_token %}
+
+  <div class="hr-pagehead" style="padding-top:12px;padding-bottom:12px">
+    <div>
+      <div class="hr-pagehead-eyebrow"><a href="{% url 'anagrafica:organigramma_ufficiale' %}" style="color:inherit">Organigrammi ufficiali</a></div>
+      <h1 class="hr-pagehead-title" style="font-size:20px">{{ org.nome }}
+        <span class="oud-badge oud-badge--bozza">Bozza di Rev.{{ prossimo_numero }}</span>
+        {% if in_vigore %}<span class="oud-badge oud-badge--info">in vigore: Rev.{{ in_vigore.numero }} del {{ in_vigore.data_emissione|date:"d/m/Y" }}</span>{% endif %}
+      </h1>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="hr-btn hr-btn-outline" href="{{ guida_url }}#organigramma-ufficiale">? Guida</a>
+      <button type="button" class="hr-btn hr-btn-outline" data-apri="oudDati">⚙ Dati</button>
+      {% if in_vigore %}
+      <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_scarta' org.pk %}" data-hub-confirm="Scartare la bozza? Resta in vigore la Rev.{{ in_vigore.numero }}.">
+        {% csrf_token %}<button type="submit" class="hr-btn hr-btn-ghost">Scarta bozza</button>
+      </form>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma_ufficiale_vedi' org.pk %}">✕ Chiudi</a>
+      {% else %}
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma_ufficiale' %}">✕ Chiudi</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="oud-bar" role="toolbar" aria-label="Comandi della tela">
+    <button type="button" class="hr-btn hr-btn-outline" data-act="undo" title="Annulla (Ctrl+Z)">↶</button>
+    <button type="button" class="hr-btn hr-btn-outline" data-act="redo" title="Ripeti (Ctrl+Y)">↷</button>
+    <button type="button" class="hr-btn hr-btn-outline" data-act="zoom-" title="Riduci">−</button>
+    <span class="oud-zoom" id="oudZoomVal">100%</span>
+    <button type="button" class="hr-btn hr-btn-outline" data-act="zoom+" title="Ingrandisci">＋</button>
+    <button type="button" class="hr-btn hr-btn-outline" data-act="adatta">Adatta</button>
+    <button type="button" class="hr-btn hr-btn-outline is-on" data-act="aggancio" title="Allinea i riquadri alla griglia di 10 px">▦ Griglia</button>
+    <button type="button" class="hr-btn hr-btn-outline" data-act="gruppo" title="Aggiunge un gruppo («team»): i riquadri trascinati dentro ne fanno parte">⬚ Nuovo gruppo</button>
+    <button type="button" class="hr-btn hr-btn-outline" data-act="collega" title="Clicca il riquadro da collegare, poi quello superiore">🔗 Collega</button>
+    <span class="sp"></span>
+    <span class="oud-stato" id="oudStato"></span>
+    <button type="button" class="hr-btn hr-btn-outline oud-btn-avv" data-act="avvisi" id="oudBtnAvv" hidden></button>
+    <button type="button" class="hr-btn hr-btn-outline" data-act="riepilogo" id="oudBtnRiep">☰ Riepilogo modifiche</button>
+    <button type="button" class="hr-btn hr-btn-primary" data-act="pubblica">Pubblica…</button>
+  </div>
+
+  <div class="oud-grid">
+    <aside class="oud-pal" aria-label="Elementi da trascinare">
+      <div class="oud-tabs" role="tablist">
+        <button type="button" class="on" data-tab="ruoli">Ruoli</button>
+        <button type="button" data-tab="persone">Persone</button>
+        <button type="button" data-tab="mansioni">Mansioni</button>
+        <button type="button" data-tab="testo">Testo libero</button>
+      </div>
+      <input type="search" class="oud-cerca" id="oudCerca" placeholder="Cerca…" aria-label="Cerca nella barra">
+      <div class="oud-lista" id="oudLista"></div>
+    </aside>
+
+    <div class="oud-canvas" id="oudCanvas">
+      <div class="oud-zoomwrap" id="oudZoomWrap">
+        <div class="oud-scene ouf-tela" id="oudScene">
+          <svg class="ouf-linee" id="oudLinee" aria-hidden="true"></svg>
+        </div>
+      </div>
+      <div class="oud-vuota" id="oudVuota" hidden>Trascina qui ruoli, persone, mansioni o testo dalla barra a sinistra<br>(oppure fai clic su un elemento per aggiungerlo).</div>
+    </div>
+
+    <aside class="oud-props" id="oudProps" aria-label="Proprietà"></aside>
+  </div>
+</div>
+
+<dialog class="oud-dlg" id="oudRiep">
+  <header><span id="oudRiepTit">Riepilogo modifiche</span><button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+  <div class="corpo" id="oudRiepCorpo"></div>
+  <footer>
+    <a class="hr-btn hr-btn-outline" href="{{ stato.url.stampa }}" target="_blank" rel="noopener">⬇ Anteprima PDF</a>
+    <button type="button" class="hr-btn hr-btn-outline" data-chiudi>Continua a disegnare</button>
+    <button type="button" class="hr-btn hr-btn-primary" data-act="pubblica">Pubblica…</button>
+  </footer>
+</dialog>
+
+<dialog class="oud-dlg" id="oudPub" style="width:min(520px,94vw)">
+  <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_pubblica' org.pk %}" id="oudPubForm">
+    {% csrf_token %}
+    <header>Pubblica Rev.{{ prossimo_numero }}<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      <label>Nota di revisione (va nel cartiglio e nello storico)<textarea name="nota" maxlength="2000" placeholder="es. Creato Ufficio tecnico; Team CNC sotto il Responsabile produzione"></textarea></label>
+      <label>Approvato da<input name="approvato_da" maxlength="200" value="{{ in_vigore.approvato_da|default:'' }}" placeholder="es. Mario Rossi, Amministratore unico"></label>
+      <label>Data di emissione<input type="date" name="data_emissione" value="{{ oggi|date:'Y-m-d' }}" required></label>
+      <div class="oud-nota">Da questo momento tutti vedono la Rev.{{ prossimo_numero }}.{% if in_vigore %} La Rev.{{ in_vigore.numero }} resta nello storico.{% endif %} Ruoli, capi, assegnazioni e permessi del portale non cambiano.</div>
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary">Pubblica Rev.{{ prossimo_numero }}</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog class="oud-dlg" id="oudDati" style="width:min(520px,94vw)">
+  <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_modifica' org.pk %}">
+    {% csrf_token %}<input type="hidden" name="torna" value="disegna">
+    <header>Dati dell'organigramma<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      <label>Nome<input name="nome" maxlength="150" value="{{ org.nome }}" required></label>
+      <label>Descrizione<input name="descrizione" maxlength="300" value="{{ org.descrizione }}"></label>
+      <label>Ambito dei ruoli (facoltativo)
+        <select name="ambito">
+          <option value="">— nessuno —</option>
+          {% for a in ambiti %}<option value="{{ a.pk }}"{% if org.ambito_id == a.pk %} selected{% endif %}>{{ a.nome }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="oud-nota">Con un ambito, la tela segnala i ruoli di quell'ambito che hanno persone ma non sono disegnati. Salvando, la pagina si ricarica: le modifiche al disegno sono già in bozza.</div>
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-danger" style="margin-right:auto" id="oudArchiviaBtn">Archivia</button>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+    </footer>
+  </form>
+</dialog>
+
+{# Archivia: form a parte, fuori dal <dialog>, così la conferma del portale non resta sotto la finestra. #}
+<form method="post" action="{% url 'anagrafica:organigramma_ufficiale_modifica' org.pk %}" id="oudArchivia" hidden
+      data-hub-confirm="Archiviare «{{ org.nome }}»? Non comparirà più nell'elenco.">
+  {% csrf_token %}<input type="hidden" name="azione" value="archivia">
+</form>
+
+{{ stato|json_script:"oudStatoJson" }}
+<script>
+(function () {
+  "use strict";
+  var S = JSON.parse(document.getElementById("oudStatoJson").textContent);
+  var CSRF = document.querySelector("[name=csrfmiddlewaretoken]").value;
+  var D = S.disegno;
+  var R = new Map(), P = new Map(), M = new Map();
+  S.cataloghi.ruoli.forEach(function (r) { R.set(r.id, r); });
+  S.cataloghi.persone.forEach(function (p) { P.set(p.id, p); });
+  S.cataloghi.mansioni.forEach(function (m) { M.set(m.id, m); });
+  var NOMI = S.nomi || {persone: {}, ruoli: {}, mansioni: {}};
+
+  var $ = function (s) { return document.querySelector(s); };
+  var scene = $("#oudScene"), wrap = $("#oudZoomWrap"), canvas = $("#oudCanvas"), svg = $("#oudLinee");
+  var props = $("#oudProps"), lista = $("#oudLista");
+  var sel = null, zoom = 1, aggancio = true, collega = null, tab = "ruoli";
+  var undo = [], redo = [];
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  function byId(id) { for (var i = 0; i < D.nodi.length; i++) if (D.nodi[i].id === id) return D.nodi[i]; return null; }
+  function nuovoId(pre) { var ids = new Set(D.nodi.map(function (n) { return n.id; })), i = 1; while (ids.has(pre + i)) i++; return pre + i; }
+  function snap(v) { return aggancio ? Math.round(v / 10) * 10 : Math.round(v); }
+
+  function nomeRuolo(id) { var r = R.get(id); return r ? r.nome : (NOMI.ruoli[id] || (id ? "Ruolo n. " + id : "")); }
+  function nomeMansione(id) { var m = M.get(id); return m ? m.nome : (NOMI.mansioni[id] || (id ? "Mansione n. " + id : "")); }
+  function persona(id) { var p = P.get(id); if (p) return p; var x = NOMI.persone[id]; return x ? {id: id, nome: x.nome || ("Persona n. " + id), foto: x.foto || ""} : (id ? {id: id, nome: "Persona n. " + id, foto: ""} : null); }
+  function contaTitolari(rid) { var r = R.get(rid); return r ? r.titolari.length : 0; }
+  function persone(n) { return n === 1 ? "1 persona" : n + " persone"; }
+
+  // Stessa regola di services.organigramma_ufficiale.etichetta
+  function etichetta(n) {
+    if (n.tipo === "gruppo") return {titolo: n.titolo || "Gruppo", sotto: "", iniziale: "", foto: ""};
+    var p = n.persona ? persona(n.persona) : null, nr = n.ruolo ? nomeRuolo(n.ruolo) : "", nm = n.mansione ? nomeMansione(n.mansione) : "";
+    var t = "", s = "";
+    if (p) { t = p.nome; s = nr || nm; }
+    else if (nr) { t = nr; s = nm || (R.get(n.ruolo) ? (contaTitolari(n.ruolo) ? persone(contaTitolari(n.ruolo)) : "Posizione scoperta") : ""); }
+    else if (nm) { t = nm; s = "Mansione"; }
+    t = n.titolo || t || "Riquadro"; s = n.sotto || s;
+    return {titolo: t, sotto: s, iniziale: (t.charAt(0) || "?").toUpperCase(), foto: p ? (p.foto || "") : ""};
+  }
+
+  function avvisiDi(id) { return (S.avvisi || []).filter(function (a) { return a.nodo === id; }); }
+
+  // ── disegno ──────────────────────────────────────────────────────────
+  function elNodo(n) {
+    var el = document.createElement("div");
+    el.dataset.id = n.id;
+    el.style.cssText = "left:" + n.x + "px;top:" + n.y + "px;width:" + n.w + "px;height:" + n.h + "px;--c:" + n.colore;
+    if (n.tipo === "gruppo") {
+      el.className = "ouf-g";
+      el.innerHTML = '<span class="ouf-gt">' + esc(n.titolo || "Gruppo") + "</span>";
+    } else {
+      var e = etichetta(n);
+      el.className = "ouf-b ouf-b--" + n.stile;
+      el.innerHTML = '<span class="ouf-av">' + (e.foto ? '<img src="' + esc(e.foto) + '" alt="" draggable="false">' : esc(e.iniziale)) + "</span>" +
+        '<span class="ouf-tx"><span class="ouf-t">' + esc(e.titolo) + "</span>" + (e.sotto ? '<span class="ouf-s">' + esc(e.sotto) + "</span>" : "") + "</span>" +
+        (avvisiDi(n.id).length ? '<span class="ouf-w" title="' + esc(avvisiDi(n.id).map(function (a) { return a.testo; }).join("\n")) + '">!</span>' : "");
+    }
+    if (n.id === sel) { el.classList.add("is-sel"); el.insertAdjacentHTML("beforeend", '<span class="ouf-rs" title="Ridimensiona"></span>'); }
+    if (n.id === collega) el.classList.add("is-figlio");
+    return el;
+  }
+
+  function misura() {
+    var W = 1800, H = 1100;
+    D.nodi.forEach(function (n) { W = Math.max(W, n.x + n.w + 700); H = Math.max(H, n.y + n.h + 500); });
+    return {W: W, H: H};
+  }
+
+  function linea(p, f) {
+    var x1, y1, x2, y2, m, y, destra;
+    if (f.staff) {
+      y = f.y + f.h / 2;
+      destra = f.x + f.w / 2 >= p.x + p.w / 2;
+      x2 = destra ? f.x : f.x + f.w;
+      if (y >= p.y && y <= p.y + p.h) { x1 = destra ? p.x + p.w : p.x; return "M" + x1 + " " + y + " H" + x2; }
+      x1 = p.x + p.w / 2; y1 = y > p.y ? p.y + p.h : p.y;
+      return "M" + x1 + " " + y1 + " V" + y + " H" + x2;
+    }
+    x1 = p.x + p.w / 2; y1 = p.y + p.h; x2 = f.x + f.w / 2; y2 = f.y;
+    m = y2 > y1 ? (y1 + y2) / 2 : y1 + 14;
+    return "M" + x1 + " " + y1 + " V" + m + " H" + x2 + " V" + y2;
+  }
+
+  function disegnaLinee() {
+    var out = "";
+    D.nodi.forEach(function (n) {
+      var p = n.padre ? byId(n.padre) : null;
+      if (p) out += '<path d="' + linea(p, n) + '"' + (n.staff ? ' class="is-staff"' : "") + "/>";
+    });
+    svg.innerHTML = out;
+  }
+
+  function disegna() {
+    var m = misura();
+    scene.style.width = m.W + "px"; scene.style.height = m.H + "px"; scene.style.transform = "scale(" + zoom + ")";
+    wrap.style.width = (m.W * zoom) + "px"; wrap.style.height = (m.H * zoom) + "px";
+    svg.setAttribute("width", m.W); svg.setAttribute("height", m.H);
+    scene.querySelectorAll(".ouf-g, .ouf-b").forEach(function (e) { e.remove(); });
+    D.nodi.forEach(function (n) { if (n.tipo === "gruppo") scene.insertBefore(elNodo(n), svg); });
+    D.nodi.forEach(function (n) { if (n.tipo !== "gruppo") scene.appendChild(elNodo(n)); });
+    disegnaLinee();
+    $("#oudVuota").hidden = D.nodi.length > 0;
+    canvas.classList.toggle("is-collega", !!collega);
+    $("#oudZoomVal").textContent = Math.round(zoom * 100) + "%";
+    disegnaProps();
+    aggiornaBarra();
+    disegnaLista();
+  }
+
+  function aggiornaNodo(n) {
+    var vecchio = scene.querySelector('[data-id="' + n.id + '"]');
+    if (vecchio) vecchio.replaceWith(elNodo(n));
+    disegnaLinee();
+  }
+
+  function aggiornaBarra() {
+    var na = (S.avvisi || []).length, b = $("#oudBtnAvv");
+    b.hidden = !na; b.textContent = "⚠ " + na + (na === 1 ? " avviso" : " avvisi");
+    $("#oudBtnRiep").textContent = "☰ Riepilogo modifiche" + (S.n_modifiche ? " (" + S.n_modifiche + ")" : "");
+    document.querySelector('[data-act="undo"]').disabled = !undo.length;
+    document.querySelector('[data-act="redo"]').disabled = !redo.length;
+    document.querySelector('[data-act="aggancio"]').classList.toggle("is-on", aggancio);
+    document.querySelector('[data-act="collega"]').classList.toggle("is-on", !!collega);
+  }
+
+  // ── modifiche, annulla/ripeti ────────────────────────────────────────
+  function memorizza(prima) { undo.push(prima); if (undo.length > 100) undo.shift(); redo.length = 0; }
+  function cambia(fn) { var prima = JSON.stringify(D); fn(); memorizza(prima); disegna(); salvaPresto(); }
+  function annulla() { if (!undo.length) return; redo.push(JSON.stringify(D)); D = JSON.parse(undo.pop()); if (sel && !byId(sel)) sel = null; disegna(); salvaPresto(); }
+  function ripeti() { if (!redo.length) return; undo.push(JSON.stringify(D)); D = JSON.parse(redo.pop()); if (sel && !byId(sel)) sel = null; disegna(); salvaPresto(); }
+  function seleziona(id) { sel = id; disegna(); }
+
+  function discendente(radice, id) { // id sta sotto radice?
+    var cur = byId(id), giri = 0;
+    while (cur && giri++ < 1000) { if (cur.id === radice) return true; cur = cur.padre ? byId(cur.padre) : null; }
+    return false;
+  }
+
+  function nelGruppo(n) {
+    var cx = n.x + n.w / 2, cy = n.y + n.h / 2, best = null;
+    D.nodi.forEach(function (g) {
+      if (g.tipo !== "gruppo") return;
+      if (cx >= g.x && cx <= g.x + g.w && cy >= g.y && cy <= g.y + g.h && (!best || g.w * g.h < best.w * best.h)) best = g;
+    });
+    n.gruppo = best ? best.id : null;
+  }
+
+  function togli(id) {
+    D.nodi = D.nodi.filter(function (n) { return n.id !== id; });
+    D.nodi.forEach(function (n) {
+      if (n.padre === id) { n.padre = null; n.staff = false; }
+      if (n.gruppo === id) n.gruppo = null;
+    });
+    if (sel === id) sel = null;
+  }
+
+  function nuovoNodo(dati, x, y) {
+    var gruppo = dati.tipo === "gruppo";
+    var n = Object.assign({
+      id: nuovoId(gruppo ? "g" : "n"), tipo: "box", x: 0, y: 0, w: gruppo ? 380 : 220, h: gruppo ? 220 : 60,
+      ruolo: null, persona: null, mansione: null, titolo: "", sotto: "", padre: null, staff: false, gruppo: null,
+      colore: gruppo ? "#4f46e5" : "#0f2a5c", stile: "bordo"
+    }, dati);
+    n.x = Math.max(0, snap(x - n.w / 2)); n.y = Math.max(0, snap(y - n.h / 2));
+    return n;
+  }
+
+  function daElemento(k, id) {
+    if (k === "ruolo") {
+      var r = R.get(id), d = {ruolo: id};
+      if (r && r.titolari.length === 1) d.persona = r.titolari[0].id;
+      return d;
+    }
+    if (k === "persona") {
+      var p = P.get(id), d2 = {persona: id};
+      if (p && p.ruoli.length === 1) d2.ruolo = p.ruoli[0];
+      else if (p && p.ruoli.length > 1) {
+        var amb = p.ruoli.filter(function (rid) { return R.get(rid) && R.get(rid).ambito; });
+        if (amb.length === 1) d2.ruolo = amb[0];
+      }
+      return d2;
+    }
+    if (k === "mansione") return {mansione: id};
+    if (k === "esterno") return {titolo: "Funzione esterna", sotto: "Esterno", stile: "tratteggio", colore: "#64748b"};
+    if (k === "gruppo") return {tipo: "gruppo", titolo: "Nuovo gruppo"};
+    return {titolo: "Nuovo riquadro"};
+  }
+
+  function aggiungi(k, id, x, y) {
+    var n = nuovoNodo(daElemento(k, id), x, y);
+    cambia(function () { D.nodi.push(n); if (n.tipo === "box") nelGruppo(n); sel = n.id; });
+  }
+
+  function centroVisibile() {
+    return {x: (canvas.scrollLeft + canvas.clientWidth / 2) / zoom, y: (canvas.scrollTop + canvas.clientHeight / 2) / zoom};
+  }
+
+  // ── trascinamenti sulla tela ─────────────────────────────────────────
+  scene.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
+    var el = e.target.closest(".ouf-b, .ouf-g");
+    if (!el) return; // sfondo: lo gestisce la tela (spostamento della vista)
+    e.stopPropagation(); e.preventDefault();
+    var n = byId(el.dataset.id);
+    if (collega) { scegliCollegamento(n); return; }
+    if (e.target.classList.contains("ouf-rs")) ridimensiona(e, n); else sposta(e, n);
+  });
+
+  function sposta(e, n) {
+    if (sel !== n.id) seleziona(n.id);
+    var prima = JSON.stringify(D), sx = e.clientX, sy = e.clientY, mosso = false;
+    var gruppo = [n];
+    if (n.tipo === "gruppo") D.nodi.forEach(function (m) { if (m.gruppo === n.id) gruppo.push(m); });
+    var orig = gruppo.map(function (m) { return {m: m, x: m.x, y: m.y}; });
+    var minx = Math.min.apply(null, orig.map(function (o) { return o.x; })), miny = Math.min.apply(null, orig.map(function (o) { return o.y; }));
+    function muovi(ev) {
+      var dx = (ev.clientX - sx) / zoom, dy = (ev.clientY - sy) / zoom;
+      if (!mosso && Math.abs(dx) + Math.abs(dy) < 3) return;
+      mosso = true;
+      dx = Math.max(snap(dx), -minx); dy = Math.max(snap(dy), -miny);
+      orig.forEach(function (o) {
+        o.m.x = o.x + dx; o.m.y = o.y + dy;
+        var el = scene.querySelector('[data-id="' + o.m.id + '"]');
+        if (el) { el.style.left = o.m.x + "px"; el.style.top = o.m.y + "px"; }
+      });
+      disegnaLinee();
+    }
+    function fine() {
+      window.removeEventListener("pointermove", muovi); window.removeEventListener("pointerup", fine);
+      if (!mosso) return;
+      if (n.tipo === "box") nelGruppo(n);
+      memorizza(prima); disegna(); salvaPresto();
+    }
+    window.addEventListener("pointermove", muovi); window.addEventListener("pointerup", fine);
+  }
+
+  function ridimensiona(e, n) {
+    var prima = JSON.stringify(D), sx = e.clientX, sy = e.clientY, w0 = n.w, h0 = n.h, mosso = false;
+    var minW = n.tipo === "gruppo" ? 160 : 120, minH = n.tipo === "gruppo" ? 80 : 40;
+    function muovi(ev) {
+      mosso = true;
+      n.w = Math.max(minW, snap(w0 + (ev.clientX - sx) / zoom));
+      n.h = Math.max(minH, snap(h0 + (ev.clientY - sy) / zoom));
+      var el = scene.querySelector('[data-id="' + n.id + '"]');
+      if (el) { el.style.width = n.w + "px"; el.style.height = n.h + "px"; }
+      disegnaLinee();
+    }
+    function fine() {
+      window.removeEventListener("pointermove", muovi); window.removeEventListener("pointerup", fine);
+      if (!mosso) return;
+      if (n.tipo === "gruppo") D.nodi.forEach(function (m) { if (m.tipo === "box") nelGruppo(m); });
+      memorizza(prima); disegna(); salvaPresto();
+    }
+    window.addEventListener("pointermove", muovi); window.addEventListener("pointerup", fine);
+  }
+
+  // Sfondo: si trascina la vista; un clic senza movimento toglie la selezione.
+  canvas.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0 || e.target.closest(".ouf-b, .ouf-g")) return;
+    var sx = e.clientX, sy = e.clientY, l0 = canvas.scrollLeft, t0 = canvas.scrollTop, mosso = false;
+    function muovi(ev) {
+      if (!mosso && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
+      mosso = true; canvas.classList.add("is-pan");
+      canvas.scrollLeft = l0 - (ev.clientX - sx); canvas.scrollTop = t0 - (ev.clientY - sy);
+    }
+    function fine() {
+      window.removeEventListener("pointermove", muovi); window.removeEventListener("pointerup", fine);
+      canvas.classList.remove("is-pan");
+      if (!mosso) { if (collega) { collega = null; mostraSuggerimento(""); } if (sel) seleziona(null); else disegna(); }
+    }
+    window.addEventListener("pointermove", muovi); window.addEventListener("pointerup", fine);
+  });
+
+  canvas.addEventListener("wheel", function (e) {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    imposta_zoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+  }, {passive: false});
+
+  // Trascinamento dalla barra a sinistra
+  canvas.addEventListener("dragover", function (e) { if (e.dataTransfer.types.indexOf("application/x-ouf") >= 0) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } });
+  canvas.addEventListener("drop", function (e) {
+    var raw = e.dataTransfer.getData("application/x-ouf");
+    if (!raw) return;
+    e.preventDefault();
+    var d = JSON.parse(raw), r = scene.getBoundingClientRect();
+    aggiungi(d.k, d.id, (e.clientX - r.left) / zoom, (e.clientY - r.top) / zoom);
+  });
+
+  // ── collegamenti ─────────────────────────────────────────────────────
+  var hintEl = null;
+  function mostraSuggerimento(testo) {
+    if (!testo) { if (hintEl) { hintEl.remove(); hintEl = null; } return; }
+    if (!hintEl) { hintEl = document.createElement("div"); hintEl.className = "oud-hint"; canvas.appendChild(hintEl); }
+    hintEl.textContent = testo;
+  }
+  function avviaCollega() {
+    if (collega) { collega = null; mostraSuggerimento(""); disegna(); return; }
+    if (sel) { collega = sel; mostraSuggerimento("Ora clicca il riquadro superiore (Esc per annullare)"); }
+    else { collega = "?"; mostraSuggerimento("Clicca il riquadro da collegare (Esc per annullare)"); }
+    disegna();
+  }
+  function scegliCollegamento(n) {
+    if (collega === "?") { collega = n.id; mostraSuggerimento("Ora clicca il riquadro superiore (Esc per annullare)"); disegna(); return; }
+    var figlio = byId(collega);
+    collega = null; mostraSuggerimento("");
+    if (!figlio || figlio.id === n.id) { disegna(); return; }
+    if (discendente(figlio.id, n.id)) { mostraSuggerimento("Collegamento non possibile: creerebbe un giro"); setTimeout(function () { mostraSuggerimento(""); }, 2500); disegna(); return; }
+    cambia(function () { figlio.padre = n.id; sel = figlio.id; });
+  }
+
+  // ── zoom ─────────────────────────────────────────────────────────────
+  function imposta_zoom(z) { zoom = Math.max(0.25, Math.min(2, z)); disegna(); }
+  function adatta() {
+    if (!D.nodi.length) { imposta_zoom(1); return; }
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    D.nodi.forEach(function (n) { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + n.h); });
+    imposta_zoom(Math.min(1.2, (canvas.clientWidth - 60) / (x1 - x0 + 40), (canvas.clientHeight - 60) / (y1 - y0 + 40)));
+    canvas.scrollLeft = Math.max(0, x0 * zoom - 30); canvas.scrollTop = Math.max(0, y0 * zoom - 30);
+  }
+
+  // ── barra degli elementi ─────────────────────────────────────────────
+  function disegnaLista() {
+    var q = ($("#oudCerca").value || "").trim().toLowerCase(), html = "", usati = {ruolo: new Set(), persona: new Set(), mansione: new Set()};
+    D.nodi.forEach(function (n) { if (n.ruolo) usati.ruolo.add(n.ruolo); if (n.persona) usati.persona.add(n.persona); if (n.mansione) usati.mansione.add(n.mansione); });
+    function chip(k, id, titolo, sotto, etichetta, usato) {
+      return '<button type="button" class="oud-chip oud-chip--' + k + (usato ? " is-usato" : "") + '" draggable="true" data-k="' + k + '" data-id="' + id + '">' +
+        "<span><b>" + esc(titolo) + "</b>" + (sotto ? "<small>" + esc(sotto) + "</small>" : "") + '</span><span class="k">' + (usato ? "✓" : esc(etichetta)) + "</span></button>";
+    }
+    function trova(t) { return !q || t.toLowerCase().indexOf(q) >= 0; }
+    var n = 0, MAX = 200;
+    if (tab === "ruoli") {
+      var amb = S.cataloghi.ruoli.filter(function (r) { return r.ambito; });
+      var gruppi = amb.length ? [["Ruoli dell'ambito", amb], ["Altri ruoli", S.cataloghi.ruoli.filter(function (r) { return !r.ambito; })]] : [["", S.cataloghi.ruoli]];
+      gruppi.forEach(function (g) {
+        var righe = g[1].filter(function (r) { return trova(r.nome + " " + r.titolari.map(function (t) { return t.nome; }).join(" ")); });
+        if (!righe.length) return;
+        if (g[0]) html += '<div class="oud-palh">' + esc(g[0]) + "</div>";
+        righe.forEach(function (r) {
+          if (n++ >= MAX) return;
+          var s = r.titolari.length === 1 ? r.titolari[0].nome : (r.titolari.length ? persone(r.titolari.length) : "vacante");
+          html += chip("ruolo", r.id, r.nome, s, "ruolo", usati.ruolo.has(r.id));
+        });
+      });
+    } else if (tab === "persone") {
+      S.cataloghi.persone.forEach(function (p) {
+        var ruoli = p.ruoli.map(nomeRuolo).join(", ");
+        if (!trova(p.nome + " " + ruoli) || n++ >= MAX) return;
+        html += chip("persona", p.id, p.nome, ruoli, "persona", usati.persona.has(p.id));
+      });
+      if (!S.cataloghi.persone.length) html = '<div class="oud-nota">Nessuna persona in forza disponibile.</div>';
+    } else if (tab === "mansioni") {
+      S.cataloghi.mansioni.forEach(function (m) {
+        if (!trova(m.nome) || n++ >= MAX) return;
+        html += chip("mansione", m.id, m.nome, "", "mansione", usati.mansione.has(m.id));
+      });
+    } else {
+      html += chip("testo", 0, "Riquadro di testo", "Un ufficio, una funzione, una nota", "testo", false);
+      html += chip("esterno", 0, "Funzione esterna", "RSPP, medico competente, consulenti (tratteggiato)", "testo", false);
+      html += chip("gruppo", 0, "Gruppo («team»)", "Un riquadro grande che contiene altri riquadri", "gruppo", false);
+    }
+    if (n > MAX) html += '<div class="oud-nota">Altri ' + (n - MAX) + " elementi: affina la ricerca.</div>";
+    if (!html) html = '<div class="oud-nota">Nessun risultato.</div>';
+    lista.innerHTML = html;
+  }
+  document.querySelectorAll(".oud-tabs button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      tab = b.dataset.tab;
+      document.querySelectorAll(".oud-tabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      $("#oudCerca").style.display = tab === "testo" ? "none" : "";
+      disegnaLista();
+    });
+  });
+  $("#oudCerca").addEventListener("input", disegnaLista);
+  lista.addEventListener("dragstart", function (e) {
+    var c = e.target.closest(".oud-chip"); if (!c) return;
+    e.dataTransfer.setData("application/x-ouf", JSON.stringify({k: c.dataset.k, id: +c.dataset.id}));
+    e.dataTransfer.effectAllowed = "copy";
+  });
+  lista.addEventListener("click", function (e) {
+    var c = e.target.closest(".oud-chip"); if (!c) return;
+    var p = centroVisibile();
+    aggiungi(c.dataset.k, +c.dataset.id, p.x, p.y);
+  });
+
+  // ── pannello proprietà ───────────────────────────────────────────────
+  var primaDelTesto = null;
+  function opzioni(elenco, valore, vuoto) {
+    var h = '<option value="">' + esc(vuoto || "— nessuno —") + "</option>", trovato = !valore;
+    elenco.forEach(function (o) { var s = String(o[0]) === String(valore); if (s) trovato = true; h += '<option value="' + esc(o[0]) + '"' + (s ? " selected" : "") + ">" + esc(o[1]) + "</option>"; });
+    return {html: h, trovato: trovato};
+  }
+  function selectHtml(campo, elenco, valore, extra) {
+    var o = opzioni(elenco, valore);
+    var h = o.html + (!o.trovato ? '<option value="' + esc(valore) + '" selected>' + esc(extra) + "</option>" : "");
+    return '<select data-f="' + campo + '">' + h + "</select>";
+  }
+  function disegnaProps() {
+    if (document.activeElement && props.contains(document.activeElement) && document.activeElement.tagName === "INPUT" && document.activeElement.type === "text") return;
+    var n = sel ? byId(sel) : null, h = "";
+    if (!n) {
+      var av = S.avvisi || [];
+      h += "<h4>Nessun riquadro selezionato</h4><ul class=\"oud-aiuto\">" +
+        "<li>Trascina un ruolo, una persona, una mansione o un testo dalla barra a sinistra (o fai clic per aggiungerlo al centro).</li>" +
+        "<li>Trascina un riquadro dentro un <b>gruppo</b> per metterlo nel team; spostando il gruppo si sposta tutto.</li>" +
+        "<li>Per collegare: seleziona il riquadro, «🔗 Collega», poi clicca quello superiore. Oppure scegli «Sotto» qui a destra.</li>" +
+        "<li>Canc toglie il riquadro selezionato; Ctrl+Z annulla; Ctrl+rotella zoom.</li></ul>";
+      h += '<div class="oud-fl">Avvisi del disegno</div>';
+      if (!av.length) h += '<div class="oud-ok">✓ Il disegno corrisponde ai dati del portale.</div>';
+      av.forEach(function (a) { h += '<button type="button" class="oud-avv" ' + (a.nodo ? 'data-vai="' + esc(a.nodo) + '"' : "disabled") + ">⚠ " + esc(a.testo) + "</button>"; });
+      props.innerHTML = h; return;
+    }
+    var altri = D.nodi.filter(function (m) { return m.id !== n.id && !discendente(n.id, m.id); })
+      .map(function (m) { var e = etichetta(m); return [m.id, (m.tipo === "gruppo" ? "Gruppo «" + e.titolo + "»" : e.titolo + (e.sotto ? " · " + e.sotto : ""))]; });
+    var gruppi = D.nodi.filter(function (m) { return m.tipo === "gruppo"; }).map(function (m) { return [m.id, m.titolo || "Gruppo"]; });
+    var e = etichetta(n);
+    if (n.tipo === "gruppo") {
+      h += "<h4>Gruppo selezionato</h4>";
+      h += '<div class="oud-fl">Nome del gruppo</div><input type="text" data-f="titolo" maxlength="120" value="' + esc(n.titolo) + '" placeholder="Gruppo">';
+    } else {
+      h += "<h4>Riquadro selezionato</h4>";
+      h += '<div class="oud-fl">Ruolo</div>' + selectHtml("ruolo", S.cataloghi.ruoli.map(function (r) { return [r.id, r.nome]; }), n.ruolo || "", nomeRuolo(n.ruolo));
+      var conRuolo = n.ruolo && R.get(n.ruolo) ? R.get(n.ruolo).titolari.map(function (t) { return t.id; }) : [];
+      var elencoP = S.cataloghi.persone.slice().sort(function (a, b) { return (conRuolo.indexOf(b.id) >= 0) - (conRuolo.indexOf(a.id) >= 0); })
+        .map(function (p) { return [p.id, (conRuolo.indexOf(p.id) >= 0 ? "★ " : "") + p.nome]; });
+      h += '<div class="oud-fl">Persona</div>' + selectHtml("persona", elencoP, n.persona || "", n.persona ? persona(n.persona).nome : "");
+      if (n.persona && n.ruolo && R.get(n.ruolo)) {
+        h += conRuolo.indexOf(n.persona) >= 0 ? '<div class="oud-ok">✓ coincide con la scheda della persona</div>' : '<div class="oud-ko">⚠ nella scheda questa persona non ha questo ruolo</div>';
+      } else if (conRuolo.length && !n.persona) {
+        h += '<div class="oud-nota">★ = ha questo ruolo nella scheda</div>';
+      }
+      h += '<div class="oud-fl">Mansione</div>' + selectHtml("mansione", S.cataloghi.mansioni.map(function (m) { return [m.id, m.nome]; }), n.mansione || "", nomeMansione(n.mansione));
+      h += '<div class="oud-fl">Testo mostrato</div><input type="text" data-f="titolo" maxlength="120" value="' + esc(n.titolo) + '" placeholder="' + esc(n.titolo ? "" : e.titolo) + '">';
+      h += '<input type="text" data-f="sotto" maxlength="120" value="' + esc(n.sotto) + '" placeholder="' + esc(n.sotto ? "" : (e.sotto || "Sottotitolo")) + '" style="margin-top:5px">';
+      h += '<div class="oud-nota">Vuoto = testo preso da persona, ruolo o mansione.</div>';
+    }
+    h += '<div class="oud-fl">Colore</div><div class="oud-sw">';
+    S.palette.forEach(function (c) { h += '<button type="button" data-colore="' + c + '" style="background:' + c + '"' + (c.toLowerCase() === n.colore.toLowerCase() ? ' class="on"' : "") + ' aria-label="Colore ' + c + '"></button>'; });
+    h += '<input type="color" data-f="colore" value="' + esc(n.colore) + '" title="Altro colore"></div>';
+    if (n.tipo !== "gruppo") {
+      h += '<div class="oud-fl">Stile</div><div class="oud-seg">' + ["pieno", "bordo", "tratteggio"].map(function (s) {
+        return '<button type="button" data-stile="' + s + '"' + (n.stile === s ? ' class="on"' : "") + ">" + s.charAt(0).toUpperCase() + s.slice(1) + "</button>"; }).join("") + "</div>";
+    }
+    h += '<div class="oud-fl">Collegamento</div>' + selectHtml("padre", altri, n.padre || "", "").replace("— nessuno —", "Sotto: nessuno");
+    h += '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin-top:6px"><input type="checkbox" data-f="staff"' + (n.staff ? " checked" : "") + (n.padre ? "" : " disabled") + "> Linea di staff (tratteggiata, di fianco)</label>";
+    if (n.tipo !== "gruppo") h += '<div class="oud-fl">Gruppo</div>' + selectHtml("gruppo", gruppi, n.gruppo || "", "");
+    var av2 = avvisiDi(n.id);
+    if (av2.length) { h += '<div class="oud-fl">Avvisi</div>'; av2.forEach(function (a) { h += '<button type="button" class="oud-avv" disabled>⚠ ' + esc(a.testo) + "</button>"; }); }
+    h += '<div class="oud-az"><button type="button" class="hr-btn hr-btn-outline hr-btn-sm" data-act="duplica">⧉ Duplica</button>' +
+      '<button type="button" class="hr-btn hr-btn-outline hr-btn-sm" data-act="togli" style="color:#b91c1c">🗑 Togli</button></div>';
+    if (n.tipo === "gruppo") h += '<div class="oud-nota" style="margin-top:8px">Togliendo il gruppo, i riquadri che contiene restano sulla tela.</div>';
+    props.innerHTML = h;
+  }
+
+  props.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var n = sel ? byId(sel) : null;
+    if (b.dataset.vai) { seleziona(b.dataset.vai); var t = byId(b.dataset.vai); if (t) { canvas.scrollLeft = t.x * zoom - 80; canvas.scrollTop = t.y * zoom - 80; } return; }
+    if (!n) return;
+    if (b.dataset.colore) cambia(function () { n.colore = b.dataset.colore; });
+    else if (b.dataset.stile) cambia(function () { n.stile = b.dataset.stile; });
+  });
+  props.addEventListener("change", function (e) {
+    var f = e.target.dataset.f, n = sel ? byId(sel) : null;
+    if (!f || !n) return;
+    if (f === "titolo" || f === "sotto") {
+      if (primaDelTesto) { memorizza(primaDelTesto); primaDelTesto = null; salvaPresto(); aggiornaBarra(); }
+      return;
+    }
+    cambia(function () {
+      var v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+      if (f === "ruolo" || f === "persona" || f === "mansione") n[f] = v ? +v : null;
+      else if (f === "padre") { n.padre = v || null; if (!n.padre) n.staff = false; }
+      else if (f === "gruppo") n.gruppo = v || null;
+      else if (f === "staff") n.staff = !!v;
+      else if (f === "colore") n.colore = v;
+    });
+  });
+  props.addEventListener("input", function (e) {
+    var f = e.target.dataset.f, n = sel ? byId(sel) : null;
+    if (!n || (f !== "titolo" && f !== "sotto")) return;
+    if (!primaDelTesto) primaDelTesto = JSON.stringify(D);
+    n[f] = e.target.value.replace(/\s+/g, " ").slice(0, 120);
+    aggiornaNodo(n);
+  });
+
+  // ── comandi della barra ──────────────────────────────────────────────
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]"); if (!b) return;
+    var a = b.dataset.act, n = sel ? byId(sel) : null;
+    if (a === "undo") annulla();
+    else if (a === "redo") ripeti();
+    else if (a === "zoom+") imposta_zoom(zoom * 1.15);
+    else if (a === "zoom-") imposta_zoom(zoom / 1.15);
+    else if (a === "adatta") adatta();
+    else if (a === "aggancio") { aggancio = !aggancio; aggiornaBarra(); }
+    else if (a === "gruppo") { var c = centroVisibile(); aggiungi("gruppo", 0, c.x, c.y); }
+    else if (a === "collega") avviaCollega();
+    else if (a === "avvisi") seleziona(null);
+    else if (a === "riepilogo") apriRiepilogo();
+    else if (a === "pubblica") apriPubblica();
+    else if (a === "duplica" && n) {
+      var copia = Object.assign({}, n, {id: nuovoId(n.tipo === "gruppo" ? "g" : "n"), x: n.x + 20, y: n.y + 20});
+      cambia(function () { D.nodi.push(copia); sel = copia.id; });
+    } else if (a === "togli" && n) cambia(function () { togli(n.id); });
+  });
+  document.querySelectorAll("[data-apri]").forEach(function (b) { b.addEventListener("click", function () { document.getElementById(b.dataset.apri).showModal(); }); });
+  $("#oudArchiviaBtn").addEventListener("click", function () {
+    $("#oudDati").close();
+    $("#oudArchivia").requestSubmit();
+  });
+  document.querySelectorAll("dialog [data-chiudi]").forEach(function (b) { b.addEventListener("click", function () { b.closest("dialog").close(); }); });
+
+  document.addEventListener("keydown", function (e) {
+    var t = e.target, campo = t.closest && t.closest("input, textarea, select, [contenteditable]");
+    if (document.querySelector("dialog[open]")) return;
+    if (e.key === "Escape") { if (collega) { collega = null; mostraSuggerimento(""); disegna(); } else if (sel && !campo) seleziona(null); return; }
+    if (campo) return;
+    var k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); if (e.shiftKey) ripeti(); else annulla(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); ripeti(); return; }
+    var n = sel ? byId(sel) : null; if (!n) return;
+    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); cambia(function () { togli(n.id); }); return; }
+    var dx = {ArrowLeft: -10, ArrowRight: 10}[e.key] || 0, dy = {ArrowUp: -10, ArrowDown: 10}[e.key] || 0;
+    if (dx || dy) {
+      e.preventDefault();
+      cambia(function () {
+        var tutti = [n].concat(n.tipo === "gruppo" ? D.nodi.filter(function (m) { return m.gruppo === n.id; }) : []);
+        tutti.forEach(function (m) { m.x = Math.max(0, m.x + dx); m.y = Math.max(0, m.y + dy); });
+        if (n.tipo === "box") nelGruppo(n);
+      });
+    }
+  });
+
+  // ── salvataggio in bozza ─────────────────────────────────────────────
+  var timer = null, inVolo = null, sporco = false;
+  function stato(testo, errore) { var el = $("#oudStato"); el.textContent = testo; el.classList.toggle("is-err", !!errore); }
+  function salvaPresto() { sporco = true; stato("Modifiche da salvare…"); clearTimeout(timer); timer = setTimeout(salva, 900); }
+  function salva() {
+    clearTimeout(timer);
+    if (inVolo) return inVolo.then(function () { return sporco ? salva() : true; });
+    if (!sporco) return Promise.resolve(true);
+    sporco = false; stato("Salvataggio…");
+    inVolo = fetch(S.url.bozza, {
+      method: "POST", credentials: "same-origin",
+      headers: {"Content-Type": "application/json", "Accept": "application/json", "X-CSRFToken": CSRF, "X-Requested-With": "XMLHttpRequest"},
+      body: JSON.stringify({disegno: D})
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.ok) throw new Error(j.errore || ("errore " + r.status)); return j; }); })
+      .then(function (j) {
+        S.avvisi = j.avvisi; S.n_modifiche = j.n_modifiche;
+        stato("Salvato in bozza alle " + j.salvata_il);
+        D.nodi.forEach(function (n) { if (n.tipo === "box") aggiornaNodo(n); });
+        disegnaProps(); aggiornaBarra();
+        return true;
+      })
+      .catch(function (err) { sporco = true; stato("Non salvato: " + err.message, true); return false; })
+      .finally(function () { inVolo = null; });
+    return inVolo;
+  }
+  window.addEventListener("beforeunload", function (e) { if (sporco || inVolo) { e.preventDefault(); e.returnValue = ""; } });
+
+  function apriRiepilogo() {
+    salva().then(function (ok) {
+      if (!ok) return;
+      return fetch(S.url.riepilogo, {credentials: "same-origin", headers: {"Accept": "application/json", "X-Requested-With": "XMLHttpRequest"}})
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var h = "";
+          $("#oudRiepTit").textContent = "Riepilogo modifiche · " + j.da + " → bozza";
+          (j.righe || []).forEach(function (r) {
+            h += '<div class="oux-riga"><span class="oux-k oux-k--' + r.tipo + '">' + (r.tipo === "grafica" ? "solo grafica" : r.tipo) + "</span><div><b>" + esc(r.titolo) + "</b>" + (r.dettaglio ? "<small>" + esc(r.dettaglio) + "</small>" : "") + "</div></div>";
+          });
+          if (!(j.righe || []).length) h += '<div class="oux-riga">Nessuna modifica rispetto alla revisione in vigore.</div>';
+          if ((j.avvisi || []).length) h += '<button type="button" class="oud-avv" disabled>⚠ Restano ' + j.avvisi.length + " avvis" + (j.avvisi.length === 1 ? "o" : "i") + ": puoi pubblicare lo stesso.</button>";
+          h += '<div class="oud-nota" style="margin-top:6px">Ruoli, capi, assegnazioni e permessi del portale non cambiano.</div>';
+          $("#oudRiepCorpo").innerHTML = h;
+          var d = $("#oudRiep"); if (!d.open) d.showModal();
+        });
+    });
+  }
+  function apriPubblica() {
+    salva().then(function (ok) {
+      if (!ok) return;
+      var r = $("#oudRiep"); if (r.open) r.close();
+      $("#oudPub").showModal();
+    });
+  }
+  $("#oudPubForm").addEventListener("submit", function (e) {
+    if (sporco || inVolo) {
+      e.preventDefault();
+      var f = this;
+      salva().then(function (ok) { if (ok) { sporco = false; f.submit(); } });
+    } else { sporco = false; }
+  });
+
+  stato(S.salvata_il && S.bozza_aperta ? "Bozza salvata alle " + S.salvata_il : "");
+  disegna();
+  if (D.nodi.length) adatta();
+})();
+</script>
+{% endblock %}

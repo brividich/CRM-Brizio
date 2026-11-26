@@ -9,13 +9,33 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: «Ruoli e permessi» non si blocca più sulla matrice
+
+- `core/acl_capability.py`: `capability_index()` tiene in cache (impronta del catalogo, indice); l'impronta (totale, attivi e ultimo `updated_at` di permessi e binding) rinnova l'indice appena cambia il catalogo, senza attendere i 300 s. Chiave `acl_capability_index_v3`.
+- `core/permessi/sync.py`: `capacita_permessi()` usa l'indice in cache invece di ricostruirlo a ogni apertura (3.469 rotte × ~140 binding, ~2 s di CPU); le etichette di `pagine_modulo_ruolo` si leggono dal catalogo attivo senza `code IN (~1.300 valori)` (4 s a freddo su SQL Server). Scheda Matrice sui dati di prod: da ~6 s a 0,5-1 s; anche «Salva matrice» ne beneficia.
+- `admin_portale/views_ruoli.py`: la scheda «Registro» andava in errore 500 per le voci `permessi_matrice` scritte dalle impostazioni Timbri (con `ruolo` per cella invece di `modulo`); ora le legge entrambe.
+- Test: `core/test_acl_capability.py` (cache rinnovata), `core/tests_permessi_eccezioni.py` (registro con voce Timbri).
+
+### Gestione anomalie: chiusure automatiche riviste
+
+- Con «Aprire RDC» il numero RDC chiude l'anomalia anche se lo stato è «In attesa risposta cliente/terzista» (la risposta si segue nell'RDC); restano aperte con una richiesta di informazioni aperta o «In attesa di ulteriori informazioni». Prima la qualità doveva chiuderle a mano ogni volta.
+- Prima decisione «Azione di recupero» + «Chiudi l'anomalia» nello stesso salvataggio non chiude più senza l'azione effettuata (il controllo leggeva la prima decisione prima che fosse scritta: 8 anomalie chiuse con il recupero ancora da fare).
+- Stati di Configurazione: «Avanzamento + In attesa di risposta cliente» conta come attesa del cliente; «Accettato con riserva…» chiude come «Accetto lo stato».
+- Alla chiusura le richieste di informazioni ancora aperte si chiudono («Chiusa con l'anomalia») e lo stato «In attesa» riprende l'ultima decisione presa; la migrazione `anomalie 0035` applica lo stesso allo storico.
+- «Chiudi l'anomalia» con una nota chiede lo stato di avanzamento anche con RDC o segnalazioni spuntate (pagina e link mail).
+- File: `django_app/anomalie/views.py`, `chiusura_service.py` (nuovo), `segnalato_service.py`, `tempi_service.py`, `mail_action_views.py`, `qualita_views.py`, `regole_carico.py`, `migrations/0035_chiusure_stato_richieste.py`, `static/anomalie/js/src/gestione_anomalie.jsx` + bundle, `templates/anomalie/pages/mail_action_form.html`, `guida.py`, `core/guide_moduli/contenuti/anomalie.py`, `docs/moduli/anomalie.md`, test `tests_chiusure.py`, `tests_controllo.py`.
+
+### Anagrafica: organigramma ufficiale disegnato a mano, con revisioni
+
+- Nuova vista «📐 Ufficiale» dell'organigramma (`/anagrafica/organigramma/ufficiale/`): organigrammi disegnati come in Word con riquadri presi da ruoli, persone, mansioni o testo libero, gruppi («team»), collegamenti e linee di staff, colori e stili. Bozza salvata da sola, «Riepilogo modifiche» rispetto alla revisione in vigore, «Pubblica» con nota, approvato da e data, storico revisioni con confronto, stampa A3/A4 con cartiglio. Avvisi dove il disegno non corrisponde più ai dati (persona cessata, ruolo non suo, ruoli dell'ambito non disegnati). Non tocca ruoli, «Riporta a», assegnazioni, capi né permessi.
+- File: `django_app/anagrafica/models_organigramma.py` (nuovo), `models.py`, `migrations/0256_organigramma_ufficiale.py` (tabelle, binding ACL copiati da diagramma e modifica ruoli, voce di menu), `services/organigramma_ufficiale.py` (nuovo), `views_organigramma_ufficiale.py` (nuovo), `urls.py`, template `pages/organigramma_ufficiale_{elenco,vedi,disegna,stampa}.html` e `partials/_org_uff_{stile,disegno}.html` (nuovi), `components/organigramma_viste.html`, `core/guide_moduli/contenuti/anagrafica.py` (sezione «organigramma-ufficiale»), `hub_tools/schema_db.py`, `docs/moduli/anagrafica.md`, test `tests_organigramma_ufficiale.py`.
 ### Link aperto: ripresa dal punto giusto, codice in vista e per email, un corso = un completamento
 
 Prova del 26/11/2026: chi ha completato il corso dal link aperto risultava ancora «Iscritto» nella sessione online dello stesso corso (il completamento c'era, ma separato) e chi riprendeva ripartiva dalla slide 1 o da una partecipazione nuova.
 
 - **Pagina del codice** dopo la registrazione (`/corso-aperto/<token>/pronto/`, sotto il prefisso già esente, PUBLIC_VIEWS aggiornati): codice in grande prima di iniziare; email con il codice alla persona abbinata che ha un indirizzo (in background).
 - **Ripresa**: il telefono ricorda la partecipazione per 30 giorni (cookie firmato con il solo id), anche dopo la scadenza della sessione del browser; il corso riparte dalla prima slide non vista e il video dal punto raggiunto; una nuova registrazione con la stessa matricola e lo stesso cognome riprende la partecipazione non finita.
-- **Un corso, un completamento**: il completamento e-learning (portale o link aperto) chiude anche le iscrizioni alle sessioni online dello stesso corso e si collega alla prima; migrazione anagrafica `0256` allinea i completamenti già fatti (nessun completamento nuovo). «I miei corsi online» mostra il corso una volta sola.
+- **Un corso, un completamento**: il completamento e-learning (portale o link aperto) chiude anche le iscrizioni alle sessioni online dello stesso corso e si collega alla prima; migrazione anagrafica `0257` allinea i completamenti già fatti (nessun completamento nuovo). «I miei corsi online» mostra il corso una volta sola.
 - Data di scadenza in «I miei corsi online» della stessa grandezza del resto della riga.
 - File: `views_corso_aperto.py`, `urls_corso_aperto.py`, `services/elearning_link_aperto.py`, `services/sessione_online.py`, `views/_helpers.py`, `views_elearning.py`, template `corso_aperto/pronto.html` (nuovo), `slide.html`, `registrati.html`, `formazione_online_catalog.html`, guida corsi online, Centro guide. Test: `tests_corso_aperto_ripresa.py`, `core/test_security_audit_fase3.py`.
 

@@ -159,7 +159,7 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
     # Azioni dispositive: aggiorna il DB legacy e marca il token monouso
     if is_dispositive:
         # Stessa regola della pagina: una nota scritta non lascia l'anomalia «In attesa».
-        from .segnalato_service import STATI_RISPOSTA
+        from .segnalato_service import STATI_RISPOSTA, stato_canonico
         from .views import MSG_NOTA_STATO_IN_ATTESA, MSG_RISPOSTA_SENZA_STATO, _nota_con_stato_in_attesa
 
         stato_live = {str(a.get("id")): str(a.get(_STATO_FIELD) or "") for a in anomalie_live}
@@ -173,12 +173,13 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                 str(per_riga.get("avanzamento") or "").strip() or default_avanzamento or stato_live[str(anomalia_id)]
             )
             in_attesa_di_segnalazione = any(per_riga.get(k) for k in ("aprire_rdc", "segnalare", "segnala_terzista"))
-            if not in_attesa_di_segnalazione and _nota_con_stato_in_attesa(riga_note, riga_avanzamento):
+            if ((per_riga.get("chiudi_manuale") or not in_attesa_di_segnalazione)
+                    and _nota_con_stato_in_attesa(riga_note, riga_avanzamento)):
                 return _render_error(
                     request, f"Anomalia #{anomalia_id}: {MSG_NOTA_STATO_IN_ATTESA} Torna indietro e correggi.", "invalid",
                 )
             if ((str(per_riga.get("risposta_cliente") or "").strip() or str(per_riga.get("risposta_terzista") or "").strip())
-                    and not per_riga.get("chiudi_manuale") and riga_avanzamento.strip().lower() in STATI_RISPOSTA):
+                    and not per_riga.get("chiudi_manuale") and stato_canonico(riga_avanzamento) in STATI_RISPOSTA):
                 return _render_error(
                     request, f"Anomalia #{anomalia_id}: {MSG_RISPOSTA_SENZA_STATO} Torna indietro e correggi.", "invalid",
                 )
@@ -187,7 +188,7 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
             if (not per_riga.get("aprire_rdc") and (per_riga.get("chiudi_manuale") or (
                     per_riga.get("chiudere") and not (per_riga.get("segnalare") or per_riga.get("segnala_terzista"))))):
                 from .tempi_service import MSG_SERVE_AZIONE, serve_azione_per_chiudere
-                if serve_azione_per_chiudere(int(anomalia_id)):
+                if serve_azione_per_chiudere(int(anomalia_id), riga_avanzamento):
                     return _render_error(
                         request, f"Anomalia #{anomalia_id}: {MSG_SERVE_AZIONE} Si registra dal portale.", "invalid",
                     )
@@ -559,7 +560,8 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
                     cc_chiude=cc_chiude,
                     chiarimenti=bool(info_per_anomalie([anomalia_id]).get(int(anomalia_id), {}).get("richiesta_aperta")),
                 )
-                if regola and not riga_aprire_rdc and serve_azione_per_chiudere(int(anomalia_id)):
+                if regola and not riga_aprire_rdc and serve_azione_per_chiudere(
+                        int(anomalia_id), riga_avanzamento or anomalia.get(_STATO_FIELD) or ""):
                     regola = False
                 riga_chiudere = regola or (bool(per_riga.get("chiudi_manuale")) and cc_chiude)
         else:
@@ -582,6 +584,11 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
             numero_rdc=riga_numero_rdc,
             pezzi_prec=riga_pezzi_prec,
         )
+        # Appena chiusa: stato finale e richieste di informazioni (chiusura_service).
+        if ok and (action == "chiudi" or riga_chiudere) and not anomalia.get("chiudere"):
+            from .chiusura_service import dopo_chiusura
+
+            dopo_chiusura(anomalia_id, chi=token_obj.recipient_display or token_obj.recipient_email or "")
         if ok and isinstance(descrizioni_risposte, dict):
             try:
                 from .quality_models import AnomaliaDescrizione

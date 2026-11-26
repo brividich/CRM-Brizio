@@ -458,11 +458,16 @@ SEZIONI: list[dict] = [
                 "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",
             ]),
             ("ul", [
-                "Chiusura automatica: senza RDC, «Segnalato al cliente» / «Segnalato al terzista» chiudono l'anomalia; "
-                "con «Aprire RDC» si chiude quando la qualità scrive il numero RDC (e le segnalazioni sono fatte). "
-                "Senza spunte chiudono «Accetto lo stato» e «Apertura ORE/RIPI», se in Configurazione «Il capocommessa "
-                "può chiudere le anomalie» è acceso (di serie); con lo stesso interruttore c'è «Chiudi l'anomalia». "
-                "Spento, chiude solo la qualità.",
+                "Chiusura automatica: senza RDC, «Segnalato al cliente» / «Segnalato al terzista» chiudono l'anomalia "
+                "(ma non con «In attesa risposta cliente/terzista»); con «Aprire RDC» si chiude quando la qualità scrive "
+                "il numero RDC e le segnalazioni sono fatte, anche se si aspetta la risposta del cliente (si segue "
+                "nell'RDC). Una richiesta di informazioni aperta o «In attesa di ulteriori informazioni» la tengono "
+                "aperta. Senza spunte chiudono «Accetto lo stato», «Apertura ORE/RIPI» e «Accettato con riserva…», se "
+                "in Configurazione «Il capocommessa può chiudere le anomalie» è acceso (di serie); con lo stesso "
+                "interruttore c'è «Chiudi l'anomalia». Spento, chiude solo la qualità.",
+                "«Chiudi l'anomalia» con una nota chiede lo stato di avanzamento: non si chiude «In attesa». Quando "
+                "l'anomalia si chiude, le richieste di informazioni ancora aperte si chiudono con lei; se lo stato era "
+                "«In attesa» riprende l'ultima decisione presa.",
                 "Per aspettare la risposta del cliente o del terzista scegli «In attesa risposta cliente» / «In attesa "
                 "risposta terzista»: l'anomalia resta aperta, in carico a chi ha fatto la segnalazione, le note già "
                 "scritte restano ferme in «Note già inviate» e compare il campo della risposta; poi si sceglie lo stato "
@@ -533,8 +538,9 @@ SEZIONI: list[dict] = [
                 "«Salva» registra la decisione; «Chiudi l'anomalia» la chiude subito.",
             ]),
             ("ul", [
-                "Senza RDC le segnalazioni fatte chiudono l'anomalia; con RDC si chiude scrivendo il numero. Prima di "
-                "salvare la pagina avvisa «Al salvataggio l'anomalia si chiude».",
+                "Senza RDC le segnalazioni fatte chiudono l'anomalia; con RDC si chiude scrivendo il numero, anche con "
+                "«In attesa risposta cliente», purché non ci siano richieste di informazioni aperte. Prima di salvare la "
+                "pagina avvisa «Al salvataggio l'anomalia si chiude».",
                 "«Richiedi info aggiuntive…»: scegli capocommessa e/o controllore e scrivi cosa serve. Ricevono una "
                 "notifica e una mail con un link per rispondere senza accesso; l'avanzamento qualità diventa «In attesa "
                 "chiarimenti» e l'anomalia è in carico a loro finché non rispondono. La risposta torna a te con notifica "
@@ -572,8 +578,9 @@ SEZIONI: list[dict] = [
                 "Premi «Registra e chiudi» (o «Registra azione» se non la chiudi).",
             ]),
             ("ul", [
-                "Se la prima decisione è stata «Azione di recupero», l'anomalia non si chiude dalla decisione (né dal "
-                "link della mail) finché non registri l'azione effettuata; aprire un RDC resta possibile.",
+                "Se la prima decisione è «Azione di recupero», l'anomalia non si chiude dalla decisione (né dal link "
+                "della mail, né con «Chiudi l'anomalia» nello stesso salvataggio) finché non registri l'azione "
+                "effettuata; aprire un RDC resta possibile.",
                 "Registrano risposta e azione il capocommessa, il CAR, il controllore che ha segnalato e chi può "
                 "modificare l'OP.",
                 "Gli allegati finiscono anche tra gli allegati dell'anomalia; mail e testi si scaricano, non si aprono "

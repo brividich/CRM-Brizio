@@ -1,0 +1,15 @@
+{# Disegno di un organigramma ufficiale (sola lettura). Riceve: d = services.organigramma_ufficiale.disegno(...) #}
+<div class="ouf-tela" style="width:{{ d.w }}px;height:{{ d.h }}px">
+  {% for n in d.nodi %}{% if n.tipo == "gruppo" %}
+  <div class="ouf-g" style="left:{{ n.x }}px;top:{{ n.y }}px;width:{{ n.w }}px;height:{{ n.h }}px;--c:{{ n.colore }}"><span class="ouf-gt">{{ n.e.titolo }}</span></div>
+  {% endif %}{% endfor %}
+  <svg class="ouf-linee" width="{{ d.w }}" height="{{ d.h }}" aria-hidden="true">
+    {% for l in d.linee %}<path d="{{ l.d }}"{% if l.staff %} class="is-staff"{% endif %}/>{% endfor %}
+  </svg>
+  {% for n in d.nodi %}{% if n.tipo != "gruppo" %}
+  <div class="ouf-b ouf-b--{{ n.stile }}" style="left:{{ n.x }}px;top:{{ n.y }}px;width:{{ n.w }}px;height:{{ n.h }}px;--c:{{ n.colore }}">
+    <span class="ouf-av">{% if n.e.foto %}<img src="{{ n.e.foto }}" alt="" loading="lazy">{% else %}{{ n.e.iniziale }}{% endif %}</span>
+    <span class="ouf-tx"><span class="ouf-t">{{ n.e.titolo }}</span>{% if n.e.sotto %}<span class="ouf-s">{{ n.e.sotto }}</span>{% endif %}</span>
+  </div>
+  {% endif %}{% endfor %}
+</div>

@@ -973,8 +973,13 @@ def _descrivi(voce) -> str:
         testo = f"{d.get('persona', '')} — {d.get('voce', '')}: {d.get('prima', '-')} → {d.get('dopo', '-')}"
         return testo + (f" (motivo: {d['motivo']})" if d.get("motivo") else "")
     if voce.azione == "permessi_matrice":
-        celle = [f"{m['modulo']}.{m['azione']}: {m['prima']} → {m['dopo']}" for m in d.get("modifiche", [])]
-        return f"{d.get('ruolo', '')} — " + "; ".join(celle)
+        # Due forme: la matrice scrive «modulo» per cella, le impostazioni Timbri
+        # «ruolo» per cella e «origine» al posto del ruolo. Una voce non deve rompere il registro.
+        celle = [
+            f"{m.get('modulo') or m.get('ruolo', '')}.{m.get('azione', '')}: {m.get('prima', '-')} → {m.get('dopo', '-')}"
+            for m in d.get("modifiche", []) if isinstance(m, dict)
+        ]
+        return f"{d.get('ruolo') or d.get('origine', '')} — " + "; ".join(celle)
     if voce.azione == "permessi_ruolo_modificato":
         campi = [f"{k}: {v['prima']} → {v['dopo']}" for k, v in (d.get("campi") or {}).items()]
         return f"{d.get('ruolo', '')} — " + "; ".join(campi)
