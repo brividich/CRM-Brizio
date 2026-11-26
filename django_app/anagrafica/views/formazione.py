@@ -800,7 +800,7 @@ def _copertura_corsi_obbligatori(oggi, filtro_centro=None) -> list[dict]:
     prossime: dict[int, TrainingSession] = {}
     for s in (
         TrainingSession.objects.filter(corso_id__in=conteggi, stato="PIANIFICATA", data_inizio__gte=oggi)
-        .annotate(n_iscritti=Count("iscrizioni")).order_by("data_inizio", "pk")
+        .annotate(n_iscritti=Count("iscrizioni", filter=~Q(iscrizioni__stato="RITIRATO"))).order_by("data_inizio", "pk")
     ):
         prossime.setdefault(s.corso_id, s)
 
@@ -985,7 +985,7 @@ def formazione_ricerca(request):
                 | Q(docente_ente__nome__icontains=q)
                 | Q(corso__ente_formativo__nome__icontains=q)
             )
-            .annotate(n_iscritti=_Count("iscrizioni", distinct=True))
+            .annotate(n_iscritti=_Count("iscrizioni", filter=~Q(iscrizioni__stato="RITIRATO"), distinct=True))
             .order_by("-data_inizio")[:25]
         )
         risultati["qualifiche"] = list(
@@ -2359,16 +2359,23 @@ def formazione_istruttore_detail(request, istruttore_id: int):
     )
 
     # Ore del docente per sessione: la colonna della tabella e la tessera «Ore
-    # erogate» (che ne è la somma) usano lo stesso calcolo.
+    # erogate» (che ne è la somma) usano lo stesso calcolo. Erogate = giornate già
+    # svolte di edizioni non annullate; i discenti sono quelli delle stesse edizioni.
+    oggi_d = django_timezone.localdate()
     ore_erogate = 0.0
+    erogate = []
     for sess in sessioni:
+        valida = sess.stato != "ANNULLATA"
         sess.ore_docente = round(sum(
             lz.durata_ore for lz in sess.lezioni.all()
-            if lz.docente_id == istr.pk or (sess.docente_id == istr.pk and lz.docente_id is None)
-        ), 2)
+            if (lz.docente_id == istr.pk or (sess.docente_id == istr.pk and lz.docente_id is None))
+            and lz.data and lz.data <= oggi_d
+        ), 2) if valida else 0.0
         ore_erogate += sess.ore_docente
-    corsi_distinti = len({s.corso_id for s in sessioni})
-    discenti = sum(s.n_iscritti for s in sessioni)
+        if valida and sess.data_inizio and sess.data_inizio <= oggi_d:
+            erogate.append(sess)
+    corsi_distinti = len({s.corso_id for s in erogate})
+    discenti = sum(s.n_iscritti for s in erogate)
 
     return render(request, "anagrafica/pages/formazione_istruttore_detail.html", {
         "istr": istr,
@@ -2634,7 +2641,7 @@ def formazione_corso_espansione(request, corso_id: int):
     sessioni = list(
         corso.sessioni
         .select_related("docente", "docente__azienda")
-        .annotate(n_iscritti=Count("iscrizioni", distinct=True), n_lezioni=Count("lezioni", distinct=True))
+        .annotate(n_iscritti=Count("iscrizioni", filter=~Q(iscrizioni__stato="RITIRATO"), distinct=True), n_lezioni=Count("lezioni", distinct=True))
         .order_by("-data_inizio")
     )
     return render(request, "anagrafica/partials/_formazione_corso_espansione.html", {
@@ -2763,8 +2770,14 @@ def formazione_sessioni_list(request):
     da_approvare = not da_chiudere and request.GET.get("da_approvare") == "1"
     n_da_chiudere = _aula.da_chiudere().count()
     n_da_approvare = TrainingSession.objects.filter(_aula.q_da_approvare()).count()
-    conteggi = {"n_iscritti_tot": Count("iscrizioni", distinct=True),
+    conteggi = {"n_iscritti_tot": Count("iscrizioni", filter=~Q(iscrizioni__stato="RITIRATO"), distinct=True),
                 "n_aperti": Count("iscrizioni", filter=Q(iscrizioni__stato__in=_aula.STATI_APERTI), distinct=True)}
+    # Gli ex dipendenti non sono esiti aperti: la chiusura li propone «Ritirato».
+    from ..services.training_eligibility import _cessati_ids
+    _cessati = _cessati_ids()
+    if _cessati:
+        conteggi["n_aperti"] = Count("iscrizioni", filter=Q(iscrizioni__stato__in=_aula.STATI_APERTI)
+                                     & ~Q(iscrizioni__legacy_anagrafica_id__in=_cessati), distinct=True)
     if da_chiudere:
         qs = _aula.da_chiudere().select_related("corso", "corso__piano", "docente").annotate(**conteggi)
     else:
@@ -2980,7 +2993,7 @@ def formazione_sessione_detail(request, sessione_id: int):
     # (massimo in uso + 1, non il conteggio: un numero gia' stampato sul registro
     # firme non deve rinascere).
     prossimo_numero_lezione = max((lz.numero for lz in lezioni), default=0) + 1
-    n_iscritti = sessione.iscrizioni.count()
+    n_iscritti = sessione.iscrizioni.exclude(stato="RITIRATO").count()
 
     # Presenze registrate per lezione (1 query aggregata).
     presenze_per_lezione = {
@@ -3038,7 +3051,7 @@ def formazione_sessione_detail(request, sessione_id: int):
     gruppi_gemelli = list(
         sessione.sessioni_gemelle()
         .select_related("docente")
-        .annotate(n_iscritti_gruppo=Count("iscrizioni", distinct=True))
+        .annotate(n_iscritti_gruppo=Count("iscrizioni", filter=~Q(iscrizioni__stato="RITIRATO"), distinct=True))
     )
     dividi_form = TrainingDividiGruppiForm(initial={"n_gruppi": 2})
 
@@ -3047,7 +3060,7 @@ def formazione_sessione_detail(request, sessione_id: int):
     from ..services.formazione_integrita import motivo_blocco_edizione, requisiti_approvazione
     can_approve = _can_approve_formazione(request)
     gestore = is_editor
-    is_editor = is_editor and not sessione.is_chiusa
+    is_editor = is_editor and not sessione.is_chiusa and sessione.stato != "ANNULLATA"
     dovuta = sessione.verifica_nc_dovuta_dal
 
     return render(request, "anagrafica/pages/formazione_sessione_detail.html", {
@@ -3431,21 +3444,21 @@ def _redirect_se_edizione_chiusa(request, sessione_id: int, dest: str = "detail"
 
 def _ricalcola_presenza_enrollment(enrollment: TrainingEnrollment) -> None:
     """Ricalcola e salva ore_frequentate e percentuale_presenza dell'iscrizione dalle
-    presenze registrate su tutte le lezioni della sessione."""
-    perc = _helpers._calcola_percentuale_presenza(enrollment)
-    ore = sum(
-        float(pr.ore_effettive) if pr.ore_effettive else lz.durata_ore
-        for lz, pr in [
-            (lz, TrainingLessonAttendance.objects.filter(
-                lezione=lz, legacy_anagrafica_id=enrollment.legacy_anagrafica_id
-            ).first())
-            for lz in enrollment.sessione.lezioni.all()
-        ]
-        if pr and pr.stato_presenza in ("PRESENTE", "PARZIALE")
-    )
-    enrollment.ore_frequentate = round(ore, 2)
-    enrollment.percentuale_presenza = perc
-    enrollment.save(update_fields=["ore_frequentate", "percentuale_presenza"])
+    presenze registrate sulle giornate attese (quelle del suo turno, se ne ha uno)."""
+    _ricalcola_presenze_iscrizioni(enrollment.sessione, [enrollment])
+
+
+def _ricalcola_presenze_iscrizioni(sessione, iscrizioni) -> None:
+    """Come ``_ricalcola_presenza_enrollment`` per più iscritti della stessa sessione:
+    poche query in tutto (non una per giornata per iscritto) e un solo aggiornamento."""
+    iscrizioni = list(iscrizioni)
+    calcolate = _helpers._presenze_calcolate(sessione, iscrizioni)
+    for e in iscrizioni:
+        e.ore_frequentate, e.percentuale_presenza = calcolate.get(e.pk, (0.0, None))
+    if len(iscrizioni) == 1:
+        iscrizioni[0].save(update_fields=["ore_frequentate", "percentuale_presenza"])
+    elif iscrizioni:
+        TrainingEnrollment.objects.bulk_update(iscrizioni, ["ore_frequentate", "percentuale_presenza"])
 
 
 def _motivi_blocco_completamento(iscrizione: TrainingEnrollment) -> list[str]:
@@ -5006,6 +5019,7 @@ def formazione_plan(request, legacy_id: int | None = None):
             .filter(legacy_anagrafica_id=legacy_id,
                     sessione__data_inizio__gte=range_from,
                     sessione__data_inizio__lte=range_to)
+            .exclude(stato="RITIRATO")
             .values_list("sessione_id", flat=True)
         )
         qs_sessioni = qs_sessioni.filter(pk__in=sess_ids_dip)
@@ -5017,6 +5031,7 @@ def formazione_plan(request, legacy_id: int | None = None):
         for sess_id, lid in (
             TrainingEnrollment.objects
             .filter(sessione_id__in=sess_ids)
+            .exclude(stato="RITIRATO")
             .values_list("sessione_id", "legacy_anagrafica_id")
         ):
             iscritti_per_sess[sess_id].append(lid)
@@ -5030,10 +5045,10 @@ def formazione_plan(request, legacy_id: int | None = None):
             "tipo":   "CORSO",
             "tipo_label": "Corso",
             "titolo": f"{s.corso.codice} — {s.corso.titolo[:60]}",
-            "sub":    f"Sessione {s.codice_sessione} · {s.get_stato_display()}",
+            "sub":    f"Sessione {s.codice_sessione} · {s.stato_effettivo_display}",
             "url":    f"/anagrafica/formazione/sessioni/{s.pk}/",
-            "stato":  s.stato,
-            "badge":  s.stato.lower(),
+            "stato":  s.stato_effettivo,
+            "badge":  s.stato_effettivo.lower(),
             "iscritti_count": len(legacy_ids),
             "iscritti_nomi":  nomi_top,
             "iscritti_extra": max(0, len(legacy_ids) - 5),

@@ -219,11 +219,11 @@ def da_chiudere_azione(request):
     if not sessioni:
         messages.info(request, "Seleziona almeno una sessione.")
         return redirect(torna)
-    chiuse, parziali, annullate, errori = 0, 0, 0, []
+    chiuse, parziali, annullate, ritirati, errori = 0, 0, 0, 0, []
     for s in sessioni:
         try:
             if azione == "annulla":
-                aula.annulla(s)
+                ritirati += aula.annulla(s)
                 annullate += 1
             else:
                 out = aula.chiudi_con_proposta(s, request.user)
@@ -235,7 +235,8 @@ def da_chiudere_azione(request):
             logger.exception("Chiusura in blocco: sessione %s", s.pk)
             errori.append(f"{s.codice_sessione}: errore imprevisto, aprila e chiudila a mano.")
     if azione == "annulla":
-        messages.success(request, f"{annullate} sessioni annullate.")
+        messages.success(request, f"{annullate} sessioni annullate." + (
+            f" {ritirati} iscrizioni ancora aperte sono passate a «Ritirato»." if ritirati else ""))
     else:
         messages.success(request, f"{chiuse} sessioni chiuse." + (
             f" {parziali} restano aperte perché qualcuno non ha un esito proponibile: aprile e decidi." if parziali else ""))

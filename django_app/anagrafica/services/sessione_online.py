@@ -36,6 +36,10 @@ from ..models_sessione_online import (
 logger = logging.getLogger(__name__)
 
 STATI_ESCLUSI = ("RITIRATO",)
+# Esito già dato alla chiusura: la lezione non si riapre.
+ESITI_FINALI_NEGATIVI = ("ASSENTE", "NON_IDONEO", "RITIRATO")
+# Edizioni su cui la lezione online non vale più: chiuse o annullate.
+STATI_SESSIONE_CHIUSA = ("COMPLETATA", "ANNULLATA")
 MAX_SECONDI_PER_SLIDE = 600  # oltre, la pagina è rimasta aperta: non è studio
 MAX_RISPOSTE = 8
 
@@ -156,6 +160,15 @@ def domande_valide(sessione) -> list[TrainingSessionQuestion]:
 def iscrizioni(sessione):
     return (TrainingEnrollment.objects.filter(sessione=sessione)
             .exclude(stato__in=STATI_ESCLUSI).order_by("pk"))
+
+
+def iscrizioni_in_forza(sessione):
+    """Come ``iscrizioni`` senza gli ex dipendenti: righe, numeri, solleciti e promemoria
+    della lezione online riguardano solo chi è ancora in forza."""
+    from .training_eligibility import _cessati_ids
+    qs = iscrizioni(sessione)
+    cessati = _cessati_ids()
+    return qs.exclude(legacy_anagrafica_id__in=cessati) if cessati else qs
 
 
 def cosa_manca(sessione, cfg=None) -> list[str]:
@@ -410,6 +423,12 @@ def motivo_accesso_negato(sessione, cfg, enrollment, *, anteprima: bool) -> str:
         return "Non risulti iscritto a questa sessione."
     if enrollment.stato in STATI_ESCLUSI:
         return "La tua iscrizione a questa sessione è stata ritirata."
+    if sessione.stato == "ANNULLATA":
+        return "La sessione è stata annullata."
+    if sessione.stato == "COMPLETATA" or sessione.is_approvata:
+        return "La sessione è chiusa: la lezione online non è più disponibile."
+    if enrollment.stato in ESITI_FINALI_NEGATIVI:
+        return "Per questa sessione hai già un esito registrato: la lezione online non è più disponibile."
     oggi = timezone.localdate()
     if cfg.disponibile_dal and oggi < cfg.disponibile_dal:
         return f"La lezione sarà disponibile dal {cfg.disponibile_dal:%d-%m-%Y}."
@@ -523,14 +542,10 @@ def correggi(enrollment, cfg, scelte: dict[int, set[int]], *, user=None, iniziat
 
 
 def solo_verifica(sessione, cfg=None) -> bool:
-    """Il test online vale solo come verifica: sessione non ONLINE con il test d'aula aperto o
-    con giornate d'aula. Lì presenza e ore vengono dal registro e il completamento dalla
-    chiusura dell'edizione, non dal test superato."""
-    if sessione.modalita == "ONLINE":
-        return False
-    if getattr(cfg, "test_in_aula", False):
-        return True
-    return sessione.lezioni.exists()
+    """Il test online vale solo come verifica in ogni sessione che non sia «Online: slide + test»
+    (aula, mista, ente, diretta), anche una mista ancora senza giornate: lì presenza e ore
+    vengono dal registro e il completamento dalla chiusura dell'edizione, non dal test."""
+    return sessione.modalita != "ONLINE"
 
 
 def _riporta_su_iscrizione(enrollment, cfg, prog, tentativo) -> None:
@@ -587,7 +602,7 @@ def stato_persona(enrollment, prog, cfg, n_slide: int) -> str:
 def righe_gestione(sessione, cfg, n_slide: int) -> list[dict]:
     from core.legacy_anagrafica import fetch_anagrafica_rows
 
-    iscr = list(iscrizioni(sessione).select_related("avanzamento_online"))
+    iscr = list(iscrizioni_in_forza(sessione).select_related("avanzamento_online"))
     ids = [e.legacy_anagrafica_id for e in iscr]
     anag = {}
     if ids:
@@ -806,7 +821,7 @@ def sospendi(cfg) -> None:
 def da_sollecitare(sessione, cfg) -> list:
     n_slide_tot = n_slide(sessione)
     out = []
-    for e in iscrizioni(sessione).select_related("avanzamento_online"):
+    for e in iscrizioni_in_forza(sessione).select_related("avanzamento_online"):
         stato = stato_persona(e, getattr(e, "avanzamento_online", None), cfg, n_slide_tot)
         if stato in (NON_INIZIATA, IN_CORSO, TEST_DA_FARE):
             out.append(e)
@@ -843,7 +858,9 @@ def registra_completamenti(sessione, user, *, enrollment_ids=None) -> tuple[int,
     """
     from ..views.formazione import _crea_employee_record, _motivi_blocco_completamento
 
-    qs = iscrizioni(sessione).filter(verifica_superata=True).exclude(stato="COMPLETATO") \
+    if sessione.stato == "ANNULLATA" or sessione.is_approvata:
+        return 0, []
+    qs = iscrizioni(sessione).filter(verifica_superata=True, stato__in=("ISCRITTO", "IN_CORSO")) \
         .select_related("avanzamento_online", "sessione", "sessione__corso")
     if enrollment_ids is not None:
         qs = qs.filter(pk__in=list(enrollment_ids))
@@ -888,8 +905,10 @@ def lezioni_della_persona(legacy_id: int) -> list[dict]:
         return []
     out = []
     qs = (TrainingEnrollment.objects.filter(legacy_anagrafica_id=legacy_id,
-                                            sessione__lezione_online__pubblicata_il__isnull=False)
-          .exclude(stato__in=STATI_ESCLUSI)
+                                            sessione__lezione_online__pubblicata_il__isnull=False,
+                                            sessione__approvata_il__isnull=True)
+          .exclude(stato__in=ESITI_FINALI_NEGATIVI)
+          .exclude(sessione__stato__in=STATI_SESSIONE_CHIUSA)
           .select_related("sessione", "sessione__corso", "sessione__lezione_online", "avanzamento_online")
           .order_by("sessione__lezione_online__scadenza"))
     for e in qs:
@@ -908,23 +927,16 @@ def lezioni_della_persona(legacy_id: int) -> list[dict]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def iscrizioni_da_allineare(corso_id: int, legacy_id: int):
-    """Iscrizioni aperte della persona a sessioni online (slide + test) dello stesso corso.
+    """Iscrizioni ancora aperte (Iscritto / In corso) della persona a sessioni «Online: slide +
+    test» dello stesso corso, non chiuse, non annullate e non approvate.
 
-    Escluse le sessioni miste con giornate d'aula: lì la presenza viene dal registro e il
-    completamento dalla chiusura dell'edizione (vedi ``solo_verifica``)."""
-    from django.db.models import Exists, OuterRef, Q
-
-    from ..models_formazione import TrainingLesson
-
+    Le altre modalità (aula, mista, ente, diretta) restano fuori: lì la presenza viene dal
+    registro e il completamento dalla chiusura dell'edizione (vedi ``solo_verifica``)."""
     return (TrainingEnrollment.objects
-            .alias(con_giornate=Exists(TrainingLesson.objects.filter(sessione_id=OuterRef("sessione_id"))))
-            .exclude(Q(con_giornate=True) & ~Q(sessione__modalita="ONLINE"))
-            .filter(legacy_anagrafica_id=legacy_id, sessione__corso_id=corso_id, record_completamento__isnull=True)
-            .exclude(stato__in=("COMPLETATO", "RITIRATO"))
-            .exclude(sessione__stato="ANNULLATA")
-            .filter(Q(sessione__modalita="ONLINE")
-                    | Q(sessione__lezione_online__pubblicata_il__isnull=False,
-                        sessione__lezione_online__test_in_aula=False))
+            .filter(legacy_anagrafica_id=legacy_id, sessione__corso_id=corso_id, record_completamento__isnull=True,
+                    stato__in=("ISCRITTO", "IN_CORSO"), sessione__modalita="ONLINE",
+                    sessione__approvata_il__isnull=True)
+            .exclude(sessione__stato__in=STATI_SESSIONE_CHIUSA)
             .select_related("sessione"))
 
 

@@ -100,10 +100,10 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
         <div class="hr-metric-top">
           <span class="hr-metric-lbl">Stato sessione</span>
           <span class="hr-metric-val" style="font-size:12px;">
-            {% if sessione.stato == "COMPLETATA" %}<span class="fm-pill fm-pill-valid">Completata</span>
-            {% elif sessione.stato == "IN_CORSO" %}<span class="fm-pill fm-pill-warning">In corso</span>
-            {% elif sessione.stato == "PIANIFICATA" %}<span class="fm-pill fm-pill-enrolled">Pianificata</span>
-            {% else %}<span class="fm-pill fm-pill-expired">{{ sessione.get_stato_display }}</span>{% endif %}
+            {% with st=sessione.stato_effettivo %}{% if st == "COMPLETATA" %}<span class="fm-pill fm-pill-valid">Completata</span>
+            {% elif st == "IN_CORSO" %}<span class="fm-pill fm-pill-warning">In corso</span>
+            {% elif st == "PIANIFICATA" %}<span class="fm-pill fm-pill-enrolled">Pianificata</span>
+            {% else %}<span class="fm-pill fm-pill-expired">{{ sessione.stato_effettivo_display }}</span>{% endif %}{% endwith %}
           </span>
         </div>
         <div class="hr-metric-sub">{{ sessione.get_modalita_display }}</div>

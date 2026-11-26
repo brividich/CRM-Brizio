@@ -28,7 +28,7 @@ Context: corso, sessioni (annotate n_iscritti, n_lezioni).
       </span>
       {% if s.stato == "COMPLETATA" %}<span class="fmd-badge fmd-b-green">Completata</span>
       {% elif s.stato == "ANNULLATA" %}<span class="fmd-badge fmd-b-orange">Annullata</span>
-      {% else %}<span class="fmd-badge fmd-plain">{{ s.get_stato_display }}</span>{% endif %}
+      {% else %}<span class="fmd-badge fmd-plain">{{ s.stato_effettivo_display }}</span>{% endif %}
     </summary>
     <div class="fmd-exp-lez"><span class="fmd-muted">Carico le giornate…</span></div>
   </details>
