@@ -814,3 +814,60 @@ def lezioni_della_persona(legacy_id: int) -> list[dict]:
                     "finita": stato in (SUPERATA, REGISTRATA), "url": _url_lezione(e.sessione),
                     "n_slide": n_slide_s})
     return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Un corso, un completamento: e-learning / link aperto → sessione online
+# ─────────────────────────────────────────────────────────────────────────────
+
+def iscrizioni_da_allineare(corso_id: int, legacy_id: int):
+    """Iscrizioni aperte della persona a sessioni online (slide + test) dello stesso corso."""
+    from django.db.models import Q
+
+    return (TrainingEnrollment.objects
+            .filter(legacy_anagrafica_id=legacy_id, sessione__corso_id=corso_id, record_completamento__isnull=True)
+            .exclude(stato__in=("COMPLETATO", "RITIRATO"))
+            .exclude(sessione__stato="ANNULLATA")
+            .filter(Q(sessione__modalita="ONLINE")
+                    | Q(sessione__lezione_online__pubblicata_il__isnull=False,
+                        sessione__lezione_online__test_in_aula=False))
+            .select_related("sessione"))
+
+
+def completa_iscrizioni_da_record(record) -> int:
+    """Il corso è uno solo: chi lo ha completato (e-learning o link aperto) risulta completato
+    anche nelle sessioni online dello stesso corso a cui è iscritto, senza rifarlo.
+
+    Il primo collegamento libero va sul completamento (l'attestato si vede nella sessione);
+    nessun secondo completamento nasce. Ritorna quante iscrizioni ha chiuso."""
+    if record is None or getattr(record, "annullato_il", None):
+        return 0
+    calc = record.completion_calculation_snapshot_json or {}
+    try:
+        punteggio = Decimal(str(calc.get("quiz_punteggio_pct"))) if calc.get("quiz_punteggio_pct") else None
+    except Exception:  # noqa: BLE001
+        punteggio = None
+    n = 0
+    for e in iscrizioni_da_allineare(record.corso_id, record.legacy_anagrafica_id):
+        with transaction.atomic():
+            e.stato = "COMPLETATO"
+            e.data_completamento = record.data_completamento
+            e.verifica_superata = True
+            e.idoneo = True
+            e.percentuale_presenza = Decimal("100")
+            e.modalita_verifica = "TEST"
+            e.data_verifica = record.data_completamento
+            campi = ["stato", "data_completamento", "verifica_superata", "idoneo", "percentuale_presenza",
+                     "modalita_verifica", "data_verifica", "updated_at"]
+            if punteggio is not None:
+                e.punteggio = punteggio
+                campi.append("punteggio")
+            nota = f"Completato con il corso online il {record.data_completamento:%d-%m-%Y} (completamento #{record.pk})."
+            e.note = ((e.note + "\n") if e.note else "") + nota
+            campi.append("note")
+            e.save(update_fields=campi)
+            if record.enrollment_id is None:
+                type(record).tutti.filter(pk=record.pk).update(enrollment=e, sessione=e.sessione)
+                record.enrollment_id, record.sessione_id = e.pk, e.sessione_id
+        n += 1
+    return n

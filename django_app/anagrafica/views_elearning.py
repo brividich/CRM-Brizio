@@ -54,8 +54,17 @@ def _nega(request, testo: str, *, htmx_status: int = 403):
 def _sezioni_catalogo(cards, lezioni, oggi):
     """«I miei corsi online» in tre parti: da fare (per scadenza), altri disponibili, completati."""
     da_fare, disponibili, completati = [], [], []
+    # Un corso, una riga: se la persona ha anche la lezione online di una sessione dello stesso
+    # corso, si mostra quella (ha la scadenza); se il corso è già completato, solo «Completati».
+    lez_per_corso, corsi_fatti = {}, set()
+    for lz in lezioni:
+        lez_per_corso.setdefault(lz["sessione"].corso_id, lz)
     for it in cards:
         c = it["corso"]
+        if c.pk in lez_per_corso and it["stato"] != "COMPLETATO":
+            continue
+        if c.pk in lez_per_corso:
+            corsi_fatti.add(c.pk)
         voce = {"titolo": c.titolo, "codice": c.codice, "tipo": "sempre", "dettaglio": f"{it['n_slide']} slide",
                 "scadenza": it["due_date"], "in_ritardo": it["in_ritardo"], "pct": it["progress_pct"],
                 "url": reverse("anagrafica:formazione_online_player", args=[c.pk]), "best": it["best_pct"],
@@ -72,6 +81,8 @@ def _sezioni_catalogo(cards, lezioni, oggi):
             disponibili.append(voce)
     for lz in lezioni:
         s, cfg = lz["sessione"], lz["cfg"]
+        if s.corso_id in corsi_fatti or lez_per_corso.get(s.corso_id) is not lz:
+            continue
         voce = {"titolo": s.corso.titolo, "codice": s.codice_sessione, "tipo": "sessione",
                 "dettaglio": f"Sessione {s.codice_sessione} · {lz['n_slide']} slide e test",
                 "scadenza": cfg.scadenza, "in_ritardo": bool(cfg.scadenza and cfg.scadenza < oggi and not lz["finita"]),

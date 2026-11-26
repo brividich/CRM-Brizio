@@ -12,6 +12,7 @@ urlpatterns = [
     path("aula/<str:token>/test/", va.test, name="aula_test"),
     path("<str:token>/", v.corso, name="corso"),
     path("<str:token>/registrati/", v.registrati, name="registrati"),
+    path("<str:token>/pronto/", v.pronto, name="pronto"),
     path("<str:token>/materiale/", v.materiale, name="materiale"),
     path("<str:token>/video-avanz", v.video_avanz, name="video_avanz"),
     path("<str:token>/quiz/", v.quiz_finale, name="quiz"),

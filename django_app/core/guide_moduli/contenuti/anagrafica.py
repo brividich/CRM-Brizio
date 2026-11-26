@@ -547,6 +547,11 @@ GUIDA = {
                       "abbina da solo e, se superato, il corso va sulla scheda come un e-learning con login. Altrimenti la riga resta "
                       "«Da abbinare»: «Abbina» sceglie la persona; «Correggi» sposta un abbinamento sbagliato (il completamento "
                       "precedente viene annullato con motivo); «Scarta» butta una risposta non valida."),
+                ("p", "Dopo la registrazione il codice per riprendere compare in grande e, se la persona ha un'email, arriva anche "
+                      "per email. Dallo stesso telefono il corso riprende da solo per 30 giorni dalla prima slide non vista; chi si "
+                      "registra di nuovo con la stessa matricola riprende invece di ricominciare; da un altro telefono codice e cognome."),
+                ("p", "Un corso, un completamento: chi lo completa dal link aperto o dal portale risulta completato anche nella "
+                      "sessione online dello stesso corso a cui è iscritto; in «I miei corsi online» il corso compare una volta sola."),
                 ("p", "«Nuovo link» cambia l'indirizzo (quello vecchio e il QR stampato smettono di funzionare), «Spegni» lo chiude, "
                       "«Valido fino al» gli dà una scadenza."),
             ],

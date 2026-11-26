@@ -1219,6 +1219,15 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
     except Exception:
         logger.exception("Allineamento qualifica e-learning fallito per record %s", record.pk)
 
+    # Un corso, un completamento: chiude anche le sessioni online dello stesso corso
+    # a cui la persona è iscritta (non deve rifarlo lì). Fail-safe.
+    try:
+        from ..services.sessione_online import completa_iscrizioni_da_record
+        with transaction.atomic():
+            completa_iscrizioni_da_record(record)
+    except Exception:
+        logger.exception("Sessioni online non allineate al completamento e-learning %s", record.pk)
+
     # Valutazione di efficacia sul campo, se il corso la prevede: come il flusso
     # d'aula (prima l'e-learning non la apriva mai). Fail-safe.
     try:
