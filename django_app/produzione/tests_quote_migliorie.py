@@ -297,3 +297,35 @@ class SaluteAnomalieTests(QuoteBase):
             cur.execute("INSERT INTO anomalie (ex_op_nominativo, op_lookup_id, chiudere, seriale, descrizione) "
                         "VALUES ('OP/2026/100', 41, 0, 'SN-NUOVO', 'già segnalato')")
         self.assertEqual(pg.anomalie_da_aprire(), [])                                  # c'è già una segnalazione aperta
+
+
+class QuoteDaGuardareTests(QuoteBase):
+    """«Quote da guardare» in Quote CMM: solo righe salvate dal giro (QuotaCapacita), mai analisi_pn nella richiesta."""
+
+    def test_pagina_senza_analisi_e_esclusione_aggiorna(self):
+        from unittest import mock
+
+        from . import articoli
+        from .models import ArticoloPN, QuotaCapacita
+
+        self.giorno = date.today()
+        for i in range(6):
+            self.report(f"SN{i}", [("D10", 10.0 + 0.002 * i, 10.0, 0.02, -0.02)], giorni=i)
+        fuori = self.report("SN9", [("D10", 10.03, 10.0, 0.02, -0.02)], giorni=7)        # ultimo report: fuori
+        ArticoloPN.objects.create(pn="PN-ALFA-1")
+        ArticoloPN.objects.create(pn="PN-SENZA-ANALISI")                                  # mai analizzato
+        self.assertEqual(articoli.aggiorna_cpk(60, pn=["PN-ALFA-1"]), 1)
+        self.assertTrue(QuotaCapacita.objects.filter(pn="PN-ALFA-1", fuori_ultimo=True).exists())
+        with mock.patch.object(cmm, "analisi_pn") as analisi:
+            pagina = self.client.get(reverse("produzione:quote_cruscotto"), {"f": "tutti"})
+        analisi.assert_not_called()
+        self.assertEqual(pagina.status_code, 200)
+        self.assertEqual({q.pn for q in pagina.context["quote_guardare"]}, {"PN-ALFA-1"})
+        self.assertTrue(pagina.context["quote_guardare"][0].fuori_ultimo)
+        # escludere il report fuori ricalcola subito il P/N e le sue quote salvate
+        self.client.post(reverse("produzione:report_escludi", args=[fuori.pk]),
+                         {"azione": "escludi", "motivo": "Doppione dello stesso report"})
+        self.assertFalse(QuotaCapacita.objects.filter(pn="PN-ALFA-1", fuori_ultimo=True).exists())
+        with mock.patch.object(cmm, "analisi_pn") as analisi:
+            self.client.get(reverse("produzione:quote_cruscotto"))
+        analisi.assert_not_called()
