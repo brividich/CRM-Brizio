@@ -15,7 +15,7 @@
 <body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#182232;">
 
 <div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#eef3f8;mso-hide:all;">
-  {% if op_pn %}P/N {{ op_pn }} · {% endif %}{{ op_id }} — {% if has_rdc %}{% if n_aprire %}{{ n_aprire }} da APRIRE RDC{% endif %}{% if n_aprire and n_segnalare %} / {% endif %}{% if n_segnalare %}{{ n_segnalare }} da SEGNALARE A CLIENTE{% endif %}{% else %}{{ n }} modific{% if n == 1 %}a registrata{% else %}he registrate{% endif %}{% endif %}
+  {% if op_pn %}P/N {{ op_pn }} · {% endif %}{{ op_id }} — {% if has_rdc %}{% if n_aprire %}{{ n_aprire }} da APRIRE RDC{% endif %}{% if n_aprire and n_segnalare %} / {% endif %}{% if n_segnalare %}{{ n_segnalare }} da SEGNALARE A CLIENTE{% endif %}{% else %}{{ n }} modific{% if n == 1 %}a registrata{% else %}he registrate{% endif %}{% endif %}{% if n_chiuse %} · {{ n_chiuse }} chius{% if n_chiuse == 1 %}a{% else %}e{% endif %}{% endif %}
 </div>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
@@ -64,8 +64,9 @@
             <h2 style="margin:0;color:#182232;font-size:22px;line-height:1.22;font-weight:800;">
               {{ n }} aggiornament{% if n == 1 %}o registrato{% else %}i registrati{% endif %} su {{ op_id }}
             </h2>
+            {% if n_chiuse %}<p style="margin:10px 0 0;"><span style="display:inline-block;background:#065f46;color:#ffffff;font-size:13px;font-weight:800;border-radius:999px;padding:5px 12px;">&#10003; {% if n_chiuse == n %}{% if n == 1 %}Anomalia chiusa{% else %}Tutte chiuse{% endif %}{% else %}{{ n_chiuse }} di {{ n }} chius{% if n_chiuse == 1 %}a{% else %}e{% endif %}{% endif %}</span></p>{% endif %}
             {% if op_pn or op_nominativo %}
-            <p style="margin:8px 0 0;color:#64748b;font-size:14px;">{% if op_pn %}P/N {{ op_pn }}{% endif %}{% if op_pn and op_nominativo %} · {% endif %}{% if op_nominativo and op_nominativo != op_id %}{{ op_nominativo }}{% endif %}</p>
+            <p style="margin:8px 0 0;color:#64748b;font-size:14px;">{% if op_pn %}P/N {{ op_pn }}{% endif %}{% if op_pn and op_nominativo and op_nominativo != op_id %} · {% endif %}{% if op_nominativo and op_nominativo != op_id %}{{ op_nominativo }}{% endif %}</p>
             {% endif %}
           </td>
         </tr>
