@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Fix: Catalogo P/N in errore 500 in produzione (SQL Server)
+
+- `/produzione/pn/` andava in errore 500: la creazione degli articoli mancanti usava `bulk_create(ignore_conflicts=True)`, che mssql-django non supporta (`NotSupportedError`). Per lo stesso motivo il giro orario non riempiva il catalogo (l'errore era registrato ma non fermava la lettura dei report). Ora si creano solo i P/N che mancano, senza `ignore_conflicts`; se un giro in parallelo ne crea qualcuno nello stesso momento si ripiega su uno alla volta.
+- File: `produzione/articoli.py` (`_crea_mancanti`). Test: `produzione/tests.py` (simula il backend SQL Server). Nessuna migrazione.
+
 ### Ordini di produzione: stile unico in tutto il modulo
 
 - Filtri (Elenco OP «Da sistemare», catalogo «Mostra», report, Analisi quote: chip e scelte Periodo/Misure) con lo stesso aspetto dei filtri del protocollo: rettangolo arrotondato, scelto = pieno scuro (chiaro nel tema scuro), non più pillola arancione.

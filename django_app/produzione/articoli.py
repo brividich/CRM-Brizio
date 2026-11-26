@@ -31,10 +31,28 @@ CAMPI_RIEPILOGO = ["n_op", "op_aperti", "n_report", "n_report_12m", "fuori_30g",
 
 
 def _crea_mancanti(pn_origine: dict[str, str]) -> int:
+    """Crea gli articoli dei P/N che non ci sono ancora. Niente ``ignore_conflicts``: SQL Server (mssql-django)
+    non lo supporta. Se un giro in parallelo ne ha appena creato qualcuno, si ripiega su uno alla volta."""
+    from django.db import IntegrityError, transaction
+
     esistenti = set(ArticoloPN.objects.values_list("pn", flat=True))
-    nuovi = [ArticoloPN(pn=pn[:100], origine=o) for pn, o in pn_origine.items() if pn and pn not in esistenti]
-    ArticoloPN.objects.bulk_create(nuovi, batch_size=500, ignore_conflicts=True)
-    return len(nuovi)
+    da_creare: dict[str, str] = {}
+    for pn, o in pn_origine.items():
+        chiave = (pn or "")[:100]
+        if chiave and chiave not in esistenti:
+            da_creare.setdefault(chiave, o)
+    if not da_creare:
+        return 0
+    try:
+        with transaction.atomic():
+            ArticoloPN.objects.bulk_create([ArticoloPN(pn=pn, origine=o) for pn, o in da_creare.items()], batch_size=500)
+        return len(da_creare)
+    except IntegrityError:
+        creati = 0
+        for pn, o in da_creare.items():
+            _, nuovo = ArticoloPN.objects.get_or_create(pn=pn, defaults={"origine": o})
+            creati += nuovo
+        return creati
 
 
 def _mesi_12(oggi: date) -> list[tuple[int, int]]:
