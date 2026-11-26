@@ -49,19 +49,13 @@ def _nome_map(legacy_ids) -> dict[int, str]:
 def cessati_legacy_ids() -> set[int]:
     """``legacy_anagrafica_id`` degli ex dipendenti (rapporto cessato).
 
-    Stessa regola del resto del modulo — ``data_cessazione`` valorizzata
-    sull'anagrafica aziendale: un ex dipendente resta a sistema col suo
-    fascicolo, ma non occupa una posizione nell'organigramma.
+    Stessa regola del resto del modulo (``services.in_forza.cessati_ids``):
+    un ex dipendente resta a sistema col suo fascicolo, ma non occupa una
+    posizione nell'organigramma.
     """
-    from anagrafica.models import DipendenteAnagraficaAziendale
+    from .in_forza import cessati_ids
 
-    return {
-        int(lid)
-        for lid in DipendenteAnagraficaAziendale.objects.filter(
-            data_cessazione__isnull=False
-        ).values_list("legacy_anagrafica_id", flat=True)
-        if lid
-    }
+    return cessati_ids()
 
 
 def build_ruolo_albero(ambito_id: int | None = None, *, includi_senza: bool = False) -> list[dict]:

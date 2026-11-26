@@ -43,16 +43,10 @@ _ORDER = {"SCADUTO": 0, "IN_SCADENZA_30": 1, "IN_SCADENZA_90": 2, "MAI_FREQUENTA
 
 def _cessati_ids() -> set[int]:
     """``legacy_anagrafica_id`` dei cessati (ex dipendenti). Specchio di
-    ``views._cessati_legacy_ids`` ma senza dipendere dal modulo views."""
-    from ..models import DipendenteAnagraficaAziendale
+    ``views._cessati_legacy_ids``: regola unica ``services.in_forza.cessati_ids``."""
+    from .in_forza import cessati_ids
 
-    return {
-        int(lid)
-        for lid in DipendenteAnagraficaAziendale.objects
-        .filter(data_cessazione__isnull=False)
-        .values_list("legacy_anagrafica_id", flat=True)
-        if lid
-    }
+    return cessati_ids()
 
 
 def _dipendenti_attivi() -> dict[int, dict[str, str]]:
@@ -327,6 +321,7 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None, ctx=None,
 
 def righe_gap_formativo(
     *, filtro_reparto: str = "", filtro_corso: str = "", filtro_stato: str = "", info: dict | None = None,
+    visibili: set[int] | None = None,
 ) -> tuple[list, list[str], list[dict]]:
     """Una riga per (dipendente in forza, corso obbligatorio) non in regola: scaduto, in scadenza o
     mai frequentato. Condivisa da `views.formazione_copertura` e dal suo export.
@@ -337,7 +332,9 @@ def righe_gap_formativo(
     leggeva solo le regole di obbligo (in produzione nessuna) e restava vuota (analisi 26/11/2026).
 
     ``info`` (facoltativo) riceve ``n_obblighi``: quante coppie persona × corso obbligatorio il motore
-    trova in tutto. Zero vuol dire «nessun obbligo configurato», non «tutti in regola»."""
+    trova in tutto. Zero vuol dire «nessun obbligo configurato», non «tutti in regola».
+
+    ``visibili`` = id anagrafica delle schede che il ruolo vede (None = tutte)."""
     from django.utils import timezone
 
     from ..models_formazione import TrainingDeadline
@@ -348,6 +345,9 @@ def righe_gap_formativo(
     oggi = timezone.localdate()
     ctx = requisiti.ambito(oggi)
     persone = {p.id: p for p in ctx._tutti() if p.in_forza_al(oggi)}
+    if visibili is not None:
+        ammessi = {ctx.canonico(i) for i in visibili}
+        persone = {pid: p for pid, p in persone.items() if pid in ammessi}
     obbligatorie = [v for v in requisiti.formazione(ctx, persone) if v.obbligatorio]
     if info is not None:
         info["n_obblighi"] = len(obbligatorie)

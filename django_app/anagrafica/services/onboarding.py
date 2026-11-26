@@ -748,6 +748,9 @@ def aggiorna_pratiche(*, pratiche: Iterable[OnboardingPratica] | None = None,
 
     ctx = requisiti.ambito()
     tutti = {d.id: d for d in ctx._tutti()}
+    # Ultimi completamenti di tutte le persone del giro, una volta sola (prima una query per voce).
+    coinvolte = {p.id: p for p in (tutti.get(ctx.canonico(t.pratica.legacy_anagrafica_id)) for t in task_aperti) if p}
+    completamenti = requisiti.ultimi_completamenti(ctx, coinvolte) if coinvolte else {}
     chiusi = 0
     for task in task_aperti:
         pratica = task.pratica
@@ -761,6 +764,7 @@ def aggiorna_pratiche(*, pratiche: Iterable[OnboardingPratica] | None = None,
                 motivo = requisito_soddisfatto(
                     task.tipo, task.riferimento_id, ctx=ctx, persona=persona,
                     dal=pratica.created_at.date(), mansione=pratica.mansione,
+                    completamenti=completamenti,
                 )
         except Exception:
             logger.exception("verifica voce onboarding %s fallita", task.pk)

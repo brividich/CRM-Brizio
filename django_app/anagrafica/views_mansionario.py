@@ -488,8 +488,7 @@ def _formazione_mansione(request, mansione, competenze, persone) -> dict:
     - richiesti da una competenza (``VoceMacchinaCatalogo.corso``): senza il corso
       la persona non supera «I» su quella competenza.
     """
-    from .models_formazione import TrainingCourse, TrainingDeadline
-    from .services.skillmatrix_qualifica import _STATI_VALIDI
+    from .models_formazione import TrainingCourse
     from .views import _helpers
 
     ids = [p["legacy_id"] for p in persone]
@@ -506,13 +505,12 @@ def _formazione_mansione(request, mansione, competenze, persone) -> dict:
         if getattr(v, "corso_id", None):
             riga = righe.setdefault(v.corso_id, {"corso": v.corso, "regola": None, "obbligatorio": False, "da_competenze": []})
             riga["da_competenze"].append(v.nome)
-    stato: dict[tuple[int, int], str] = {}
-    if ids and righe:
-        for lid, cid, st in (TrainingDeadline.objects.filter(legacy_anagrafica_id__in=ids, corso_id__in=list(righe))
-                             .values_list("legacy_anagrafica_id", "corso_id", "stato_scadenza")):
-            stato[(lid, cid)] = st
+    # Completamenti reali (regola unica di formazione_completamento), non la cache.
+    from .services.formazione_completamento import ids_con_completamento_valido_multi
+
+    validi = ids_con_completamento_valido_multi(list(righe), ids) if ids and righe else set()
     for cid, riga in righe.items():
-        in_regola = [lid for lid in ids if stato.get((lid, cid)) in _STATI_VALIDI]
+        in_regola = [lid for lid in ids if (lid, cid) in validi]
         mancanti = [lid for lid in ids if lid not in in_regola]
         riga["n_in_regola"] = len(in_regola)
         riga["mancanti"] = mancanti
@@ -920,8 +918,8 @@ def mansionario_persona(request, legacy_id: int):
 def _corsi_da_fare_persona(legacy_id: int, scheda) -> None:
     """Su ogni riga della scheda persona: i corsi della mansione che la persona
     non ha validi, divisi in obbligatori (mancanza) e consigliati (proposta)."""
-    from .models_formazione import TrainingDeadline, TrainingRequirementRule
-    from .services.skillmatrix_qualifica import _STATI_VALIDI
+    from .models_formazione import TrainingRequirementRule
+    from .services.formazione_completamento import ids_con_completamento_valido_multi
 
     righe = list(getattr(scheda, "righe", None) or (scheda.get("righe", []) if isinstance(scheda, dict) else []))
     ids_mansioni = [r["mansione"].pk if isinstance(r, dict) else r.mansione.pk for r in righe]
@@ -930,9 +928,7 @@ def _corsi_da_fare_persona(legacy_id: int, scheda) -> None:
     regole = list(TrainingRequirementRule.objects.filter(competenza_id__in=ids_mansioni, is_active=True,
                                                          corso__isnull=False, corso__is_active=True)
                   .select_related("corso").order_by("corso__titolo"))
-    validi = set(TrainingDeadline.objects.filter(legacy_anagrafica_id=legacy_id, stato_scadenza__in=_STATI_VALIDI,
-                                                 corso_id__in={r.corso_id for r in regole})
-                 .values_list("corso_id", flat=True))
+    validi = {cid for _lid, cid in ids_con_completamento_valido_multi({r.corso_id for r in regole}, [legacy_id])}
     for riga in righe:
         mid = riga["mansione"].pk if isinstance(riga, dict) else riga.mansione.pk
         obbl = [r.corso for r in regole if r.competenza_id == mid and r.is_mandatory and r.corso_id not in validi]

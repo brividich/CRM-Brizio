@@ -401,6 +401,8 @@ def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
     Le righe a zero non compaiono — una dashboard elenca le cose da fare, non le
     cose che non ci sono.
     """
+    from ..scadenze_soglie import GIORNI_PREAVVISO as _GIORNI_PREAVVISO
+
     voci = _helpers._build_scadenzario_voci(request, dip_map=dip_map)
     base = reverse("anagrafica:scadenzario")
 
@@ -423,7 +425,7 @@ def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
         if n_prossime:
             in_scadenza.append({
                 "icona": icona,
-                "titolo": f"{label} in scadenza ({60 if kind == 'visita' else 90} giorni)",
+                "titolo": f"{label} in scadenza ({_helpers.GIORNI_PREAVVISO_VISITE if kind == 'visita' else _GIORNI_PREAVVISO} giorni)",
                 "count": n_prossime,
                 "urgente": False,
                 "url": f"{base}?tipo={kind}&stato=90",
@@ -2491,7 +2493,9 @@ def dipendente_detail(request, legacy_id: int):
             )
             # Tessera «Scadenze urgenti»: solo corsi obbligatori, scaduti, entro 90 giorni o mai
             # frequentati (= scadenzario ?dipendente=…&obbligatori=1).
-            fm_n_scadenze_urgenti = _fm_scad_qs.filter(is_required=True).count()
+            # La tabella «Corsi da rinnovare / mai frequentati» usa la stessa base della tessera.
+            _fm_scad_qs = _fm_scad_qs.filter(is_required=True)
+            fm_n_scadenze_urgenti = _fm_scad_qs.count()
             fm_scadenze_urgenti = list(
                 _fm_scad_qs.select_related("corso", "corso__piano").order_by("data_scadenza")[:20]
             )
@@ -2786,6 +2790,8 @@ def dipendente_print(request, legacy_id: int):
     La pagina ha un'action bar (non stampata) con bottone "Stampa" che invoca
     `window.print()`. CSS `@media print` rimuove sfondi e action bar.
     """
+    if (negata := _nega_scheda(request, legacy_id)) is not None:
+        return negata
     ensure_anagrafica_schema()
     rows = fetch_anagrafica_rows(ids=[legacy_id])
     if not rows:
@@ -2826,6 +2832,8 @@ def dipendente_libretto_formativo(request, legacy_id: int):
     ("cosa ha fatto nel 2025"). Gli obblighi correnti restano fuori dal filtro,
     perché sono una fotografia di oggi e non un fatto datato.
     """
+    if (negata := _nega_scheda(request, legacy_id)) is not None:
+        return negata
     if not _helpers._can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare la formazione.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)

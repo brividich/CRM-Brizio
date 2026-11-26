@@ -452,3 +452,35 @@ def stato_persona_corso(corso, legacy_id, *, iscrizioni=None, oggi=None) -> Stat
         return StatoPersonaCorso(DA_FARE)
     return stati_persona_corso(corso, [legacy_id], iscrizioni=iscrizioni, oggi=oggi).get(
         int(legacy_id), StatoPersonaCorso(DA_FARE))
+
+
+def ids_con_completamento_valido_multi(corsi_ids, legacy_ids, *, oggi=None) -> set[tuple[int, int]]:
+    """``{(legacy_id, corso_id)}`` con un completamento valido, per molti corsi e persone insieme.
+
+    Stessa regola di :func:`ids_con_completamento_valido` (idoneo, non annullato,
+    completato entro oggi, senza scadenza o non ancora scaduto) in poche query a
+    blocchi di 1000 id (limite parametri di SQL Server): per Mansionario e gate
+    Skill Matrix, che prima leggevano la cache ``TrainingDeadline``.
+    """
+    from django.db.models import Q
+    from django.utils import timezone
+
+    from ..models_formazione import TrainingEmployeeRecord
+
+    oggi = oggi or timezone.localdate()
+    corsi = sorted({int(c) for c in corsi_ids if c})
+    ids = sorted({int(i) for i in legacy_ids if i})
+    out: set[tuple[int, int]] = set()
+    if not corsi or not ids:
+        return out
+    for i in range(0, len(ids), 1000):
+        blocco = ids[i:i + 1000]
+        out.update(
+            TrainingEmployeeRecord.objects
+            .filter(corso_id__in=corsi, legacy_anagrafica_id__in=blocco, idoneo=True,
+                    data_completamento__lte=oggi)
+            .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=oggi))
+            .values_list("legacy_anagrafica_id", "corso_id")
+            .distinct()
+        )
+    return out

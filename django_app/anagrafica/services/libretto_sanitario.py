@@ -92,15 +92,16 @@ class Riga:
 
 
 def _stato_da_scadenza(
-    data_scadenza: date | None, oggi: date
+    data_scadenza: date | None, oggi: date, soglia: int = SOGLIA_WARN_GIORNI,
 ) -> tuple[str, int | None]:
-    """Regola unica scadenza→stato (stessa soglia del semaforo conformità)."""
+    """Regola unica scadenza→stato (stesse soglie del semaforo conformità:
+    60 giorni visite e DPI, ``GIORNI_PREAVVISO`` per le qualifiche)."""
     if data_scadenza is None:
         return STATO_OK, None
     giorni = (data_scadenza - oggi).days
     if giorni < 0:
         return STATO_KO, giorni
-    if giorni <= SOGLIA_WARN_GIORNI:
+    if giorni <= soglia:
         return STATO_WARN, giorni
     return STATO_OK, giorni
 
@@ -212,15 +213,30 @@ def _righe_corsi(voci) -> list[Riga]:
     return righe
 
 
-def _righe_qualifiche(qualifiche, oggi: date) -> list[Riga]:
-    """Abilitazioni possedute: non sono un obbligo di mansione, ma un titolo
-    che scade — nel libretto vanno lette accanto al resto, non altrove."""
+def _righe_qualifiche(qualifiche, oggi: date, richieste: dict[int, list[str]] | None = None,
+                      nomi_tipo: dict[int, str] | None = None) -> list[Riga]:
+    """Abilitazioni possedute e qualifiche richieste (``requisiti.qualifiche_richieste``).
+
+    Una qualifica richiesta e mai conseguita è una riga «Da acquisire»; quelle
+    possedute riportano come origine il motivo della richiesta, se c'è. Soglia
+    «in scadenza» unica del modulo (``GIORNI_PREAVVISO``), come nel semaforo.
+    """
+    from ..scadenze_soglie import GIORNI_PREAVVISO
+
+    richieste = richieste or {}
     righe: list[Riga] = []
+    possedute = {q.tipo_id for q in qualifiche}
+    for tipo_id, origini in richieste.items():
+        if tipo_id not in possedute:
+            righe.append(Riga(
+                dominio="qualifiche", nome=(nomi_tipo or {}).get(tipo_id, "Qualifica"),
+                stato=STATO_MANCANTE, origini=list(origini), nota="Mai conseguita", ref_id=tipo_id,
+            ))
     for q in qualifiche:
-        stato, giorni = _stato_da_scadenza(q.data_scadenza, oggi)
+        stato, giorni = _stato_da_scadenza(q.data_scadenza, oggi, GIORNI_PREAVVISO)
         righe.append(Riga(
             dominio="qualifiche", nome=q.tipo.nome, stato=stato,
-            origini=["Titolo posseduto"],
+            origini=list(richieste.get(q.tipo_id) or ["Titolo posseduto"]),
             data_ultima=q.data_conseguimento,
             data_scadenza=q.data_scadenza,
             giorni=giorni,
@@ -315,6 +331,16 @@ def libretto_batch(
     qualifiche_per_pid: dict[int, list] = {}
     for (pid, _tipo), q in sorted(correnti.items(), key=lambda kv: kv[1].tipo.nome.casefold()):
         qualifiche_per_pid.setdefault(pid, []).append(q)
+    # Qualifiche richieste (ruoli, mansionario, processi): le mancanti diventano righe «Da acquisire».
+    from ..models import TipoQualifica
+    try:
+        qualifiche_rich = requisiti.qualifiche_richieste(ids, oggi=oggi)
+    except Exception:
+        qualifiche_rich = {}
+    nomi_tipo_q = {}
+    if any(qualifiche_rich.values()):
+        nomi_tipo_q = dict(TipoQualifica.objects.filter(
+            pk__in={t for tipi in qualifiche_rich.values() for t in tipi}).values_list("pk", "nome"))
 
     out: dict[int, dict[str, Any]] = {}
     for legacy_id in ids:
@@ -337,7 +363,8 @@ def libretto_batch(
                                      include_dettaglio=include_visite_dettaglio)
         righe_dpi = _righe_dpi(dpi, legacy_id, origini, oggi, consegne)
         righe_corsi = _righe_corsi(corsi.get(legacy_id, []))
-        righe_qualifiche = _righe_qualifiche(qualifiche_per_pid.get(richiesti[legacy_id].id, []), oggi)
+        righe_qualifiche = _righe_qualifiche(qualifiche_per_pid.get(richiesti[legacy_id].id, []), oggi,
+                                             qualifiche_rich.get(legacy_id), nomi_tipo_q)
 
         # Il verdetto pesa solo gli **obblighi** di mansione: una qualifica scaduta
         # che nessun requisito impone non rende la persona non idonea.

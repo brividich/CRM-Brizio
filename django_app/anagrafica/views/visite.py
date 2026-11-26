@@ -2390,7 +2390,14 @@ def conformita_report(request):
     n_na = sum(1 for r in righe if r["complessivo"] == conformita_service.ESITO_NA)
 
     reparti = sorted({r["reparto"] for r in righe if r["reparto"]})
-    if filtro_esito:
+    if filtro_esito == "scadute":
+        # Tessera della home HR «Persone con formazione o visite scadute»: stessa
+        # regola di ``cruscotto_hr.calcola`` (corso obbligatorio scaduto o visita
+        # dovuta scaduta; le visite solo a chi ha il permesso sorveglianza).
+        righe = [r for r in righe
+                 if r["formazione"]["esito"] == conformita_service.ESITO_KO
+                 or (can_view_visite and r["visite"]["esito"] == conformita_service.ESITO_KO)]
+    elif filtro_esito:
         righe = [r for r in righe if r["complessivo"] == filtro_esito]
 
     from urllib.parse import urlencode
@@ -2500,8 +2507,9 @@ def libretto_sanitario_generale(request):
         for chiave in ("reparto", "mansione", "verdetto", "dominio", "stato")
     }
 
+    # Perimetro della conformità: attivi, senza ex dipendenti, nell'ambito del ruolo.
     quadro = libretto_service.quadro_generale(
-        [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")],
+        list(_perimetro_conformita(request).values()),
         filtri=filtri,
         include_visite_dettaglio=_helpers._can_view_visite_mediche(request),
         mansioni_map={

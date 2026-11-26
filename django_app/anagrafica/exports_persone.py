@@ -794,7 +794,6 @@ def _libretto_quadro(request: HttpRequest, scope: str):
     from anagrafica.models import Mansione
     from anagrafica.services import libretto_sanitario as libretto_service
     from anagrafica.views import _can_view_visite_mediche
-    from core.legacy_anagrafica import fetch_anagrafica_rows
 
     filtri = (
         {
@@ -803,8 +802,11 @@ def _libretto_quadro(request: HttpRequest, scope: str):
         }
         if scope == "filtered" else {}
     )
+    from anagrafica.views.visite import _perimetro_conformita
+
+    # Stesso perimetro della pagina: attivi, senza ex dipendenti, nell'ambito del ruolo.
     return libretto_service.quadro_generale(
-        [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")],
+        list(_perimetro_conformita(request).values()),
         filtri=filtri,
         include_visite_dettaglio=_can_view_visite_mediche(request),
         mansioni_map={

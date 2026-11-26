@@ -552,6 +552,10 @@ def _formazione_scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]
         .select_related("corso", "corso__piano")
         .order_by("stato_scadenza", "data_scadenza", "legacy_anagrafica_id")
     )
+    from anagrafica.views import _helpers as _h
+
+    # Ambito del ruolo (propri/team/tutti), come la pagina.
+    qs = _h._filtra_ambito(qs, _h._ambito_visibili(request))
     nomi_map = _nomi_dipendenti()
 
     if scope == "filtered":
@@ -655,8 +659,11 @@ def _formazione_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
     else:
         filtro_reparto = filtro_corso = filtro_stato = ""
 
+    from anagrafica.views import _helpers as _h
+
     _, _, righe = righe_gap_formativo(
         filtro_reparto=filtro_reparto, filtro_corso=filtro_corso, filtro_stato=filtro_stato,
+        visibili=_h._ambito_visibili(request),
     )
     rows: list[dict] = []
     for r in righe:

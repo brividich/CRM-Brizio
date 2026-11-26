@@ -54,11 +54,24 @@ def _conta_asset(asset_id, livello_minimo) -> int:
 
 
 def _conta_processo(processo_id) -> int:
-    """Abilitazioni MPQ **attive** (qualificati) su un processo."""
+    """Persone **operative** sul processo MPQ, in forza.
+
+    Stessa regola della colonna «Qualifica» (``mpq_persone.qualificati``): processo
+    attivo e non scaduto, abilitazione attiva, requisiti in regola. Prima contava
+    ogni abilitazione attiva, anche di ex dipendenti o con requisiti scaduti.
+    """
     from ..models import AbilitazioneProcesso
-    return (AbilitazioneProcesso.objects
-            .filter(processo_id=processo_id, stato=AbilitazioneProcesso.STATO_ATTIVA)
-            .count())
+    from .mpq_persone import qualificati
+    from .organigramma_albero import cessati_legacy_ids
+
+    cessati = cessati_legacy_ids()
+    ids_in_forza = {
+        int(lid) for lid in AbilitazioneProcesso.objects
+        .filter(processo_id=processo_id, stato=AbilitazioneProcesso.STATO_ATTIVA)
+        .values_list("legacy_anagrafica_id", flat=True)
+        if lid and int(lid) not in cessati
+    }
+    return len(qualificati(ids_in_forza, [processo_id]))
 
 
 def valuta_soglia(soglia) -> dict:

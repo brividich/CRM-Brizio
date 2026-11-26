@@ -13,15 +13,18 @@ Aggrega in un semaforo unico quattro domini già gestiti dai rispettivi moduli:
   del report conformità del modulo ``dpi``; import difensivo, il modulo può
   non essere migrato in dev).
 
-Esiti per dominio: ``ok`` / ``warn`` (in scadenza) / ``ko`` (record esistente
-e scaduto) / ``na`` (nessun requisito **oppure** dato non ancora registrato).
+Esiti per dominio: ``ok`` / ``warn`` (in scadenza **o mancante**) / ``ko``
+(record esistente e scaduto) / ``na`` (nessun requisito).
 Il semaforo complessivo è il peggiore dei domini applicabili.
 
-Nota (dipendenti già in forza): un requisito **mai registrato** (visita/DPI/
-corso assente) NON è una non conformità — è un dato che sarà popolato in
-seguito; per i nuovi ingressi l'adempimento è guidato dalla pratica di
-onboarding. Perciò il "mancante" vale ``na`` (neutro), mentre solo un record
-realmente scaduto vale ``ko``.
+Un corso obbligatorio mai frequentato o una qualifica richiesta mai conseguita
+valgono ``warn`` con dettaglio «mancante» (stessa regola della lente idoneità):
+un obbligo non adempiuto non è «in regola». Solo un record realmente scaduto
+vale ``ko``. Visite e DPI mai registrati restano ``na`` (dato popolato dai
+rispettivi moduli).
+
+Soglie «in scadenza»: formazione e qualifiche ``scadenze_soglie.GIORNI_PREAVVISO``
+(90 giorni), visite mediche e DPI ``SOGLIA_WARN_GIORNI`` (60).
 
 Privacy: per le visite mediche i dettagli (nomi tipologia) sono inclusi solo
 se ``include_visite_dettaglio=True`` — il chiamante deve passarci l'esito di
@@ -45,6 +48,8 @@ ESITO_NA = "na"
 
 _PESO = {ESITO_NA: 0, ESITO_OK: 1, ESITO_WARN: 2, ESITO_KO: 3}
 
+# Visite mediche e DPI: preavviso proprio. Formazione e qualifiche usano la soglia
+# unica del modulo (``scadenze_soglie.GIORNI_PREAVVISO``).
 SOGLIA_WARN_GIORNI = 60
 
 
@@ -122,8 +127,9 @@ def _formazione_batch(legacy_ids: list[int], voci: dict[int, list] | None = None
                 esiti.append(ESITO_KO)
                 dettagli.append(f"{v.corso.titolo}: scaduto")
             elif v.stato == "MAI_FREQUENTATO":
-                # Mai frequentato = dato non registrato, non non-conformità.
-                esiti.append(ESITO_NA)
+                # Obbligo mai adempiuto: avviso «mancante», come la lente idoneità.
+                esiti.append(ESITO_WARN)
+                dettagli.append(f"{v.corso.titolo}: mancante")
             elif v.stato in ("IN_SCADENZA_30", "IN_SCADENZA_90"):
                 esiti.append(ESITO_WARN)
                 dettagli.append(f"{v.corso.titolo}: in scadenza")
@@ -201,25 +207,42 @@ def _visite_batch(legacy_ids: list[int], include_dettaglio: bool,
 
 
 def _qualifiche_batch(legacy_ids: list[int], ctx=None) -> dict[int, dict[str, Any]]:
-    """Qualifica corrente per persona e tipo: una qualifica rinnovata non lascia la vecchia «scaduta»."""
+    """Qualifiche **richieste** alla persona (``requisiti.qualifiche_richieste``) vs possedute.
+
+    Conta solo la qualifica corrente per persona e tipo (un rinnovo non lascia la
+    vecchia «scaduta»). Una qualifica posseduta ma non richiesta non entra nel
+    semaforo; una richiesta e mai conseguita vale ``warn`` «mancante».
+    """
+    from ..models import TipoQualifica
+    from ..scadenze_soglie import GIORNI_PREAVVISO
     from . import requisiti
 
     oggi = timezone.localdate()
-    soglia = oggi + timedelta(days=SOGLIA_WARN_GIORNI)
+    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
     ctx, richiesti = _persone(legacy_ids, ctx=ctx)
     persone = {p.id: p for p in richiesti.values()}
+    richieste = requisiti.qualifiche_richieste(list(richiesti), oggi=oggi)
+    if not any(richieste.values()):
+        return {}
     correnti, _sostituite = requisiti.qualifiche_correnti(ctx, DipendenteQualifica.objects.all(), persone)
-    per_pid: dict[int, list] = {}
-    for (pid, _tipo), q in correnti.items():
-        per_pid.setdefault(pid, []).append(q)
+    per_pid: dict[int, dict[int, Any]] = {}
+    for (pid, tipo_id), q in correnti.items():
+        per_pid.setdefault(pid, {})[tipo_id] = q
+    nomi_tipo = dict(TipoQualifica.objects.filter(
+        pk__in={t for tipi in richieste.values() for t in tipi}).values_list("pk", "nome"))
     out: dict[int, dict[str, Any]] = {}
     for legacy_id, persona in richiesti.items():
-        qualifiche = per_pid.get(persona.id)
-        if not qualifiche:
+        tipi_richiesti = richieste.get(legacy_id) or {}
+        if not tipi_richiesti:
             continue
+        possedute = per_pid.get(persona.id) or {}
         esiti, dettagli = [], []
-        for q in qualifiche:
-            if q.data_scadenza is None:
+        for tipo_id in tipi_richiesti:
+            q = possedute.get(tipo_id)
+            if q is None:
+                esiti.append(ESITO_WARN)
+                dettagli.append(f"{nomi_tipo.get(tipo_id, 'Qualifica')}: mancante")
+            elif q.data_scadenza is None:
                 esiti.append(ESITO_OK)
             elif q.data_scadenza < oggi:
                 esiti.append(ESITO_KO)
