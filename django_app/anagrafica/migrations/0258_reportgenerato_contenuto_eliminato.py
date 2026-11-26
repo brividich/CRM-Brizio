@@ -10,7 +10,7 @@ from django.db import migrations, models
 
 VIEW = "anagrafica.reportistica.view"
 ROUTE = {"anagrafica:reportistica_archivio_rigenera": VIEW}
-NOTA = "[REP_0257] binding rigenera dall'archivio"
+NOTA = "[REP_0258] binding rigenera dall'archivio"
 
 
 def avanti(apps, schema_editor):
@@ -31,7 +31,7 @@ def indietro(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("anagrafica", "0256_organigramma_ufficiale"),
+        ("anagrafica", "0257_corso_unico_allinea_sessioni_online"),
         ("core", "0074_admin_subnav_accessi_negati"),
     ]
 
