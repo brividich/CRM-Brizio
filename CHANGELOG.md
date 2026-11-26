@@ -11,7 +11,7 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ### Reportistica anagrafica: codice fiscale nell'«Elenco del personale»
 
-- Nuova colonna «Codice fiscale» nella sezione «Elenco del personale» (anche da «Chiedi un report»), letta dall'anagrafica civile; per le anagrafiche doppie vale la scheda che ce l'ha. Visibile solo con il permesso sui dati HR riservati, come nell'elenco dipendenti: senza permesso la colonna non compare, non viene caricata né stampata, e la chat avvisa che è riservata invece di dire «non disponibile».
+- Nuova colonna «Codice fiscale» nella sezione «Elenco del personale» (anche da «Chiedi un report»), letta dall'anagrafica civile; per le anagrafiche doppie vale la scheda che ce l'ha. Visibile solo con il permesso sui dati HR riservati, come nell'elenco dipendenti: senza permesso la colonna non compare, non viene caricata né stampata, e la chat avvisa che è riservata invece di dire «non disponibile». Un documento in archivio che contiene la colonna si riscarica solo con lo stesso permesso (parametri.colonne_riservate).
 - Le sezioni del report possono dichiarare colonne con un permesso proprio (`Sezione.colonne_riservate`, `colonne_per(request)`, fail-closed senza request), rispettato da editor, chat e motore.
 - File: `anagrafica/reportistica/sezioni.py`, `conversazione.py`, `forms.py`, `motore.py`, `anagrafica/tests_reportistica_codice_fiscale.py`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`. Nessuna migrazione.
 

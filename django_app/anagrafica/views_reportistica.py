@@ -304,12 +304,18 @@ def _scarica_nuovo(request, modello, documento: motore.Documento, parametri, for
         contenuto, content_type = motore.render_xlsx(documento), _XLSX
     nome_file = motore.nome_file(modello, documento, formato)
     sezioni_usate = [e.sezione.key for e in documento.sezioni_calcolate if e.sezione is not None]
+    # Colonne con permesso proprio (es. codice fiscale) finite nel documento: il riscaricamento le ricontrolla.
+    colonne_riservate = sorted({
+        f"{e.sezione.key}:{k}" for e in documento.sezioni_calcolate if e.sezione is not None
+        for k, _l in e.colonne if k in dict(e.sezione.colonne_riservate)
+    })
     archiviato = ReportGenerato.objects.create(
         # Report a conversazione: il modello non e' salvato, l'archivio tiene la specifica.
         modello=modello if modello.pk else None, modello_nome=modello.nome, titolo=documento.titolo[:200],
         destinatario=documento.destinatario[:200], formato=formato,
         data_da=documento.date_from, data_a=documento.date_to,
-        parametri={**parametri.as_dict(), "sezioni": sezioni_usate, **(extra or {})},
+        parametri={**parametri.as_dict(), "sezioni": sezioni_usate, "colonne_riservate": colonne_riservate,
+                   **(extra or {})},
         contiene_dati_personali=documento.contiene_dati_personali,
         nome_file=nome_file, contenuto=contenuto, dimensione=len(contenuto),
         sha256=hashlib.sha256(contenuto).hexdigest(), note=nota[:300], generato_da=request.user,
@@ -328,11 +334,16 @@ def _scarica_nuovo(request, modello, documento: motore.Documento, parametri, for
 
 def _archivio_consentito(request, doc: ReportGenerato) -> bool:
     """Un documento archiviato si riscarica solo se oggi si potrebbe rigenerarlo."""
-    chiavi = (doc.parametri or {}).get("sezioni") or []
-    for chiave in chiavi:
+    parametri = doc.parametri or {}
+    for chiave in parametri.get("sezioni") or []:
         sezione = catalogo.get(chiave)
         if sezione is not None and not sezione.consentita(request):
             return False
+    for voce in parametri.get("colonne_riservate") or []:
+        chiave, _sep, colonna = str(voce).partition(":")
+        sezione = catalogo.get(chiave)
+        if sezione is None or colonna not in dict(sezione.colonne_per(request)):
+            return False  # fail-closed: sezione sparita o colonna non piu' permessa
     return True
 
 

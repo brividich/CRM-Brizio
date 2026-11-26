@@ -82,6 +82,20 @@ class CodiceFiscaleReportTest(TestCase):
         self.assertEqual(len(avvisi), 1)
         self.assertIn("riservate ai dati HR", avvisi[0])
 
+    def test_archivio_con_codice_fiscale_solo_a_chi_ha_il_permesso(self):
+        from anagrafica.models import ReportGenerato
+        from anagrafica.views_reportistica import _archivio_consentito
+
+        doc = ReportGenerato(parametri={"sezioni": ["personale_elenco"],
+                                        "colonne_riservate": ["personale_elenco:codice_fiscale"]})
+        senza = ReportGenerato(parametri={"sezioni": ["personale_elenco"]})
+        with patch.object(catalogo.Sezione, "consentita", lambda s, r: True):
+            with patch("anagrafica.views._check_hr_permission", return_value=False):
+                self.assertFalse(_archivio_consentito(_request(), doc))
+                self.assertTrue(_archivio_consentito(_request(), senza))
+            with patch("anagrafica.views._check_hr_permission", return_value=True):
+                self.assertTrue(_archivio_consentito(_request(), doc))
+
     def test_chat_con_permesso_accetta_la_colonna(self):
         self._hr(True)
         avvisi: list[str] = []
