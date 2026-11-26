@@ -1137,6 +1137,20 @@ class TrainingSession(models.Model):
         return self.stato == "COMPLETATA" or self.is_approvata
 
     @property
+    def stato_effettivo(self) -> str:
+        """Lo stato da mostrare oggi: una «Pianificata» già iniziata è «In corso» anche se
+        l'aggiornamento automatico (``formazione_aula.aggiorna_stati``) non è ancora passato."""
+        if self.stato == "PIANIFICATA" and self.data_inizio:
+            from django.utils import timezone
+            if self.data_inizio <= timezone.localdate():
+                return "IN_CORSO"
+        return self.stato
+
+    @property
+    def stato_effettivo_display(self) -> str:
+        return dict(self.STATO_CHOICES).get(self.stato_effettivo, self.stato_effettivo)
+
+    @property
     def verifica_nc_dovuta_dal(self):
         if not self.data_fine:
             return None

@@ -200,7 +200,7 @@ class GestioneViewTests(_Base):
     def test_crea_sessione_online_porta_alla_preparazione(self):
         oggi = timezone.localdate()
         r = self.client.post(reverse("anagrafica:formazione_sessione_create"), {
-            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "ONLINE",
+            "corso": self.corso.pk, "modalita": "ONLINE",
             "data_inizio": oggi.isoformat(), "data_fine": oggi.isoformat(),
         })
         nuova = TrainingSession.objects.exclude(pk=self.sessione.pk).first()

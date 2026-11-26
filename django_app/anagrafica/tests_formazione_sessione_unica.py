@@ -151,7 +151,7 @@ class CodiceSessioneTests(TestCase):
     def test_form_sessione_completa_codice_e_data_fine(self):
         corso = _corso(codice="PRE-01")
         form = TrainingSessionForm(data={
-            "corso": corso.pk, "stato": "PIANIFICATA", "modalita": "IN_SEDE",
+            "corso": corso.pk, "modalita": "IN_SEDE",
             "data_inizio": "2026-09-10",
             # codice_sessione e data_fine volutamente omessi
         })

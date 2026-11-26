@@ -100,7 +100,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
   <div class="fm-cache-banner" role="status">🔒 {{ motivo_blocco }}</div>
   {% endif %}
   {% if aula_fase %}{% include "anagrafica/components/_aula_fasi.html" %}{% endif %}
-  {% if gestore or can_approve %}{% if not aula_fase or aula_fase == "dopo" %}{% include "anagrafica/components/_formazione_chiusura_panel.html" %}{% endif %}{% endif %}
+  {% if gestore or can_approve %}{% if not aula_fase or aula_fase == "dopo" or aula_fase == "annullata" %}{% include "anagrafica/components/_formazione_chiusura_panel.html" %}{% endif %}{% endif %}
 
   {% include "anagrafica/components/_link_pubblico.html" %}
   {% if online %}{% include "anagrafica/components/_sessione_online_gestione.html" %}{% endif %}

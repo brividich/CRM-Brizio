@@ -38,6 +38,14 @@ class Command(BaseCommand):
         dry_run = bool(options.get("dry_run"))
         recipients = get_reminder_recipients("elearning_reminder_emails", options.get("recipients") or [])
 
+        # Stato automatico delle edizioni («Pianificata» → «In corso» il giorno d'inizio)
+        # prima della scaletta: promemoria e solleciti leggono lo stato già aggiornato.
+        if not dry_run:
+            from anagrafica.services.formazione_aula import aggiorna_stati
+            n_st = aggiorna_stati(today)
+            if n_st:
+                self.stdout.write(f"Edizioni passate a «In corso»: {n_st}.")
+
         from anagrafica.services.elearning_promemoria import esegui
         rie = esegui(oggi=today, invia=not dry_run)
         self.stdout.write(
@@ -46,13 +54,6 @@ class Command(BaseCommand):
             + (f", {len(set(rie.senza_responsabile))} persone senza responsabile" if rie.senza_responsabile else "")
             + (" [DRY-RUN]" if dry_run else "") + "."
         )
-
-        # Stato automatico delle edizioni: «Pianificata» → «In corso» il giorno d'inizio.
-        if not dry_run:
-            from anagrafica.services.formazione_aula import aggiorna_stati
-            n_st = aggiorna_stati(today)
-            if n_st:
-                self.stdout.write(f"Edizioni passate a «In corso»: {n_st}.")
 
         # Lezioni online delle sessioni: promemoria N giorni prima della scadenza.
         if not dry_run:

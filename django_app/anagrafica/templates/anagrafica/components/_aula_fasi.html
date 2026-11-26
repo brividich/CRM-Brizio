@@ -15,7 +15,7 @@ body.theme-dark .af-step,body.theme-dark .af-body{background:#111c33;border-colo
 body.theme-dark .af-step.on{background:rgba(255,107,0,.12)}
 body.theme-dark .af-t,body.theme-dark .af-body h3{color:#e2e8f0}
 </style>
-<div class="af" role="list" aria-label="Fasi della sessione">
+{% if aula_fase != "annullata" %}<div class="af" role="list" aria-label="Fasi della sessione">
   <div class="af-step{% if aula_fase == 'prima' %} on{% else %} fatto{% endif %}" role="listitem">
     <span class="af-t"><span class="af-n">{% if aula_fase == 'prima' %}1{% else %}✓{% endif %}</span>Prima</span>
     {% if aula_online %}<span class="af-d">{{ n_iscritti }} iscritt{{ n_iscritti|pluralize:"o,i" }} · slide e test da preparare e pubblicare</span>
@@ -30,9 +30,11 @@ body.theme-dark .af-t,body.theme-dark .af-body h3{color:#e2e8f0}
     <span class="af-t"><span class="af-n">{% if sessione.is_approvata %}✓{% else %}3{% endif %}</span>Dopo</span>
     <span class="af-d">Esiti, attestati, approvazione MOD.040, efficacia</span>
   </div>
-</div>
+</div>{% endif %}
 <div class="af-body">
-  {% if aula_online and aula_fase == "prima" %}
+  {% if aula_fase == "annullata" %}
+    <div><h3>Edizione annullata</h3><p>Gli iscritti ancora aperti sono passati a «Ritirato»; la lezione online e il QR d'aula non valgono più. Per usarla di nuovo riaprila qui sotto indicando il motivo.</p></div>
+  {% elif aula_online and aula_fase == "prima" %}
     <div><h3>Prepara la lezione online</h3><p>Iscrivi i partecipanti, prepara slide e test e pubblica: gli iscritti ricevono il link{% if aula_scadenza_online %} e hanno tempo fino al {{ aula_scadenza_online|date:"d/m/Y" }}{% endif %}.</p></div>
     <div class="af-az">
       <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}">Iscritti</a>

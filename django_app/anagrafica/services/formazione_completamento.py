@@ -235,9 +235,12 @@ def stati_persona_corso(corso, legacy_ids, *, iscrizioni=None, oggi=None) -> dic
     if iscrizioni is None:
         iscrizioni = (TrainingEnrollment.objects.filter(sessione__corso=corso, legacy_anagrafica_id__in=ids)
                       .select_related("avanzamento_online"))
+    # Le iscrizioni di edizioni annullate non contano: né «in corso» né esito.
+    from ..models_formazione import TrainingSession
+    sess_annullate = set(TrainingSession.objects.filter(corso=corso, stato="ANNULLATA").values_list("pk", flat=True))
     for e in iscrizioni:
         lid = e.legacy_anagrafica_id
-        if lid not in ids or e.pk in enr_con_record:
+        if lid not in ids or e.pk in enr_con_record or e.sessione_id in sess_annullate:
             continue
         try:
             prog = e.avanzamento_online

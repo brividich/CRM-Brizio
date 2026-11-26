@@ -151,7 +151,7 @@ class IntegritaSessioneTests(TestCase):
 
     def test_form_sessione_rifiuta_data_fine_precedente(self):
         form = TrainingSessionForm(data={
-            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "IN_SEDE",
+            "corso": self.corso.pk, "modalita": "IN_SEDE",
             "data_inizio": "2026-09-10", "data_fine": "2026-09-01",
         })
         self.assertFalse(form.is_valid())

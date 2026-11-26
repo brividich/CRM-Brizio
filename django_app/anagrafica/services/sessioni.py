@@ -196,11 +196,18 @@ def _da_edizione(riga: Riga, edizione_id) -> None:
     iscrizione = TrainingEnrollment.objects.filter(sessione=edizione, legacy_anagrafica_id=riga.legacy_anagrafica_id).first()         if edizione else None
     if iscrizione is None:
         raise SessioneNonValida("La persona non è iscritta a questa edizione del corso.")
+    from .formazione_completamento import completamento_valido
+
+    # «Attestato» solo se il completamento valido (idoneo, non scaduto) viene da questa edizione.
+    valido = completamento_valido(edizione.corso, riga.legacy_anagrafica_id)
+    if valido is not None and valido.enrollment_id != iscrizione.pk and valido.sessione_id != edizione.pk:
+        valido = None
     riga.edizione, riga.corso = edizione, edizione.corso
-    riga.data_corso = riga.data_corso or iscrizione.data_completamento or edizione.data_fine
+    riga.data_corso = (riga.data_corso or (valido.data_completamento if valido else None)
+                       or iscrizione.data_completamento or edizione.data_fine)
     if not riga.docente_ente:
         riga.docente_ente = (getattr(edizione, "erogatore_display", "") or "")[:200]
-    if not riga.verifica and iscrizione.stato == "COMPLETATO" and iscrizione.idoneo is not False:
+    if not riga.verifica and valido is not None:
         riga.verifica = Riga.VERIFICA_ATTESTATO
 
 
@@ -219,18 +226,32 @@ def corso_richiesto(riga: Riga):
 
 
 def _iscrizione_completata(persona_id: int, corso_id: int):
-    """L'iscrizione più recente della persona al corso, completata e non «non idoneo»."""
-    return (TrainingEnrollment.objects.filter(legacy_anagrafica_id=persona_id, sessione__corso_id=corso_id,
-                                              stato="COMPLETATO")
-            .exclude(idoneo=False).select_related("sessione")
-            .order_by("-data_completamento", "-sessione__data_inizio", "-pk").first())
+    """L'iscrizione dell'edizione da cui viene il completamento valido della persona per il corso
+    (regola unica ``completamento_valido``: idoneo e non scaduto); None se il completamento valido
+    non viene da un'edizione o non c'è."""
+    from .formazione_completamento import completamento_valido
+
+    corso = TrainingCourse.objects.filter(pk=corso_id).first()
+    rec = completamento_valido(corso, persona_id) if corso is not None else None
+    if rec is None:
+        return None
+    qs = TrainingEnrollment.objects.filter(legacy_anagrafica_id=persona_id, sessione__corso_id=corso_id)
+    if rec.enrollment_id:
+        qs = qs.filter(pk=rec.enrollment_id)
+    elif rec.sessione_id:
+        qs = qs.filter(sessione_id=rec.sessione_id)
+    else:
+        return None
+    return qs.select_related("sessione").first()
 
 
 def iscrizione_proposta(persona_id: int, corso_id: int):
-    """Iscrizione da proporre nella riga: l'ultima edizione completata, altrimenti l'ultima a cui è iscritta."""
+    """Iscrizione da proporre nella riga: l'edizione del completamento valido, altrimenti l'ultima
+    edizione (non annullata) a cui è ancora iscritta."""
     return _iscrizione_completata(persona_id, corso_id) or (
         TrainingEnrollment.objects.filter(legacy_anagrafica_id=persona_id, sessione__corso_id=corso_id,
                                           stato__in=("ISCRITTO", "IN_CORSO"))
+        .exclude(sessione__stato="ANNULLATA")
         .select_related("sessione").order_by("-sessione__data_inizio", "-pk").first())
 
 

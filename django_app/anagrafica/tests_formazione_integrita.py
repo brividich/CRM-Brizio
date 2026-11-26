@@ -106,7 +106,7 @@ class EdizioneChiusaTests(_Base):
                          {"legacy_anagrafica_id": "501", "stato_presenza": "PRESENTE"})
         self.assertFalse(TrainingLessonAttendance.objects.exists())
         self.client.post(reverse("anagrafica:formazione_sessione_edit", args=[self.sess.pk]),
-                         {"corso": self.corso.pk, "codice_sessione": "X", "stato": "PIANIFICATA",
+                         {"corso": self.corso.pk, "codice_sessione": "X",
                           "modalita": "IN_SEDE", "data_inizio": IERI.isoformat()})
         self.sess.refresh_from_db()
         self.assertEqual(self.sess.stato, "COMPLETATA")

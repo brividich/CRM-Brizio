@@ -324,7 +324,7 @@ class EnteComeDocenteTests(TestCase):
 
     def test_form_sessione_accetta_ente_come_docente(self):
         form = TrainingSessionForm(data={
-            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "REMOTO",
+            "corso": self.corso.pk, "modalita": "REMOTO",
             "data_inizio": "2026-09-01", "data_fine": "2026-09-01",
             "docente_ente": self.az.pk,
         })
@@ -338,7 +338,7 @@ class EnteComeDocenteTests(TestCase):
     def test_form_sessione_rifiuta_docente_e_ente_insieme(self):
         istr = TrainingInstructor.objects.create(nome="Rossi")
         form = TrainingSessionForm(data={
-            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "REMOTO",
+            "corso": self.corso.pk, "modalita": "REMOTO",
             "data_inizio": "2026-09-01", "data_fine": "2026-09-01",
             "docente": istr.pk, "docente_ente": self.az.pk,
         })
