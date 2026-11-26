@@ -2,8 +2,8 @@
 {% block sottotitolo %}<p>Quiz finale</p>{% endblock %}
 {% block corpo %}
 {% if errori %}<div class="pb-errori" role="alert"><ul>{% for e in errori %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
-<form method="post" novalidate>
-  {% csrf_token %}
+<form method="post" novalidate class="js-una-consegna">
+  {% csrf_token %}<input type="hidden" name="consegna" value="{{ consegna }}">
   <div class="pb-trappola" aria-hidden="true"><label for="q-sito">Lascia vuoto</label><input id="q-sito" name="sito_web" tabindex="-1" autocomplete="off"></div>
   {% for d in domande %}
   <fieldset class="pb-domanda">
@@ -20,4 +20,18 @@
   </div>
   <button class="pb-btn pb-btn-full" type="submit">Consegna il quiz</button>
 </form>
+{% endblock %}
+{% block script %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  /* Un solo invio: il pulsante si spegne al primo clic (il server controlla comunque il gettone). */
+  var f = document.querySelector(".js-una-consegna");
+  if (!f) return;
+  f.addEventListener("submit", function () {
+    var b = f.querySelector("button[type=submit]");
+    if (b) { b.setAttribute("aria-disabled", "true"); b.textContent = "Invio in corso…"; }
+    setTimeout(function () { if (b) b.disabled = true; }, 0);
+  });
+})();
+</script>
 {% endblock %}
