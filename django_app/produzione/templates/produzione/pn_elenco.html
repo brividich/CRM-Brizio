@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}Catalogo P/N · Ordini di produzione{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126d">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126u">{% endblock %}
 
 {% block content %}
 <div class="prod">
@@ -26,7 +26,6 @@
 
   <section class="prod-card">
     <div class="prod-card-head">
-      <h2>Catalogo P/N</h2>
       <span class="prod-nota">{% if aggiornato %}Numeri aggiornati il {{ aggiornato|date:"d/m/Y H:i" }} (ogni ora dal giro dei report CMM){% else %}Numeri non ancora calcolati{% endif %}</span>
     </div>
     <form class="prod-filtri" method="get" role="search">
@@ -42,7 +41,7 @@
       {% for c in chips_mostra %}<a class="prod-chip{% if mostra == c.chiave %} is-on{% endif %}{% if c.chiave == 'guardare' and c.n %} is-allerta{% endif %}" href="?{{ query_filtri }}{% if c.chiave %}&amp;mostra={{ c.chiave }}{% endif %}">{{ c.nome }} <b>{{ c.n }}</b></a>{% endfor %}
     </div>
     <div class="prod-scorri">
-      <table class="prod-tab prod-catalogo">
+      <table class="prod-tab prod-catalogo" data-fm-hide-search="1">
         <thead>
           <tr>
             <th>P/N</th><th>Cliente</th><th>Stato</th><th class="prod-n">OP</th><th>Ultimo OP</th>

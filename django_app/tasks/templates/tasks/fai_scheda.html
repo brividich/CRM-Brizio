@@ -11,7 +11,7 @@
 {% endif %}{% endblock %}
 {% block tasks_shell_actions %}{% if url_report_cmm %}<a class="ts-hero-action" href="{{ url_report_cmm }}">Report CMM del P/N</a>{% endif %}<a class="ts-hero-action" href="{% url 'tasks:fai_registro' %}">Registro FAI</a>{% endblock %}
 
-{% block tasks_shell_head %}{% if fai_cmm %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125c">{% endif %}{% endblock %}
+{% block tasks_shell_head %}{% if fai_cmm %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126u">{% endif %}{% endblock %}
 {% block tasks_shell_content %}
 <form method="post" class="fai-scheda" data-fai-form>
   {% csrf_token %}
