@@ -21,7 +21,8 @@
      data-puo-quote="{% if prod_puo_quote %}1{% endif %}">
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></span>
+      <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a><a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></template>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a> › <a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></span>
       <h1>Analisi quote</h1>
     </div>
     <div class="prod-filtri">
@@ -33,10 +34,9 @@
         <button class="prod-btn" type="submit" title="Legge i PDF nuovi o cambiati della cartella del P/N">Leggi i report</button>
       </form>
       {% endif %}
+      <a class="prod-btn" href="{% url 'produzione:guida' %}">? Guida</a>
     </div>
   </div>
-
-  {% include "produzione/_nav.html" %}
 
   {% if not attivo %}
   <p class="prod-avviso">La cartella dei report CMM non è impostata (PRODUZIONE_REPORT_CMM_ROOT).</p>

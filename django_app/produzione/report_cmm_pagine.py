@@ -9,7 +9,7 @@ from datetime import date
 from django.db.models import Q
 
 from .models import AliasQuotaCMM, ReportCMM
-from .report_cmm_indice import analisi_pn, id_quota, report_primo_articolo, usata
+from .report_cmm_indice import analisi_pn, id_quota, report_primo_articolo, unilaterale, usata
 
 MAX_CONFRONTO = 6
 SOGLIA_CAMBIO = 0.20  # «cambia»: differenza fra primo e ultimo oltre il 20% della tolleranza
@@ -42,9 +42,41 @@ def _posizione(u: float | None) -> float | None:
     return max(1.0, min(99.0, 50 + u * 35))
 
 
+def grafico(nominale: float, lsl: float, usl: float, x: float) -> dict | None:
+    """Geometria del grafico di deviazione del protocollo, in unità 0–100 della larghezza.
+
+    Bilaterali: limiti a 15 e 85, avviso all'``AL_LIMITE`` della metà tolleranza, barra dal centro della
+    tolleranza alla misura, nominale tratteggiato (``nom_x``, assente se cade fuori dal grafico).
+    Unilaterali (forma, posizione): lo zero (ideale) a 10, il limite a 80, barra da zero alla misura."""
+    banda = usl - lsl
+    if banda <= 0:
+        return None
+    if unilaterale(nominale, lsl, usl):
+        a, b = 10.0, 80.0
+        pos = lambda t: a + t / usl * (b - a)  # noqa: E731
+        zona, avviso = (a, b), (a, pos(usl * AL_LIMITE))
+        origine = a
+    else:
+        a, b = 15.0, 85.0
+        pos = lambda t: a + (t - lsl) / banda * (b - a)  # noqa: E731
+        c, mezza = (lsl + usl) / 2, banda / 2
+        zona, avviso = (a, b), (pos(c - mezza * AL_LIMITE), pos(c + mezza * AL_LIMITE))
+        origine = 50.0  # la barra parte dal centro della tolleranza, come «Usata»
+    xm = max(2.0, min(98.0, pos(x)))
+    return {
+        "zona_x": round(zona[0], 2), "zona_w": round(zona[1] - zona[0], 2),
+        "avviso_x": round(avviso[0], 2), "avviso_w": round(avviso[1] - avviso[0], 2),
+        "lim2": round(zona[1], 2), "nom": round(origine, 2), "x": round(xm, 2),
+        "nom_x": round(pos(nominale), 2) if 2 <= pos(nominale) <= 98 else None,
+        "barra_x": round(min(origine, xm), 2), "barra_w": round(abs(xm - origine), 2),
+        "fuori_scala": pos(x) < 2 or pos(x) > 98,
+    }
+
+
 def righe_report(report: ReportCMM) -> dict:
-    """Tutte le quote del report con tolleranza usata, posizione nella barra, differenza dal pezzo prima e Cpk
-    della quota (ultimi 30 pezzi del programma). Prima le fuori, poi quelle da verificare, poi l'ordine del report."""
+    """Tutte le quote del report con tolleranza usata, grafico di deviazione, stato (``fuori``, ``verifica``,
+    ``limite``, ``ok``), differenza dal pezzo prima, Cpk e serie degli ultimi 30 pezzi del programma.
+    Prima le fuori, poi quelle da verificare, poi l'ordine del report (``gruppi`` le ridà nell'ordine del report)."""
     prima, dopo = vicini(report)
     prec = {}
     if prima:
@@ -56,19 +88,63 @@ def righe_report(report: ReportCMM) -> dict:
         lsl, usl = m.nominale + m.tol_inf, m.nominale + m.tol_sup
         u = usata(m.misurato, m.nominale, lsl, usl)
         a = analisi.get(qid)
+        limite = u is not None and abs(u) > AL_LIMITE and not m.fuori
+        ecc = None
+        if m.fuori:
+            ecc = m.misurato - usl if m.misurato > usl else m.misurato - lsl
         righe.append({
             "m": m, "id": qid, "u": u, "u_pct": round(abs(u) * 100) if u is not None else None,
-            "pos": _posizione(u), "limite": u is not None and abs(u) > AL_LIMITE and not m.fuori,
+            "pos": _posizione(u), "limite": limite,
+            "stato": "fuori" if m.fuori else ("verifica" if m.da_verificare else ("limite" if limite else "ok")),
+            "dev": m.misurato - m.nominale, "ecc": ecc, "lsl": lsl, "usl": usl,
+            "g": grafico(m.nominale, lsl, usl, m.misurato),
             "delta": (m.misurato - prec[qid]) if qid in prec else None,
-            "cpk": a["cpk"] if a else None, "deriva": bool(a and a["deriva"]),
+            "prima": prec.get(qid),
+            "cpk": a["cpk"] if a else None, "cp": a.get("cp") if a else None, "deriva": bool(a and a["deriva"]),
+            "media": a.get("media") if a else None, "sd": a.get("sd") if a else None,
+            "n_fuori": a["n_fuori"] if a else None, "n": a["n"] if a else None,
+            "serie": (a.get("serie") or []) if a else [],
         })
     righe.sort(key=lambda r: (not r["m"].fuori, not r["m"].da_verificare, r["m"].indice))
     conta = {
         "tutte": len(righe), "fuori": sum(r["m"].fuori for r in righe), "limite": sum(r["limite"] for r in righe),
+        "verifica": sum(1 for r in righe if r["stato"] == "verifica"),
         "cambiate": sum(1 for r in righe if r["delta"] is not None and r["u"] is not None and _banda(r["m"])
                         and abs(r["delta"]) / _banda(r["m"]) > SOGLIA_CAMBIO),
     }
     return {"righe": righe, "prima": prima, "dopo": dopo, "conta": conta}
+
+
+_GRAVITA = {"fuori": 3, "verifica": 2, "limite": 1, "ok": 0}
+
+
+def gruppi(righe: list[dict]) -> list[dict]:
+    """Le righe raggruppate per sezione del report (come nel protocollo CMM), nell'ordine del report; per ogni
+    gruppo lo stato peggiore e i contatori."""
+    out: dict[str, dict] = {}
+    for r in sorted(righe, key=lambda r: r["m"].indice):
+        nome = (r["m"].sezione or "").strip() or "Senza gruppo"
+        g = out.setdefault(nome, {"nome": nome, "righe": [], "stato": "ok", "fuori": 0})
+        g["righe"].append(r)
+        g["fuori"] += r["stato"] == "fuori"
+        if _GRAVITA[r["stato"]] > _GRAVITA[g["stato"]]:
+            g["stato"] = r["stato"]
+    return list(out.values())
+
+
+def pannello(righe: list[dict], report: ReportCMM) -> list[dict]:
+    """I dati del pannello di dettaglio (a destra del protocollo), uno per riga, per ``json_script``."""
+    out = []
+    for r in righe:
+        m = r["m"]
+        out.append({
+            "i": m.indice, "nome": m.nome, "tipo": m.tipo, "stato": r["stato"], "nom": m.nominale, "sup": m.tol_sup,
+            "inf": m.tol_inf, "x": m.misurato, "dev": r["dev"], "ecc": r["ecc"], "u": r["u_pct"], "prima": r["prima"],
+            "cpk": r["cpk"], "cp": r["cp"], "deriva": r["deriva"], "media": r["media"], "sd": r["sd"],
+            "n_fuori": r["n_fuori"], "n": r["n"], "lsl": r["lsl"], "usl": r["usl"], "chiave": m.chiave,
+            "serie": r["serie"], "corrente": report.pk,
+        })
+    return out
 
 
 def _banda(m) -> float:

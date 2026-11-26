@@ -2,32 +2,33 @@
 {% load static %}
 
 {% block title %}{{ report.seriale|default:report.file }} · Report CMM{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126a">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126b">{% endblock %}
 
 {% block content %}
-<div class="prod">
+<div class="prod prod-largo">
+  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a><a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% endif %}</template>
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a> · Report CMM</span>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a> › <a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a>{% if report.op %} › {% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% else %}{{ report.op }}{% endif %}{% endif %} › Report CMM</span>
       <h1>{% if report.seriale %}<a class="prod-titolo-link" href="{% url 'produzione:pezzo' %}?pn={{ report.pn|urlencode }}&amp;sn={{ report.seriale|urlencode }}" title="Storia del pezzo">{{ report.seriale }}</a>{% else %}{{ report.file }}{% endif %}</h1>
     </div>
     <div class="prod-filtri">
-      {% if prima %}<a class="prod-btn" href="{% url 'produzione:report_cmm' prima.id %}" title="{{ prima.seriale|default:prima.file }} · {{ prima.data|date:'d/m/Y' }}">‹ Pezzo prima</a>{% endif %}
-      {% if dopo %}<a class="prod-btn" href="{% url 'produzione:report_cmm' dopo.id %}" title="{{ dopo.seriale|default:dopo.file }} · {{ dopo.data|date:'d/m/Y' }}">Pezzo dopo ›</a>{% endif %}
       {% if proposte.vicini %}<a class="prod-btn" href="{% url 'produzione:report_confronta' %}?{% for i in proposte.vicini %}r={{ i }}&amp;{% endfor %}">Confronta</a>{% endif %}
       {% if prod_puo_quote and not report.escluso %}<button type="button" class="prod-btn" data-apri-dialogo="escludi">Escludi dall'analisi</button>{% endif %}
-      <a class="prod-btn" href="{% url 'produzione:report_cmm_pdf' report.id %}" target="_blank" rel="noopener">Apri il PDF</a>
+      <a class="prod-btn" href="{% url 'produzione:report_cmm_pdf' report.id %}" target="_blank" rel="noopener">PDF originale</a>
+      <a class="prod-btn" href="{% url 'produzione:guida' %}">? Guida</a>
       {% if url_anomalia %}<a class="prod-btn prod-btn-primary" href="{{ url_anomalia }}">Apri segnalazione anomalia</a>{% endif %}
     </div>
   </div>
 
-  {% include "produzione/_nav.html" %}
-
-  <div class="prod-dati">
-    <div class="prod-dato"><span>OP</span>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% else %}<b>{{ report.op|default:"—" }}</b>{% endif %}</div>
-    <div class="prod-dato"><span>Programma</span><b title="{{ report.programma }}">{{ report.programma|default:"—" }}</b></div>
-    <div class="prod-dato"><span>Data</span><b>{{ report.data|date:"d/m/Y"|default:"—" }}</b></div>
-    <div class="prod-dato{% if report.fuori %} is-allerta{% endif %}"><span>Fuori tolleranza</span><b>{{ report.fuori }} su {{ report.righe }}</b></div>
+  <div class="prot-esito">
+    <div class="prot-timbro is-{{ esito.0 }}"><small>Esito</small><b>{{ esito.1 }}</b></div>
+    <div class="prot-campo"><small>P/N</small><a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a></div>
+    <div class="prot-campo"><small>S/N</small><b>{{ report.seriale|default:"—" }}</b></div>
+    <div class="prot-campo"><small>OP</small>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% else %}<b>{{ report.op|default:"—" }}</b>{% endif %}</div>
+    <div class="prot-campo prot-campo-largo"><small>Programma</small><b title="{{ report.programma }}">{{ report.programma|default:"—" }}</b></div>
+    <div class="prot-campo"><small>Data</small><b>{{ report.data|date:"d/m/Y"|default:"—" }}</b></div>
+    <div class="prot-campo"><small>Quote</small><b>{% if conta.fuori %}<span class="prot-rosso">{{ conta.fuori }} fuori</span> · {% endif %}{% if conta.limite %}<span class="prot-giallo">{{ conta.limite }} al limite</span> · {% endif %}{{ report.righe }}</b></div>
   </div>
   {% if report.escluso %}
   <div class="prod-avviso prod-escluso">
@@ -38,41 +39,54 @@
   {% if report.errore %}<p class="prod-avviso">{{ report.errore }}</p>{% endif %}
   {% if report.op and not op %}<p class="prod-nota">L'OP {{ report.op }} non è nell'elenco degli OP: la segnalazione si apre da Gestione anomalie.</p>{% endif %}
 
-  <section class="prod-card">
-    <div class="prod-card-head">
-      <h2>Quote del report</h2>
-      <span class="prod-nota">Pezzo prima: {% if prima %}<a href="{% url 'produzione:report_cmm' prima.id %}">{{ prima.seriale|default:prima.file }}</a>{% else %}—{% endif %} · dopo: {% if dopo %}<a href="{% url 'produzione:report_cmm' dopo.id %}">{{ dopo.seriale|default:dopo.file }}</a>{% else %}—{% endif %}</span>
-    </div>
-    <div class="prod-chips">
-      <a class="prod-chip{% if not filtro %} is-on{% endif %}" href="?">Tutte <b>{{ conta.tutte }}</b></a>
-      <a class="prod-chip{% if filtro == 'fuori' %} is-on{% endif %}" href="?f=fuori">Fuori <b>{{ conta.fuori }}</b></a>
-      <a class="prod-chip{% if filtro == 'limite' %} is-on{% endif %}" href="?f=limite" title="Oltre l'80% della tolleranza">Al limite <b>{{ conta.limite }}</b></a>
-      {% if prima %}<a class="prod-chip{% if filtro == 'cambiate' %} is-on{% endif %}" href="?f=cambiate" title="Differenza dal pezzo prima oltre il 20% della tolleranza">Diverse dal pezzo prima <b>{{ conta.cambiate }}</b></a>{% endif %}
+  <section class="prot" data-protocollo data-andamento="{% url 'produzione:pn_quote' %}?pn={{ report.pn|urlencode }}&amp;prog={{ report.programma_base|urlencode }}&amp;r={{ report.id }}" data-anomalia="{{ url_anomalia }}">
+    <div class="prot-barra">
+      <span class="prot-titolo">Protocollo</span>
+      <a class="prot-filtro{% if not filtro %} is-on{% endif %}" href="?">Tutte <b>{{ conta.tutte }}</b></a>
+      <a class="prot-filtro{% if filtro == 'fuori' %} is-on{% endif %}" href="?f=fuori">Fuori <b>{{ conta.fuori }}</b></a>
+      <a class="prot-filtro{% if filtro == 'limite' %} is-on{% endif %}" href="?f=limite" title="Oltre l'80% della tolleranza">Al limite <b>{{ conta.limite }}</b></a>
+      {% if prima %}<a class="prot-filtro{% if filtro == 'cambiate' %} is-on{% endif %}" href="?f=cambiate" title="Differenza dal pezzo prima oltre il 20% della tolleranza">Cambiate dal pezzo prima <b>{{ conta.cambiate }}</b></a>{% endif %}
+      <span class="prot-spazio"></span>
+      {% if prima %}<a class="prot-filtro" href="{% url 'produzione:report_cmm' prima.id %}{% if filtro %}?f={{ filtro }}{% endif %}" title="Pezzo prima · {{ prima.data|date:'d/m/Y' }}">‹ {{ prima.seriale|default:prima.file|truncatechars:18 }}</a>{% endif %}
+      {% if dopo %}<a class="prot-filtro" href="{% url 'produzione:report_cmm' dopo.id %}{% if filtro %}?f={{ filtro }}{% endif %}" title="Pezzo dopo · {{ dopo.data|date:'d/m/Y' }}">{{ dopo.seriale|default:dopo.file|truncatechars:18 }} ›</a>{% endif %}
+      <button type="button" class="prot-filtro" data-prot-densita aria-pressed="false">Compatta</button>
     </div>
     {% if righe %}
-    <div class="prod-scorri">
-      <table class="prod-tab">
-        <thead><tr><th>Quota</th><th>Gruppo</th><th class="prod-n">Nominale</th><th class="prod-n">Tol +</th><th class="prod-n">Tol −</th><th class="prod-n">Rilevato</th><th>Nella tolleranza</th><th class="prod-n">Usata</th><th class="prod-n">Δ pezzo prima</th><th class="prod-n">Cpk</th><th></th></tr></thead>
-        <tbody>
-          {% for r in righe %}{% with m=r.m %}
-          <tr>
-            <td><b>{{ m.nome }}</b>{% if m.tipo %}<span class="prod-sub"> {{ m.tipo }}</span>{% endif %}</td>
-            <td>{{ m.sezione|default:"—"|truncatechars:40 }}</td>
-            <td class="prod-num">{{ m.nominale|floatformat:4 }}</td>
-            <td class="prod-num">{{ m.tol_sup|floatformat:4 }}</td>
-            <td class="prod-num">{{ m.tol_inf|floatformat:4 }}</td>
-            <td class="prod-num{% if m.fuori %} is-fuori{% endif %}"><b>{{ m.misurato|floatformat:4 }}</b>{% if m.da_verificare %} <span class="prod-stato is-warn" title="Il calcolo e l'eccedenza del report non coincidono">da verificare</span>{% endif %}</td>
-            <td>{% if r.pos is not None %}<span class="prod-tolbar" title="Limiti {{ m.tol_inf|floatformat:4 }} / {{ m.tol_sup|floatformat:4 }}"><span class="prod-tolbar-zona"></span><span class="prod-tolbar-centro"></span><span class="prod-tolbar-x{% if m.fuori %} is-fuori{% endif %}" style="left:{{ r.pos|stringformat:'.0f' }}%"></span></span>{% endif %}</td>
-            <td class="prod-n">{% if r.u_pct is not None %}<span class="prod-stato{% if m.fuori %} is-allerta{% elif r.limite %} is-warn{% endif %}">{{ r.u_pct }}%</span>{% else %}—{% endif %}</td>
-            <td class="prod-num">{% if r.delta is not None %}{% if r.delta >= 0 %}+{% endif %}{{ r.delta|floatformat:4 }}{% else %}—{% endif %}</td>
-            <td class="prod-num{% if r.cpk is not None and r.cpk < 1 %} is-fuori{% endif %}">{% if r.cpk is not None %}{{ r.cpk|floatformat:2 }}{% else %}—{% endif %}{% if r.deriva %} <span class="prod-stato is-warn">deriva</span>{% endif %}</td>
-            <td><a href="{% url 'produzione:pn_quote' %}?pn={{ report.pn|urlencode }}&amp;prog={{ report.programma_base|urlencode }}&amp;q={{ m.chiave|urlencode }}&amp;nom={{ m.nominale|stringformat:".4f" }}&amp;r={{ report.id }}">Andamento</a></td>
-          </tr>
-          {% endwith %}{% endfor %}
-        </tbody>
-      </table>
+    <div class="prot-corpo">
+      <nav class="prot-albero" aria-label="Quote per gruppo">
+        <h3>Quote</h3>
+        {% for g in gruppi %}
+        <div class="prot-nodo"><span class="prot-ic is-{{ g.stato }}" aria-hidden="true"></span><b>{{ g.nome|title|truncatechars:30 }}</b><span class="prot-n">{{ g.righe|length }}</span></div>
+        {% for r in g.righe %}<a class="prot-foglia" href="#q-{{ r.m.indice }}" data-i="{{ r.m.indice }}"><span class="prot-ic is-{{ r.stato }}" aria-hidden="true"></span>{{ r.m.nome|truncatechars:26 }}</a>{% endfor %}
+        {% endfor %}
+      </nav>
+      <div class="prot-tabella">
+        <table class="prot-tab" data-fm-table-skip="1">
+          <thead><tr><th class="l">Quota</th><th>Nominale</th><th>Toll. sup</th><th>Toll. inf</th><th>Misurato</th><th>Deviazione</th><th class="l">Grafico</th><th>Fuori di</th><th>Usata</th></tr></thead>
+          {% for g in gruppi %}
+          <tbody>
+            <tr class="prot-gruppo"><th colspan="9" scope="rowgroup">{{ g.nome }} <span>· {{ g.righe|length }}{% if g.fuori %} · {{ g.fuori }} fuori{% endif %}</span></th></tr>
+            {% for r in g.righe %}{% with m=r.m %}
+            <tr class="prot-riga is-{{ r.stato }}" id="q-{{ m.indice }}" data-i="{{ m.indice }}" tabindex="0">
+              <td class="l"><span class="prot-ic is-{{ r.stato }}" title="{% if r.stato == 'fuori' %}Fuori tolleranza{% elif r.stato == 'verifica' %}Da verificare: il calcolo e l'eccedenza del report non coincidono{% elif r.stato == 'limite' %}Al limite (oltre l'80%){% else %}In tolleranza{% endif %}"></span> <b>{{ m.nome }}</b>{% if r.deriva %} <span class="prot-deriva" title="In deriva verso il limite">deriva</span>{% endif %}{% if m.tipo %}<span class="prot-tipo">{{ m.tipo }}</span>{% endif %}</td>
+              <td>{{ m.nominale|floatformat:4 }}</td>
+              <td>{% if m.tol_sup > 0 %}+{% endif %}{{ m.tol_sup|floatformat:4 }}</td>
+              <td>{% if m.tol_inf > 0 %}+{% endif %}{{ m.tol_inf|floatformat:4 }}</td>
+              <td class="prot-mis"><b>{{ m.misurato|floatformat:4 }}</b></td>
+              <td class="prot-dev">{% if r.dev > 0 %}+{% endif %}{{ r.dev|floatformat:4 }}</td>
+              <td class="l">{% if r.g %}<svg class="prot-graf" viewBox="0 0 100 16" preserveAspectRatio="none" role="img" aria-label="Misura {{ m.misurato|floatformat:4 }} fra {{ r.lsl|floatformat:4 }} e {{ r.usl|floatformat:4 }}"><rect class="z" x="{{ r.g.zona_x|stringformat:'.2f' }}" y="4" width="{{ r.g.zona_w|stringformat:'.2f' }}" height="8"/><rect class="a" x="{{ r.g.avviso_x|stringformat:'.2f' }}" y="4" width="{{ r.g.avviso_w|stringformat:'.2f' }}" height="8"/><line class="lim" x1="{{ r.g.zona_x|stringformat:'.2f' }}" x2="{{ r.g.zona_x|stringformat:'.2f' }}" y1="1" y2="15"/><line class="lim" x1="{{ r.g.lim2|stringformat:'.2f' }}" x2="{{ r.g.lim2|stringformat:'.2f' }}" y1="1" y2="15"/>{% if r.g.nom_x is not None %}<line class="nom" x1="{{ r.g.nom_x|stringformat:'.2f' }}" x2="{{ r.g.nom_x|stringformat:'.2f' }}" y1="0" y2="16"/>{% endif %}<rect class="b" x="{{ r.g.barra_x|stringformat:'.2f' }}" y="6.5" width="{{ r.g.barra_w|stringformat:'.2f' }}" height="3"/><rect class="m" x="{{ r.g.x|stringformat:'.2f' }}" y="2" width="2" height="12" transform="translate(-1 0)"/></svg>{% endif %}</td>
+              <td class="prot-ecc">{% if r.ecc is not None %}{% if r.ecc > 0 %}+{% endif %}{{ r.ecc|floatformat:4 }}{% endif %}</td>
+              <td class="prot-usata">{% if r.u_pct is not None %}{{ r.u_pct }}%{% else %}—{% endif %}</td>
+            </tr>
+            {% endwith %}{% endfor %}
+          </tbody>
+          {% endfor %}
+        </table>
+      </div>
+      <aside class="prot-det" data-prot-det aria-live="polite"><p class="prod-nota">Scegli una quota per vederne il dettaglio.</p></aside>
     </div>
-    <p class="prod-nota-sotto">Barra: la zona verde è la tolleranza, la linea al centro il valore ideale. «Usata»: quanto della metà tolleranza è consumato (100% = al limite). Cpk sugli ultimi 30 pezzi dello stesso programma.</p>
+    <div class="prot-legenda"><span><i class="z"></i>tolleranza</span><span><i class="a"></i>fino all'80%</span><span><i class="ok"></i>dentro</span><span><i class="li"></i>al limite (oltre l'80%)</span><span><i class="fu"></i>fuori</span><span class="prot-spazio"></span><span>Clic su una quota: il dettaglio a destra · ↑ ↓ per scorrere</span></div>
+    {{ pannello|json_script:"prot-dati" }}
     {% else %}
     <p class="prod-vuoto">{% if filtro %}Nessuna quota con questo filtro.{% elif report.da_rileggere %}Report non ancora riletto con il lettore aggiornato: il giro dei report lo rilegge (oppure «Leggi i report» in Quote CMM).{% else %}Nessuna quota letta da questo report.{% endif %}</p>
     {% endif %}
@@ -100,4 +114,5 @@
 <script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
 {% endif %}
 <script src="{% static 'produzione/js/confronta.js' %}?v=20261126a" defer></script>
+<script src="{% static 'produzione/js/protocollo.js' %}?v=20261126a" defer></script>
 {% endblock %}

@@ -435,8 +435,9 @@ def pn_leggi_report(request):
 @login_required
 @require_GET
 def report_cmm(request, pk: int):
-    """Un report CMM: tutte le quote (le fuori in cima) con posizione nella tolleranza, differenza dal pezzo
-    prima e Cpk della quota; pezzo prima / dopo, confronti pronti e link all'anomalia."""
+    """Un report CMM come protocollo: testata con l'esito, quote per gruppo del report con grafico di deviazione,
+    pannello di dettaglio della quota scelta (andamento sugli ultimi 30 pezzi, Cpk, deriva); pezzo prima / dopo,
+    confronti pronti e link all'anomalia."""
     report = get_object_or_404(ReportCMM, pk=pk)
     dati = pagine_cmm.righe_report(report)
     filtro = request.GET.get("f", "")
@@ -454,8 +455,20 @@ def report_cmm(request, pk: int):
     url_anomalia = ""
     if op:
         url_anomalia = f"{reverse('apertura_segnalazione')}?{urlencode({'op_id': op['id'], 'report_cmm': report.pk})}"
+    conta = dati["conta"]
+    if not report.righe:
+        esito = ("vuoto", "—")
+    elif report.escluso:
+        esito = ("escluso", "ESCLUSO")
+    elif conta["fuori"]:
+        esito = ("nok", "NOK")
+    elif conta["verifica"]:
+        esito = ("verifica", "DA VERIFICARE")
+    else:
+        esito = ("ok", "OK")
     return render(request, "produzione/report_cmm.html", _ctx(
-        request, "pn", report=report, righe=righe, conta=dati["conta"], filtro=filtro, prima=dati["prima"],
+        request, "pn", report=report, righe=righe, gruppi=pagine_cmm.gruppi(righe), esito=esito,
+        pannello=pagine_cmm.pannello(righe, report), conta=conta, filtro=filtro, prima=dati["prima"],
         dopo=dati["dopo"], proposte=pagine_cmm.proposte(report), op=op, motivi=MOTIVI_ESCLUSIONE,
         url_anomalia=url_anomalia,
         altri=[r for r in pagine_cmm.report_del_pezzo(report.pn, report.seriale) if r.pk != report.pk][:20] if report.seriale else [],

@@ -38,14 +38,43 @@ class ReportPaginaTests(QuoteBase):
         url = reverse("produzione:report_cmm", args=[self.r3.pk])
         r = self.client.get(url)
         self.assertContains(r, "Ø62 k6")                         # anche quelle in tolleranza
-        self.assertContains(r, "‹ Pezzo prima")
-        self.assertNotContains(r, "Pezzo dopo ›")
-        self.assertContains(r, "prod-tolbar-x is-fuori")
+        self.assertContains(r, "‹ SN2")                          # pezzo prima nella barra del protocollo
+        self.assertNotContains(r, "title=\"Pezzo dopo")
+        self.assertContains(r, 'class="prot-riga is-fuori"')
+        self.assertContains(r, 'class="prot-timbro is-nok"')
+        self.assertContains(r, 'id="prot-dati"')                  # dati del pannello di dettaglio
+        self.assertNotContains(r, 'class="prod-nav"')             # niente schede del modulo nel dettaglio
         r = self.client.get(url + "?f=fuori")
         self.assertContains(r, "Ø40 H7")
         self.assertNotContains(r, "<b>Ø62 k6</b>")
         r = self.client.get(url + "?f=limite")
         self.assertContains(r, "<b>Ø62 k6</b>")
+
+    def test_protocollo_grafico_gruppi_pannello(self):
+        # bilaterale: limiti a 15 e 85, barra dal centro (50) alla misura
+        g = pagine.grafico(40.0, 40.0, 40.025, 40.0125)
+        self.assertEqual((g["zona_x"], g["lim2"], g["x"], g["barra_w"]), (15.0, 85.0, 50.0, 0.0))
+        self.assertEqual(g["nom_x"], 15.0)                        # nominale sul limite inferiore (H7)
+        self.assertEqual((g["avviso_x"], g["avviso_w"]), (22.0, 56.0))   # avviso all'80%
+        fuori = pagine.grafico(40.0, 40.0, 40.025, 39.990)
+        self.assertEqual(fuori["x"], 2.0)                         # fuori scala: tenuto nel grafico
+        self.assertTrue(fuori["fuori_scala"])
+        # unilaterale (forma): zero a 10, limite a 80
+        u = pagine.grafico(0.0, 0.0, 0.02, 0.01)
+        self.assertEqual((u["zona_x"], u["lim2"], u["x"], u["barra_x"]), (10.0, 80.0, 45.0, 10.0))
+        self.assertIsNone(pagine.grafico(40.0, 40.0, 40.0, 40.0))
+        dati = pagine.righe_report(self.r3)
+        stati = {r["m"].nome: r["stato"] for r in dati["righe"]}
+        self.assertEqual(stati, {"Ø40 H7": "fuori", "Ø62 k6": "limite"})
+        d40 = next(r for r in dati["righe"] if r["m"].nome == "Ø40 H7")
+        self.assertAlmostEqual(d40["ecc"], 0.005)                 # 40,030 oltre 40,025
+        gr = pagine.gruppi(dati["righe"])
+        self.assertEqual([r["m"].indice for g in gr for r in g["righe"]], sorted(r["m"].indice for r in dati["righe"]))
+        self.assertEqual(gr[0]["stato"], "fuori")
+        pan = pagine.pannello(dati["righe"], self.r3)
+        p40 = next(p for p in pan if p["nome"] == "Ø40 H7")
+        self.assertEqual([round(s[0], 3) for s in p40["serie"]], [40.010, 40.020, 40.030])
+        self.assertEqual(p40["serie"][-1][2], self.r3.pk)         # il pezzo del report, cerchiato nel grafico
 
     def test_confronto(self):
         dati = pagine.confronta([self.r1, self.r2, self.r3])

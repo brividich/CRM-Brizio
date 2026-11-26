@@ -6,20 +6,20 @@
 
 {% block content %}
 <div class="prod">
+  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a><a href="{{ url_pn }}">{{ pn }}</a>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ op.op }}</a>{% endif %}</template>
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{{ url_pn }}">{{ pn }}</a>{% for o in ops %} · {% if op and op.op == o %}<a href="{% url 'produzione:scheda' op.id %}">{{ o }}</a>{% else %}{{ o }}{% endif %}{% endfor %} · Pezzo</span>
-      <h1>{{ sn }} <span class="prod-stato{% if stato == 'fuori' %} is-allerta{% else %} is-attivo{% endif %}">Ultimo report: {% if stato == "fuori" %}{{ ultimo.fuori }} fuori{% else %}in tolleranza{% endif %}</span></h1>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a> › <a href="{{ url_pn }}">{{ pn }}</a>{% for o in ops %} › {% if op and op.op == o %}<a href="{% url 'produzione:scheda' op.id %}">{{ o }}</a>{% else %}{{ o }}{% endif %}{% endfor %} › Pezzo</span>
+      <h1>{{ sn }} <span class="prod-stato prod-badge{% if stato == 'fuori' %} is-allerta{% else %} is-attivo{% endif %}">Ultimo report: {% if stato == "fuori" %}{{ ultimo.fuori }} fuori{% else %}in tolleranza{% endif %}</span></h1>
       <p class="prod-meta"><span><b>{{ reports|length }}</b> report CMM</span>{% if esclusi %}<span>{{ esclusi }} esclusi dall'analisi</span>{% endif %}<span><b>{{ n_fuori }}</b> quote fuori almeno una volta</span>{% if anomalie %}<span><b>{{ anomalie|length }}</b> anomali{{ anomalie|length|pluralize:"a,e" }}{% if anomalie_aperte %} ({{ anomalie_aperte }} apert{{ anomalie_aperte|pluralize:"a,e" }}){% endif %}</span>{% endif %}{% if primo_articolo %}<span>Primo articolo del FAI</span>{% endif %}</p>
     </div>
     <div class="prod-filtri">
       {% if colonne|length > 1 %}<a class="prod-btn" href="{% url 'produzione:report_confronta' %}?{{ ids_confronto }}">Confronta le fasi</a>{% endif %}
       <a class="prod-btn" href="?{{ query_base }}&amp;formato=pdf">Scheda pezzo (PDF)</a>
+      <a class="prod-btn" href="{% url 'produzione:guida' %}">? Guida</a>
       {% if url_anomalia %}<a class="prod-btn prod-btn-primary" href="{{ url_anomalia }}">Apri segnalazione anomalia</a>{% endif %}
     </div>
   </div>
-
-  {% include "produzione/_nav.html" %}
 
   <div class="prod-griglia-2 prod-griglia-op">
     <section class="prod-card">

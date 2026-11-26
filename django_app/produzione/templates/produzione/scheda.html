@@ -6,19 +6,19 @@
 
 {% block content %}
 <div class="prod">
+  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:elenco' %}">Ordini di produzione</a>{% if op.pn %}<a href="{% url 'produzione:pn' op.pn %}">{{ op.pn }}</a>{% endif %}</template>
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:elenco' %}">Ordini di produzione</a>{% if op.capocommessa %} · Capocommessa {{ op.capocommessa }}{% endif %}{% if op.car %} · CAR {{ op.car }}{% endif %}</span>
-      <h1>{{ op.op }}{% if op.stato %} <span class="prod-stato">{{ op.stato }}</span>{% endif %}</h1>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:elenco' %}">Ordini di produzione</a>{% if op.pn %} › <a href="{% url 'produzione:pn' op.pn %}">{{ op.pn }}</a>{% endif %} › OP{% if op.capocommessa %} · Capocommessa {{ op.capocommessa }}{% endif %}{% if op.car %} · CAR {{ op.car }}{% endif %}</span>
+      <h1>{{ op.op }}{% if op.stato %} <span class="prod-stato prod-badge">{{ op.stato }}</span>{% endif %}</h1>
     </div>
     <div class="prod-filtri">
       {% if url_quote %}<a class="prod-btn" href="{{ url_quote }}">Analisi quote</a>{% endif %}
       {% if prod_puo_documenti %}<a class="prod-btn" href="?sez=documenti&amp;aggiungi=1">Aggiungi documento</a>{% endif %}
+      <a class="prod-btn" href="{% url 'produzione:guida' %}">? Guida</a>
       <a class="prod-btn prod-btn-primary" href="{{ url_anomalie }}">Anomalie</a>
     </div>
   </div>
-
-  {% include "produzione/_nav.html" %}
 
   <div class="prod-dati prod-dati-6">
     <div class="prod-dato"><span>P/N</span>{% if url_pn %}<a href="{{ url_pn }}">{{ op.pn }}</a>{% else %}<b>{{ op.pn|default:"—" }}</b>{% endif %}</div>

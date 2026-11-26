@@ -676,13 +676,13 @@ def ultima_per_seriale(report: list) -> list[int]:
 
 def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
     """Ogni quota di ogni programma del P/N sugli ultimi ``ultimi`` report validi (esclusi fuori, rimisure fuori):
-    fuori nell'ultimo report, volte fuori, Cpk, tolleranza usata dall'ultima, deriva. In cache finché non arrivano
-    report nuovi."""
+    fuori nell'ultimo report, volte fuori, media, σ, Cp, Cpk, tolleranza usata dall'ultima, deriva e la serie dei
+    valori (per il grafico del protocollo). In cache finché non arrivano report nuovi."""
     from django.core.cache import cache
     from django.db.models import Max
 
     firma = ReportCMM.objects.filter(pn=pn).aggregate(m=Max("letto_il"), e=Max("escluso_il"))
-    chiave = f"prod_cmm_analisi:{pn}:{ultimi}:{firma['m']}:{firma['e']}:{AliasQuotaCMM.objects.filter(pn=pn).count()}"
+    chiave = f"prod_cmm_analisi2:{pn}:{ultimi}:{firma['m']}:{firma['e']}:{AliasQuotaCMM.objects.filter(pn=pn).count()}"
     trovato = cache.get(chiave)
     if trovato is not None:
         return trovato
@@ -704,6 +704,9 @@ def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
                 "prog": p["programma_base"], "quota": q, "fuori_ultimo": bool(vals[-1][0] == ultimo and vals[-1][4]),
                 "n_fuori": sum(v[4] for v in vals), "n": len(vals), "cpk": s.get("cpk"), "u": s.get("u"),
                 "u_abs": abs(s["u"]) if s.get("u") is not None else None, "deriva": deriva(us),
+                "media": s.get("media"), "sd": s.get("sd"), "cp": s.get("cp"),
+                # per il grafico del protocollo: [rilevato, fuori 0/1, id report] dal più vecchio
+                "serie": [[round(v[1], 6), int(v[4]), d["report"][v[0]][0]] for v in vals],
             })
     cache.set(chiave, out, 6 * 3600)
     return out
