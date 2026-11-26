@@ -70,6 +70,7 @@ class Accesso:
     consentito: bool
     anteprima: bool = False  # editor su corso non pubblicato o non assegnato: nessuna registrazione
     motivo: str = ""
+    consultazione: bool = False  # già completato, non più assegnato: solo da rivedere, nulla si registra
 
 
 def accesso_discente(corso, legacy_id: int | None, *, is_editor: bool) -> Accesso:
@@ -82,9 +83,18 @@ def accesso_discente(corso, legacy_id: int | None, *, is_editor: bool) -> Access
         return Accesso(True)
     if is_editor:
         return Accesso(True, anteprima=True, motivo="Anteprima editor: non assegnato.")
+    if legacy_id and ha_completato(corso, legacy_id):
+        # «Rivedi» dai corsi completati: sola consultazione, senza iscrizione né quiz.
+        return Accesso(True, anteprima=True, consultazione=True, motivo="Corso già completato: sola consultazione.")
     if not legacy_id:
         return Accesso(False, motivo="Il tuo profilo non è collegato all'anagrafica: contatta HR.")
     return Accesso(False, motivo="Questo corso non ti è stato assegnato.")
+
+
+def ha_completato(corso, legacy_id: int) -> bool:
+    """La persona ha almeno un completamento idoneo del corso (anche scaduto): può rivederlo."""
+    from ..models_formazione import TrainingEmployeeRecord
+    return TrainingEmployeeRecord.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id, idoneo=True).exists()
 
 
 def assegnato(corso, legacy_id: int) -> bool:
@@ -197,12 +207,22 @@ def ciclo_per_nuova_assegnazione(corso, legacy_id: int) -> int:
     a = TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id, ciclo=ciclo).first()
     if a is not None and a.stato == "ESONERATO":
         return ciclo
-    completato = (a is not None and a.stato == "COMPLETATO") or TrainingElearningEnrollment.objects.filter(
-        corso=corso, legacy_anagrafica_id=legacy_id, ciclo=ciclo, stato="COMPLETATO").exists()
-    if not completato and a is not None:
-        completato = TrainingEmployeeRecord.objects.filter(
-            corso=corso, legacy_anagrafica_id=legacy_id, idoneo=True,
-            data_completamento__gte=a.data_assegnazione).exists()
+    e = TrainingElearningEnrollment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id, ciclo=ciclo).first()
+    completato = (a is not None and a.stato == "COMPLETATO") or (e is not None and e.stato == "COMPLETATO")
+    if not completato:
+        # Completamento a libretto nato nel ciclo: dopo l'assegnazione o l'iscrizione del ciclo;
+        # senza né l'una né l'altra, qualunque completamento idoneo chiude il ciclo.
+        if a is not None:
+            inizio = a.data_assegnazione
+        elif e is not None and e.data_iscrizione:
+            from .formazione_completamento import _data_di
+            inizio = _data_di(e.data_iscrizione)
+        else:
+            inizio = None
+        qs = TrainingEmployeeRecord.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id, idoneo=True)
+        if inizio is not None:
+            qs = qs.filter(data_completamento__gte=inizio)
+        completato = qs.exists()
     return ciclo + 1 if completato else ciclo
 
 

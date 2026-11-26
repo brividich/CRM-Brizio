@@ -89,7 +89,43 @@ def iter_corsi_da_completare():
     iscrizioni non completate. Una voce per coppia corso/dipendente. Ritorna oggetti
     con ``corso``, ``corso_id``, ``legacy_anagrafica_id``, ``stato``,
     ``ultima_slide_ordine``, ``n_slide_totali``.
+
+    Esclusi i cessati e chi ha già un completamento valido (regola unica, da qualunque strada:
+    aula, link aperto, import) nato dopo l'assegnazione / iscrizione: quel ciclo è chiuso.
     """
+    voci = _voci_da_completare()
+    if not voci:
+        return []
+    from django.db.models import Q
+    from django.utils import timezone
+
+    from ..models_formazione import TrainingEmployeeRecord
+    from .formazione_completamento import _data_di
+    from .training_eligibility import _cessati_ids
+
+    oggi = timezone.localdate()
+    cessati = _cessati_ids()
+    voci = [v for v in voci if v.legacy_anagrafica_id not in cessati]
+    ultimo_valido: dict[tuple[int, int], object] = {}
+    for cid, lid, dc in (TrainingEmployeeRecord.objects
+                         .filter(corso_id__in={v.corso_id for v in voci},
+                                 legacy_anagrafica_id__in={v.legacy_anagrafica_id for v in voci},
+                                 idoneo=True, data_completamento__lte=oggi)
+                         .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=oggi))
+                         .values_list("corso_id", "legacy_anagrafica_id", "data_completamento")):
+        if (cid, lid) not in ultimo_valido or dc > ultimo_valido[(cid, lid)]:
+            ultimo_valido[(cid, lid)] = dc
+    out = []
+    for v in voci:
+        dc = ultimo_valido.get((v.corso_id, v.legacy_anagrafica_id))
+        inizio = _data_di(getattr(v, "inizio", None))
+        if dc is not None and (inizio is None or dc >= inizio):
+            continue
+        out.append(v)
+    return out
+
+
+def _voci_da_completare():
     from types import SimpleNamespace
     from ..models_formazione import TrainingAssignment, TrainingElearningEnrollment
 
@@ -103,6 +139,7 @@ def iter_corsi_da_completare():
     for e in (TrainingElearningEnrollment.objects
               .filter(stato__in=["ISCRITTO", "IN_CORSO", "NON_SUPERATO"], **pubblicati)
               .select_related("corso")):
+        e.inizio = e.data_iscrizione
         voci[(e.corso_id, e.legacy_anagrafica_id, e.ciclo)] = e
     for a in (TrainingAssignment.objects
               .filter(stato__in=["ASSEGNATO", "IN_CORSO", "SCADUTO"], **pubblicati)
@@ -112,6 +149,17 @@ def iter_corsi_da_completare():
             continue
         voci[chiave] = SimpleNamespace(
             corso=a.corso, corso_id=a.corso_id, legacy_anagrafica_id=a.legacy_anagrafica_id,
-            stato="ISCRITTO", ultima_slide_ordine=0, n_slide_totali=0,
+            stato="ISCRITTO", ultima_slide_ordine=0, n_slide_totali=0, inizio=a.data_assegnazione,
         )
     return list(voci.values())
+
+
+def quiz_da_abbinare_per_corso() -> list[tuple[str, int]]:
+    """[(titolo del corso, n)] dei quiz superati dal link aperto ancora senza dipendente abbinato:
+    finché l'HR non abbina, il corso non risulta fatto da nessuna parte."""
+    from django.db.models import Count
+
+    from ..models_elearning import TrainingElearningRispostaAperta as R
+    return list(R.objects.filter(superato=True, stato=R.DA_ABBINARE)
+                .values("corso__titolo").annotate(n=Count("pk")).order_by("corso__titolo")
+                .values_list("corso__titolo", "n"))

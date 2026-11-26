@@ -9,6 +9,42 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: remediation dell'intero modulo (analisi del 26/11 sera, 18 interventi)
+
+**Sicurezza**
+- Libretto formativo (pagina e PDF), stampa della scheda, monte ore CCNL e Plan per persona rispettano l'ambito del ruolo (`_nega_scheda`). Dashboard, scadenzario, copertura formazione, export e libretto sanitario generale filtrati sull'ambito (`_helpers._ambito_visibili`).
+
+**Completamenti e rinnovi**
+- Un completamento chiude assegnazioni, iscrizioni e-learning e lezioni online solo se valido (idoneo, non annullato, non scaduto, non futuro); se scade entro il preavviso non chiude il rinnovo aperto dopo (`formazione_completamento.record_valido`, `chiudi_aperti`, `completamento_riusabile`). Un completamento con data futura non vale più «Completato».
+- Rinnovo automatico e «Riassegna alla nuova versione» contano i cicli da qualunque strada (`ciclo_per_nuova_assegnazione`); finestra di rinnovo predefinita 90 giorni.
+- Niente doppio completamento dal portale; «Rivedi» apre il corso in consultazione; «I miei corsi online» con la regola unica. «Assegna» salta chi è già in regola («N già in regola, non assegnati»).
+- Annullare un completamento riapre l'edizione completata, elimina le efficacie non compilate, riapre l'assegnazione dell'ultimo ciclo e l'iscrizione e-learning collegata.
+- Link aperto: niente riuso del completamento con un rinnovo da fare; tentativi, attesa e tempo del quiz rispettati; corso senza quiz concluso con «Concludi il corso»; nessuna data di completamento altrui sulla pagina pubblica; «Quiz superati da abbinare» nell'hub e nel digest HR.
+
+**Edizioni**
+- Lo stato non si sceglie più a mano: nasce «Pianificata», «In corso» da sola, «Completata» con «Chiudi l'edizione», «Annullata» con «Annulla», «Riapri» per tornare indietro.
+- Edizione annullata: iscritti aperti «Ritirato» con nota, rifiutata se qualcuno ha superato la verifica, bloccata, non chiudibile, riapribile con motivo, esclusa dallo stato persona × corso. Conferma con il numero di edizioni sulle azioni in blocco.
+- Lezione online chiusa su edizioni completate, annullate o approvate e con esito finale; sospesa alla chiusura. Sessioni miste: il test vale solo come verifica.
+- Presenze per turno (solo le giornate del turno dell'iscritto), poche query anche con «Tutti presenti».
+- Chiusura: ex dipendenti e chi ha già il corso da altra strada proposti «Ritirato» con motivo; ex dipendenti esclusi da esiti aperti, solleciti ed efficacia.
+- Stato effettivo negli elenchi (`TrainingSession.stato_effettivo`); iscritti senza ritirati; ore docente senza annullate e giornate future; verifiche NC con una sola regola; QR d'aula non valido su edizioni chiuse; promemoria edizione con il link giusto.
+
+**Catalogo e obblighi**
+- La spunta «Obbligatorio per tutti» ricalcola subito le scadenze; nuovo pulsante «Ricalcola scadenze» nello Scadenzario (migrazione `0265`, permessi dalla rotta `formazione_corsi_azione`).
+- «Obbligatorio» con una regola sola (spunta + motore + regole in vigore): «Sì · per tutti» / «Sì · per mansione/ruolo/processo» in elenco, piano, Tipi ed export (`formazione_catalogo.corsi_obbligatori`).
+- «Da assegnare» e candidati delle edizioni dal motore dei requisiti, stato dalla regola unica. «Imposta validità» in blocco: un solo ricalcolo e una versione per corso.
+- Scheda corso: «Dipendenti del corso» da ogni strada, ex dipendenti a parte, completati solo idonei; sessioni annullate escluse (filtro sessioni «Tutte tranne le annullate»); «Elimina corso» bloccato se c'è storico.
+- Report del corso: CSV con lo stato della scheda, ZIP con l'ultimo attestato valido, fogli firme delle prossime lezioni; export elenco corsi con gli stessi filtri della pagina. Onboarding: corsi della pratica dal motore (compresi gli obbligatori per tutti).
+
+**Persone e copertura**
+- Regola unica ex dipendenti `services/in_forza.py` (cessazione passata del rapporto corrente; la riassunzione la annulla).
+- Le mie attività: qualifiche in scadenza dallo scadenzario unificato. Conformità: corso obbligatorio mai frequentato e qualifica richiesta mancante = avviso «mancante»; solo qualifiche richieste; soglie 90 (formazione e qualifiche) / 60 (visite, DPI); tessera home HR → `conformita_report?esito=scadute`.
+- Scadenzario: pillole Formazione contate sulle righe; scheda dipendente e colonna Formazione solo obbligatori. Copertura processi: persone operative in forza. Mansionario e gate Skill Matrix leggono i completamenti reali.
+- Reportistica: preavvisi dalle costanti (`GIORNI_PREAVVISO_VISITE`), matrice formazione «!» a 90 giorni, conteggi solo con esito idoneo; meno query in onboarding e cambio mansione.
+- Numeri e-learning: hub con «Iscritti» da ogni strada; risultati del corso senza ex dipendenti; registro e cruscotto senza completamenti annullati né doppioni dal link aperto; digest HR con nomi.
+
+File principali: `services/formazione_completamento.py`, `in_forza.py` (nuovo), `formazione_aula.py`, `formazione_integrita.py`, `sessione_online.py`, `sessioni.py`, `formazione_catalogo.py`, `training_eligibility.py`, `elearning_*.py`, `conformita.py`, `libretto_sanitario.py`, `mansionario_competenze.py`, `skillmatrix_*.py`, `onboarding.py`, `cambio_mansione.py`, `segnali_scadenze.py`, `forms.py`, `views/formazione.py`, `views/dipendenti.py`, `views/_helpers.py`, `views_corso_aperto.py`, `views_elearning.py`, `views_aula*.py`, `dashboard/views_mie_attivita.py`, `reportistica/sezioni.py` e template. Test: `tests_remediation_r1..r4.py`, `tests_remediation_integrazione.py` e test adeguati.
+
 ### Ordini di produzione: statistica di processo (Cpk/Ppk, percentili, rischio, segnali, cambi, famiglie, OP, ripetibilità)
 
 - Numeri giusti: il «Cpk» era in realtà un Ppk (σ di tutti i pezzi). Ora Cpk con la σ di breve periodo (macchina) e Ppk con la σ totale (processo), mostrati insieme; conteggi, classifiche e «da guardare» sul peggiore dei due. Quote di forma e posizione col metodo dei percentili (ISO 22514-2, Weibull) invece della normale. Intervallo di confidenza al 95% e verdetto sul suo limite basso; sotto 25 pezzi «pochi dati».

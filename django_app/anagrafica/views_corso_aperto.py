@@ -368,6 +368,7 @@ def corso(request, token: str):
         "video_fino": bool(slide.tipo == "VIDEO" and slide.video_fino_in_fondo and _video_mancante(stato, slide)),
         "progress_pct": round((pos + 1) / len(slides) * 100),
         "ha_quiz": bool(quiz.domande_valide(corso_obj)), "chi": stato["chi"],
+        "senza_quiz": not regola.richiede_quiz,
         "codice": getattr(_partecipazione(stato), "codice", ""),
         "video_da": int(((stato.get("video") or {}).get(str(slide.pk)) or [0])[0] or 0),
     }), link, stato)
@@ -496,31 +497,104 @@ def _prima_consegna(link, token: str) -> bool:
 
 def _completato_il(link, p):
     """Data del completamento, se la persona ha già fatto il corso: la partecipazione completata
-    oppure un completamento valido della persona abbinata, da qualunque strada (aula, portale, una
-    prova precedente). None se il corso è ancora da fare."""
+    oppure un completamento riusabile della persona abbinata, da qualunque strada (aula, portale,
+    una prova precedente). None se il corso è da fare, anche come rinnovo: assegnazione aperta
+    dopo il completamento o scadenza entro il preavviso (``completamento_riusabile``).
+
+    La data serve solo a decidere: la pagina pubblica non la mostra (l'abbinamento per matricola
+    e cognome non prova chi sta usando il telefono)."""
     if p is None:
         return None
     if p.completata_il:
         return timezone.localtime(p.completata_il).date()
     if p.legacy_anagrafica_id:
-        from .services.formazione_completamento import completamento_valido
-        rec = completamento_valido(link.corso, p.legacy_anagrafica_id)
+        from .services.formazione_completamento import completamento_riusabile
+        rec = completamento_riusabile(link.corso, p.legacy_anagrafica_id)
         if rec is not None:
             return rec.data_completamento
     return None
 
 
-def _gia_completato(request, link, quando):
+MESSAGGIO_GIA_COMPLETATO = ("Risulta che questo corso è già completato: il quiz non si ripete. "
+                            "Il materiale resta da consultare.")
+
+
+def _gia_completato(request, link, quando=None):
     url = reverse("corso_aperto:materiale", args=[link.token])
-    quando = quando.strftime("%d-%m-%Y")
     return render(request, "anagrafica/corso_aperto/esito.html", {
         "link": link, "corso": link.corso, "titolo": "Corso già completato",
-        "testo": f"Hai completato questo corso il {quando}: il quiz non si ripete. Il materiale resta da consultare.",
-        "torna": url}, status=409)
+        "testo": MESSAGGIO_GIA_COMPLETATO, "torna": url}, status=409)
+
+
+def _blocco_tentativi(p, regola) -> str:
+    """Regola del corso sulla partecipazione dal link aperto: tentativi massimi e attesa tra un
+    tentativo e l'altro (come il quiz con login). Stringa vuota = il quiz si può fare."""
+    if p is None or not (regola.max_tentativi or regola.attesa_minuti):
+        return ""
+    fatti = p.risposte.filter(superato=False)
+    if regola.max_tentativi and fatti.count() >= regola.max_tentativi:
+        return "Hai esaurito i tentativi disponibili per il quiz: rivolgiti all'ufficio HR."
+    if regola.attesa_minuti:
+        from datetime import timedelta
+        ultimo = fatti.order_by("-inviato_il").values_list("inviato_il", flat=True).first()
+        adesso = timezone.now()
+        if ultimo and adesso < ultimo + timedelta(minutes=regola.attesa_minuti):
+            minuti = int((ultimo + timedelta(minutes=regola.attesa_minuti) - adesso).total_seconds() // 60) + 1
+            return f"Puoi riprovare il quiz fra {minuti} minuti."
+    return ""
+
+
+def _fuori_tempo(stato, regola) -> bool:
+    """Quiz consegnato oltre il tempo della regola (30 secondi di tolleranza per la rete)."""
+    if not regola.tempo_quiz_minuti or not stato.get("quiz_il"):
+        return False
+    return time.time() - float(stato["quiz_il"]) > regola.tempo_quiz_minuti * 60 + 30
 
 
 def _testo(valore, massimo: int) -> str:
     return " ".join(str(valore or "").split())[:massimo]
+
+
+def _concludi_senza_quiz(request, link, stato, url_corso):
+    """Corso senza quiz obbligatorio (regola del corso), come ``_completa_senza_quiz`` del portale:
+    finito il percorso e passato il tempo minimo, «Concludi il corso» registra il completamento
+    passando dalla stessa strada del quiz (risposta senza domande, abbinamento, completamento)."""
+    corso_obj = link.corso
+    if request.method == "GET":
+        return render(request, "anagrafica/corso_aperto/esito.html", {
+            "link": link, "corso": corso_obj, "titolo": "Fine del corso", "concludi": True,
+            "testo": "Hai seguito tutto il corso. Conferma per registrarlo sulla tua scheda.", "torna": url_corso})
+    if request.POST.get("sito_web"):
+        raise Http404
+    ip = client_ip(request) or ""
+    if _troppe(ip):
+        return render(request, "anagrafica/corso_aperto/esito.html",
+                      {"link": link, "corso": corso_obj, "titolo": "Troppi invii",
+                       "testo": "Abbiamo ricevuto troppe richieste in poco tempo. Riprova tra un'ora."}, status=429)
+    dati = dict(stato["chi"])
+    avvio = stato.get("avvio")
+    from decimal import Decimal
+
+    from .models_elearning import TrainingElearningPartecipazioneAperta as P
+    esito = {"n_corrette": 0, "n_totali": 0, "punteggio_pct": Decimal("0"), "superato": True, "risposte": []}
+    with transaction.atomic():
+        p_lock = P.objects.select_for_update().filter(pk=stato.get("pid")).first() if stato.get("pid") else None
+        if _completato_il(link, p_lock):
+            return _gia_completato(request, link)
+        risposta = servizio.registra(
+            corso_obj, nome=dati["nome"], cognome=dati["cognome"], matricola=dati.get("matricola", ""), esito=esito,
+            partecipazione=p_lock,
+            avviato_il=timezone.make_aware(datetime.fromtimestamp(avvio)) if avvio else None,
+            ip=ip if ip not in _LOOPBACK else "", user_agent=request.headers.get("User-Agent", "")[:500],
+        )
+    registrato = bool(risposta.record_id)
+    return render(request, "anagrafica/corso_aperto/esito.html", {
+        "link": link, "corso": corso_obj,
+        "titolo": ("Corso completato" if registrato
+                   else "Corso concluso: l'ufficio HR verifica i tuoi dati e registra il corso"),
+        "testo": ("Il corso è registrato sulla tua scheda." if registrato else
+                  "L'ufficio HR controlla nome e matricola e registra il corso sulla tua scheda: non devi rifarlo."),
+        "torna": reverse("corso_aperto:materiale", args=[link.token])})
 
 
 @require_http_methods(["GET", "POST"])
@@ -540,10 +614,17 @@ def quiz_finale(request, token: str):
     if fatto_il:
         return _gia_completato(request, link, fatto_il)
     blocco = _blocco_quiz(stato, slides, regola) if slides else "Il corso non ha slide."
+    senza_quiz = not regola.richiede_quiz
+    if not blocco and not senza_quiz:
+        blocco = _blocco_tentativi(_partecipazione(stato), regola)
     if blocco:
         return render(request, "anagrafica/corso_aperto/esito.html",
-                      {"link": link, "corso": corso_obj, "titolo": "Quiz non ancora disponibile", "testo": blocco,
+                      {"link": link, "corso": corso_obj,
+                       "titolo": "Corso non ancora concluso" if senza_quiz else "Quiz non ancora disponibile",
+                       "testo": blocco.replace("poi fai il quiz", "poi concludi il corso") if senza_quiz else blocco,
                        "torna": url_corso}, status=409)
+    if senza_quiz:
+        return _concludi_senza_quiz(request, link, stato, url_corso)
 
     if request.method == "GET":
         domande = _domande_da_servire(corso_obj, regola)
@@ -555,7 +636,7 @@ def quiz_finale(request, token: str):
         _salva(request, link, stato)
         return render(request, "anagrafica/corso_aperto/quiz.html",
                       {"link": link, "corso": corso_obj, "domande": domande, "dati": {}, "errori": [],
-                       "consegna": stato["quiz_token"]})
+                       "consegna": stato["quiz_token"], "tempo_quiz_minuti": regola.tempo_quiz_minuti})
 
     ip = client_ip(request) or ""
     if _troppe(ip):
@@ -587,6 +668,9 @@ def quiz_finale(request, token: str):
             risposte[int(chiave[2:])] = {int(x) for x in request.POST.getlist(chiave) if str(x).isdigit()}
 
     esito = servizio.correggi(corso_obj, domande_ids, risposte, regola.soglia_pct)
+    fuori_tempo = _fuori_tempo(stato, regola)
+    if fuori_tempo:
+        esito["superato"] = False  # come il quiz con login: il tentativo scaduto conta e non supera
     avvio = stato.get("avvio")
     from .models_elearning import TrainingElearningPartecipazioneAperta as P
     with transaction.atomic():
@@ -594,13 +678,17 @@ def quiz_finale(request, token: str):
         # seconda trova il corso già completato.
         p_lock = P.objects.select_for_update().filter(pk=stato.get("pid")).first() if stato.get("pid") else None
         if _completato_il(link, p_lock):
-            return _gia_completato(request, link, _completato_il(link, p_lock))
+            return _gia_completato(request, link)
         risposta = servizio.registra(
             corso_obj, nome=dati["nome"], cognome=dati["cognome"], matricola=dati.get("matricola", ""), esito=esito,
             partecipazione=p_lock,
             avviato_il=timezone.make_aware(datetime.fromtimestamp(avvio)) if avvio else None,
             ip=ip if ip not in _LOOPBACK else "", user_agent=request.headers.get("User-Agent", "")[:500],
         )
+        if fuori_tempo:
+            nota = f"Consegnato oltre il tempo del quiz ({regola.tempo_quiz_minuti} minuti)."
+            type(risposta).objects.filter(pk=risposta.pk).update(
+                nota=(((risposta.nota + " ") if risposta.nota else "") + nota)[:300])
     stato.pop("quiz", None)
     stato.pop("quiz_token", None)
     _salva(request, link, stato)
@@ -609,6 +697,8 @@ def quiz_finale(request, token: str):
     registrato = bool(risposta.superato and risposta.record_id)
     if registrato:
         titolo = "Corso completato"
+    elif fuori_tempo:
+        titolo = "Tempo del quiz scaduto"
     elif risposta.superato:
         titolo = "Quiz superato: l'ufficio HR verifica i tuoi dati e registra il corso"
     else:

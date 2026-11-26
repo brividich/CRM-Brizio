@@ -212,6 +212,50 @@ def _corsi_obbligatori(
     return out
 
 
+def _corsi_richiesti(legacy_id, mansione: str, ruolo_ids, *, fallback=None) -> list:
+    """Corsi obbligatori per chi entra con ``mansione`` (e ``ruolo_ids``), ordinati per titolo.
+
+    Motore unico (``services.requisiti.requisiti_formazione``) su una persona simulata: la scheda
+    del dipendente se esiste (area, anagrafiche doppie) con la mansione della pratica, altrimenti
+    una persona nuova in forza. I ruoli scelti nella pratica non sono ancora assegnati: le loro
+    regole (ruolo operativo e mansioni lavorative del ruolo) si aggiungono qui. Se il motore non
+    risponde restano i corsi della mansione più quelli «Obbligatorio per tutti»."""
+    from dataclasses import replace
+
+    from ..models_formazione import TrainingCourse, TrainingRequirementRule
+    from ..reportistica.dati import Dipendente
+    from . import requisiti as motore
+
+    oggi = timezone.localdate()
+    ids: set[int] = set()
+    try:
+        ctx = motore.ambito(oggi)
+        pid = int(legacy_id or 0)
+        esistente = next((p for p in ctx._tutti() if pid and pid in p.tutti_gli_id), None) if pid else None
+        if esistente is not None:
+            persona = replace(esistente, mansione=(mansione or esistente.mansione or "").strip(),
+                              data_cessazione=None, attivo_legacy=True, data_assunzione=None)
+        else:
+            persona = Dipendente(id=pid, nominativo="", mansione=(mansione or "").strip())
+        ids |= set(motore.requisiti_formazione(ctx, {persona.id: persona}).get(persona.id, {}))
+    except Exception:
+        logger.warning("onboarding: requisiti di formazione dal motore non disponibili", exc_info=True)
+        ids |= {c.pk for c in ((fallback or {}).get("corsi") or [])}
+        ids |= set(TrainingCourse.objects.filter(obbligatorio=True, is_active=True).values_list("pk", flat=True))
+    ruolo_ids = [int(r) for r in (ruolo_ids or []) if r]
+    if ruolo_ids:
+        regole = [r for r in TrainingRequirementRule.objects.filter(
+            Q(ruolo_operativo_id__in=ruolo_ids) | Q(competenza__ruoli__id__in=ruolo_ids, competenza__attiva=True),
+            is_active=True, is_mandatory=True).distinct() if motore._regola_in_vigore(r, oggi)]
+        ids |= {r.corso_id for r in regole if r.corso_id}
+        piani = {r.piano_id for r in regole if r.piano_id}
+        if piani:
+            ids |= set(TrainingCourse.objects.filter(piano_id__in=piani, is_active=True).values_list("pk", flat=True))
+    if not ids:
+        return []
+    return list(TrainingCourse.objects.filter(pk__in=ids, is_active=True).order_by("titolo"))
+
+
 def _sds_della_mansione(mansione: str) -> int:
     """Quante schede di sicurezza correnti sono dovute per la mansione (0 se nessuna)."""
     if not mansione:
@@ -257,18 +301,17 @@ def _voci_mansione(*, legacy_id, mansione: str, reparto: str, ruolo_ids) -> list
             voce["descrizione"] += " Categorie obbligatorie: " + ", ".join(globali) + "."
         voci.append(voce)
 
-    corsi = requisiti.get("corsi") or []
+    # Corsi: dal motore dei requisiti con la persona simulata sulla mansione (mansione e fattori di
+    # rischio, esposizioni, regole in vigore, piani espansi nei loro corsi, processi, «Obbligatorio
+    # per tutti») più le regole dei ruoli scelti nella pratica. Prima: solo i corsi della mansione.
+    corsi = _corsi_richiesti(legacy_id, mansione, ruolo_ids, fallback=requisiti)
     for corso in corsi:
         voci.append({"codice": f"corso_{corso.pk}", "fase": T.FASE_60GG, "categoria": T.CATEGORIA_HR,
                      "tipo": T.TIPO_FORMAZIONE, "riferimento_id": corso.pk,
                      "titolo": f"Corso: {corso.titolo}",
                      "descrizione": "Entro 60 giorni dall'assunzione. Si chiude da sola quando il corso "
                                     "risulta completato (anche formazione pregressa)."})
-    for piano in requisiti.get("piani") or []:
-        voci.append({"codice": f"piano_{piano.pk}", "fase": T.FASE_60GG, "categoria": T.CATEGORIA_HR,
-                     "titolo": f"Piano formativo: {piano.nome}",
-                     "descrizione": "Iscrivere ai corsi del piano previsto per la mansione."})
-    if not corsi and not requisiti.get("piani"):
+    if not corsi:
         voce = dict(TASK_FALLBACK["corsi"])
         regole = _corsi_obbligatori(legacy_id, mansione, reparto, ruolo_ids)
         if regole:
@@ -705,6 +748,9 @@ def aggiorna_pratiche(*, pratiche: Iterable[OnboardingPratica] | None = None,
 
     ctx = requisiti.ambito()
     tutti = {d.id: d for d in ctx._tutti()}
+    # Ultimi completamenti di tutte le persone del giro, una volta sola (prima una query per voce).
+    coinvolte = {p.id: p for p in (tutti.get(ctx.canonico(t.pratica.legacy_anagrafica_id)) for t in task_aperti) if p}
+    completamenti = requisiti.ultimi_completamenti(ctx, coinvolte) if coinvolte else {}
     chiusi = 0
     for task in task_aperti:
         pratica = task.pratica
@@ -718,6 +764,7 @@ def aggiorna_pratiche(*, pratiche: Iterable[OnboardingPratica] | None = None,
                 motivo = requisito_soddisfatto(
                     task.tipo, task.riferimento_id, ctx=ctx, persona=persona,
                     dal=pratica.created_at.date(), mansione=pratica.mansione,
+                    completamenti=completamenti,
                 )
         except Exception:
             logger.exception("verifica voce onboarding %s fallita", task.pk)

@@ -16,7 +16,7 @@ from collections import defaultdict
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from anagrafica.services.elearning_notifications import iter_corsi_da_completare
+from anagrafica.services.elearning_notifications import iter_corsi_da_completare, quiz_da_abbinare_per_corso
 from anagrafica.services.email_digest import digest_fragment
 from anagrafica.services.reminders import get_reminder_recipients
 
@@ -38,6 +38,14 @@ class Command(BaseCommand):
         dry_run = bool(options.get("dry_run"))
         recipients = get_reminder_recipients("elearning_reminder_emails", options.get("recipients") or [])
 
+        # Stato automatico delle edizioni («Pianificata» → «In corso» il giorno d'inizio)
+        # prima della scaletta: promemoria e solleciti leggono lo stato già aggiornato.
+        if not dry_run:
+            from anagrafica.services.formazione_aula import aggiorna_stati
+            n_st = aggiorna_stati(today)
+            if n_st:
+                self.stdout.write(f"Edizioni passate a «In corso»: {n_st}.")
+
         from anagrafica.services.elearning_promemoria import esegui
         rie = esegui(oggi=today, invia=not dry_run)
         self.stdout.write(
@@ -46,13 +54,6 @@ class Command(BaseCommand):
             + (f", {len(set(rie.senza_responsabile))} persone senza responsabile" if rie.senza_responsabile else "")
             + (" [DRY-RUN]" if dry_run else "") + "."
         )
-
-        # Stato automatico delle edizioni: «Pianificata» → «In corso» il giorno d'inizio.
-        if not dry_run:
-            from anagrafica.services.formazione_aula import aggiorna_stati
-            n_st = aggiorna_stati(today)
-            if n_st:
-                self.stdout.write(f"Edizioni passate a «In corso»: {n_st}.")
 
         # Lezioni online delle sessioni: promemoria N giorni prima della scadenza.
         if not dry_run:
@@ -64,9 +65,17 @@ class Command(BaseCommand):
                 self.stderr.write(f"Promemoria lezioni online non inviati: {exc}")
 
         iscrizioni = list(iter_corsi_da_completare())
-        if not iscrizioni:
+        da_abbinare = quiz_da_abbinare_per_corso()
+        if not iscrizioni and not da_abbinare:
             self.stdout.write("Nessun micro-corso e-learning da completare.")
             return
+        nomi = {}
+        if iscrizioni:
+            from anagrafica.views._helpers import _build_nomi_map
+            nomi = _build_nomi_map()
+
+        def _nome(lid):
+            return nomi.get(lid) or f"Dipendente #{lid}"
 
         per_corso: dict[str, list] = defaultdict(list)
         lines = [
@@ -76,16 +85,22 @@ class Command(BaseCommand):
             f"Iscrizioni ancora da completare: {len(iscrizioni)}",
             "",
         ]
+        if da_abbinare:
+            lines.append(f"Quiz superati dal link aperto da abbinare: {sum(n for _t, n in da_abbinare)}")
+            lines += [f"  {titolo}: {n}" for titolo, n in da_abbinare]
+            lines.append("")
         for iscr in iscrizioni:
             per_corso[iscr.corso.titolo].append(iscr)
             lines.append(
-                f"  [{_STATO_LABEL.get(iscr.stato, iscr.stato)}] dip #{iscr.legacy_anagrafica_id}"
+                f"  [{_STATO_LABEL.get(iscr.stato, iscr.stato)}] {_nome(iscr.legacy_anagrafica_id)}"
                 f" - {iscr.corso.codice} {iscr.corso.titolo}"
             )
             # Niente più notifica quotidiana a ogni discente: la manda la scaletta.
 
         body = "\n".join(lines)
         subject = f"[E-LEARNING] {len(iscrizioni)} corsi da completare - {today:%d-%m-%Y}"
+        if da_abbinare:
+            subject += f" · {sum(n for _t, n in da_abbinare)} quiz da abbinare"
 
         if dry_run:
             self.stdout.write(self.style.WARNING("[DRY-RUN] Nessuna email/notifica inviata."))
@@ -101,9 +116,15 @@ class Command(BaseCommand):
             return
 
         sezioni = []
+        if da_abbinare:
+            sezioni.append((f"Quiz superati dal link aperto da abbinare ({sum(n for _t, n in da_abbinare)})", [{
+                "title": titolo, "subtitle": f"{n} da abbinare",
+                "note": "Apri il corso online, scheda «Link aperto», e abbina la persona.",
+                "accent": "#d97706",
+            } for titolo, n in da_abbinare]))
         for titolo, iscr_list in sorted(per_corso.items()):
             cards = [{
-                "title": f"Dipendente #{iscr.legacy_anagrafica_id}",
+                "title": _nome(iscr.legacy_anagrafica_id),
                 "subtitle": f"{iscr.corso.codice} · {_STATO_LABEL.get(iscr.stato, iscr.stato)}",
                 "note": (f"Avanzamento slide {iscr.ultima_slide_ordine}/{iscr.n_slide_totali}"
                          if iscr.n_slide_totali else ""),
@@ -126,4 +147,5 @@ class Command(BaseCommand):
         )
         self.stdout.write(self.style.SUCCESS(
             f"Email inviata a {len(recipients)} destinatari. Iscrizioni da completare: {len(iscrizioni)}."
+            + (f" Quiz da abbinare: {sum(n for _t, n in da_abbinare)}." if da_abbinare else "")
         ))

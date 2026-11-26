@@ -25,49 +25,36 @@ def _si_no(value: bool) -> str:
 
 
 # ── Corsi ─────────────────────────────────────────────────────────────────────
-# Filtri di `views.formazione_corsi_list`: q (titolo|codice), piano, stato,
-# obbligatorio (1 = solo obbligatori, 0 = solo facoltativi).
+# Stessi filtri e stesse righe di `views.formazione_corsi_list`: il queryset viene da
+# `services.formazione_catalogo.corsi_filtrati` (q, piano, stato, attivi, obbligatorio, tipo,
+# modo, rinnovo). «Obbligatorio» = regola unica del catalogo (`corsi_obbligatori`).
 
 def _formazione_corsi_qs(request: HttpRequest, scope: str):
-    from django.db.models import Q
+    from anagrafica.services.formazione_catalogo import corsi_filtrati
 
-    from anagrafica.models import TrainingCourse
-
-    qs = TrainingCourse.objects.select_related("piano").all()
-    if scope == "filtered":
-        filtro_piano = (request.GET.get("piano") or "").strip()
-        filtro_stato = (request.GET.get("stato") or "").strip()
-        filtro_obbligatorio = (request.GET.get("obbligatorio") or "").strip()
-        q_search = (request.GET.get("q") or "").strip()
-        if filtro_piano:
-            try:
-                qs = qs.filter(piano_id=int(filtro_piano))
-            except (TypeError, ValueError):
-                pass
-        if filtro_stato:
-            qs = qs.filter(stato=filtro_stato)
-        if request.GET.get("attivi") == "1":
-            qs = qs.filter(is_active=True)
-        if filtro_obbligatorio == "1":
-            qs = qs.filter(obbligatorio=True)
-        elif filtro_obbligatorio == "0":
-            qs = qs.filter(obbligatorio=False)
-        if q_search:
-            qs = qs.filter(Q(titolo__icontains=q_search) | Q(codice__icontains=q_search))
-    return qs.order_by("piano__nome", "titolo")
+    qs, _f, _m = corsi_filtrati(request.GET if scope == "filtered" else {})
+    return qs
 
 
 def _formazione_corsi_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.services.formazione_catalogo import arricchisci_corso, corsi_obbligatori, etichetta_obbligo
+
+    corsi = list(_formazione_corsi_qs(request, scope))
+    obblighi = corsi_obbligatori([c.pk for c in corsi]) if corsi else {}
     rows: list[dict] = []
-    for c in _formazione_corsi_qs(request, scope):
+    for c in corsi:
+        arricchisci_corso(c)
         rows.append({
             "codice": c.codice or "",
             "titolo": c.titolo or "",
             "piano": c.piano.nome if c.piano_id else "",
+            "tipo": c.tipo.nome if c.tipo_id else "",
+            "modi": ", ".join(e for _k, e in c.modi),
+            "enti": ", ".join(c.enti_formatori),
             "stato": c.get_stato_display(),
             "durata_ore": c.durata_ore_teorica,
             "validita": c.validita_mesi if c.validita_mesi else "una tantum",
-            "obbligatorio": _si_no(c.obbligatorio),
+            "obbligatorio": etichetta_obbligo(obblighi.get(c.pk)) or "No",
         })
     return rows
 
@@ -92,6 +79,21 @@ def _formazione_corsi_filters(request: HttpRequest) -> str:
         parts.append("Solo obbligatori")
     elif filtro_obbligatorio == "0":
         parts.append("Solo facoltativi")
+    if request.GET.get("attivi") == "1":
+        parts.append("Solo attivi")
+    filtro_tipo = (request.GET.get("tipo") or "").strip()
+    if filtro_tipo == "nessuno":
+        parts.append("Senza tipo")
+    elif filtro_tipo.isdigit():
+        from anagrafica.models_formazione import TrainingCourseType
+        tipo = TrainingCourseType.objects.filter(pk=int(filtro_tipo)).first()
+        parts.append(f"Tipo: {tipo.nome if tipo else filtro_tipo}")
+    from anagrafica.services.formazione_catalogo import MODI_CORSO
+    modo = dict((k, e) for k, e, _m in MODI_CORSO).get((request.GET.get("modo") or "").strip())
+    if modo:
+        parts.append(f"Come si fa: {modo}")
+    if request.GET.get("rinnovo") == "1":
+        parts.append("Una tantum da rivedere")
     return " · ".join(parts)
 
 
@@ -103,6 +105,9 @@ register(ExportSpec(
         ("Codice", "codice"),
         ("Titolo", "titolo"),
         ("Piano", "piano"),
+        ("Tipo", "tipo"),
+        ("Come si fa", "modi"),
+        ("Ente", "enti"),
         ("Stato", "stato"),
         ("Durata (h)", "durata_ore"),
         ("Validità (mesi)", "validita"),
@@ -547,6 +552,10 @@ def _formazione_scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]
         .select_related("corso", "corso__piano")
         .order_by("stato_scadenza", "data_scadenza", "legacy_anagrafica_id")
     )
+    from anagrafica.views import _helpers as _h
+
+    # Ambito del ruolo (propri/team/tutti), come la pagina.
+    qs = _h._filtra_ambito(qs, _h._ambito_visibili(request))
     nomi_map = _nomi_dipendenti()
 
     if scope == "filtered":
@@ -650,8 +659,11 @@ def _formazione_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
     else:
         filtro_reparto = filtro_corso = filtro_stato = ""
 
+    from anagrafica.views import _helpers as _h
+
     _, _, righe = righe_gap_formativo(
         filtro_reparto=filtro_reparto, filtro_corso=filtro_corso, filtro_stato=filtro_stato,
+        visibili=_h._ambito_visibili(request),
     )
     rows: list[dict] = []
     for r in righe:

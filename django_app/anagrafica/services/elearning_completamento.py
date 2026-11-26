@@ -89,6 +89,12 @@ def _completa(enr, *, tentativo=None, user=None):
         esistente = TrainingElearningCompletamento.objects.filter(enrollment=enr).select_related("record").first()
         if esistente is not None:
             return esistente.record
+        # Già completato da un'altra strada (aula, link aperto, import) e non è un rinnovo:
+        # l'iscrizione usa quel completamento, nessun doppione.
+        from .formazione_completamento import collega_iscrizione_a_completamento
+        gia = collega_iscrizione_a_completamento(enr)
+        if gia is not None:
+            return gia
         regola = regola_corso(enr.corso)
         foto, mancanti = verifica(enr, regola, tentativo=tentativo)
         if mancanti:

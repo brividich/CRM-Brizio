@@ -6,11 +6,10 @@ sezione formazione e generalizza ``views._candidati_rinnovo_corso``.
 
 Per un corso (ed eventualmente una sessione/edizione) calcola, in poche query batch:
 
-- **pertinenza** — chi è *tenuto* al corso secondo le ``TrainingRequirementRule``
-  (regola diretta per dipendente, per ``RuoloOperativo``, per ``AreaAziendale`` o per
-  ``Mansione``, quest'ultima anche **ereditata** dai fattori di rischio tramite
-  l'inversione di :func:`services.mansionario.requisiti_per_nome`);
-- **stato scadenza** dalla cache :class:`TrainingDeadline`;
+- **pertinenza** — chi è *tenuto* al corso secondo il motore dei requisiti
+  (``services.requisiti.requisiti_formazione``: mansione e fattori di rischio, esposizioni,
+  regole di obbligo in vigore, ruoli, aree, piani, processi MOD.128, «Obbligatorio per tutti»);
+- **stato** dalla regola unica persona × corso (``formazione_completamento.stati_persona_corso``);
 - **prerequisiti** (soft): prerequisiti ``obbligatorio=True`` non ancora completati
   (nessun :class:`TrainingEmployeeRecord` idoneo) → il candidato resta proponibile ma
   in coda, *non idoneo*, con il motivo, e l'editor può forzare;
@@ -26,7 +25,7 @@ Niente effetti collaterali: il motore **legge** soltanto. NON modifica ``Trainin
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from core import naming
@@ -44,16 +43,10 @@ _ORDER = {"SCADUTO": 0, "IN_SCADENZA_30": 1, "IN_SCADENZA_90": 2, "MAI_FREQUENTA
 
 def _cessati_ids() -> set[int]:
     """``legacy_anagrafica_id`` dei cessati (ex dipendenti). Specchio di
-    ``views._cessati_legacy_ids`` ma senza dipendere dal modulo views."""
-    from ..models import DipendenteAnagraficaAziendale
+    ``views._cessati_legacy_ids``: regola unica ``services.in_forza.cessati_ids``."""
+    from .in_forza import cessati_ids
 
-    return {
-        int(lid)
-        for lid in DipendenteAnagraficaAziendale.objects
-        .filter(data_cessazione__isnull=False)
-        .values_list("legacy_anagrafica_id", flat=True)
-        if lid
-    }
+    return cessati_ids()
 
 
 def _dipendenti_attivi() -> dict[int, dict[str, str]]:
@@ -85,97 +78,58 @@ def _dipendenti_attivi() -> dict[int, dict[str, str]]:
     return out
 
 
-def _legacy_ids_pertinenti(corso, dipendenti: dict[int, dict]) -> tuple[set[int], bool]:
+def _persone_motore(dipendenti: dict[int, dict], ctx, oggi: date) -> dict:
+    """Le persone di ``dipendenti`` (in forza) come le vuole il motore dei requisiti.
+
+    Si usa la scheda del motore (mansione, area, id delle anagrafiche doppie); una persona che il
+    motore non conosce (riga non leggibile) entra con la mansione dell'elenco. Gli id dei doppioni
+    fusi restano fuori: li rappresenta l'id principale, così nessuno compare due volte."""
+    from ..reportistica.dati import Dipendente
+
+    tutti = {p.id: p for p in ctx._tutti()}
+    alias = ctx._alias()
+    persone = {}
+    for lid, dati in dipendenti.items():
+        if alias.get(lid, lid) != lid:
+            continue
+        p = tutti.get(lid)
+        if p is None:
+            p = Dipendente(id=lid, nominativo=(dati or {}).get("nome") or f"#{lid}",
+                           mansione=((dati or {}).get("mansione") or "").strip())
+        elif not p.in_forza_al(oggi):
+            continue
+        persone[lid] = p
+    return persone
+
+
+def _legacy_ids_pertinenti(corso, dipendenti: dict[int, dict], *, ctx=None,
+                           oggi: date | None = None) -> tuple[set[int], bool]:
     """Insieme dei ``legacy_id`` *tenuti* al corso + flag ``has_rules``.
 
-    Considera le ``TrainingRequirementRule`` attive e obbligatorie che riguardano il
-    corso o il suo piano, sui quattro target (diretto / ruolo / area / mansione) più
-    l'ereditarietà mansione→corso dai fattori di rischio (via ``mansionario``).
-    """
+    Regola unica: il motore dei requisiti (``services.requisiti.requisiti_formazione``), lo
+    stesso di scadenzario, conformità e cruscotto. Mansione e fattori di rischio, esposizioni,
+    regole di obbligo in vigore (validità della regola, ruoli non chiusi, area, mansione
+    lavorativa in lista, piano), processi MOD.128 e la spunta «Obbligatorio per tutti».
+    Prima qui c'erano regole proprie (regole scadute, ruoli chiusi e doppioni contati).
+
+    ``has_rules``: il corso è chiesto da qualcosa (anche se oggi non tocca nessuno in forza)."""
     from django.db.models import Q
+    from django.utils import timezone
 
-    from ..models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
     from ..models_formazione import TrainingRequirementRule
-    from . import mansionario
+    from . import requisiti
 
-    rules = list(
-        TrainingRequirementRule.objects
-        .filter(is_active=True, is_mandatory=True)
-        .filter(Q(corso=corso) | Q(piano_id=corso.piano_id))
-        .select_related("area", "ruolo_operativo")
-    )
-    has_rules = bool(rules)
+    oggi = oggi or timezone.localdate()
+    ctx = ctx or requisiti.ambito(oggi)
+    persone = _persone_motore(dipendenti, ctx, oggi)
     ids: set[int] = set()
-
-    # 0) spunta «Obbligatorio per tutti i dipendenti»: tenuti tutti quelli in forza
-    #    (stessa regola del motore dei requisiti, origine «Corso obbligatorio per tutti»).
-    if getattr(corso, "obbligatorio", False) and getattr(corso, "is_active", True):
-        has_rules = True
-        ids.update(dipendenti.keys())
-
-    # 1) regole dirette per singolo dipendente
-    ids.update(int(r.legacy_anagrafica_id) for r in rules if r.legacy_anagrafica_id)
-
-    # 2) regole per ruolo operativo
-    ruolo_ids = [r.ruolo_operativo_id for r in rules if r.ruolo_operativo_id]
-    if ruolo_ids:
-        ids.update(
-            int(lid) for lid in DipendenteRuoloOperativo.objects
-            .filter(ruolo_id__in=ruolo_ids)
-            .values_list("legacy_anagrafica_id", flat=True)
-        )
-
-    # 2b) regole per mansione lavorativa: chi è in lista sulla mansione (skill matrix)
-    competenza_ids = [r.competenza_id for r in rules if r.competenza_id]
-    if competenza_ids:
-        from ..models import AbilitazioneMacchina
-        ids.update(
-            int(lid) for lid in AbilitazioneMacchina.objects
-            .filter(competenza_id__in=competenza_ids, in_lista=True)
-            .values_list("legacy_anagrafica_id", flat=True)
-        )
-
-    # 3) regole per area aziendale (match per FK area_aziendale, non più per nome)
-    area_ids = {r.area_id for r in rules if r.area_id}
-    if area_ids:
-        ids.update(
-            int(lid) for lid in DipendenteAnagraficaAziendale.objects
-            .filter(area_aziendale_id__in=area_ids)
-            .values_list("legacy_anagrafica_id", flat=True)
-        )
-
-    # 4) regole per mansione di rischio + ereditarietà da fattori di rischio.
-    #    Inverte mansionario: per ogni mansione di rischio presente in organico
-    #    (anagrafica + mansioni svolte + aggiunte − esclusioni), se i suoi
-    #    requisiti includono questo corso, chi la ha è "tenuto" al corso.
-    nomi_per_persona = mansionario.nomi_mansioni_rischio(
-        list(dipendenti), mansioni_per_legacy={lid: e["mansione"] for lid, e in dipendenti.items()})
-    mansioni_presenti = {n for nomi in nomi_per_persona.values() for n in nomi}
-    if mansioni_presenti:
-        req_per_nome = mansionario.requisiti_per_nome(mansioni_presenti)
-        mansioni_obbligate = {
-            nome for nome, req in req_per_nome.items()
-            if any(c.pk == corso.pk for c in req.get("corsi", []))
-        }
-        if mansioni_obbligate:
-            has_rules = True
-            for lid, nomi in nomi_per_persona.items():
-                if any(n.casefold() in mansioni_obbligate for n in nomi):
-                    ids.add(lid)
-
-    # 5) requisiti MOD.128: abilitati (ATTIVA) a processi che richiedono il corso.
-    try:
-        from .mpq_formazione import legacy_ids_richiesti_da_processo
-        proc_ids = legacy_ids_richiesti_da_processo(corso.pk)
-    except Exception:
-        proc_ids = set()
-    if proc_ids:
-        has_rules = True
-        ids.update(proc_ids)
-
-    # Restringi ai dipendenti effettivamente in forza.
-    ids &= set(dipendenti.keys())
-    return ids, has_rules
+    if persone:
+        richiesti = requisiti.requisiti_formazione(ctx, persone)
+        ids = {pid for pid, corsi in richiesti.items() if corso.pk in corsi}
+    if ids or (getattr(corso, "obbligatorio", False) and getattr(corso, "is_active", True)):
+        return ids, True
+    cond = Q(corso=corso) | Q(piano_id=corso.piano_id) if corso.piano_id else Q(corso=corso)
+    return ids, TrainingRequirementRule.objects.filter(cond, is_active=True, is_mandatory=True).exists()
 
 
 def prerequisiti_mancanti(corso, legacy_id: int) -> list[str]:
@@ -203,7 +157,8 @@ def prerequisiti_mancanti(corso, legacy_id: int) -> list[str]:
     return [d.prerequisito.titolo for d in deps if d.prerequisito_id not in fatti]
 
 
-def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[str, Any]:
+def candidati_corso(corso, *, sessione=None, oggi: date | None = None, ctx=None,
+                    dipendenti: dict | None = None) -> dict[str, Any]:
     """Candidati alla (ri)formazione per ``corso``, divisi in ``idonei`` / ``non_idonei``.
 
     Ritorna un dict::
@@ -220,6 +175,12 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
         {legacy_id, nome, stato, stato_label, data_scadenza, idoneo,
          prerequisiti_mancanti: [titolo, ...], gia_iscritto_altrove: bool,
          warning: [str, ...], preselect: bool}
+
+    Tenuti = motore dei requisiti (:func:`_legacy_ids_pertinenti`); lo stato viene dalla regola
+    unica persona × corso (``formazione_completamento.stati_persona_corso``): Completato non in
+    scadenza e Da registrare sono a posto; Completato entro la soglia di preavviso = in scadenza;
+    Scaduto; tutto il resto da fare. Senza nessun tenuto restano i candidati da scadenza.
+    ``ctx`` / ``dipendenti``: contesto e persone in forza già letti dal chiamante (facoltativi).
     """
     from django.utils import timezone
 
@@ -230,30 +191,32 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
         TrainingEnrollment,
         TrainingSession,
     )
+    from ..scadenze_soglie import GIORNI_PREAVVISO, GIORNI_URGENTE
+    from .formazione_completamento import COMPLETATO, DA_REGISTRARE, SCADUTO, stati_persona_corso
 
     oggi = oggi or timezone.localdate()
-    dipendenti = _dipendenti_attivi()
-    pertinenti, has_rules = _legacy_ids_pertinenti(corso, dipendenti)
-
-    deadlines = {
-        d.legacy_anagrafica_id: d
-        for d in TrainingDeadline.objects.filter(corso=corso)
-    }
+    dipendenti = _dipendenti_attivi() if dipendenti is None else dipendenti
+    pertinenti, has_rules = _legacy_ids_pertinenti(corso, dipendenti, ctx=ctx, oggi=oggi)
 
     pool_filtrato = has_rules and bool(pertinenti)
     if pool_filtrato:
         base = set(pertinenti)
-        # Includi anche chi ha una scadenza rilevante pur non risultando più tenuto.
-        base |= {
-            lid for lid, d in deadlines.items()
-            if d.stato_scadenza in STATI_RILEVANTI and lid in dipendenti
-        }
     else:
-        # Nessuna regola: degrada ai candidati da scadenza (comportamento storico).
+        # Nessun tenuto: degrada ai candidati da scadenza (cache e completamenti scaduti/in scadenza).
         base = {
-            lid for lid, d in deadlines.items()
-            if d.stato_scadenza in STATI_RILEVANTI and lid in dipendenti
+            lid for lid, st in TrainingDeadline.objects.filter(corso=corso).values_list(
+                "legacy_anagrafica_id", "stato_scadenza")
+            if st in STATI_RILEVANTI and lid in dipendenti
         }
+        soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
+        base |= {
+            lid for lid in TrainingEmployeeRecord.objects.filter(
+                corso=corso, idoneo=True, data_scadenza__isnull=False, data_scadenza__lte=soglia,
+            ).values_list("legacy_anagrafica_id", flat=True)
+            if lid in dipendenti
+        }
+
+    stati = stati_persona_corso(corso, base, oggi=oggi) if base else {}
 
     # Iscritti a questa edizione → esclusi.
     iscritti_sessione: set[int] = set()
@@ -291,15 +254,6 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
         ):
             completati_prereq.setdefault(lid, set()).add(cid)
 
-    # Completamento idoneo non scaduto (qualunque strada): già a posto anche se la scadenza
-    # in TrainingDeadline non è ancora stata ricalcolata.
-    from django.db.models import Q as _Q
-    validi = set(
-        TrainingEmployeeRecord.objects.filter(corso=corso, idoneo=True, legacy_anagrafica_id__in=base)
-        .filter(_Q(data_scadenza__isnull=True) | _Q(data_scadenza__gte=oggi))
-        .values_list("legacy_anagrafica_id", flat=True)
-    ) if base else set()
-
     idonei: list[dict] = []
     non_idonei: list[dict] = []
     for lid in base:
@@ -308,12 +262,26 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
         emp = dipendenti.get(lid)
         if emp is None:
             continue
-        d = deadlines.get(lid)
-        stato = d.stato_scadenza if d else "MAI_FREQUENTATO"
-        if stato in STATI_GIA_VALIDO:
-            continue  # già a posto
-        if d is None and lid in validi:
-            continue  # completamento valido, scadenza non ancora ricalcolata
+        st = stati.get(lid)
+        data_scadenza = None
+        if st is not None and st.codice == DA_REGISTRARE:
+            continue  # verifica superata: va registrata, non riassegnata
+        if st is not None and st.codice == COMPLETATO:
+            data_scadenza = st.record.data_scadenza if st.record is not None else None
+            if data_scadenza is None:
+                continue  # completato una tantum: a posto
+            giorni = (data_scadenza - oggi).days
+            if giorni > GIORNI_PREAVVISO:
+                continue  # valido e non in scadenza: a posto
+            stato = "IN_SCADENZA_30" if giorni <= GIORNI_URGENTE else "IN_SCADENZA_90"
+            stato_label = "In scadenza"
+        elif st is not None and st.codice == SCADUTO:
+            stato, stato_label = "SCADUTO", "Scaduto"
+            data_scadenza = st.data
+        else:
+            stato = "MAI_FREQUENTATO"
+            dettaglio = st.etichetta if st is not None else ""
+            stato_label = dettaglio if dettaglio and dettaglio != "Da fare" else "Mai frequentato"
 
         mancanti: list[str] = []
         if prereq_ids:
@@ -328,10 +296,10 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
 
         voce = {
             "legacy_id": lid,
-            "nome": emp["nome"],
+            "nome": (emp or {}).get("nome") or f"#{lid}",
             "stato": stato,
-            "stato_label": d.get_stato_scadenza_display() if d else "Mai frequentato",
-            "data_scadenza": d.data_scadenza if d else None,
+            "stato_label": stato_label,
+            "data_scadenza": data_scadenza,
             "idoneo": idoneo,
             "prerequisiti_mancanti": mancanti,
             "gia_iscritto_altrove": gia_altrove,
@@ -353,6 +321,7 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
 
 def righe_gap_formativo(
     *, filtro_reparto: str = "", filtro_corso: str = "", filtro_stato: str = "", info: dict | None = None,
+    visibili: set[int] | None = None,
 ) -> tuple[list, list[str], list[dict]]:
     """Una riga per (dipendente in forza, corso obbligatorio) non in regola: scaduto, in scadenza o
     mai frequentato. Condivisa da `views.formazione_copertura` e dal suo export.
@@ -363,7 +332,9 @@ def righe_gap_formativo(
     leggeva solo le regole di obbligo (in produzione nessuna) e restava vuota (analisi 26/11/2026).
 
     ``info`` (facoltativo) riceve ``n_obblighi``: quante coppie persona × corso obbligatorio il motore
-    trova in tutto. Zero vuol dire «nessun obbligo configurato», non «tutti in regola»."""
+    trova in tutto. Zero vuol dire «nessun obbligo configurato», non «tutti in regola».
+
+    ``visibili`` = id anagrafica delle schede che il ruolo vede (None = tutte)."""
     from django.utils import timezone
 
     from ..models_formazione import TrainingDeadline
@@ -374,6 +345,9 @@ def righe_gap_formativo(
     oggi = timezone.localdate()
     ctx = requisiti.ambito(oggi)
     persone = {p.id: p for p in ctx._tutti() if p.in_forza_al(oggi)}
+    if visibili is not None:
+        ammessi = {ctx.canonico(i) for i in visibili}
+        persone = {pid: p for pid, p in persone.items() if pid in ammessi}
     obbligatorie = [v for v in requisiti.formazione(ctx, persone) if v.obbligatorio]
     if info is not None:
         info["n_obblighi"] = len(obbligatorie)

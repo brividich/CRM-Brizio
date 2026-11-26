@@ -34,7 +34,6 @@ def applica_firme_lezione(lezione, firme: dict, *, utente=None, metodo: str = "U
 
     # Edizione chiusa: le presenze sono già l'evidenza degli attestati.
     verifica_edizione_modificabile(lezione.sessione)
-    from ..views import _ricalcola_presenza_enrollment
     from .training_turni import iscritti_attesi_lezione
 
     adesso = timezone.now()
@@ -59,7 +58,8 @@ def applica_firme_lezione(lezione, firme: dict, *, utente=None, metodo: str = "U
         presenza.save()
         toccati.append(iscritto)
 
-    for iscritto in toccati:
-        _ricalcola_presenza_enrollment(iscritto)
+    if toccati:
+        from ..views.formazione import _ricalcola_presenze_iscrizioni
+        _ricalcola_presenze_iscrizioni(lezione.sessione, toccati)
 
     return toccati

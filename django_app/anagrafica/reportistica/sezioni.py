@@ -30,6 +30,7 @@ from typing import Callable
 
 from report_conformita.registry import TONE_DANGER, TONE_OK, TONE_WARN, Kpi
 
+from anagrafica.scadenze_soglie import GIORNI_PREAVVISO, GIORNI_PREAVVISO_VISITE, GIORNI_URGENTE
 from anagrafica.services import requisiti as calcoli
 from .dati import SENZA_CENTRO, Contesto, anni_compiuti
 from .permessi import has_perm, perm_check
@@ -317,7 +318,7 @@ def _scelte_processi():
     return [(str(p.pk), p.nome) for p in ProcessoQualificato.objects.order_by("nome")]
 
 
-def _opz_qualifiche(preavviso: int = 60) -> tuple[Opzione, ...]:
+def _opz_qualifiche(preavviso: int = GIORNI_PREAVVISO) -> tuple[Opzione, ...]:
     return (
         Opzione("categorie", "Categorie di qualifica", MULTI, _scelte_categorie_qualifica, aiuto="Vuoto = tutte."),
         Opzione("tipi", "Qualifiche specifiche", MULTI, _scelte_tipi_qualifica, aiuto="Vuoto = tutte."),
@@ -505,8 +506,8 @@ _registra(Sezione(
 _STATI_FORMAZIONE = {
     "VALIDO": ("Valida", TONE_OK),
     "UNA_TANTUM": ("Completata (una tantum)", TONE_OK),
-    "IN_SCADENZA_90": ("In scadenza entro 90 gg", ""),
-    "IN_SCADENZA_30": ("In scadenza entro 30 gg", TONE_WARN),
+    "IN_SCADENZA_90": (f"In scadenza entro {GIORNI_PREAVVISO} gg", TONE_WARN),
+    "IN_SCADENZA_30": (f"In scadenza entro {GIORNI_URGENTE} gg (urgente)", TONE_WARN),
     "SCADUTO": ("Scaduta", TONE_DANGER),
     "MAI_FREQUENTATO": ("Mai frequentata", TONE_DANGER),
 }
@@ -562,7 +563,10 @@ def _formazione_obbligatoria(ctx: Contesto, o: dict, *, solo_sicurezza: bool) ->
             f"{coperti} su {totale} requisiti"),
         Kpi("Scaduti", conteggi["SCADUTO"], TONE_DANGER if conteggi["SCADUTO"] else TONE_OK),
         Kpi("Mai frequentati", conteggi["MAI_FREQUENTATO"], TONE_DANGER if conteggi["MAI_FREQUENTATO"] else TONE_OK),
-        Kpi("In scadenza entro 30 gg", conteggi["IN_SCADENZA_30"], TONE_WARN if conteggi["IN_SCADENZA_30"] else ""),
+        Kpi(f"In scadenza entro {GIORNI_PREAVVISO} gg",
+            conteggi["IN_SCADENZA_30"] + conteggi["IN_SCADENZA_90"],
+            TONE_WARN if conteggi["IN_SCADENZA_30"] + conteggi["IN_SCADENZA_90"] else "",
+            f"di cui {conteggi['IN_SCADENZA_30']} entro {GIORNI_URGENTE} gg (urgenti)"),
         Kpi("Persone con lacune", len(persone_ko), TONE_DANGER if persone_ko else TONE_OK),
     ]
     res.note = [
@@ -859,7 +863,7 @@ _registra(Sezione(
     opzioni=(
         Opzione("processi", "Processi", MULTI, _scelte_processi, aiuto="Vuoto = tutti."),
         Opzione("solo_attive", "Solo abilitazioni attive", SI_NO, predefinito=True),
-        Opzione("preavviso", "Giorni di preavviso «in scadenza»", INTERO, predefinito=60),
+        Opzione("preavviso", "Giorni di preavviso «in scadenza»", INTERO, predefinito=GIORNI_PREAVVISO),
     ),
 ))
 
@@ -916,7 +920,7 @@ _registra(Sezione(
     predefinite=("tipo", "voce", "riferimento", "scadenza", "stato"),
     opzioni=(
         Opzione("includi", "Contenuti", MULTI, _INCLUSIONI_SCHEDA, ("qualifiche", "processi", "formazione")),
-        Opzione("preavviso", "Giorni di preavviso «in scadenza»", INTERO, predefinito=60),
+        Opzione("preavviso", "Giorni di preavviso «in scadenza»", INTERO, predefinito=GIORNI_PREAVVISO),
     ),
 ))
 
@@ -993,7 +997,7 @@ _registra(Sezione(
 ))
 
 
-_SIGLE_FORMAZIONE = {"VALIDO": ("valida", "OK"), "UNA_TANTUM": ("valida", "OK"), "IN_SCADENZA_90": ("valida", "OK"),
+_SIGLE_FORMAZIONE = {"VALIDO": ("valida", "OK"), "UNA_TANTUM": ("valida", "OK"), "IN_SCADENZA_90": ("in_scadenza", "!"),
                      "IN_SCADENZA_30": ("in_scadenza", "!"), "SCADUTO": ("scaduta", "X"),
                      "MAI_FREQUENTATO": ("scaduta", "MAI")}
 
@@ -1031,7 +1035,8 @@ def _matrice_formazione(ctx: Contesto, o: dict) -> Risultato:
         res.toni.append(tono_riga)
     res.kpis = [Kpi("Persone", len(persone)), Kpi("Corsi in matrice", len(corsi)),
                 Kpi("Celle critiche", critiche, TONE_WARN if critiche else TONE_OK)]
-    res.note = ["Legenda: OK valida · ! in scadenza entro 30 gg · X scaduta · MAI mai frequentata · vuoto = non richiesta.",
+    res.note = [f"Legenda: OK valida · ! in scadenza entro {GIORNI_PREAVVISO} gg (urgente {GIORNI_URGENTE}) · "
+                "X scaduta · MAI mai frequentata · vuoto = non richiesta.",
                 f"Stato calcolato al {ctx.today:%d/%m/%Y} dall'ultimo completamento idoneo di ogni corso."]
     if o["intestazione"] == "codice" and corsi:
         res.note.append("Corsi: " + "; ".join(f"{c.codice} = {c.titolo}" for c in list(corsi.values())[:40]))
@@ -1489,7 +1494,7 @@ _registra(Sezione(
         Opzione("tipi", "Tipi di visita", MULTI, _scelte_tipi_visita, aiuto="Vuoto = tutti."),
         Opzione("stati", "Stati da includere", MULTI, _STATI_SCADENZA + (("mancante", "Dovuta, mai registrata"),),
                 aiuto="Vuoto = tutti."),
-        Opzione("preavviso", "Giorni di preavviso «in scadenza»", INTERO, predefinito=30),
+        Opzione("preavviso", "Giorni di preavviso «in scadenza»", INTERO, predefinito=GIORNI_PREAVVISO_VISITE),
         Opzione("includi_senza_visita", "Elenca le visite dovute e mai registrate", SI_NO, predefinito=True,
                 aiuto="Solo per chi è soggetto a sorveglianza: chi non ha visite dovute non compare come mancante."),
     ),
@@ -1560,6 +1565,7 @@ def _parita_genere(ctx: Contesto, o: dict) -> Risultato:
         per_id = {p.id: p for p in tutti}
         for r in TrainingEmployeeRecord.objects.filter(
             legacy_anagrafica_id__in=ctx.id_estesi(per_id), data_completamento__range=(ctx.date_from, ctx.date_to),
+            idoneo=True,
         ).select_related("corso").only("legacy_anagrafica_id", "ore_frequentate", "duration_hours_snapshot",
                                        "corso__durata_ore_teorica"):
             pid = ctx.canonico(r.legacy_anagrafica_id)

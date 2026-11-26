@@ -70,6 +70,9 @@ def motivo_blocco_edizione(sessione) -> str:
     if sessione.stato == "COMPLETATA":
         return (f"L'edizione «{sessione.codice_sessione}» è completata: calendario, iscritti "
                 "e presenze non si modificano più. Per correggerla riaprila indicando il motivo.")
+    if sessione.stato == "ANNULLATA":
+        return (f"L'edizione «{sessione.codice_sessione}» è annullata: calendario, iscritti "
+                "e presenze non si modificano. Per usarla di nuovo riaprila indicando il motivo.")
     return ""
 
 
@@ -156,7 +159,8 @@ def riapri_edizione(sessione, user, motivo: str) -> dict:
     motivo = (motivo or "").strip()
     if not motivo:
         raise ValueError("Indica il motivo della riapertura.")
-    if not sessione.is_chiusa:
+    annullata = sessione.stato == "ANNULLATA"
+    if not sessione.is_chiusa and not annullata:
         raise ValueError("L'edizione non è chiusa.")
     traccia = {
         "stato_precedente": sessione.stato,
@@ -164,7 +168,18 @@ def riapri_edizione(sessione, user, motivo: str) -> dict:
         "approvata_da": sessione.approvata_da_nome,
         "motivo": motivo,
     }
-    sessione.stato = "IN_CORSO"
+    if annullata:
+        # Chi era stato ritirato dall'annullamento torna iscritto; i ritiri scelti a mano restano.
+        from .formazione_aula import NOTA_EDIZIONE_ANNULLATA
+        n = 0
+        for e in sessione.iscrizioni.filter(stato="RITIRATO", note__endswith=NOTA_EDIZIONE_ANNULLATA):
+            e.stato = "ISCRITTO"
+            e.note = (e.note[: -len(NOTA_EDIZIONE_ANNULLATA)]).rstrip("\n")
+            e.save(update_fields=["stato", "note", "updated_at"])
+            n += 1
+        traccia["iscrizioni_ripristinate"] = n
+    oggi = timezone.localdate()
+    sessione.stato = "PIANIFICATA" if annullata and sessione.data_inizio and sessione.data_inizio > oggi else "IN_CORSO"
     sessione.approvata_il = None
     sessione.approvata_da = None
     sessione.approvata_da_nome = ""
@@ -198,10 +213,22 @@ def annulla_record(record, user, motivo: str) -> dict:
     - l'iscrizione collegata torna «In corso» e si stacca, così il corso si
       può chiudere di nuovo con i dati giusti;
     - la qualifica che aveva questo record come prova torna sul completamento
-      valido precedente, oppure resta da verificare.
+      valido precedente, oppure resta da verificare;
+    - l'edizione «Completata» del record torna «In corso» con lo stesso motivo
+      (come ``riapri_edizione``), così l'esito si richiude da «Chiudi l'edizione»;
+    - le valutazioni di efficacia non ancora compilate del record si eliminano;
+    - le assegnazioni del corso chiuse da questo completamento tornano «Assegnato»
+      se non resta un altro completamento valido;
+    - l'iscrizione e-learning chiusa da questo record torna «In corso» e si stacca.
     Ritorna un riepilogo per messaggio e registro attività."""
     from ..models import DipendenteQualifica
-    from ..models_formazione import TrainingEmployeeRecord
+    from ..models_formazione import (
+        TrainingAssignment,
+        TrainingEfficacia,
+        TrainingElearningEnrollment,
+        TrainingEmployeeRecord,
+    )
+    from .formazione_completamento import completamento_valido
 
     motivo = (motivo or "").strip()
     if not motivo:
@@ -228,6 +255,30 @@ def annulla_record(record, user, motivo: str) -> dict:
         if enrollment is not None and enrollment.stato == "COMPLETATO":
             enrollment.stato = "IN_CORSO"
             enrollment.save(update_fields=["stato", "updated_at"])
+
+        sessione = record.sessione if record.sessione_id else None
+        if sessione is not None and sessione.stato == "COMPLETATA" and not sessione.is_approvata:
+            riapri_edizione(sessione, user, motivo)
+            riepilogo["edizione_riaperta"] = sessione.codice_sessione
+
+        n_eff, _ = TrainingEfficacia.objects.filter(record=record, valutata_il__isnull=True).delete()
+        riepilogo["efficacie_eliminate"] = n_eff
+
+        for el in TrainingElearningEnrollment.objects.filter(record_completamento=record):
+            el.stato = "IN_CORSO"
+            el.record_completamento = None
+            el.data_completamento = None
+            el.save(update_fields=["stato", "record_completamento", "data_completamento", "updated_at"])
+
+        if record.corso_id and completamento_valido(record.corso, record.legacy_anagrafica_id) is None:
+            # L'assegnazione del ciclo in corso (l'ultimo) era chiusa da questo completamento:
+            # senza un altro completamento valido torna da fare. I cicli precedenti restano storia.
+            ultima = (TrainingAssignment.objects
+                      .filter(corso_id=record.corso_id, legacy_anagrafica_id=record.legacy_anagrafica_id)
+                      .order_by("-ciclo", "-pk").first())
+            if ultima is not None and ultima.stato == "COMPLETATO":
+                TrainingAssignment.objects.filter(pk=ultima.pk).update(stato="ASSEGNATO")
+                riepilogo["assegnazione_riaperta"] = ultima.pk
 
         for qual in DipendenteQualifica.objects.filter(record_formazione_id=record.pk):
             precedente = (
@@ -428,8 +479,8 @@ def controlli_integrita(oggi: date | None = None) -> list[Controllo]:
                          "MSM o MSO approvano il registro con una verifica formale.",
                          qs.count(), _esempi(qs), False, "bassa"), qs))
 
-    limite = aggiungi_mesi(oggi, -TrainingSession.MESI_VERIFICA_NC)
-    qs = TrainingSession.objects.filter(approvata_il__isnull=False, verifica_nc_esito="", data_fine__lte=limite)
+    from .formazione_aula import q_verifiche_nc_dovute
+    qs = TrainingSession.objects.filter(q_verifiche_nc_dovute(oggi))
     out.append(_sessione(Controllo("verifiche_nc_dovute", "Verifiche «assenza NC a 6 mesi» dovute", "MOD.040",
                          "Sono passati 6 mesi dalla fine dell'edizione: registrare l'esito della verifica.",
                          qs.count(), _esempi(qs), False, "bassa"), qs))

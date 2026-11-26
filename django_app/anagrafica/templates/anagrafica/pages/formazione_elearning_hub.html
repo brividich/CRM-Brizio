@@ -55,13 +55,19 @@
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ tot.iscritti }}</span></div>
         <div class="fmd-mtr-lbl">Iscritti</div>
-        <div class="fmd-mtr-sub">Dipendenti che hanno avviato</div>
+        <div class="fmd-mtr-sub">Assegnati o avviati (portale o link aperto)</div>
       </a>
       <a class="fmd-mtr fmd-t-violet kpi-link" href="{% url 'anagrafica:formazione_elearning_hub' %}#elearning-corsi" title="Apri l'elenco dei corsi: la colonna Completati somma a questo numero">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ tot.completati }}</span></div>
         <div class="fmd-mtr-lbl">Completati</div>
-        <div class="fmd-mtr-sub">Quiz superato</div>
+        <div class="fmd-mtr-sub">Completamento valido (qualunque strada)</div>
+      </a>
+      <a class="fmd-mtr fmd-t-amber kpi-link" href="{% url 'anagrafica:formazione_elearning_hub' %}#elearning-corsi" title="Quiz superati dal link aperto senza dipendente abbinato: la colonna Da abbinare somma a questo numero">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ tot.da_abbinare }}</span></div>
+        <div class="fmd-mtr-lbl">Quiz superati da abbinare</div>
+        <div class="fmd-mtr-sub">Link aperto: nessun corso registrato finché l'HR non abbina</div>
       </a>
       <a class="fmd-mtr fmd-t-orange kpi-link" href="{% url 'anagrafica:formazione_elearning_hub' %}?vista=problemi#elearning-corsi" title="Apri l'elenco filtrato: corsi senza slide o con quiz incompleto">
         <span class="fmd-ribbon"></span>
@@ -86,6 +92,7 @@
               <th class="fmd-c">Quiz</th>
               <th class="fmd-c">Iscritti</th>
               <th class="fmd-c">Completati</th>
+              <th class="fmd-c">Da abbinare</th>
               <th>Salute</th>
               <th class="fmd-nowrap">Azioni</th>
             </tr>
@@ -109,6 +116,7 @@
               </td>
               <td class="fmd-c fmd-num">{{ r.corso.n_iscritti }}</td>
               <td class="fmd-c fmd-num">{{ r.corso.n_completati }}</td>
+              <td class="fmd-c fmd-num">{% if r.corso.n_da_abbinare %}<a class="fmd-badge fmd-b-amber" href="{% url 'anagrafica:formazione_elearning_manage' r.corso.pk %}?scheda=link" title="Apri le risposte dal link aperto">{{ r.corso.n_da_abbinare }}</a>{% else %}<span class="fmd-muted">0</span>{% endif %}</td>
               <td>
                 {% if r.salute.0 == "OK" %}<span class="fmd-badge fmd-b-green">{{ r.salute.1 }}</span>
                 {% elif r.salute.0 == "WARN" %}<span class="fmd-badge fmd-b-amber">{{ r.salute.1 }}</span>

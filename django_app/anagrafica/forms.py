@@ -1067,13 +1067,15 @@ class TrainingSessionForm(forms.ModelForm):
     class Meta:
         model = TrainingSession
         fields = [
-            "corso", "stato", "modalita",
+            # Lo stato non si sceglie a mano: nasce «Pianificata», diventa «In corso» da sé
+            # (formazione_aula.aggiorna_stati), «Completata»/«Annullata» solo da
+            # «Chiudi l'edizione» / «Annulla» e si torna indietro con «Riapri».
+            "corso", "modalita",
             "data_inizio", "data_fine", "sede",
             "docente", "docente_ente", "docente_nome", "note",
         ]
         widgets = {
             "corso":           forms.Select(attrs=_FM_SELECT),
-            "stato":           forms.Select(attrs=_FM_SELECT),
             "modalita":        forms.Select(attrs=_FM_SELECT),
             "data_inizio":     forms.DateInput(attrs=_FM_DATE),
             "data_fine":       forms.DateInput(attrs=_FM_DATE),

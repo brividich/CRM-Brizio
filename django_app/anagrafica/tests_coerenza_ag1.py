@@ -114,9 +114,11 @@ class CorsoOnlineTests(_Base):
     def test_registro_e_andamento_con_link_aperto(self):
         from .services import elearning_report as report
         rec = self.record(9, OGGI, None)
-        TrainingElearningRispostaAperta.objects.create(
+        risposta = TrainingElearningRispostaAperta.objects.create(
             corso=self.corso, nome="Anna", cognome="Prova", superato=True, punteggio_pct=Decimal("100"),
             stato=TrainingElearningRispostaAperta.AUTO, legacy_anagrafica_id=9, record=rec)
+        # Conta solo il completamento nato da quella risposta (nota «risposta #pk»).
+        type(rec).objects.filter(pk=rec.pk).update(note=f"Completato dal link aperto; risposta #{risposta.pk}.")
         righe = report.registro(corso_id=self.corso.pk)
         self.assertEqual([r["fonte"] for r in righe], ["Link aperto"])
         self.assertEqual(report.andamento(corso_id=self.corso.pk)["totale_periodo"], 1)

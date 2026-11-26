@@ -176,7 +176,7 @@ class SessioneCreateConsumaPreselectTests(TestCase):
         oggi = timezone.localdate().isoformat()
         resp = self.client.post(reverse("anagrafica:formazione_sessione_create"), {
             "corso": str(self.corso.pk),
-            "stato": "PIANIFICATA", "modalita": "IN_SEDE",
+            "modalita": "IN_SEDE",
             "data_inizio": oggi, "data_fine": oggi,
         })
         self.assertEqual(resp.status_code, 302)

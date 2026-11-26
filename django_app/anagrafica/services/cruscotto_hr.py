@@ -12,13 +12,13 @@ from datetime import date, timedelta
 
 from django.utils import timezone
 
-from ..scadenze_soglie import GIORNI_PREAVVISO
+from ..scadenze_soglie import GIORNI_PREAVVISO, GIORNI_PREAVVISO_VISITE
 from . import requisiti
 
 # Formazione e qualifiche: soglia unica «in scadenza» (scadenze_soglie).
 SOGLIA_GIORNI = GIORNI_PREAVVISO
 # Le visite mediche hanno regole proprie: restano a 60 giorni.
-SOGLIA_GIORNI_VISITE = 60
+SOGLIA_GIORNI_VISITE = GIORNI_PREAVVISO_VISITE
 MAX_RIGHE = 8
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from datetime import date
+from datetime import date, timedelta
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
@@ -510,7 +510,9 @@ class AnagraficaDipendentiViewTests(TestCase):
         self.assertContains(index_response, "Nuovo dipendente")
         self.assertNotContains(index_response, "Onboarding / Offboarding")
 
-        data_cessazione = date.today()
+        # Ieri: il giorno di cessazione è l'ultimo giorno di lavoro, la persona passa
+        # fra gli ex dipendenti dal giorno dopo (regola unica services.in_forza).
+        data_cessazione = date.today() - timedelta(days=1)
         with patch("core.audit.log_action") as log_action:
             response = self.client.post(
                 reverse("anagrafica:dipendente_offboarding_licenziamento", args=[legacy_id]),
@@ -3194,6 +3196,16 @@ class OrganigrammaTests(TestCase):
 # H2 — fascicolo conformità "idoneità alla mansione"
 # ---------------------------------------------------------------------------
 
+def _richiedi_qualifica(legacy_id: int, tipo) -> None:
+    """La qualifica ``tipo`` diventa un requisito della persona (ruolo operativo che la richiede):
+    il semaforo conformità conta solo le qualifiche richieste (remediation R4, 26/11/2026)."""
+    from .models import DipendenteRuoloOperativo, RuoloOperativo, RuoloQualifica
+
+    ruolo = RuoloOperativo.objects.create(nome=f"Ruolo qualifica {legacy_id} {tipo.pk}")
+    RuoloQualifica.objects.create(ruolo=ruolo, qualifica=tipo, obbligatoria=True)
+    DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=legacy_id, ruolo=ruolo)
+
+
 class ConformitaServiceTests(TestCase):
     """Semaforo aggregato: esiti per dominio e privacy dettaglio visite."""
 
@@ -3208,6 +3220,7 @@ class ConformitaServiceTests(TestCase):
         from django.utils import timezone
         from .models import DipendenteQualifica
         scad = None if giorni is None else timezone.localdate() + timedelta(days=giorni)
+        _richiedi_qualifica(legacy_id, self.tipo_q)
         return DipendenteQualifica.objects.create(
             legacy_anagrafica_id=legacy_id, tipo=self.tipo_q, data_scadenza=scad
         )
@@ -3889,6 +3902,7 @@ class ConformitaPanelTests(TestCase):
         from datetime import timedelta
         from django.utils import timezone
         from .models import DipendenteQualifica
+        _richiedi_qualifica(611, self.tipo_q)
         DipendenteQualifica.objects.create(
             legacy_anagrafica_id=611, tipo=self.tipo_q,
             data_scadenza=timezone.localdate() - timedelta(days=3),
@@ -3926,6 +3940,8 @@ class ConformitaReportTests(TestCase):
                 "(703, 'Anna', 'Cessata', 'Operatore', 'PROD', 0)"
             )
         # 701 non conforme (scaduta), 702 in regola (valida)
+        _richiedi_qualifica(701, tipo)
+        _richiedi_qualifica(702, tipo)
         DipendenteQualifica.objects.create(
             legacy_anagrafica_id=701, tipo=tipo, data_scadenza=oggi - timedelta(days=2)
         )

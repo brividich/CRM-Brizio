@@ -112,10 +112,14 @@ def formazione_online_catalog(request):
         }
     # Completamenti validi della persona sui corsi online, da qualunque strada (portale o
     # link aperto): un corso fatto dal link aperto non ha iscrizione e-learning ma è fatto.
+    # Regola unica (``formazione_completamento.record_valido``): idoneo, non scaduto, non futuro.
+    from .services.formazione_completamento import record_valido
     record_validi = {}
     if legacy_id:
         from .models_formazione import TrainingEmployeeRecord
-        for r in (TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=legacy_id, corso__is_elearning=True)
+        for r in (TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=legacy_id, corso__is_elearning=True,
+                                                        idoneo=True, data_completamento__lte=timezone.localdate())
+                  .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=timezone.localdate()))
                   .order_by("data_completamento", "pk")):
             record_validi[r.corso_id] = r
     corsi = (
@@ -131,7 +135,7 @@ def formazione_online_catalog(request):
     iscrizioni = {}
     if legacy_id:
         iscrizioni = {e.corso_id: e for e in TrainingElearningEnrollment.objects.filter(
-            legacy_anagrafica_id=legacy_id).order_by("ciclo")}
+            legacy_anagrafica_id=legacy_id).select_related("record_completamento").order_by("ciclo")}
         from .models_elearning import TrainingElearningSlideView
         completate = dict(TrainingElearningSlideView.objects.filter(
             enrollment__in=list(iscrizioni.values()), completata=True, slide__is_active=True)
@@ -154,11 +158,13 @@ def formazione_online_catalog(request):
         rec = record_validi.get(c.pk)
         aperta = bool(a) and a.stato not in ("COMPLETATO", "ESONERATO")
         # Vale anche un completamento senza iscrizione (link aperto), se non c'è un rinnovo aperto dopo.
-        completato = bool(e and e.stato == "COMPLETATO") or bool(rec and not aperta)
+        # L'iscrizione completata conta solo se il suo completamento vale ancora (non scaduto).
+        completato = (bool(e and e.stato == "COMPLETATO" and record_valido(e.record_completamento))
+                      or bool(rec and not aperta))
         da_fare = aperta and not completato
         cards.append({
             "corso": c,
-            "stato": "COMPLETATO" if completato else (e.stato if e else None),
+            "stato": "COMPLETATO" if completato else (e.stato if e and e.stato != "COMPLETATO" else None),
             "best_pct": e.best_punteggio_pct if e else None,
             "n_slide": c.n_slide,
             "n_domande": c.n_domande,
@@ -230,6 +236,7 @@ def formazione_online_player(request, corso_id: int):
         "slide_iniziale": slide_iniziale,
         "enrollment": enr,
         "anteprima": accesso.anteprima,
+        "consultazione": accesso.consultazione,
         "no_anagrafica": legacy_id is None,
         "n_domande": corso.quiz_domande.filter(is_active=True).count(),
         "regola": regola,
@@ -426,6 +433,9 @@ def formazione_online_quiz(request, corso_id: int):
     accesso = fruizione.accesso_discente(corso, legacy_id, is_editor=is_editor)
     if not accesso.consentito:
         return _nega(request, accesso.motivo or "Corso non disponibile.")
+    if accesso.consultazione:
+        messages.info(request, "Hai già completato questo corso: puoi rivedere il materiale, il quiz non si ripete.")
+        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
     if accesso.anteprima:
         if request.method == "POST":
             messages.info(request, "Anteprima editor: il quiz non viene corretto né registrato.")

@@ -33,6 +33,13 @@
           <svg class="fmd-ico"><use href="#i-refresh"/></svg>Pianifica edizione di rinnovo
         </a>
         {% endif %}
+        {% if is_editor %}
+        <form method="post" action="{% url 'anagrafica:formazione_scadenze_ricalcola' %}" style="display:inline;"
+              data-hub-confirm="Ricalcolare adesso le scadenze di tutto il personale? Di notte gira comunque da solo.">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="fmd-btn fmd-btn-ghost" title="Dopo un cambio di regole (obbligatorio per tutti, validità, regole d'obbligo), senza aspettare la notte"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Ricalcola scadenze</button>
+        </form>
+        {% endif %}
         <a href="{% url 'anagrafica:formazione_dashboard' %}" class="fmd-btn fmd-btn-ghost">← Formazione</a>
       </div>
     </div>
@@ -42,7 +49,7 @@
       <span class="fmd-alert-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span>
       <div class="fmd-alert-body">
         <div class="fmd-alert-t">Le scadenze della formazione non sono ancora calcolate.</div>
-        <div class="fmd-alert-m">Si riempiono quando si registrano corsi e sessioni.{% if user.is_superuser %} Per ricalcolarle subito: <code>python manage.py refresh_training_deadlines --all</code>.{% endif %}</div>
+        <div class="fmd-alert-m">Si riempiono quando si registrano corsi e sessioni.{% if is_editor %} Per ricalcolarle subito usa «Ricalcola scadenze» in alto.{% endif %}</div>
       </div>
     </div>
     {% endif %}

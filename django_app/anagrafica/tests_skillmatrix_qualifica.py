@@ -42,6 +42,17 @@ class GateSetup(TestCase):
             corso_qualificante=self.corso)
 
     def _deadline(self, legacy, stato):
+        # Il gate legge i completamenti reali: il record accompagna lo stato della cache.
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from anagrafica.models_formazione import TrainingEmployeeRecord
+        oggi = timezone.localdate()
+        TrainingEmployeeRecord.objects.create(
+            corso=self.corso, legacy_anagrafica_id=legacy, idoneo=True,
+            data_completamento=oggi - timedelta(days=400),
+            data_scadenza=oggi - timedelta(days=5) if stato == "SCADUTO" else oggi + timedelta(days=300))
         return TrainingDeadline.objects.create(
             corso=self.corso, legacy_anagrafica_id=legacy, stato_scadenza=stato)
 

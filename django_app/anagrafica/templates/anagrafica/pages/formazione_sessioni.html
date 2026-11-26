@@ -46,6 +46,7 @@
         </select>
         <select name="stato" class="fmd-select" aria-label="Filtra per stato">
           <option value="">Tutti gli stati</option>
+          <option value="NON_ANNULLATE" {% if filtro_stato == "NON_ANNULLATE" %}selected{% endif %}>Tutte tranne le annullate</option>
           {% for code, label in STATO_CHOICES %}
             <option value="{{ code }}" {% if filtro_stato == code %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
@@ -71,8 +72,12 @@
       <form method="post" action="{% url 'anagrafica:formazione_da_chiudere_azione' %}" id="dc-form">{% csrf_token %}
       <p class="fmd-muted" style="margin:4px 0 10px;">Sessioni finite che risultano ancora pianificate o in corso (le online dopo la scadenza della lezione). «Chiudi» applica gli esiti che il portale sa proporre dalle presenze e dai test; chi non ha un esito proponibile tiene aperta la sessione (aprila e decidi). «Annulla» vale solo per le sessioni senza completamenti.</p>
       {% if is_editor %}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-        <button class="fmd-btn fmd-btn-primary" name="azione" value="chiudi" type="submit">Chiudi le selezionate</button>
-        <button class="fmd-btn fmd-btn-ghost" name="azione" value="annulla" type="submit">Annulla le selezionate</button>
+        <button class="fmd-btn fmd-btn-primary" name="azione" value="chiudi" type="submit" id="dc-chiudi"
+                data-hub-confirm="Chiudere le edizioni selezionate? Il portale applica gli esiti che sa proporre da presenze e test e registra i completamenti."
+                data-hub-confirm-ok="Chiudi">Chiudi le selezionate</button>
+        <button class="fmd-btn fmd-btn-ghost" name="azione" value="annulla" type="submit" id="dc-annulla"
+                data-hub-confirm="Annullare le edizioni selezionate? Chi è ancora iscritto o in corso diventa «Ritirato»; le edizioni con completamenti o verifiche superate non si annullano."
+                data-hub-confirm-ok="Sì, annulla">Annulla le selezionate</button>
       </div>{% endif %}
       <div class="fmd-tablewrap">
         <table class="fmd-table">
@@ -95,7 +100,12 @@
       </div>
       </form>
       <script nonce="{{ csp_nonce }}">
-      (function(){var t=document.getElementById("dc-tutte"); if(!t)return; t.addEventListener("change",function(){document.querySelectorAll(".dc-sel").forEach(function(c){c.checked=t.checked;});});})();
+      (function(){var t=document.getElementById("dc-tutte"); if(t){t.addEventListener("change",function(){document.querySelectorAll(".dc-sel").forEach(function(c){c.checked=t.checked;});conta();});}
+        var bc=document.getElementById("dc-chiudi"), ba=document.getElementById("dc-annulla");
+        function conta(){var n=document.querySelectorAll(".dc-sel:checked").length, e=n===1?"1 edizione":n+" edizioni";
+          if(bc)bc.setAttribute("data-hub-confirm","Chiudere "+e+"? Il portale applica gli esiti che sa proporre da presenze e test e registra i completamenti.");
+          if(ba)ba.setAttribute("data-hub-confirm","Annullare "+e+"? Chi è ancora iscritto o in corso diventa «Ritirato»; le edizioni con completamenti o verifiche superate non si annullano.");}
+        document.querySelectorAll(".dc-sel").forEach(function(c){c.addEventListener("change",conta);});})();
       </script>
       {% elif page_obj %}
       {% if da_approvare %}<p class="fmd-muted" style="margin:4px 0 10px;">Edizioni completate che aspettano l'approvazione MOD.040: aprila e approva dal riquadro «Chiusura e approvazione».</p>{% endif %}

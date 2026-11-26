@@ -545,28 +545,20 @@ def scadenzario(request):
     paginator  = Paginator(voci, 50)
     page_obj   = paginator.get_page(request.GET.get("page"))
 
-    # Formazione: riepilogo scadenze urgenti da mostrare come sezione aggiuntiva
+    # Formazione: riepilogo del riquadro «Scadenzario formazione». Contato sulle
+    # stesse voci che il riquadro elenca (``voci_formazione``: obbligatori, senza
+    # ex dipendenti, nell'ambito del ruolo, centro e stato scelti) con la stessa
+    # regola delle tessere (``_nello_stato``): prima contava la cache per conto suo.
     fm_n_scaduti = 0
     fm_n_30gg    = 0
     fm_n_90gg    = 0
     fm_is_cache_empty = True
     if can_view_formazione:
+        _voci_fm = [v for v in voci if v["kind"] == "formazione"]
+        fm_n_scaduti = sum(1 for v in _voci_fm if _nello_stato(v, "scaduta"))
+        fm_n_30gg    = sum(1 for v in _voci_fm if _nello_stato(v, "30"))
+        fm_n_90gg    = sum(1 for v in _voci_fm if _nello_stato(v, "90") and not _nello_stato(v, "30"))
         try:
-            # Stesse righe della lista sotto (sorgente «formazione» dello scadenzario):
-            # solo corsi obbligatori, senza ex dipendenti, nell'ambito del ruolo.
-            # Prima contava anche i corsi facoltativi: 25 scaduti sopra, 9 righe sotto.
-            fm_qs = filtro_centro.applica(TrainingDeadline.objects.filter(is_required=True)).exclude(
-                legacy_anagrafica_id__in=_helpers._cessati_legacy_ids()
-            )
-            if _helpers._ruoli_attivi():
-                from .dipendenti import _schede_visibili
-
-                fm_visibili = _schede_visibili(request)
-                if fm_visibili is not None:
-                    fm_qs = fm_qs.filter(legacy_anagrafica_id__in=sorted(fm_visibili))
-            fm_n_scaduti = fm_qs.filter(stato_scadenza="SCADUTO").count()
-            fm_n_30gg    = fm_qs.filter(stato_scadenza="IN_SCADENZA_30").count()
-            fm_n_90gg    = fm_qs.filter(stato_scadenza="IN_SCADENZA_90").count()
             fm_is_cache_empty = not TrainingDeadline.objects.exists()
         except Exception:
             logger.exception("Errore caricamento KPI formazione per scadenzario")
