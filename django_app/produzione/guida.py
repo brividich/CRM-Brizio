@@ -208,7 +208,9 @@ SEZIONI: list[dict] = [
                   "settimana (ultime 12, «S» e numero della settimana): in ogni casella i report con quote fuori su quelli "
                   "misurati, verde senza fuori, giallo fino al 12%, rosa fino al 25%, rosso oltre; «·» nessun report. Clic su una "
                   "casella: i report di quel P/N in quella settimana; clic sul P/N: la sua Qualità CMM. Poi «Fuori ora», «Cpk < "
-                  "1,33», «Deriva» e «Ultimo report». «Da guardare» mostra solo i P/N con fuori recenti o quote in deriva. Sotto, "
+                  "1,33», «Deriva» e «Ultimo report»: questi tre li calcola il giro orario dei report (dopo un report nuovo o escluso), "
+                  "finché non tocca a un P/N la riga dice «in calcolo». «Da guardare» mostra solo i P/N con fuori recenti o quote "
+                  "in deriva. Sotto, "
                   "«Quote da guardare» di tutti questi P/N: fuori nell'ultimo report, poi in deriva, poi Cpk sotto 1,33."),
             ("p", "Escludere un report (prova, rilavorazione, doppione): nella pagina del report «Escludi dall'analisi», con motivo "
                   "e nota. Resta scritto chi e quando; «Riammetti» lo rimette. Il PDF non si tocca. Serve il permesso «Gestire le "

@@ -228,6 +228,9 @@ class ArticoloPN(models.Model):
     ultimo_report = models.DateField(null=True, blank=True)
     cpk_peggiore = models.FloatField(null=True, blank=True)
     quote_non_capaci = models.PositiveIntegerField(default=0, help_text="Quote con Cpk sotto 1,33 sugli ultimi 30 pezzi.")
+    quote_deriva = models.PositiveIntegerField(default=0, help_text="Quote in deriva verso un limite.")
+    quote_fuori_ultimo = models.PositiveIntegerField(default=0, help_text="Quote fuori nell'ultimo report di ogni programma.")
+    analisi_il = models.DateTimeField(null=True, blank=True, help_text="Quando Cpk, deriva e fuori sono stati calcolati.")
     andamento = models.CharField(max_length=200, blank=True, default="",
                                  help_text="Report per mese degli ultimi 12 mesi, separati da virgola.")
     riepilogo_il = models.DateTimeField(null=True, blank=True)

@@ -153,6 +153,21 @@ class AnalisiTests(QuoteBase):
         self.report("SN1", [("D10", 10.03, 10.0, 0.02, -0.02)], giorni=0)
         self.giorno = date.today()
         self.report("SN2", [("D10", 10.03, 10.0, 0.02, -0.02)], giorni=0)
+        # prima del giro: analisi non ancora calcolata, la pagina non la ricalcola («in calcolo»)
+        from unittest import mock
+
+        from . import articoli
+        from .models import ArticoloPN
+
+        ArticoloPN.objects.create(pn="PN-ALFA-1")
+        with mock.patch.object(cmm, "analisi_pn", side_effect=AssertionError("la tabella non deve ricalcolare")):
+            prima = self.client.get(reverse("produzione:quote_cruscotto"), {"f": "tutti"})
+        self.assertFalse(prima.context["righe"][0]["analisi_pronta"])
+        self.assertContains(prima, "in calcolo")
+        self.assertEqual(articoli.aggiorna_cpk(60), 1)                   # il giro: analisi del P/N
+        self.assertEqual(articoli.da_analizzare(), [])                   # niente di nuovo da rifare
+        a = ArticoloPN.objects.get(pn="PN-ALFA-1")
+        self.assertEqual((a.quote_fuori_ultimo, a.quote_deriva), (1, 0))
         pagina = self.client.get(reverse("produzione:quote_cruscotto"))
         self.assertEqual(pagina.status_code, 200)
         r = pagina.context["righe"][0]

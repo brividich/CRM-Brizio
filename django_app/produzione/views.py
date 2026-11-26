@@ -1,6 +1,7 @@
 """Ordini di produzione: elenco degli OP, scheda con i documenti di produzione, impostazioni."""
 from __future__ import annotations
 
+import logging
 import os
 from urllib.parse import urlencode
 
@@ -31,6 +32,8 @@ from .models import (
     ArticoloPN,
     AliasQuotaCMM, CartellaReportCMM, DocumentoOP, ImpostazioniQuoteCMM, NotaQuotaCMM, ReportCMM, TipoDocumento,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _richiede(request, codice: str) -> None:
@@ -369,6 +372,14 @@ def report_escludi(request, pk: int):
         report.escluso_da, report.escluso_il = request.user, timezone.now()
         messages.success(request, f"{report.seriale or report.file} escluso dall'analisi.")
     report.save(update_fields=["escluso", "escluso_motivo", "escluso_nota", "escluso_da", "escluso_il"])
+    from . import articoli
+
+    try:   # i numeri di Quote CMM e del catalogo tengono conto subito del report escluso o riammesso
+        a = articoli.ArticoloPN.objects.filter(pn=report.pn).first()
+        if a:
+            articoli.analizza(a)
+    except Exception:  # pragma: no cover - il ricalcolo non deve impedire l'esclusione
+        logger.exception("analisi quote %s dopo esclusione", report.pn)
     log_action(request, "produzione_report_cmm_escludi", "produzione",
                {"id": report.pk, "file": report.file, "escluso": report.escluso, "motivo": report.escluso_motivo})
     return redirect("produzione:report_cmm", report.pk)
@@ -383,7 +394,9 @@ def quote_cruscotto(request):
     visibili = [r for r in righe if r["da_guardare"]] if filtro == "guardare" else righe
     return render(request, "produzione/quote_cruscotto.html", _ctx(
         request, "quote", righe=visibili, filtro=filtro, n_guardare=sum(1 for r in righe if r["da_guardare"]), n_tutti=len(righe),
-        settimane=cmm.settimane_mappa(), quote_guardare=cmm.quote_da_guardare_tutte([r["pn"] for r in righe if r["da_guardare"]]),
+        settimane=cmm.settimane_mappa(),
+        quote_guardare=cmm.quote_da_guardare_tutte([r["pn"] for r in righe if r["da_guardare"] and r["analisi_pronta"]]),
+        da_calcolare=sum(1 for r in righe if not r["analisi_pronta"]),
         tot={"pn": len(righe), "fuori": sum(1 for r in righe if r["fuori_rec"]), "cpk": sum(r["cpk_bassi"] for r in righe),
              "deriva": sum(r["deriva"] for r in righe)},
         oggi=ReportCMM.objects.filter(letto_il__date=timezone.localdate(), righe__gt=0).count(), attivo=cmm.attivo(),

@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Quote CMM veloce: analisi delle quote precalcolata per P/N
+
+- `/produzione/quote/` ricalcolava all'apertura l'analisi (Cpk, deriva, fuori nell'ultimo report) di tutti i P/N con report: in produzione 748 P/N e 2.871 programmi, con la cache vuota dopo l'aggiornamento e svuotata di continuo dalla rilettura dei report vecchi. Ora i tre numeri stanno in `ArticoloPN` (`quote_deriva`, `quote_fuori_ultimo`, `analisi_il`, migrazione `produzione 0007`, accanto a `quote_non_capaci`) e la pagina li legge: le colonne della mappa restano letture SQL. Li calcola il giro orario (`articoli.analizza`, stesse regole di `analisi_pn`): prima i P/N letti nel giro, poi quelli con l'analisi mai fatta o più vecchia dell'ultimo report letto o escluso; escludere o riammettere un report ricalcola subito il suo P/N. Finché un P/N non è calcolato la riga dice «in calcolo». «Quote da guardare» guarda i primi 8 P/N più gravi.
+- File: `produzione/models.py`, `migrations/0007_articolo_analisi.py`, `articoli.py` (`da_analizzare`, `analizza`, `aggiorna_cpk`), `report_cmm_indice.py` (`cruscotto`, giro), `views.py`, `quote_cruscotto.html`, guida in-app, `docs/moduli/produzione.md`. Test: `tests_quote_migliorie.py`.
+
 ### Fix: Catalogo P/N in errore 500 in produzione (SQL Server)
 
 - `/produzione/pn/` andava in errore 500: la creazione degli articoli mancanti usava `bulk_create(ignore_conflicts=True)`, che mssql-django non supporta (`NotSupportedError`). Per lo stesso motivo il giro orario non riempiva il catalogo (l'errore era registrato ma non fermava la lettura dei report). Ora si creano solo i P/N che mancano, senza `ignore_conflicts`; se un giro in parallelo ne crea qualcuno nello stesso momento si ripiega su uno alla volta.
