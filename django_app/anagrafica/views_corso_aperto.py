@@ -37,7 +37,7 @@ from core.public_headers import risposta_pubblica, risposta_pubblica_con_form
 from .models_formazione import TrainingSlide
 from .services import elearning_link_aperto as servizio
 from .services import elearning_quiz as quiz
-from .services.elearning_regole import Regola, regola_corso, secondi_richiesti_slide
+from .services.elearning_regole import regola_corso, secondi_richiesti_slide
 
 LIMITE_IP, FINESTRA_IP = 60, 3600          # in officina molti telefoni escono dallo stesso IP
 LIMITE_GLOBALE, FINESTRA_GLOBALE = 400, 3600
@@ -585,16 +585,6 @@ def quiz_finale(request, token: str):
     for chiave in request.POST:
         if chiave.startswith("q_") and chiave[2:].isdigit():
             risposte[int(chiave[2:])] = {int(x) for x in request.POST.getlist(chiave) if str(x).isdigit()}
-    errori = []
-    if errori:
-        # Stesse domande, stesso ordine: si ricostruiscono da quelle servite.
-        per_id = {d.id: d for d in _domande_da_servire(corso_obj, Regola(mescola=False))}
-        domande = [per_id[i] for i in domande_ids if i in per_id]
-        for d in domande:
-            d.scelte = risposte.get(d.id, set())
-        return render(request, "anagrafica/corso_aperto/quiz.html",
-                      {"link": link, "corso": corso_obj, "domande": domande, "dati": dati, "errori": errori},
-                      status=400)
 
     esito = servizio.correggi(corso_obj, domande_ids, risposte, regola.soglia_pct)
     avvio = stato.get("avvio")
@@ -614,9 +604,18 @@ def quiz_finale(request, token: str):
     stato.pop("quiz", None)
     stato.pop("quiz_token", None)
     _salva(request, link, stato)
+    # «Corso completato» solo se il completamento è a libretto: quiz superato ma persona non
+    # abbinata (nome non trovato o omonimi) = nessun record, lo registra l'HR dopo il controllo.
+    registrato = bool(risposta.superato and risposta.record_id)
+    if registrato:
+        titolo = "Corso completato"
+    elif risposta.superato:
+        titolo = "Quiz superato: l'ufficio HR verifica i tuoi dati e registra il corso"
+    else:
+        titolo = "Quiz non superato"
     return render(request, "anagrafica/corso_aperto/esito.html", {
         "link": link, "corso": corso_obj, "superato": risposta.superato, "inviato": True,
-        "titolo": "Corso completato" if risposta.superato else "Quiz non superato",
+        "registrato": registrato, "titolo": titolo,
         "punteggio": risposta.punteggio_pct, "n_corrette": risposta.n_corrette, "n_totali": risposta.n_totali,
         "minimo": regola.soglia_pct, "nominativo": f"{risposta.nome} {risposta.cognome}",
         "torna": url_corso, "quiz_url": reverse("corso_aperto:quiz", args=[token]),

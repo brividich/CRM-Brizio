@@ -4,7 +4,7 @@
 {% if inviato %}
   <div class="pb-esito {% if superato %}ok{% else %}ko{% endif %}">
     {% if superato %}
-      Grazie {{ nominativo }}. Risposte giuste: {{ n_corrette }} su {{ n_totali }} ({{ punteggio|floatformat:0 }}%). Il corso verrà registrato sulla tua scheda.
+      Grazie {{ nominativo }}. Risposte giuste: {{ n_corrette }} su {{ n_totali }} ({{ punteggio|floatformat:0 }}%). {% if registrato %}Il corso è registrato sulla tua scheda.{% else %}L'ufficio HR controlla nome e matricola e registra il corso sulla tua scheda: non devi rifarlo.{% endif %}
     {% else %}
       Risposte giuste: {{ n_corrette }} su {{ n_totali }} ({{ punteggio|floatformat:0 }}%). Per superare il quiz serve almeno il {{ minimo|floatformat:0 }}%: ripassa le slide e riprova.
     {% endif %}

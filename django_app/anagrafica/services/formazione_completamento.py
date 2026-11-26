@@ -61,6 +61,14 @@ def dopo_completamento(record, user=None, *, storico: bool = False) -> None:
                 completa_iscrizioni_da_record(record)
         except Exception:
             logger.exception("Assegnazioni / sessioni online non chiuse per record %s", record.pk)
+        try:
+            # Corso richiesto da una competenza: il completamento (anche e-learning o link aperto)
+            # entra nelle righe aperte delle sessioni formative su mansioni.
+            from .sessioni import collega_completamento
+            with transaction.atomic():
+                collega_completamento(record)
+        except Exception:
+            logger.exception("Completamento non collegato alle sessioni formative (record %s)", record.pk)
 
     if storico:
         return
@@ -114,3 +122,184 @@ def ids_con_completamento_valido(corso, legacy_ids, *, oggi=None) -> set[int]:
                .filter(corso=corso, legacy_anagrafica_id__in=list(legacy_ids), idoneo=True)
                .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=oggi))
                .values_list("legacy_anagrafica_id", flat=True))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stato persona × corso: una sola regola per scheda corso, iscritti, corso online, cruscotti
+# ─────────────────────────────────────────────────────────────────────────────
+
+COMPLETATO, SCADUTO, DA_REGISTRARE, IN_CORSO, DA_FARE = (
+    "COMPLETATO", "SCADUTO", "DA_REGISTRARE", "IN_CORSO", "DA_FARE")
+ETICHETTE_STATO_PERSONA = {
+    COMPLETATO: "Completato",
+    SCADUTO: "Scaduto",
+    DA_REGISTRARE: "Da registrare",
+    IN_CORSO: "In corso",
+    DA_FARE: "Da fare",
+}
+TONO_STATO_PERSONA = {
+    COMPLETATO: "success", SCADUTO: "danger", DA_REGISTRARE: "warning", IN_CORSO: "info", DA_FARE: "neutral",
+}
+# Etichette di dettaglio per chi non ha (ancora) un completamento: l'ultimo esito.
+_DETTAGLIO_DA_FARE = {
+    "NON_IDONEO": "Non idoneo", "ASSENTE": "Assente", "RITIRATO": "Ritirato", "NON_SUPERATO": "Non superato",
+}
+
+
+class StatoPersonaCorso:
+    """Esito di :func:`stato_persona_corso`: ``codice`` (una delle costanti), ``etichetta`` leggibile,
+    ``data`` (completamento, scadenza o verifica superata), ``record`` (il completamento che conta)."""
+
+    __slots__ = ("codice", "etichetta", "data", "record")
+
+    def __init__(self, codice: str, etichetta: str = "", data=None, record=None):
+        self.codice = codice
+        self.etichetta = etichetta or ETICHETTE_STATO_PERSONA[codice]
+        self.data = data
+        self.record = record
+
+    @property
+    def tono(self) -> str:
+        return TONO_STATO_PERSONA[self.codice]
+
+    @property
+    def completato(self) -> bool:
+        return self.codice == COMPLETATO
+
+    def __repr__(self) -> str:
+        return f"StatoPersonaCorso({self.codice!r}, {self.data!r})"
+
+
+def _data_di(valore):
+    if valore is None:
+        return None
+    if hasattr(valore, "hour"):
+        from django.utils import timezone
+        return timezone.localtime(valore).date() if timezone.is_aware(valore) else valore.date()
+    return valore
+
+
+def stati_persona_corso(corso, legacy_ids, *, iscrizioni=None, oggi=None) -> dict:
+    """Lo stato persona × corso per molti dipendenti in poche query. Regola unica:
+
+    - COMPLETATO: c'è un completamento idoneo non scaduto (da qualunque strada);
+    - DA_REGISTRARE: verifica / test superato (aula, lezione online, e-learning, link aperto
+      abbinato) più recente dell'ultimo completamento, ma senza completamento a libretto;
+    - SCADUTO: l'ultimo completamento idoneo è scaduto;
+    - IN_CORSO: iscrizione aperta (aula, lezione online, e-learning) o assegnazione in corso;
+    - DA_FARE: tutto il resto (l'etichetta dice l'ultimo esito: non idoneo, assente, ...).
+
+    ``iscrizioni``: le TrainingEnrollment del corso già lette (evita una query)."""
+    from django.utils import timezone
+
+    from ..models_elearning import TrainingElearningRispostaAperta
+    from ..models_formazione import (
+        TrainingAssignment,
+        TrainingElearningEnrollment,
+        TrainingEmployeeRecord,
+        TrainingEnrollment,
+    )
+
+    ids = {int(i) for i in legacy_ids if i}
+    if corso is None or not ids:
+        return {}
+    oggi = oggi or timezone.localdate()
+
+    ultimo_valido: dict = {}
+    ultimo_idoneo: dict = {}
+    ultimo_qualsiasi: dict = {}
+    enr_con_record: set = set()
+    for r in (TrainingEmployeeRecord.objects.filter(corso=corso, legacy_anagrafica_id__in=ids)
+              .order_by("-data_completamento", "-pk")):
+        lid = r.legacy_anagrafica_id
+        if r.enrollment_id:
+            enr_con_record.add(r.enrollment_id)
+        ultimo_qualsiasi.setdefault(lid, r)
+        if r.idoneo:
+            ultimo_idoneo.setdefault(lid, r)
+            if r.data_scadenza is None or r.data_scadenza >= oggi:
+                ultimo_valido.setdefault(lid, r)
+
+    superata: dict = {}   # lid -> data della verifica superata più recente senza record (None se ignota)
+    aperta: dict = {}     # lid -> "IN_CORSO" | "ISCRITTO"
+    esito: dict = {}      # lid -> ultimo esito negativo (etichetta di DA_FARE)
+
+    def _segna_superata(lid, quando):
+        if lid not in superata or (quando and (superata[lid] is None or quando > superata[lid])):
+            superata[lid] = quando
+
+    def _segna_aperta(lid, stato):
+        if stato == "IN_CORSO" or lid not in aperta:
+            aperta[lid] = stato
+
+    if iscrizioni is None:
+        iscrizioni = (TrainingEnrollment.objects.filter(sessione__corso=corso, legacy_anagrafica_id__in=ids)
+                      .select_related("avanzamento_online"))
+    for e in iscrizioni:
+        lid = e.legacy_anagrafica_id
+        if lid not in ids or e.pk in enr_con_record:
+            continue
+        try:
+            prog = e.avanzamento_online
+        except Exception:
+            prog = None
+        superata_il = getattr(prog, "superata_il", None)
+        if e.stato == "COMPLETATO" or e.verifica_superata or superata_il:
+            _segna_superata(lid, e.data_verifica or _data_di(superata_il) or _data_di(getattr(e, "updated_at", None)))
+        elif e.stato in ("ISCRITTO", "IN_CORSO"):
+            _segna_aperta(lid, e.stato)
+        elif e.stato in _DETTAGLIO_DA_FARE:
+            esito.setdefault(lid, e.stato)
+
+    for e in TrainingElearningEnrollment.objects.filter(corso=corso, legacy_anagrafica_id__in=ids).values(
+            "legacy_anagrafica_id", "stato", "data_completamento", "record_completamento_id"):
+        lid = e["legacy_anagrafica_id"]
+        if e["stato"] == "COMPLETATO":
+            if not e["record_completamento_id"]:
+                _segna_superata(lid, e["data_completamento"])
+        elif e["stato"] in ("ISCRITTO", "IN_CORSO"):
+            _segna_aperta(lid, e["stato"])
+        elif e["stato"] in _DETTAGLIO_DA_FARE:
+            esito.setdefault(lid, e["stato"])
+
+    for r in (TrainingElearningRispostaAperta.objects
+              .filter(corso=corso, legacy_anagrafica_id__in=ids, superato=True, record__isnull=True)
+              .exclude(stato=TrainingElearningRispostaAperta.SCARTATA).values("legacy_anagrafica_id", "inviato_il")):
+        _segna_superata(r["legacy_anagrafica_id"], _data_di(r["inviato_il"]))
+
+    for a in TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id__in=ids, stato="IN_CORSO").values(
+            "legacy_anagrafica_id"):
+        _segna_aperta(a["legacy_anagrafica_id"], "IN_CORSO")
+
+    out: dict = {}
+    for lid in ids:
+        rec = ultimo_valido.get(lid)
+        if rec is not None:
+            out[lid] = StatoPersonaCorso(COMPLETATO, data=rec.data_completamento, record=rec)
+            continue
+        scaduto = ultimo_idoneo.get(lid)
+        if lid in superata:
+            quando = superata[lid]
+            if scaduto is None or (quando is not None and quando > scaduto.data_completamento):
+                out[lid] = StatoPersonaCorso(DA_REGISTRARE, data=quando)
+                continue
+        if scaduto is not None:
+            out[lid] = StatoPersonaCorso(SCADUTO, data=scaduto.data_scadenza, record=scaduto)
+            continue
+        if lid in aperta:
+            out[lid] = StatoPersonaCorso(IN_CORSO, "Iscritto" if aperta[lid] == "ISCRITTO" else "")
+            continue
+        ultimo = ultimo_qualsiasi.get(lid)
+        if ultimo is not None:
+            out[lid] = StatoPersonaCorso(DA_FARE, "Non idoneo", data=ultimo.data_completamento, record=ultimo)
+            continue
+        out[lid] = StatoPersonaCorso(DA_FARE, _DETTAGLIO_DA_FARE.get(esito.get(lid), ""))
+    return out
+
+
+def stato_persona_corso(corso, legacy_id, *, iscrizioni=None, oggi=None) -> StatoPersonaCorso:
+    """Lo stato di una persona per un corso (vedi :func:`stati_persona_corso`)."""
+    if not legacy_id or corso is None:
+        return StatoPersonaCorso(DA_FARE)
+    return stati_persona_corso(corso, [legacy_id], iscrizioni=iscrizioni, oggi=oggi).get(
+        int(legacy_id), StatoPersonaCorso(DA_FARE))
