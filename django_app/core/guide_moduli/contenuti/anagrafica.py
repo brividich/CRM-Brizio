@@ -500,6 +500,22 @@ GUIDA = {
             ],
         },
         {
+            "id": "formazione-una-regola",
+            "titolo": "Stati, soglie e obblighi: una regola sola",
+            "blocchi": [
+                ("ul", [
+                    "Stato persona × corso uguale ovunque: Completato (valido), Scaduto, Da registrare, In corso, Da fare.",
+                    "In scadenza entro 90 giorni, urgente entro 30 (formazione e qualifiche); visite mediche a 60.",
+                    "«Obbligatorio per tutti i dipendenti» sul corso = obbligo per ogni persona in forza; senza obblighi la "
+                    "Copertura dice «Nessun obbligo configurato».",
+                    "Edizioni: «In corso» da sole il giorno d'inizio; online con fasi e «Chiudi l'edizione» dopo la scadenza; "
+                    "«Da approvare» in Sessioni per il MOD.040.",
+                    "Matrice qualifiche: «mancante» solo se richiesta; scheda qualifica: «Richiesta a, ma mancante».",
+                    "Libretto con qualifiche correnti e processi MOD.128; «Spegni online» non tocca l'aula.",
+                ]),
+            ],
+        },
+        {
             "id": "corso-un-completamento",
             "titolo": "Un corso, un completamento; tipo, validità, qualifiche e date",
             "blocchi": [

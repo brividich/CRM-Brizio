@@ -9,6 +9,40 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione e competenze: le pagine dicono la stessa cosa (analisi pagina per pagina del 26/11, 20 interventi)
+
+**Stato della persona**
+- Una sola regola «stato persona × corso» (`services/formazione_completamento.stato_persona_corso` / `stati_persona_corso`): Completato (completamento idoneo non scaduto), Scaduto, Da registrare (test o verifica superati senza completamento a libretto), In corso, Da fare. La usano scheda corso («Dipendenti iscritti», con filtro), Iscritti dell'edizione, risultati e hub dei corsi online, cruscotto e lezione online («Superata, da registrare»).
+- Cruscotto e-learning: «in regola» esclude gli in scadenza; andamento e registro comprendono il link aperto. Hub «Corsi online»: completati = persone con completamento valido da qualunque strada, iscritti = persone distinte.
+- Richieste di formazione (ex «Formazione su mansioni»): il corso richiesto vale con un completamento valido da qualunque strada (`services/sessioni.collega_completamento`, chiamato da `dopo_completamento`).
+- Link aperto: quiz superato ma non abbinato a una persona non dice più «Corso completato».
+
+**Edizioni**
+- Coda MOD.040 = edizioni completate e non approvate (prima richiedeva una data di chiusura che le 873 edizioni storiche non avevano): filtro «Da approvare» nell'elenco Sessioni, sezione e link corretti in «Le mie attività». `chiudi()` registra la chiusura anche sulle edizioni già completate.
+- Edizioni online: fasi proprie (Prima / Durante fino alla scadenza / Dopo con «Chiudi l'edizione», che registra chi ha superato il test e segna assente chi non l'ha fatto), senza ore d'aula, giornate e programma; MOD.040 solo nella fase Dopo; tolto «minimo previsto».
+- Stato dell'edizione automatico: «Pianificata» → «In corso» il giorno d'inizio (aggiornato all'apertura delle pagine e dal promemoria giornaliero); «Da chiudere» comprende le online scadute; Integrità usa la stessa definizione.
+- Sessioni miste: il test online vale solo come verifica (non tocca presenze e ore).
+- Elenco Sessioni: paginazione anche in «Da chiudere», modalità con «Slide + test», colonne Iscritti ed Esiti aperti.
+- Integrità dati: «completate senza presenze» senza enti esterni, dirette e online; controlli nuovi (test superato non a libretto, completate con iscrizioni aperte, online scadute aperte); esempi cliccabili.
+- Efficacia: una sola regola per le dovute; il modulo solo a chi può salvare; link alla persona, filtro reparto, «scaduta dal».
+
+**Soglie, obblighi, copertura**
+- Soglie uniche 30/90 giorni (`anagrafica/scadenze_soglie.py`) in scadenzario unificato, cruscotto HR, scheda dipendente, processi MOD.128, qualifiche ed export; le visite mediche restano a 60 giorni con costanti proprie. Nello scadenzario unificato `?stato=90` (resta l'alias `?stato=60`).
+- La spunta «Obbligatorio per tutti i dipendenti» del corso è un obbligo del motore dei requisiti per ogni persona in forza (origine «Corso obbligatorio per tutti»): entra in copertura, scadenzario (dopo il ricalcolo) e cruscotto.
+- Copertura: «Nessun obbligo configurato» con i collegamenti per configurarli invece di «Tutti in regola»; tessera «In scadenza». Dashboard formazione e scadenzario formazione di default solo obbligatori (`?obbligatori=0` per tutti).
+- Ex dipendenti esclusi da Lacune di mansione, Matrice competenze, Matrice qualifiche e KPI della dashboard.
+- Matrice qualifiche (ex «Matrice sicurezza»): «mancante» solo se la qualifica è richiesta da ruolo, mansione o processo (`requisiti.qualifiche_richieste`), ambito del ruolo applicato.
+- Copertura macchine: soglie gestite dal portale (aggiungi, modifica, elimina, con audit); abilitati contati con i requisiti del Mansionario.
+
+**Qualifiche, libretto, menu, piccole correzioni**
+- Libretto formativo: sezioni Qualifiche (corrente per tipo) e Processi qualificati MOD.128. Scheda dipendente: una riga per tipo di qualifica con le registrazioni precedenti richiudibili; «Scadenze urgenti» solo obbligatorie.
+- Scheda qualifica: «Richiesta a, ma mancante» (`services/qualifica_mancanti.py`). Il catalogo rimanda allo scadenzario qualifiche invece di ripeterlo.
+- Corso online: un solo «Spegni online» (prima «Ritira» rimetteva in bozza anche l'aula); rinnovo assegnabile anche a chi ha fatto il corso in aula.
+- Elenco corsi: pastiglie e pagine conservano tutti i filtri; «Corsi online» al posto di «Cruscotto online». Scheda corso: filtro «Slide + test». Piano: un solo «+ Aggiungi corso», solo per chi modifica.
+- Istruttori: «Sessioni» con la stessa regola in elenco e scheda; «Discenti» senza ritirati. Dashboard formazione: edizioni in corso e da chiudere al posto di «Aree del modulo».
+- Menu: «Richieste di formazione» (migrazione anagrafica `0264`); «MOD.176 in officina» solo con un Technical Plan approvato.
+- File principali: `services/formazione_completamento.py`, `formazione_aula.py`, `formazione_integrita.py`, `formazione_efficacia.py`, `sessione_online.py`, `sessioni.py`, `requisiti.py`, `training_eligibility.py`, `cruscotto_hr.py`, `mansionario_competenze.py`, `competenze_catalogo.py`, `skillmatrix_copertura.py`, `mpq_persone.py`, `qualifica_mancanti.py` (nuovo), `elearning_corso_gestione.py`, `elearning_report.py`, `elearning_fruizione.py`, `views/formazione.py`, `views/qualifiche.py`, `views/dipendenti.py`, `views/visite.py`, `views/configurazione.py`, `views/_helpers.py`, `views_aula.py`, `views_mpq.py`, `views_corso_aperto.py`, `dashboard/views_mie_attivita.py` e relativi template. Test: `tests_coerenza_ag1..ag4.py` e test adeguati.
+
 ### Lezione online: test superato = completato subito; scheda del corso coerente con l'edizione
 
 - Nella lezione online di una sessione chi supera il test va a libretto subito (`sessione_online.correggi` chiama `registra_completamenti` per quell'iscrizione), come l'e-learning; prima restava «Superata» con iscrizione «In corso» finché l'HR non premeva «Registra completamenti» (in produzione 7 persone nella sessione 1054). Chi è bloccato dalle regole del corso resta da registrare a mano. Il test in aula non cambia.
