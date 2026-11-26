@@ -675,6 +675,7 @@ const STRISCIA_REGISTRO = {
   qualita: "qa",
   chiudi: "ok",
   riapri: "warn",
+  corretta: "acc",
   segnalato: "info",
   richiesta_info: "warn",
   risposta_info: "ok",
@@ -2212,6 +2213,8 @@ function GestioneAnomalie() {
   const [riepilogo, setRiepilogo] = useState(null); // null | { prossima: bool }
   // «Elimina» / «Taglia» dell'anomalia aperta: { tipo, op, sn, seriali, busy, err }.
   const [azAnom, setAzAnom] = useState(null);
+  // «Correggi» un'anomalia chiusa senza riaprirla (testo: controllore, note: capocommessa).
+  const [correggi, setCorreggi] = useState(null);
   // «Modifica OP»: popup del controllore che ha creato l'OP dal portale.
   const [modOp, setModOp] = useState(null); // null | { titolo, dati, iniz, motivo, busy, err }
   // Decisioni salvate su questo OP e non ancora partite nel riepilogo (parte dopo
@@ -3525,6 +3528,68 @@ function GestioneAnomalie() {
     }
     setSaving(false);
   };
+  const apriCorreggi = () => setCorreggi({
+    testo: sn.desc || "",
+    note: sn.note || "",
+    motivo: "",
+    busy: false,
+    err: ""
+  });
+  const salvaCorreggi = async () => {
+    if (!correggi || !sn.local_id || !API.correggi_chiusa) return;
+    const puo = sn.correggi_chiusa || {};
+    const body = {
+      local_id: sn.local_id,
+      motivo: correggi.motivo.trim()
+    };
+    if (puo.testo && correggi.testo !== (sn.desc || "")) body.testo = correggi.testo;
+    if (puo.note && correggi.note !== (sn.note || "")) body.note = correggi.note;
+    if (!("testo" in body) && !("note" in body)) {
+      setCorreggi({
+        ...correggi,
+        err: "Nessuna modifica da salvare."
+      });
+      return;
+    }
+    if (body.motivo.length < 3) {
+      setCorreggi({
+        ...correggi,
+        err: "Scrivi il motivo della correzione."
+      });
+      return;
+    }
+    setCorreggi({
+      ...correggi,
+      busy: true,
+      err: ""
+    });
+    try {
+      const r = await fetch(API.correggi_chiusa, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: JSON.stringify(body),
+        credentials: "same-origin"
+      });
+      const data = await readJsonOrThrow(r, "Correzione anomalia chiusa");
+      if (!data.success) throw new Error(data.error || "risposta non valida");
+      setCorreggi(null);
+      await ricaricaAnomalie();
+      setVersioneEsiti(v => v + 1);
+      flash({
+        ok: true,
+        text: `Anomalia ${codiceAnomalia(sn.local_id)} corretta · resta chiusa`
+      });
+    } catch (e) {
+      setCorreggi(c => c ? {
+        ...c,
+        busy: false,
+        err: e.message
+      } : c);
+    }
+  };
   const ricaricaAnomalie = async () => {
     if (!op || !op.item_id) return;
     const r = await fetch(`${API.anomalie}?op_item_id=${encodeURIComponent(op.item_id)}&op_id=${encodeURIComponent(op.id || "")}`, {
@@ -4673,9 +4738,14 @@ function GestioneAnomalie() {
     className: "ga-det__body"
   }, !canEditCurrentOp && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
-  }, "Sola lettura: puoi consultare ma non decidere su questo OP."), isSelectedClosed && (canEditCurrentOp || sn.can_riaprire) && /*#__PURE__*/React.createElement("div", {
+  }, "Sola lettura: puoi consultare ma non decidere su questo OP."), isSelectedClosed && (canEditCurrentOp || sn.can_riaprire || sn.correggi_chiusa) && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--ok ga-note--row"
-  }, /*#__PURE__*/React.createElement("span", null, "Anomalia chiusa: i dati restano consultabili ma non modificabili."), sn.can_riaprire && /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, sn.correggi_chiusa ? "Anomalia chiusa: puoi correggerla senza riaprirla, con il motivo." : "Anomalia chiusa: i dati restano consultabili ma non modificabili."), sn.correggi_chiusa && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline ga-btn--xs",
+    onClick: apriCorreggi,
+    disabled: saving
+  }, "\u270E Correggi (resta chiusa)"), sn.can_riaprire && /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ga-btn ga-btn--outline ga-btn--xs",
     onClick: riapri,
@@ -5321,7 +5391,78 @@ function GestioneAnomalie() {
     className: `ga-btn ${azAnom.tipo === "elimina" ? "ga-btn--danger" : "ga-btn--accent"}`,
     disabled: azAnom.busy,
     onClick: confermaAzione
-  }, azAnom.busy ? "Attendere…" : azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")))), infoModal && /*#__PURE__*/React.createElement("div", {
+  }, azAnom.busy ? "Attendere…" : azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")))), correggi && sn.local_id && /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "ga-corr-t"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__box"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__title",
+    id: "ga-corr-t"
+  }, "\u270E Correggi ", codiceAnomalia(sn.local_id), " \xB7 resta chiusa"), /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint ga-az__ctx"
+  }, "S/N ", sn.sn || "—", " \xB7 stato ", sn.avanzamento || "—"), (sn.correggi_chiusa || {}).testo && /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement("span", null, "Testo della segnalazione"), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 4,
+    value: correggi.testo,
+    disabled: correggi.busy,
+    onChange: e => setCorreggi({
+      ...correggi,
+      testo: e.target.value,
+      err: ""
+    })
+  })), (sn.correggi_chiusa || {}).note && /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement("span", null, "Note del capocommessa"), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 3,
+    value: correggi.note,
+    disabled: correggi.busy,
+    onChange: e => setCorreggi({
+      ...correggi,
+      note: e.target.value,
+      err: ""
+    })
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement("span", null, "Motivo della correzione"), /*#__PURE__*/React.createElement("input", {
+    className: "ga-input",
+    value: correggi.motivo,
+    disabled: correggi.busy,
+    autoFocus: true,
+    placeholder: "Es. errore di battitura, quota scritta male",
+    onChange: e => setCorreggi({
+      ...correggi,
+      motivo: e.target.value,
+      err: ""
+    }),
+    onKeyDown: e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        salvaCorreggi();
+      }
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Resta chiusa; nel registro restano \xABprima \u2192 dopo\xBB, chi e il motivo. Gli allegati si aggiungono dal riquadro \xABAllegati\xBB."), correggi.err && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, correggi.err), /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__acts"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost-dark",
+    disabled: correggi.busy,
+    onClick: () => setCorreggi(null)
+  }, "Annulla"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--accent",
+    disabled: correggi.busy,
+    onClick: salvaCorreggi
+  }, correggi.busy ? "Salvataggio…" : "Salva correzione")))), infoModal && /*#__PURE__*/React.createElement("div", {
     className: "ga-modal",
     role: "dialog",
     "aria-modal": "true",

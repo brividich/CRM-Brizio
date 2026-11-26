@@ -487,6 +487,10 @@ SEZIONI: list[dict] = [
                 "Un'anomalia chiusa si riapre con «Riapri anomalia» nel riquadro verde in alto: il pulsante c'è per il "
                 "capocommessa, il CAR, il controllore che l'ha segnalata e chi può modificare l'OP. Torna aperta e "
                 "«In attesa»; la riapertura resta nella «Cronologia azioni».",
+                "Per correggere un'anomalia chiusa senza riaprirla c'è «✎ Correggi (resta chiusa)» nello stesso riquadro: "
+                "il controllore (chi l'ha inserita o ha fatto il controllo) corregge il testo della segnalazione, il "
+                "capocommessa le note; serve il motivo. L'anomalia resta chiusa e nella «Cronologia azioni» restano "
+                "prima → dopo, chi e il motivo. Gli allegati si aggiungono dal riquadro «Allegati».",
                 "«Elimina» e «✂ Taglia» nella card «Segnalazione»: «Elimina» c'è solo per chi ha inserito l'anomalia, "
                 "«Taglia» anche per chi può modificare l'OP. «Taglia» sposta l'anomalia su un altro S/N dello stesso OP "
                 "o su un altro OP (scrivi OP e S/N; i S/N noti dell'OP vengono proposti). Su un altro OP passa alla sua "

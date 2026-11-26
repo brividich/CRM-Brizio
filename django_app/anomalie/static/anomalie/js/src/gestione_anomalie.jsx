@@ -501,7 +501,7 @@
       ["chiusura", "Chiusura / riapertura"], ["segnalazioni", "Segnalazioni e risposte"], ["informazioni", "Richieste di informazioni"],
       ["spostamenti", "«Taglia»"], ["azioni", "Azioni effettuate"], ["incaricati", "Cambi di incaricato"],
       ["allegati", "Allegati"], ["eliminazioni", "Eliminazioni"], ["passi", "Passi aggiunti a mano"]];
-    const STRISCIA_REGISTRO = { crea: "info", aggiorna: "acc", qualita: "qa", chiudi: "ok", riapri: "warn", segnalato: "info",
+    const STRISCIA_REGISTRO = { crea: "info", aggiorna: "acc", qualita: "qa", chiudi: "ok", riapri: "warn", corretta: "acc", segnalato: "info",
       richiesta_info: "warn", risposta_info: "ok", spostata: "warn", aggiorna_avanzamento: "acc", approva: "acc",
       incaricato: "qa", allegato: "info", allegato_tolto: "warn", allegato_ripristinato: "info", elimina: "warn", passo: "acc" };
     const postStoria = async (url, body) => {
@@ -1284,6 +1284,8 @@
       const [riepilogo, setRiepilogo] = useState(null);  // null | { prossima: bool }
       // «Elimina» / «Taglia» dell'anomalia aperta: { tipo, op, sn, seriali, busy, err }.
       const [azAnom, setAzAnom] = useState(null);
+      // «Correggi» un'anomalia chiusa senza riaprirla (testo: controllore, note: capocommessa).
+      const [correggi, setCorreggi] = useState(null);
       // «Modifica OP»: popup del controllore che ha creato l'OP dal portale.
       const [modOp, setModOp] = useState(null);  // null | { titolo, dati, iniz, motivo, busy, err }
       // Decisioni salvate su questo OP e non ancora partite nel riepilogo (parte dopo
@@ -2126,6 +2128,34 @@
         setSaving(false);
       };
 
+      const apriCorreggi = () => setCorreggi({ testo: sn.desc || "", note: sn.note || "", motivo: "", busy: false, err: "" });
+      const salvaCorreggi = async () => {
+        if (!correggi || !sn.local_id || !API.correggi_chiusa) return;
+        const puo = sn.correggi_chiusa || {};
+        const body = { local_id: sn.local_id, motivo: correggi.motivo.trim() };
+        if (puo.testo && correggi.testo !== (sn.desc || "")) body.testo = correggi.testo;
+        if (puo.note && correggi.note !== (sn.note || "")) body.note = correggi.note;
+        if (!("testo" in body) && !("note" in body)) { setCorreggi({ ...correggi, err: "Nessuna modifica da salvare." }); return; }
+        if (body.motivo.length < 3) { setCorreggi({ ...correggi, err: "Scrivi il motivo della correzione." }); return; }
+        setCorreggi({ ...correggi, busy: true, err: "" });
+        try {
+          const r = await fetch(API.correggi_chiusa, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify(body),
+            credentials: "same-origin",
+          });
+          const data = await readJsonOrThrow(r, "Correzione anomalia chiusa");
+          if (!data.success) throw new Error(data.error || "risposta non valida");
+          setCorreggi(null);
+          await ricaricaAnomalie();
+          setVersioneEsiti((v) => v + 1);
+          flash({ ok: true, text: `Anomalia ${codiceAnomalia(sn.local_id)} corretta · resta chiusa` });
+        } catch (e) {
+          setCorreggi((c) => (c ? { ...c, busy: false, err: e.message } : c));
+        }
+      };
+
       const ricaricaAnomalie = async () => {
         if (!op || !op.item_id) return;
         const r = await fetch(`${API.anomalie}?op_item_id=${encodeURIComponent(op.item_id)}&op_id=${encodeURIComponent(op.id || "")}`, { credentials: "same-origin" });
@@ -2861,9 +2891,10 @@
 
                   <div className="ga-det__body">
                     {!canEditCurrentOp && <div className="ga-note ga-note--warn">Sola lettura: puoi consultare ma non decidere su questo OP.</div>}
-                    {isSelectedClosed && (canEditCurrentOp || sn.can_riaprire) && (
+                    {isSelectedClosed && (canEditCurrentOp || sn.can_riaprire || sn.correggi_chiusa) && (
                       <div className="ga-note ga-note--ok ga-note--row">
-                        <span>Anomalia chiusa: i dati restano consultabili ma non modificabili.</span>
+                        <span>{sn.correggi_chiusa ? "Anomalia chiusa: puoi correggerla senza riaprirla, con il motivo." : "Anomalia chiusa: i dati restano consultabili ma non modificabili."}</span>
+                        {sn.correggi_chiusa && <button type="button" className="ga-btn ga-btn--outline ga-btn--xs" onClick={apriCorreggi} disabled={saving}>✎ Correggi (resta chiusa)</button>}
                         {sn.can_riaprire && <button type="button" className="ga-btn ga-btn--outline ga-btn--xs" onClick={riapri} disabled={saving}>{saving ? "Riapertura…" : "Riapri anomalia"}</button>}
                       </div>
                     )}
@@ -3322,6 +3353,40 @@
                   <button type="button" className={`ga-btn ${azAnom.tipo === "elimina" ? "ga-btn--danger" : "ga-btn--accent"}`} disabled={azAnom.busy} onClick={confermaAzione}>
                     {azAnom.busy ? "Attendere…" : (azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")}
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Correggi un'anomalia chiusa senza riaprirla */}
+          {correggi && sn.local_id && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-corr-t">
+              <div className="ga-modal__box">
+                <div className="ga-modal__title" id="ga-corr-t">✎ Correggi {codiceAnomalia(sn.local_id)} · resta chiusa</div>
+                <div className="ga-hint ga-az__ctx">S/N {sn.sn || "—"} · stato {sn.avanzamento || "—"}</div>
+                {(sn.correggi_chiusa || {}).testo && (
+                  <label className="ga-field"><span>Testo della segnalazione</span>
+                    <textarea className="ga-input" rows={4} value={correggi.testo} disabled={correggi.busy}
+                      onChange={(e) => setCorreggi({ ...correggi, testo: e.target.value, err: "" })} />
+                  </label>
+                )}
+                {(sn.correggi_chiusa || {}).note && (
+                  <label className="ga-field"><span>Note del capocommessa</span>
+                    <textarea className="ga-input" rows={3} value={correggi.note} disabled={correggi.busy}
+                      onChange={(e) => setCorreggi({ ...correggi, note: e.target.value, err: "" })} />
+                  </label>
+                )}
+                <label className="ga-field"><span>Motivo della correzione</span>
+                  <input className="ga-input" value={correggi.motivo} disabled={correggi.busy} autoFocus
+                    placeholder="Es. errore di battitura, quota scritta male"
+                    onChange={(e) => setCorreggi({ ...correggi, motivo: e.target.value, err: "" })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); salvaCorreggi(); } }} />
+                </label>
+                <div className="ga-hint">Resta chiusa; nel registro restano «prima → dopo», chi e il motivo. Gli allegati si aggiungono dal riquadro «Allegati».</div>
+                {correggi.err && <div className="ga-note ga-note--warn">{correggi.err}</div>}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={correggi.busy} onClick={() => setCorreggi(null)}>Annulla</button>
+                  <button type="button" className="ga-btn ga-btn--accent" disabled={correggi.busy} onClick={salvaCorreggi}>{correggi.busy ? "Salvataggio…" : "Salva correzione"}</button>
                 </div>
               </div>
             </div>

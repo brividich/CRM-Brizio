@@ -8,6 +8,7 @@ from . import controllo_views
 from . import incaricati_views
 from . import qualita_views
 from . import registro_views
+from . import correggi_chiusa
 
 
 urlpatterns = [
@@ -58,6 +59,7 @@ urlpatterns = [
     path("api/anomalie/campi", views.api_campi, name="api_anomalie_campi"),
     path("api/anomalie/salva", views.api_salva, name="api_anomalie_salva"),
     path("api/anomalie/riapri", views.api_riapri, name="api_anomalie_riapri"),
+    path("api/anomalie/correggi-chiusa", correggi_chiusa.api_correggi_chiusa, name="api_anomalie_correggi_chiusa"),
     path("api/anomalie/segnalato", views.api_segnalato, name="api_anomalie_segnalato"),
     path("api/anomalie/registro", registro_views.api_registro, name="api_anomalie_registro"),
     path("api/anomalie/registro/passo", registro_views.api_registro_passo, name="api_anomalie_registro_passo"),

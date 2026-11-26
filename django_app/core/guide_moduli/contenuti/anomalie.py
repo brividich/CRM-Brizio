@@ -133,7 +133,9 @@ GUIDA = {
                       "solo a quelli spuntati, il CAR dell'OP riceve già il riepilogo. Gli "
                       "allegati della decisione si caricano anche ad anomalia chiusa."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "
-                      "segnalata, chi può modificare l'OP) con «Riapri anomalia»: torna «In attesa». Accanto al "
+                      "segnalata, chi può modificare l'OP) con «Riapri anomalia»: torna «In attesa». Senza riaprirla, "
+                      "«✎ Correggi (resta chiusa)» permette al controllore di correggere il testo e al capocommessa le "
+                      "note, con il motivo, che resta nella Cronologia. Accanto al "
                       "numero dell'OP, in cima al dettaglio, c'è il P/N."),
                 ("p", "Nella scheda di una NC aperta «Segna come Part 145» indica che riguarda un componente lavorato per "
                       "l'organizzazione di manutenzione: la NC compare nel Dossier PART 145 del modulo Asset."),

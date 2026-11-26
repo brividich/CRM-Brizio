@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Azione registrata → verbo della frase.
 VERBI = {
-    "crea": "ha inserito", "aggiorna": "ha modificato", "chiudi": "ha chiuso", "riapri": "ha riaperto",
+    "crea": "ha inserito", "aggiorna": "ha modificato", "chiudi": "ha chiuso", "riapri": "ha riaperto", "corretta": "ha corretto (resta chiusa)",
     "segnalato": "ha registrato la segnalazione su", "qualita": "ha aggiornato la decisione qualità di",
     "richiesta_info": "ha chiesto informazioni su", "risposta_info": "ha risposto alla richiesta di informazioni su",
     "risposta_cliente": "ha registrato la risposta del cliente su", "risposta_terzista": "ha registrato la risposta del terzista su",
@@ -43,7 +43,7 @@ GRUPPI = {
     "clona": {"crea"},
     "modifica": {"aggiorna", "qualita", "aggiorna_avanzamento", "approva", "respingi", "richiedi_modifica",
                  "op_modificato", "prendi_in_carico"},
-    "chiusura": {"chiudi", "riapri"},
+    "chiusura": {"chiudi", "riapri", "corretta"},
     "segnalazioni": {"segnalato", "risposta_cliente", "risposta_terzista"},
     "informazioni": {"richiesta_info", "risposta_info"},
     "spostamenti": {"spostata"},

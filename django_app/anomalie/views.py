@@ -2722,8 +2722,16 @@ def _segna_riapribili(request, rows: list[dict], op_title: str, autori: dict) ->
     chiuse = [r for r in rows if r.get("chiudere")]
     for r in rows:
         r["can_riaprire"] = False
+        r["correggi_chiusa"] = None
     if not chiuse:
         return
+    # «Correggi» senza riaprire: capocommessa (note) e controllore (testo).
+    try:
+        from anomalie.correggi_chiusa import segna_righe
+
+        segna_righe(request, chiuse, op_title, autori)
+    except Exception:
+        logger.warning("anomalie: permessi «Correggi» non letti op=%s", op_title, exc_info=True)
     if _riapre_su_op(request, op_title):
         for r in chiuse:
             r["can_riaprire"] = True
@@ -5450,6 +5458,7 @@ _TIMELINE_ACTION_LABELS = {
     "aggiorna": "Anomalia aggiornata",
     "chiudi": "Anomalia chiusa",
     "riapri": "Anomalia riaperta",
+    "corretta": "Corretta da chiusa (resta chiusa)",
     "segnalato": "Segnalato (senza mail)",
     "spostata": "Spostata («Taglia»)",
     "op_modificato": "Dati dell'OP modificati",

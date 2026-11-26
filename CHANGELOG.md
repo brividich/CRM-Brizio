@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Gestione anomalie: «Correggi» un'anomalia chiusa senza riaprirla
+
+- Nel riquadro verde delle anomalie chiuse c'è «✎ Correggi (resta chiusa)»: il controllore corregge il testo della segnalazione, il capocommessa (anche affidato) le note; serve il motivo. L'anomalia resta chiusa, nella «Cronologia azioni» e nel Registro restano prima → dopo, chi e il motivo (azione `corretta`). «Riapri anomalia» resta per chi deve rimettere in discussione la decisione.
+- File: `django_app/anomalie/correggi_chiusa.py` (nuovo), `urls.py`, `views.py` (`_segna_riapribili`, etichetta registro), `registro_views.py`, `static/anomalie/js/src/gestione_anomalie.jsx` + bundle, `templates/anomalie/pages/gestione_anomalie_react.html`, `guida.py`, `core/guide_moduli/contenuti/anomalie.py`, `docs/moduli/anomalie.md`, test `tests_correggi_chiusa.py`.
+
 ### Ricerca globale: trova le pagine interne di tutti i moduli
 
 - `core/ricerca_pagine.py` (nuovo): indice delle pagine dei sottomenu dei moduli (template `components/subnav.html`, `_nav.html`…, sottomenu Anagrafica a database, `assets.maintenance_nav`, Navigation Registry `subnav`/`admin_subnav`), con il nome del modulo preso dal menu principale; ogni voce che corrisponde passa da ACL (`_global_search_module_allowed`) e cancelli in-view (`section_gate_allows`).
