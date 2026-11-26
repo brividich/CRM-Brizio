@@ -76,7 +76,8 @@ GUIDA = {
                       "segnalazione l'ha fatta lui, automatico per il CAR; avanzamento, note, allegati) e «Decisione "
                       "qualità» (numero RDC, «Avanzamento qualità» configurabile, note, allegati, «Segnalato» se il "
                       "capocommessa non l'ha fatto, «Chiudi l'anomalia», «Richiedi info aggiuntive»). Senza RDC le "
-                      "segnalazioni fatte chiudono l'anomalia; con RDC la chiude il numero RDC. «In carico a me» mostra "
+                      "segnalazioni fatte chiudono l'anomalia; con RDC la chiude il numero RDC, anche in attesa della risposta "
+                      "del cliente (non con richieste di informazioni aperte). «In carico a me» mostra "
                       "solo gli OP e le anomalie che toccano a te (capocommessa, qualità, CAR segnalato, controllore a "
                       "cui sono chieste informazioni). Il link della mail fa lo stesso, con le stesse scelte (avanzamenti di "
                       "Configurazione, «A quale CAR?», «Pezzi precedenti al benestare») e accetta allegati, anche .msg ed "
@@ -233,6 +234,17 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "L'anomalia non si chiude da sola (o «Chiudi» dà errore)",
+            "fare": [
+                "Con «Aprire RDC» serve il numero RDC e, se spuntati, «Segnalato al cliente/terzista».",
+                "Una richiesta di informazioni ancora aperta o lo stato «In attesa di ulteriori informazioni» tengono "
+                "aperta l'anomalia: prima si risponde.",
+                "Senza RDC, «In attesa risposta cliente/terzista» la tiene aperta finché non scegli lo stato definitivo.",
+                "Prima decisione «Azione di recupero»: si chiude solo registrando l'azione effettuata in «Tempi ed esiti».",
+                "«Chiudi l'anomalia» con una nota chiede lo stato di avanzamento: non si chiude «In attesa».",
+            ],
+        },
         {
             "sintomo": "Dal report CMM (PDF) una riga è nel gruppo sbagliato o ha «da verificare»",
             "fare": [

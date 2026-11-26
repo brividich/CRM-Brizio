@@ -28,6 +28,19 @@ DESTINATARI = ("cliente", "terzista")
 _STATI_LIBERI = {"", "in attesa"}
 
 
+def stato_canonico(avanzamento) -> str:
+    """Stato in minuscolo, con le varianti scritte in Configurazione ricondotte a
+    quello che intendono: «Avanzamento + In attesa di risposta cliente» è l'attesa
+    della risposta del cliente (stessa regola in pagina e modulo mail)."""
+    av = " ".join(str(avanzamento or "").split()).lower()
+    if "attesa" in av and "risposta" in av:
+        if "terzista" in av:
+            return AVANZAMENTO_RISPOSTA_TERZISTA.lower()
+        if "cliente" in av:
+            return AVANZAMENTO_RISPOSTA_CLIENTE.lower()
+    return av
+
+
 def tipo_risposta(chi: str) -> str:
     from .quality_models import AnomaliaEsito
 
@@ -57,7 +70,7 @@ def stato_segnalati(anomalia_id) -> dict:
 
 def nota_congelata(avanzamento_salvato: str, nota_salvata: str) -> bool:
     """In attesa di risposta la nota già scritta (quella mandata al destinatario) non si modifica."""
-    return str(avanzamento_salvato or "").strip().lower() in STATI_RISPOSTA and bool(str(nota_salvata or "").strip())
+    return stato_canonico(avanzamento_salvato) in STATI_RISPOSTA and bool(str(nota_salvata or "").strip())
 
 
 def registra_segnalato(anomalia_id: int, chi: str, acceso: bool, chi_utente: str, *, ruolo: str = "cc") -> bool:

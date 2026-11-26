@@ -147,7 +147,22 @@
 
     // Risposta del referente RDC: rimanda l'anomalia al capocommessa con le spunte aperte.
     const AVANZAMENTO_INFO_RICHIESTE = "In attesa di ulteriori informazioni";
-    const STATI_ATTESA = [...STATI_RISPOSTA, AVANZAMENTO_INFO_RICHIESTE.toLowerCase()];
+    // Varianti di Configurazione ricondotte allo stato che intendono, come il server
+    // (segnalato_service.stato_canonico): «Avanzamento + In attesa di risposta cliente»
+    // è l'attesa della risposta del cliente.
+    const statoCanonico = (v) => {
+      const av = String(v || "").split(/\s+/).filter(Boolean).join(" ").toLowerCase();
+      if (av.includes("attesa") && av.includes("risposta")) {
+        if (av.includes("terzista")) return AVANZAMENTO_RISPOSTA_TERZISTA.toLowerCase();
+        if (av.includes("cliente")) return AVANZAMENTO_RISPOSTA_CLIENTE.toLowerCase();
+      }
+      return av;
+    };
+    // Stati che chiudono da soli (views.stato_di_chiusura).
+    const statoDiChiusura = (v) => {
+      const av = statoCanonico(v);
+      return av === "accetto lo stato" || av === "apertura ore/ripi" || av.startsWith("accettato con riserva");
+    };
 
     // Regola PowerApps: la prima scelta cambia in base a "Aprire RDC?". Con RDC o
     // cliente spuntati c'è anche «In attesa di ulteriori informazioni»; con il
@@ -164,18 +179,21 @@
     };
 
     // Chiusura automatica, stessa regola del server (views.chiusura_automatica):
-    // attese e chiarimenti aperti la tengono aperta; «Segnalare…» chiede «Segnalato…»;
-    // con RDC si chiude col numero (lo scrive la qualità); senza RDC le segnalazioni
-    // fatte chiudono; senza spunte chiude lo stato, se il capocommessa può chiudere.
+    // chiarimenti aperti e «ulteriori informazioni» la tengono aperta; «Segnalare…»
+    // chiede «Segnalato…»; con RDC si chiude col numero (lo scrive la qualità) anche
+    // in attesa della risposta del cliente; senza RDC l'attesa della risposta la tiene
+    // aperta e le segnalazioni fatte chiudono; senza spunte chiude lo stato di chiusura,
+    // se il capocommessa può chiudere.
     const shouldAutoClose = (isAprireRdc, avanzamentoValue, numeroRdc = "", segnalare = false, segnalatoFatto = false,
       terzista = false, segnalatoTerzista = false, chiarimenti = false) => {
-      const avanz = normalizeChoice(avanzamentoValue).toLowerCase();
-      if (STATI_ATTESA.includes(avanz) || chiarimenti) return false;
+      const avanz = statoCanonico(avanzamentoValue);
+      if (chiarimenti || avanz === AVANZAMENTO_INFO_RICHIESTE.toLowerCase()) return false;
       if (segnalare && !segnalatoFatto) return false;
       if (terzista && !segnalatoTerzista) return false;
       if (isAprireRdc) return Boolean(String(numeroRdc || "").trim());
+      if (STATI_RISPOSTA.includes(avanz)) return false;
       if (segnalare || terzista) return true;
-      return CC_PUO_CHIUDERE && (avanz === "accetto lo stato" || avanz === "apertura ore/ripi");
+      return CC_PUO_CHIUDERE && statoDiChiusura(avanz);
     };
     const richiestaAperta = (a, ruolo) => (a.richieste_info || []).some((r) => r.aperta && (!ruolo || (r.destinatari || []).includes(ruolo)));
     const ruoloSegnalato = (a, chi) => ((a && a[`segnalato_${chi}`] && a[`segnalato_${chi}`].ruolo) || "cc");
@@ -1304,12 +1322,12 @@
       // Tempi ed esiti dell'anomalia aperta: «serve_azione» blocca la chiusura senza azione effettuata.
       const [esitiInfo, setEsitiInfo] = useState(null);
       // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa», tranne
-      // quando aspetta una segnalazione (RDC, cliente, terzista).
-      const notaSenzaStato = !!note.trim() && !(aprireRdc || segnalare || terzista)
+      // quando aspetta una segnalazione (RDC, cliente, terzista) e non si chiude a mano.
+      const notaSenzaStato = !!note.trim() && (chiudiManuale || !(aprireRdc || segnalare || terzista))
         && ["", "in attesa"].includes(normalizeChoice(avanzamento).toLowerCase());
       // La risposta del destinatario chiede lo stato definitivo (o «Chiudi l'anomalia»).
       const rispostaSenzaStato = !chiudiManuale && DESTINATARI.some((d) => (risposte[d.chi] || "").trim())
-        && STATI_RISPOSTA.includes(normalizeChoice(avanzamento).toLowerCase());
+        && STATI_RISPOSTA.includes(statoCanonico(avanzamento));
 
       // Lo stato «di partenza» quando si toglie una spunta che l'aveva cambiato.
       const statoDiPartenza = () => {
@@ -1536,7 +1554,7 @@
         };
       }, [sn.item_id, sn.desc, sn.note, sn.pezzi_prec, sn.aprire_rdc, sn.numero_rdc, sn.segnalare, sn.segnala_terzista, sn.dove_pezzi, sn.segnala_car, sn.car_segnalati, sn.avanzamento, sn.descrizioni, sn.segnalato_cliente, sn.segnalato_terzista]);
       // In attesa di risposta la nota già mandata resta congelata (anche dal server).
-      const notaCongelata = STATI_RISPOSTA.includes(normalizeChoice(baseline.avanzamento).toLowerCase()) && !!baseline.note.trim();
+      const notaCongelata = STATI_RISPOSTA.includes(statoCanonico(baseline.avanzamento)) && !!baseline.note.trim();
 
       useEffect(() => {
         if (!sn.item_id) { clearForm(); return; }
@@ -2345,7 +2363,7 @@
       const faseDi = (a) => {
         if (a.chiudere) return "chiuse";
         if (richiestaAperta(a)) return "chiarimenti";
-        if (STATI_RISPOSTA.includes(normalizeChoice(a.avanzamento).toLowerCase())) return "attesa";
+        if (STATI_RISPOSTA.includes(statoCanonico(a.avanzamento))) return "attesa";
         if (isDaDecidere(a)) return "decidere";
         return "qualita";
       };
@@ -2971,7 +2989,7 @@
                       {!sn.chiudere && sn.item_id && (() => {
                         // Cosa succede al salvataggio della decisione del capocommessa.
                         const info = normalizeChoice(avanzamento) === AVANZAMENTO_INFO_RICHIESTE;
-                        const attesa = STATI_RISPOSTA.includes(normalizeChoice(avanzamento).toLowerCase());
+                        const attesa = STATI_RISPOSTA.includes(statoCanonico(avanzamento));
                         const manca = [];
                         if (aprireRdc && !String(rdcNum || "").trim()) manca.push("il numero RDC");
                         if (segnalare && !segnalati.cliente) manca.push("la segnalazione al cliente");
@@ -3054,7 +3072,7 @@
                         <div className="ga-note ga-note--warn">{NOTA_STATO_MSG}</div>
                       )}
                       {DESTINATARI.filter((d) => (d.chi === "cliente" ? segnalare : terzista) && baseline.segnalati[d.chi] && segnalati[d.chi]
-                        && ruoloSegnalato(sn, d.chi) === "cc" && STATI_RISPOSTA.includes(normalizeChoice(baseline.avanzamento).toLowerCase())).map((d) => {
+                        && ruoloSegnalato(sn, d.chi) === "cc" && STATI_RISPOSTA.includes(statoCanonico(baseline.avanzamento))).map((d) => {
                         const gia = ((esitiInfo && esitiInfo.local_id === sn.local_id && esitiInfo.esiti) || []).filter((e) => e.tipo === d.tipo);
                         return (
                           <div key={d.chi} className="ga-risposta">
