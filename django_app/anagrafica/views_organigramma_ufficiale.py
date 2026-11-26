@@ -64,15 +64,14 @@ def organigramma_ufficiale(request):
         dati = rev.dati if rev else (org.bozza or svc.vuoto())
         ctx = svc.contesto(dati)
         n_avvisi = len(svc.avvisi(dati, ctx, org)) if (rev or org.bozza) else 0
-        anteprima = svc.disegno(dati, ctx)
-        scala = min(1.0, 320 / anteprima["w"], 148 / anteprima["h"]) if anteprima["nodi"] else 1.0
         righe.append({
             "org": org, "rev": rev, "n_avvisi": n_avvisi,
-            "anteprima": anteprima, "scala": round(scala, 4),
+            "pacchetto": svc.pacchetto(dati),
             "n_modifiche": len(svc.riepilogo(rev.dati if rev else None, org.bozza)) if org.bozza is not None else 0,
         })
     return render(request, "anagrafica/pages/organigramma_ufficiale_elenco.html", {
         "righe": righe,
+        "n_pubblicati": sum(1 for r in righe if r["rev"]),
         "puo_disegnare": _puo_disegnare(request),
         "ambiti": AmbitoRuolo.objects.filter(is_active=True).order_by("ordine", "nome"),
     })
@@ -151,34 +150,73 @@ def organigramma_ufficiale_vedi(request, pk: int):
             confronto = {"da": vecchia, "a": nuova, "righe": svc.riepilogo(vecchia.dati, nuova.dati)}
     return render(request, "anagrafica/pages/organigramma_ufficiale_vedi.html", {
         "org": org, "rev": rev, "in_vigore": in_vigore,
-        "disegno": svc.disegno(rev.dati),
+        "pacchetto": svc.pacchetto(rev.dati),
         "revisioni": list(org.revisioni.select_related("pubblicata_da")),
         "confronto": confronto,
         "puo_disegnare": _puo_disegnare(request),
     })
 
 
+#: Formati di stampa: dimensioni del foglio utile in mm (margini di 8 mm già tolti) e voce di @page.
+FORMATI = {
+    "A3": {"w": 404, "h": 281, "page": "A3 landscape", "nome": "A3"},
+    "A4": {"w": 281, "h": 194, "page": "A4 landscape", "nome": "A4 orizzontale"},
+    "A4v": {"w": 194, "h": 281, "page": "A4 portrait", "nome": "A4 verticale"},
+}
+
+
+def _pagina(org, rev, dati, bozza: bool) -> dict:
+    p = svc.pacchetto(dati)
+    foglio = p["dati"]["foglio"]
+    return {
+        "org": org, "rev": rev, "bozza": bozza, "pacchetto": p, "foglio": foglio,
+        "titolo": foglio["titolo"] or org.nome,
+        "intestazione": foglio["intestazione"] or "Organigramma",
+        "piede": svc.testo_piede(foglio, rev.numero if rev else None, org.nome),
+    }
+
+
+def _logo_url() -> str:
+    """Logo caricato in Impostazioni grafiche del portale; altrimenti quello di serie."""
+    from django.templatetags.static import static
+
+    try:
+        from core.branding import get_portal_branding
+
+        return get_portal_branding().brand_logo_full or static("core/img/logo_novicrom.png")
+    except Exception:  # impostazioni non leggibili: logo di serie
+        return static("core/img/logo_novicrom.png")
+
+
 @login_required
 def organigramma_ufficiale_stampa(request, pk: int):
+    """Una pagina per organigramma: questo e quelli in ``?con=2,5`` (revisione in vigore), in un solo PDF."""
     org = _org(pk)
     bozza = request.GET.get("bozza") == "1"
     if bozza:
         if not _puo_disegnare(request):
             raise Http404()
-        dati, rev = org.bozza or svc.ultimo_disegno(org), None
+        pagine = [_pagina(org, None, org.bozza or svc.ultimo_disegno(org), True)]
     else:
         rev = _revisione_richiesta(request, org)
         if rev is None:
             raise Http404("Organigramma non ancora pubblicato.")
-        dati = rev.dati
-    formato = "A4" if request.GET.get("formato") == "A4" else "A3"
-    # Area utile in px (96 dpi) di un foglio orizzontale, tolti i margini, titolo e cartiglio.
-    pagina = {"A3": (1500, 960), "A4": (1060, 640)}[formato]
-    d = svc.disegno(dati)
-    scala = min(1.0, pagina[0] / d["w"], pagina[1] / d["h"]) if d["w"] and d["h"] else 1.0
+        pagine = [_pagina(org, rev, rev.dati, False)]
+    altri = [int(x) for x in (request.GET.get("con") or "").split(",") if x.strip().isdigit() and len(x.strip()) < 9]
+    con = []
+    for altro in OrganigrammaUfficiale.objects.filter(pk__in=altri, is_active=True).exclude(pk=org.pk):
+        r = altro.revisione_in_vigore()
+        if r is not None:
+            con.append((altri.index(altro.pk), _pagina(altro, r, r.dati, False)))
+    pagine += [p for _, p in sorted(con, key=lambda x: x[0])]
+    predefinito = "A4v" if pagine[0]["foglio"]["stile"] == "documento" else "A3"
+    chiave = request.GET.get("formato") if request.GET.get("formato") in FORMATI else predefinito
+    query = request.GET.copy()
+    query.pop("formato", None)
     return render(request, "anagrafica/pages/organigramma_ufficiale_stampa.html", {
-        "org": org, "rev": rev, "bozza": bozza, "disegno": d, "formato": formato,
-        "scala": round(scala, 4), "area_w": pagina[0], "area_h": pagina[1],
+        "org": org, "pagine": pagine, "bozza": bozza, "formato": FORMATI[chiave], "chiave": chiave,
+        "formati": [(k, v["nome"]) for k, v in FORMATI.items()], "query": query.urlencode(),
+        "logo_url": _logo_url(),
         "oggi": date.today(),
     })
 

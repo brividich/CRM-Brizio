@@ -1,0 +1,338 @@
+{% comment %} Organigramma ufficiale: stile e script che disegnano riquadri, elenchi e linee.
+   Lo usano la tela, la versione in vigore, le anteprime dell'elenco e la stampa:
+   un solo disegno in due stili (HUB e Documento). Si include una volta per pagina. {% endcomment %}
+<style>
+.ouf-mount { position:relative; }
+.ouf-fit { position:relative; overflow:hidden; flex:none; }
+.ouf-tela { position:relative; transform-origin:0 0; }
+.ouf-linee { position:absolute; left:0; top:0; overflow:visible; pointer-events:none; }
+.ouf-linee path { fill:none; }
+.ouf-st-hub .ouf-linee path { stroke:#94a3b8; stroke-width:1.6; }
+.ouf-st-doc .ouf-linee path { stroke:#111; stroke-width:1; }
+.ouf-linee path.is-staff { stroke-dasharray:6 4; }
+.ouf-b, .ouf-g { position:absolute; box-sizing:border-box; }
+.ouf-b .o-ico svg { display:block; width:100%; height:100%; }
+.ouf-vuoto { color:#64748b; font-size:13px; padding:12px; }
+
+/* ── stile HUB ───────────────────────────────────────────────────── */
+.ouf-st-hub { font-family:"Segoe UI", system-ui, Arial, sans-serif; color:#0f1f3a; }
+.ouf-st-hub .ouf-g { border-radius:14px; border:1.5px solid color-mix(in srgb, var(--c) 40%, #fff);
+  background:color-mix(in srgb, var(--c) 7%, transparent); }
+.ouf-st-hub .ouf-g > .ouf-gt { position:absolute; top:-11px; left:14px; max-width:calc(100% - 28px); background:var(--c); color:#fff;
+  font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ouf-st-hub .ouf-b { background:#fff; border:1px solid #d3dbe7; border-top:4px solid var(--c); border-radius:10px;
+  box-shadow:0 1px 3px rgba(15,31,58,.08); padding:7px 10px 8px; font-size:12px; line-height:1.3; }
+.ouf-st-hub .ouf-b--tratteggio { border:1.5px dashed var(--c); border-top-width:4px; background:#f8fafc; }
+.ouf-st-hub .ouf-b--pieno { background:var(--c); border-color:var(--c); color:#fff; }
+.ouf-st-hub .o-rep { display:inline-block; max-width:100%; background:var(--c); color:#fff; font-size:10.5px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; padding:2px 9px; border-radius:999px; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; box-sizing:border-box; }
+.ouf-st-hub .ouf-b--pieno .o-rep { background:rgba(255,255,255,.18); }
+.ouf-st-hub .o-ru { font-weight:700; display:flex; justify-content:space-between; gap:6px; align-items:center; }
+.ouf-st-hub .o-chip { font-size:10px; font-weight:700; color:var(--c); background:color-mix(in srgb, var(--c) 12%, #fff);
+  border-radius:5px; padding:1px 6px; white-space:nowrap; flex:none; }
+.ouf-st-hub .ouf-b--pieno .o-chip { background:rgba(255,255,255,.16); color:#fff; }
+.ouf-st-hub .o-pe { display:flex; align-items:center; gap:7px; margin:4px 0 1px; font-weight:600; }
+.ouf-st-hub .o-av { width:24px; height:24px; border-radius:7px; background:color-mix(in srgb, var(--c) 14%, #fff); color:var(--c);
+  font-weight:800; font-size:10.5px; display:grid; place-items:center; flex:none; overflow:hidden; }
+.ouf-st-hub .o-av img { width:100%; height:100%; object-fit:cover; }
+.ouf-st-hub .ouf-b--pieno .o-av { background:#fff; }
+.ouf-st-hub .o-resp { font-weight:600; margin-top:3px; }
+.ouf-st-hub .o-note, .ouf-st-hub .o-muto { font-size:10.5px; color:#64748b; text-transform:uppercase; letter-spacing:.03em; margin-top:2px; }
+.ouf-st-hub .ouf-b--pieno .o-note, .ouf-st-hub .ouf-b--pieno .o-muto { color:rgba(255,255,255,.78); }
+.ouf-st-hub .o-mem { margin-top:4px; border-top:1px solid #eef2f7; padding-top:3px; color:#334155; }
+.ouf-st-hub .o-mem > div { display:flex; justify-content:space-between; align-items:center; gap:6px; }
+.ouf-st-hub .o-sp { height:6px; }
+.ouf-st-hub .o-ico { width:46px; height:46px; border-radius:50%; background:color-mix(in srgb, var(--c) 10%, #fff); padding:7px; box-sizing:border-box; margin:6px auto 4px; }
+.ouf-st-hub .ouf-b.has-ico { text-align:center; }
+.ouf-st-hub .ouf-b.has-ico .o-pe { justify-content:center; }
+.ouf-st-hub .ouf-b.has-ico .o-mem > div { justify-content:center; }
+.ouf-st-hub .o-auto { font-size:10px; color:#16a34a; margin-top:5px; }
+
+/* ── stile Documento (come l'allegato in Word) ───────────────────── */
+.ouf-st-doc { font-family:Calibri, Carlito, "Segoe UI", Arial, sans-serif; color:#000; }
+.ouf-st-doc .ouf-g { border:1px dashed #6b7280; }
+.ouf-st-doc .ouf-g > .ouf-gt { position:absolute; top:-9px; left:10px; background:#fff; padding:0 6px; font-size:12px; font-weight:700; }
+.ouf-st-doc .ouf-b { background:#fff; border:1px solid #000; text-align:center; font-size:13px; line-height:1.36; padding:5px 8px 7px; }
+.ouf-st-doc .ouf-b--tratteggio { border-style:dashed; }
+.ouf-st-doc .ouf-b--pieno { border-width:1.5px; }
+.ouf-st-doc .o-rep { font-weight:700; text-transform:uppercase; }
+.ouf-st-doc .o-ru { font-weight:700; color:#000; }
+.ouf-st-doc.ruoli-blu .o-ru { color:#4472c4; }
+.ouf-st-doc.ruoli-blu .ouf-b--pieno .o-ru { color:#000; }
+.ouf-st-doc .o-pe, .ouf-st-doc .o-resp { font-style:italic; color:#4472c4; }
+.ouf-st-doc:not(.ruoli-blu) .o-pe, .ouf-st-doc:not(.ruoli-blu) .o-resp { font-style:normal; color:#000; }
+.ouf-st-doc .o-av, .ouf-st-doc .o-chip:empty { display:none; }
+.ouf-st-doc .o-note, .ouf-st-doc .o-muto { color:#374151; font-size:12px; }
+.ouf-st-doc .o-mem { margin-top:10px; }
+.ouf-st-doc .o-mem.is-attaccato { margin-top:0; }
+.ouf-st-doc .o-sp { height:1.36em; }
+.ouf-st-doc .o-ico { width:54px; height:54px; margin:6px auto 4px; }
+.ouf-st-doc .o-auto { font-size:10px; color:#16a34a; margin-top:6px; }
+@media print { .ouf-b .o-auto { display:none; } .ouf-b, .ouf-g, .ouf-g > .ouf-gt, .o-rep, .o-chip, .o-av, .o-ico { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+</style>
+<script>
+window.OUF = window.OUF || (function () {
+  "use strict";
+  var S = 'fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"';
+  var ICONE = {
+    capo: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#111"><circle cx="27" cy="16" r="8"/><path d="M11 46c2-11 8-16 16-16s14 5 16 16"/><path d="M27 30l-3 6 3 9 3-9z" fill="#111"/><rect x="17" y="44" width="20" height="7" rx="1"/></svg>',
+    medico: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#111"><circle cx="27" cy="15" r="8"/><path d="M12 47c2-11 8-16 15-16s13 5 15 16"/><rect x="31" y="35" width="11" height="11" rx="2" fill="#fff"/><path d="M36.5 37.5v6M33.5 40.5h6" stroke="#c0262d" stroke-width="2.4"/></svg>',
+    rspp: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#1f6fb2"><circle cx="27" cy="27" r="24" fill="#e8f1fb"/><path d="M17 24a10 10 0 0 1 20 0" fill="#f5c400" stroke="#111"/><path d="M15 24h24" stroke="#111"/><path d="M15 46c2-7 6-10 12-10s10 3 12 10" stroke="#111"/></svg>',
+    preposto: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#111"><path d="M14 24a13 13 0 0 1 26 0" fill="#f5c400"/><path d="M11 24h32"/><path d="M19 28a8 8 0 0 0 16 0"/><path d="M11 50c2-9 8-13 16-13s14 4 16 13"/><path d="M20 42l7 6 7-6" stroke="#ea580c"/></svg>',
+    antincendio: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#c0262d"><path d="M27 6c3 9 13 13 13 25a13 13 0 0 1-26 0c0-6 3-9 6-12 0 5 2 7 4 8-1-8 1-14 3-21z" fill="#fde2d4"/><path d="M27 48a6 6 0 0 1-6-6c0-4 4-6 6-10 2 4 6 6 6 10a6 6 0 0 1-6 6z" fill="#f59e0b" stroke="#c2410c"/></svg>',
+    primo_soccorso: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#111"><rect x="9" y="14" width="36" height="28" rx="4"/><path d="M20 14v-4h14v4"/><path d="M27 20v16M19 28h16" stroke="#c0262d" stroke-width="4"/></svg>',
+    rls: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#e8772e"><path d="M15 23a12 12 0 0 1 24 0"/><path d="M12 23h30"/><circle cx="27" cy="29" r="6"/><path d="M12 50c2-8 8-12 15-12s13 4 15 12"/><path d="M23 41l4 5 4-5"/></svg>',
+    lavoratori: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#1d9bd7" stroke-width="2.4"><circle cx="27" cy="27" r="24"/><path d="M19 24a8 8 0 0 1 16 0z" fill="#111" stroke="#111"/><path d="M16 44c2-7 6-10 11-10s9 3 11 10z" fill="#111" stroke="#111"/></svg>',
+    persona: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#334155"><circle cx="27" cy="18" r="9"/><path d="M10 48c2-12 9-17 17-17s15 5 17 17"/></svg>',
+    ufficio: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#334155"><rect x="10" y="10" width="34" height="36" rx="2"/><path d="M17 18h6M31 18h6M17 26h6M31 26h6M17 34h6M31 34h6M24 46v-6h6v6"/></svg>',
+    qualita: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#15803d"><circle cx="27" cy="22" r="13"/><path d="M21 22l4 4 8-8"/><path d="M19 33l-4 15 12-6 12 6-4-15"/></svg>',
+    ingranaggio: '<svg viewBox="0 0 54 54" ' + S + ' stroke="#334155"><circle cx="27" cy="27" r="7"/><path d="M27 7v6M27 41v6M7 27h6M41 27h6M13 13l4 4M37 37l4 4M41 13l-4 4M17 37l-4 4"/><circle cx="27" cy="27" r="14"/></svg>'
+  };
+  var NOMI_ICONE = {capo: "Datore di lavoro / direzione", medico: "Medico competente", rspp: "RSPP / ASPP", preposto: "Preposto",
+    antincendio: "Antincendio", primo_soccorso: "Primo soccorso", rls: "RLS", lavoratori: "Lavoratori", persona: "Persona",
+    ufficio: "Ufficio", qualita: "Qualità", ingranaggio: "Produzione / tecnico"};
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  function ruolo(cat, id) { return (cat.ruoli || {})[String(id)] || null; }
+  function persona(cat, id) { return (cat.persone || {})[String(id)] || null; }
+  // «ROSSI MARIO» → «Rossi Mario» (i nomi in anagrafica sono spesso tutti maiuscoli).
+  function bello(t) {
+    t = String(t || "");
+    if (t !== t.toUpperCase()) return t;
+    return t.toLowerCase().replace(/(^|[\s'’\-])(\S)/g, function (m, a, c) { return a + c.toUpperCase(); });
+  }
+  function nomePersona(cat, id) { var p = persona(cat, id); return p && p.nome ? bello(p.nome) : "Persona n. " + id; }
+  function iniziali(nome) { return String(nome || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(function (x) { return x.charAt(0); }).join("").toUpperCase(); }
+  function perNome(a, b) { return a.nome.localeCompare(b.nome, "it"); }
+  function lineaRuolo(r, id) {
+    if (!r) return {nome: "Ruolo n. " + id, sigla: ""};
+    var sig = r.sigla || "", nome = r.nome || "";
+    if (sig && nome.toUpperCase().slice(-sig.length) === sig.toUpperCase()) sig = "";
+    return {nome: nome, sigla: sig};
+  }
+  function dividiSigla(t) {
+    var m = /^(.*\S)\s+[–-]\s+(\S{1,12})$/.exec(t || "");
+    return m ? {nome: m[1], sigla: m[2]} : {nome: t, sigla: ""};
+  }
+
+  // Cosa va scritto nel riquadro: reparto, ruoli, icona, responsabili, note, elenco.
+  function contenuto(n, cat) {
+    var c = {reparto: n.reparto || "", ruoli: [], icona: n.icona || "", resp: [], note: [], membri: [], auto: false, muto: ""};
+    var ids = [];
+    if (n.ruolo) ids.push(n.ruolo);
+    (n.ruoli_extra || []).forEach(function (r) { if (ids.indexOf(r) < 0) ids.push(r); });
+    ids.forEach(function (rid, i) { c.ruoli.push(i === 0 && n.titolo ? {nome: n.titolo, sigla: ""} : lineaRuolo(ruolo(cat, rid), rid)); });
+    var nomeMans = n.mansione ? ((cat.mansioni || {})[String(n.mansione)] || "Mansione n. " + n.mansione) : "";
+    if (!ids.length && n.titolo) c.ruoli.push({nome: n.titolo, sigla: ""});
+    else if (!ids.length && nomeMans) { c.ruoli.push({nome: nomeMans, sigla: ""}); nomeMans = ""; }
+    var respIds = [];
+    if (n.persona) respIds = [n.persona];
+    else if (n.tutti_titolari && n.ruolo) {
+      var r0 = ruolo(cat, n.ruolo);
+      respIds = r0 ? r0.titolari.slice().sort(function (a, b) { return nomePersona(cat, a).localeCompare(nomePersona(cat, b), "it"); }) : [];
+    }
+    respIds.forEach(function (id) { c.resp.push({nome: nomePersona(cat, id), foto: (persona(cat, id) || {}).foto || ""}); });
+    if (nomeMans) c.note.push(nomeMans);
+    if (n.sotto) c.note.push(n.sotto);
+    if ((n.elenco_ruoli || []).length) {
+      c.auto = true;
+      var fuori = {}, gia = {};
+      respIds.forEach(function (id) { fuori[id] = 1; });
+      (n.elenco_nascosti || []).forEach(function (id) { fuori[id] = 1; });
+      n.elenco_ruoli.forEach(function (rid) {
+        var r = ruolo(cat, rid); if (!r) return;
+        var gruppo = [];
+        (r.titolari || []).forEach(function (pid) {
+          if (fuori[pid]) return;
+          if (gia[pid]) { if (r.sigla && gia[pid].sigle.indexOf(r.sigla) < 0) gia[pid].sigle.push(r.sigla); return; }
+          gia[pid] = {pid: pid, nome: nomePersona(cat, pid), sigle: r.sigla ? [r.sigla] : []};
+          gruppo.push(gia[pid]);
+        });
+        gruppo.sort(perNome).forEach(function (m) { c.membri.push({nome: m.nome, sigla: n.elenco_sigle === false ? "" : m.sigle.join("/"), pid: m.pid}); });
+      });
+    }
+    var righe = n.elenco_righe || [];
+    if (righe.length) {
+      if (c.membri.length) c.membri.push(null);
+      righe.forEach(function (t) { c.membri.push(t ? dividiSigla(t) : null); });
+    }
+    if (!c.resp.length && !c.membri.length && !c.note.length && !c.icona && n.ruolo && !n.tutti_titolari) {
+      var r1 = ruolo(cat, n.ruolo);
+      if (r1) { var k = (r1.titolari || []).length; c.muto = k ? (k === 1 ? "1 persona" : k + " persone") : "Posizione scoperta"; }
+    }
+    if (!c.ruoli.length && !c.resp.length && !c.membri.length && !c.reparto && !c.icona) c.ruoli.push({nome: "Riquadro", sigla: ""});
+    return c;
+  }
+
+  function htmlBox(n, cat, stile) {
+    var c = contenuto(n, cat), h = "", doc = stile === "doc";
+    if (c.reparto) h += '<div class="o-rep">' + esc(c.reparto) + "</div>";
+    c.ruoli.forEach(function (r) {
+      h += doc ? '<div class="o-ru">' + esc(r.nome) + (r.sigla ? " – " + esc(r.sigla) : "") + "</div>"
+               : '<div class="o-ru"><span>' + esc(r.nome) + "</span>" + (r.sigla ? '<span class="o-chip">' + esc(r.sigla) + "</span>" : "") + "</div>";
+    });
+    if (c.icona && ICONE[c.icona]) h += '<div class="o-ico">' + ICONE[c.icona] + "</div>";
+    if (c.resp.length > 2 || doc) {
+      if (c.resp.length) h += '<div class="o-resp">' + c.resp.map(function (p) { return esc(p.nome); }).join("<br>") + "</div>";
+    } else {
+      c.resp.forEach(function (p) {
+        h += '<div class="o-pe"><span class="o-av">' + (p.foto ? '<img src="' + esc(p.foto) + '" alt="" loading="lazy" draggable="false">' : esc(iniziali(p.nome))) + "</span><span>" + esc(p.nome) + "</span></div>";
+      });
+    }
+    c.note.forEach(function (t) { h += '<div class="o-note">' + esc(t) + "</div>"; });
+    if (c.muto) h += '<div class="o-muto">' + esc(c.muto) + "</div>";
+    if (c.membri.length) {
+      var attaccato = !c.ruoli.length && !c.resp.length && !c.icona;
+      h += '<div class="o-mem' + (attaccato ? " is-attaccato" : "") + '">' + c.membri.map(function (m) {
+        if (!m) return '<div class="o-sp"></div>';
+        return doc ? "<div>" + esc(m.nome) + (m.sigla ? " – " + esc(m.sigla) : "") + "</div>"
+                   : "<div><span>" + esc(m.nome) + "</span>" + (m.sigla ? '<span class="o-chip">' + esc(m.sigla) + "</span>" : "") + "</div>";
+      }).join("") + "</div>";
+    }
+    if (c.auto) h += '<div class="o-auto">● elenco automatico</div>';
+    return h;
+  }
+
+  // Riquadro (o gruppo) pronto da appendere alla tela, già posizionato.
+  function elemento(n, cat, stile) {
+    var el = document.createElement("div");
+    el.dataset.id = n.id;
+    if (n.tipo === "gruppo") {
+      el.className = "ouf-g";
+      el.style.cssText = "left:" + n.x + "px;top:" + n.y + "px;width:" + n.w + "px;height:" + n.h + "px;--c:" + n.colore;
+      el.innerHTML = '<span class="ouf-gt">' + esc(n.titolo || "Gruppo") + "</span>";
+    } else {
+      el.className = "ouf-b ouf-b--" + (n.stile || "bordo") + (n.icona ? " has-ico" : "");
+      el.style.cssText = "left:" + n.x + "px;top:" + n.y + "px;width:" + n.w + "px;min-height:" + n.h + "px;--c:" + (n.colore || "#0f2a5c");
+      el.innerHTML = htmlBox(n, cat, stile);
+    }
+    return el;
+  }
+
+  // Linee: dall'alto con una barra comune per ogni riga di sottoposti, di lato dal
+  // tronco del superiore («lato»), tratteggiate di fianco («staff»). H = altezza vera.
+  function percorsi(nodi, H) {
+    var per = {}, figli = {}, out = [];
+    nodi.forEach(function (n) { per[n.id] = n; });
+    nodi.forEach(function (n) { if (n.padre && per[n.padre]) (figli[n.padre] = figli[n.padre] || []).push(n); });
+    function alt(n) { return (H && H[n.id]) || n.h; }
+    Object.keys(figli).forEach(function (pid) {
+      var p = per[pid], fs = figli[pid], pb = p.y + alt(p);
+      var tx = p.tronco === "sinistra" ? p.x + 14 : (p.tronco === "destra" ? p.x + p.w - 14 : p.x + p.w / 2);
+      var basso = pb, alto = pb;
+      fs.filter(function (f) { return f.staff; }).forEach(function (f) {
+        var y = f.y + alt(f) / 2, destra = f.x + f.w / 2 >= p.x + p.w / 2, x2 = destra ? f.x : f.x + f.w;
+        if (y >= p.y && y <= pb) out.push({d: "M" + (destra ? p.x + p.w : p.x) + " " + y + " H" + x2, staff: true});
+        else out.push({d: "M" + (p.x + p.w / 2) + " " + (y > p.y ? pb : p.y) + " V" + y + " H" + x2, staff: true});
+      });
+      fs.filter(function (f) { return !f.staff && f.lato; }).forEach(function (f) {
+        var y = f.y + Math.min(alt(f) / 2, 30), x2 = f.x >= tx ? f.x : f.x + f.w;
+        out.push({d: "M" + tx + " " + y + " H" + x2, staff: false});
+        basso = Math.max(basso, y); alto = Math.min(alto, y);
+      });
+      var sopra = fs.filter(function (f) { return !f.staff && !f.lato; }).sort(function (a, b) { return a.y - b.y; });
+      var righe = [];
+      sopra.forEach(function (f) {
+        if (f.y <= pb + 4) { // sottoposto più in alto del superiore: gomito semplice
+          var x2 = f.x + f.w / 2, m = pb + 14;
+          out.push({d: "M" + tx + " " + pb + " V" + m + " H" + x2 + " V" + f.y, staff: false});
+          return;
+        }
+        var r = null;
+        for (var i = 0; i < righe.length; i++) if (Math.abs(righe[i][0].y - f.y) < 40) { r = righe[i]; break; }
+        if (r) r.push(f); else righe.push([f]);
+      });
+      righe.forEach(function (r) {
+        var top = Math.min.apply(null, r.map(function (f) { return f.y; }));
+        var bus = Math.max(pb + 8, top - 16);
+        var xs = r.map(function (f) { return f.x + f.w / 2; });
+        if (r.length === 1 && Math.abs(xs[0] - tx) < 2) { out.push({d: "M" + tx + " " + pb + " V" + r[0].y, staff: false}); return; }
+        out.push({d: "M" + Math.min.apply(null, xs.concat([tx])) + " " + bus + " H" + Math.max.apply(null, xs.concat([tx])), staff: false});
+        r.forEach(function (f) { out.push({d: "M" + (f.x + f.w / 2) + " " + bus + " V" + f.y, staff: false}); });
+        basso = Math.max(basso, bus);
+      });
+      if (basso > pb || alto < pb) out.push({d: "M" + tx + " " + Math.min(alto, pb) + " V" + basso, staff: false});
+    });
+    return out;
+  }
+
+  // Riquadri che crescono (elenchi lunghi, stile più alto) non coprono quelli sotto:
+  // chi sta sotto nella stessa colonna scende quanto serve. I gruppi non si spostano.
+  function assesta(nodi, H, gap) {
+    gap = gap == null ? 8 : gap;
+    var out = nodi.map(function (n) { return Object.assign({}, n); }), orig = {};
+    var box = out.filter(function (n) { return n.tipo !== "gruppo"; }).sort(function (a, b) { return a.y - b.y || a.x - b.x; });
+    box.forEach(function (n) { orig[n.id] = n.y; });
+    for (var i = 1; i < box.length; i++) {
+      var b = box[i];
+      for (var j = 0; j < i; j++) {
+        var a = box[j];
+        if (orig[b.id] < orig[a.id] + 10) continue;
+        if (Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) < 20) continue;
+        var fondo = a.y + ((H && H[a.id]) || a.h) + gap;
+        if (b.y < fondo) b.y = fondo;
+      }
+    }
+    return out;
+  }
+
+  function svgLinee(svg, linee, W, Hh) {
+    svg.setAttribute("width", W); svg.setAttribute("height", Hh);
+    svg.innerHTML = linee.map(function (l) { return '<path d="' + l.d + '"' + (l.staff ? ' class="is-staff"' : "") + "/>"; }).join("");
+  }
+
+  function classeTela(foglio) {
+    foglio = foglio || {};
+    var doc = foglio.stile === "documento";
+    return "ouf-tela " + (doc ? "ouf-st-doc" + (foglio.ruoli_blu === false ? "" : " ruoli-blu") : "ouf-st-hub");
+  }
+
+  // Disegno completo (sola lettura) dentro host. opt.fit = [w, h]: riduce per starci.
+  function render(host, pk, opt) {
+    opt = opt || {};
+    var dati = (pk && pk.dati) || {nodi: []}, cat = (pk && pk.cat) || {}, foglio = dati.foglio || {};
+    var stile = foglio.stile === "documento" ? "doc" : "hub", M = opt.margine == null ? 24 : opt.margine;
+    host.innerHTML = "";
+    if (!dati.nodi || !dati.nodi.length) { host.innerHTML = '<div class="ouf-vuoto">' + esc(opt.vuoto || "Disegno vuoto") + "</div>"; return {w: 0, h: 0}; }
+    var minx = Infinity, miny = Infinity;
+    dati.nodi.forEach(function (n) { minx = Math.min(minx, n.x); miny = Math.min(miny, n.y); });
+    var nodi = dati.nodi.map(function (n) { return Object.assign({}, n, {x: n.x - minx + M, y: n.y - miny + M}); });
+    var fit = document.createElement("div"); fit.className = "ouf-fit";
+    var tela = document.createElement("div"); tela.className = classeTela(foglio);
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("class", "ouf-linee"); svg.setAttribute("aria-hidden", "true");
+    fit.appendChild(tela); host.appendChild(fit);
+    nodi.forEach(function (n) { if (n.tipo === "gruppo") tela.appendChild(elemento(n, cat, stile)); });
+    tela.appendChild(svg);
+    var els = {};
+    nodi.forEach(function (n) { if (n.tipo !== "gruppo") { els[n.id] = elemento(n, cat, stile); tela.appendChild(els[n.id]); } });
+    var H = {}, W = 0, Hh = 0;
+    nodi.forEach(function (n) { H[n.id] = els[n.id] ? els[n.id].offsetHeight : n.h; });
+    nodi = assesta(nodi, H);
+    nodi.forEach(function (n) { if (els[n.id]) els[n.id].style.top = n.y + "px"; W = Math.max(W, n.x + n.w); Hh = Math.max(Hh, n.y + H[n.id]); });
+    W += M; Hh += M;
+    tela.style.width = W + "px"; tela.style.height = Hh + "px";
+    svgLinee(svg, percorsi(nodi, H), W, Hh);
+    var s = 1;
+    if (opt.fit) s = Math.min(opt.ingrandisci ? 1.5 : 1, opt.fit[0] / W, opt.fit[1] / Hh);
+    tela.style.transform = s !== 1 ? "scale(" + s + ")" : "";
+    fit.style.width = Math.ceil(W * s) + "px"; fit.style.height = Math.ceil(Hh * s) + "px";
+    return {w: W, h: Hh, scala: s};
+  }
+
+  function mount(root) {
+    (root || document).querySelectorAll(".ouf-mount:not(.is-pronto)").forEach(function (m) {
+      var js = m.querySelector('script[type="application/json"]');
+      if (!js) return;
+      var pk = JSON.parse(js.textContent), fit = (m.dataset.fit || "").split(",").map(Number);
+      m.classList.add("is-pronto");
+      var box = document.createElement("div"); m.appendChild(box);
+      render(box, pk, {fit: fit.length === 2 && fit[0] ? fit : null, ingrandisci: m.dataset.ingrandisci === "1", vuoto: m.dataset.vuoto});
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { mount(); });
+  else setTimeout(mount, 0);
+
+  return {ICONE: ICONE, NOMI_ICONE: NOMI_ICONE, esc: esc, contenuto: contenuto, elemento: elemento, percorsi: percorsi,
+          svgLinee: svgLinee, assesta: assesta, classeTela: classeTela, render: render, mount: mount};
+})();
+</script>

@@ -4,7 +4,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-{% include "anagrafica/partials/_org_uff_stile.html" %}
+{% include "anagrafica/partials/_org_uff_render.html" %}
 <style>
 .content:has(> .ouv-page) { width:100%; max-width:none; }
 .ouv-page { display:flex; flex-direction:column; gap:14px; }
@@ -51,8 +51,7 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       {% include "anagrafica/components/organigramma_viste.html" with attiva="ufficiale" %}
       {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="hr-btn hr-btn-outline" href="{{ guida_url }}#organigramma-ufficiale">? Guida</a>
-      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_ufficiale_stampa' org.pk %}?rev={{ rev.numero }}&formato=A3" target="_blank" rel="noopener">⬇ PDF A3</a>
-      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_ufficiale_stampa' org.pk %}?rev={{ rev.numero }}&formato=A4" target="_blank" rel="noopener">⬇ PDF A4</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_ufficiale_stampa' org.pk %}?rev={{ rev.numero }}" target="_blank" rel="noopener">⬇ Stampa / PDF</a>
       {% if puo_disegnare %}<a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:organigramma_ufficiale_disegna' org.pk %}">✎ Disegna</a>{% endif %}
     </div>
   </div>
@@ -71,7 +70,7 @@
   {% endif %}
 
   <div class="ouv-grid">
-    <div class="ouv-tela">{% include "anagrafica/partials/_org_uff_disegno.html" with d=disegno only %}</div>
+    <div class="ouv-tela">{% include "anagrafica/partials/_org_uff_disegno.html" with p=pacchetto only %}</div>
     <aside class="ouv-side">
       <h2>Storico revisioni</h2>
       {% for r in revisioni %}
