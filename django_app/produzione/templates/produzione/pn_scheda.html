@@ -125,28 +125,7 @@
       </div>  </section>
 
   {% elif sezione == "report" %}
-  <section class="prod-card" id="report-cmm">
-    <div class="prod-card-head"><h2>Quote da tenere d'occhio</h2>{% if report_cmm.attivo %}<a class="prod-btn prod-btn-piccolo prod-btn-primary" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}">Analisi quote</a>{% endif %}</div>
-    {% if quote_critiche %}
-    <div class="prod-scorri">
-      <table class="prod-tab">
-        <thead><tr><th>Quota</th><th>Programma</th><th class="prod-n">Fuori</th><th class="prod-n">Cpk</th><th class="prod-n">Ultima: tolleranza usata</th></tr></thead>
-        <tbody>
-          {% for c in quote_critiche %}
-          <tr>
-            <td><a class="prod-op" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}&amp;prog={{ c.prog|urlencode }}&amp;q={{ c.quota.id|urlencode }}">{{ c.quota.nome }}</a>{% if c.fuori_ultimo %} <span class="prod-stato is-danger">fuori nell'ultimo report</span>{% endif %}</td>
-            <td>{{ c.prog }}</td>
-            <td class="prod-n">{{ c.n_fuori }} su {{ c.n }}</td>
-            <td class="prod-n">{% if c.cpk is not None %}{{ c.cpk|floatformat:2 }}{% else %}—{% endif %}</td>
-            <td class="prod-n">{% if c.u is not None %}{% widthratio c.u_abs 1 100 %}%{% else %}—{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <p class="prod-nota prod-nota-sotto">Sugli ultimi 30 report di ogni programma: quote fuori nell'ultimo report, poi Cpk sotto 1,33.</p>
-    {% else %}<p class="prod-vuoto">Nessuna quota fuori nell'ultimo report o con Cpk sotto 1,33.</p>{% endif %}
-  </section>
+  {% if report_cmm.attivo %}<p class="prod-nota prot-rimando">Quote fuori, Cpk e deriva sono in <a href="?sez=qualita">Qualità CMM</a>.</p>{% endif %}
   {% if programmi_cmm %}
   <section class="prod-card">
     <div class="prod-card-head"><h2>Programmi CMM</h2><span class="prod-nota">Dai report letti; le revisioni dello stesso programma sono unite</span></div>
@@ -157,9 +136,11 @@
   </section>
   {% endif %}
   <section class="prod-card">
-    <div class="prod-card-head"><h2>Report</h2><span class="prod-nota">{{ report_cmm.n }} letti{% if report_cmm.con_fuori %}, {{ report_cmm.con_fuori }} con quote fuori{% endif %}; qui gli ultimi 60. Spunta 2-6 righe per confrontarle.</span></div>
-    {% if report_cmm.n %}
+    <div class="prod-card-head"><h2>Report{% if periodo %} dal {{ periodo.0|date:"d/m/Y" }} al {{ periodo.1|date:"d/m/Y" }}{% endif %}</h2><span class="prod-nota">{% if periodo %}{{ report_cmm.ultimi|length }} nella settimana · <a href="?sez=report">tutti</a>{% else %}{{ report_cmm.n }} letti{% if report_cmm.con_fuori %}, {{ report_cmm.con_fuori }} con quote fuori{% endif %}; qui gli ultimi 60{% endif %}. Spunta 2-6 righe per confrontarle.</span></div>
+    {% if report_cmm.ultimi %}
     {% include "produzione/_report_cmm_tabella.html" with elenco_report=report_cmm.ultimi %}
+    {% elif periodo %}
+    <p class="prod-vuoto">Nessun report valido in questa settimana.</p>
     {% else %}
     <p class="prod-vuoto">{% if report_cmm.cartella.letta_il %}Nessun report CMM nella cartella del P/N.{% else %}Report non ancora letti dalla share: apri «Analisi quote» per avviare la lettura.{% endif %}</p>
     {% endif %}

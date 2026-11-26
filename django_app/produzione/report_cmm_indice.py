@@ -721,9 +721,43 @@ def quote_critiche(pn: str, ultimi: int = 30, quante: int = 6) -> list[dict]:
     return righe[:quante]
 
 
+def _cella_mappa(fuori: int, misurati: int, lunedi) -> dict:
+    """Una cella della mappa P/N × settimana: report con quote fuori su report misurati, colore dalla quota fuori."""
+    from datetime import timedelta
+
+    if not misurati:
+        livello = "vuoto"
+    elif not fuori:
+        livello = "zero"
+    else:
+        r = fuori / misurati
+        livello = "basso" if r <= 0.12 else ("medio" if r <= 0.25 else "alto")
+    return {"fuori": fuori, "n": misurati, "livello": livello, "da": lunedi, "a": lunedi + timedelta(days=6)}
+
+
+def settimane_mappa(settimane: int = 12) -> list[dict]:
+    """Le colonne della mappa: lunedì e numero ISO della settimana, dalla più vecchia."""
+    from datetime import timedelta
+
+    oggi = timezone.localdate()
+    inizio = oggi - timedelta(days=oggi.weekday() + 7 * (settimane - 1))
+    return [{"da": inizio + timedelta(days=7 * k), "n": (inizio + timedelta(days=7 * k)).isocalendar()[1]} for k in range(settimane)]
+
+
+def quote_da_guardare_tutte(pns: list[str], quante: int = 12) -> list[dict]:
+    """Le quote da guardare di tutti i P/N (come ``quote_critiche``): fuori nell'ultimo report, in deriva, Cpk sotto 1,33."""
+    righe = []
+    for pn in pns:
+        for a in analisi_pn(pn):
+            if a["fuori_ultimo"] or a["deriva"] or (a["cpk"] is not None and a["cpk"] < 1.33):
+                righe.append(dict(a, pn=pn))
+    righe.sort(key=lambda r: (not r["fuori_ultimo"], not r["deriva"], r["cpk"] if r["cpk"] is not None else 9))
+    return righe[:quante]
+
+
 def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
-    """Una riga per P/N con report: fuori negli ultimi ``giorni``, fuori per settimana, quote con Cpk sotto 1,33,
-    quote in deriva, ultimo report. Ordinate dalla più grave."""
+    """Una riga per P/N con report: fuori negli ultimi ``giorni``, per settimana report con fuori su report misurati
+    (``celle``, la mappa), quote con Cpk sotto 1,33, quote in deriva, ultimo report. Ordinate dalla più grave."""
     from datetime import timedelta
 
     from django.db.models import Count, Max, Q
@@ -737,10 +771,13 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
     if not righe:
         return []
     sett: dict[str, list[int]] = {pn: [0] * settimane for pn in righe}
-    for pn, d in validi.filter(fuori__gt=0, data__gte=inizio_sett).values_list("pn", "data"):
+    misurati: dict[str, list[int]] = {pn: [0] * settimane for pn in righe}
+    for pn, d, f in validi.filter(data__gte=inizio_sett, data__lte=oggi).values_list("pn", "data", "fuori"):
         k = (d - inizio_sett).days // 7
         if 0 <= k < settimane and pn in sett:
-            sett[pn][k] += 1
+            misurati[pn][k] += 1
+            if f:
+                sett[pn][k] += 1
     ultimi = {}
     for pn, sn, d, rid in validi.order_by("pn", "-data", "-id").values_list("pn", "seriale", "data", "id"):
         ultimi.setdefault(pn, (sn, d, rid))
@@ -749,6 +786,7 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
         analisi = analisi_pn(pn)
         out.append({
             "pn": pn, "n": r["n"], "fuori_rec": r["fuori_rec"], "settimane": sett[pn], "max_sett": max(sett[pn]) or 1,
+            "celle": [_cella_mappa(f, n, inizio_sett + timedelta(days=7 * k)) for k, (f, n) in enumerate(zip(sett[pn], misurati[pn]))],
             "cpk_bassi": sum(1 for a in analisi if a["cpk"] is not None and a["cpk"] < 1.33),
             "deriva": sum(1 for a in analisi if a["deriva"]),
             "fuori_ultimo": sum(1 for a in analisi if a["fuori_ultimo"]),

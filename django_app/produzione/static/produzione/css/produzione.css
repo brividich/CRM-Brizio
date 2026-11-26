@@ -447,3 +447,22 @@ a.prod-dato:hover{border-color:var(--accent)}
 @media (max-width:1100px){.prot-qualita-grafici{grid-template-columns:1fr}.prot-indici-6{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .prot-tab th.nt{text-transform:none}
 .prot-lettura.is-ok{background:var(--success-bg,#dcfce7);border-color:color-mix(in srgb,var(--success,#16a34a) 35%,transparent)}
+/* Quote CMM: mappa P/N × settimane */
+.prot-rimando{margin:0 0 12px}
+.prot-esito-dati .prot-campo:first-child{border-left:0}
+.prot-campo.is-allerta b{color:var(--danger)}
+.prot-mappa td.prot-cella{min-width:54px}
+.prot-mappa th.prot-sett{text-align:center;min-width:54px}
+.prot-mappa th.prot-sett span{display:block;font-weight:600;text-transform:none;letter-spacing:0}
+.prot-mappa .prot-liv{padding:4px 4px;font-size:12px}
+.prot-liv.is-zero{background:color-mix(in srgb,var(--success,#16a34a) 14%,var(--surface))}
+.prot-liv.is-alto{background:var(--danger,#dc2626);color:#fff}
+.prot-mappa .prot-liv.is-basso{background:color-mix(in srgb,var(--warning,#d97706) 30%,var(--surface))}
+.prot-mappa .prot-liv.is-medio{background:color-mix(in srgb,var(--danger,#dc2626) 30%,var(--surface))}
+.prot-legenda i.mp-zero{background:color-mix(in srgb,var(--success,#16a34a) 14%,var(--surface))}
+.prot-legenda i.mp-basso{background:color-mix(in srgb,var(--warning,#d97706) 30%,var(--surface))}
+.prot-legenda i.mp-medio{background:color-mix(in srgb,var(--danger,#dc2626) 30%,var(--surface))}
+.prot-legenda i.mp-alto{background:var(--danger,#dc2626)}
+.prot-num-allerta{color:var(--danger);font-weight:800}
+.prot-mappa td.prot-cella{text-align:center}
+.prod-confronta-barra[hidden]{display:none}

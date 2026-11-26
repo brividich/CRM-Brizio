@@ -134,6 +134,17 @@ def pn_anagrafica(request, pn: str):
     return redirect(services.url_pn(pn))
 
 
+def _periodo(request):
+    """``?da=AAAA-MM-GG&a=AAAA-MM-GG`` (dalla mappa di Quote CMM), altrimenti ``None``."""
+    from datetime import date
+
+    try:
+        da, a = date.fromisoformat(request.GET.get("da", "")), date.fromisoformat(request.GET.get("a", ""))
+    except ValueError:
+        return None
+    return (da, a) if da <= a else None
+
+
 @login_required
 @require_GET
 def pn_scheda(request, pn: str | None = None):
@@ -155,8 +166,12 @@ def pn_scheda(request, pn: str | None = None):
     conta = {"op": len(dati["ops"]), "report": dati["report_cmm"]["n"], "programmi": len(dati["programmi"]),
              "fai": len(dati["fai_pn"])}
     if sezione == "report":
-        dati["report_cmm"]["ultimi"] = list(cmm.ReportCMM.objects.filter(pn=dati["pn"], righe__gt=0, escluso=False)
-                                            .order_by("-data", "-id")[:60])
+        qs = cmm.ReportCMM.objects.filter(pn=dati["pn"], righe__gt=0, escluso=False)
+        periodo = _periodo(request)
+        if periodo:
+            qs = qs.filter(data__gte=periodo[0], data__lte=periodo[1])
+            dati["periodo"] = periodo
+        dati["report_cmm"]["ultimi"] = list(qs.order_by("-data", "-id")[:60])
         dati["programmi_cmm"] = cmm.programmi_del_pn(dati["pn"])
     if sezione == "qualita":
         dati["qualita"] = pagine_cmm.qualita_pn(dati["pn"], request.GET.get("q", ""))
@@ -368,6 +383,7 @@ def quote_cruscotto(request):
     visibili = [r for r in righe if r["da_guardare"]] if filtro == "guardare" else righe
     return render(request, "produzione/quote_cruscotto.html", _ctx(
         request, "quote", righe=visibili, filtro=filtro, n_guardare=sum(1 for r in righe if r["da_guardare"]), n_tutti=len(righe),
+        settimane=cmm.settimane_mappa(), quote_guardare=cmm.quote_da_guardare_tutte([r["pn"] for r in righe if r["da_guardare"]]),
         tot={"pn": len(righe), "fuori": sum(1 for r in righe if r["fuori_rec"]), "cpk": sum(r["cpk_bassi"] for r in righe),
              "deriva": sum(r["deriva"] for r in righe)},
         oggi=ReportCMM.objects.filter(letto_il__date=timezone.localdate(), righe__gt=0).count(), attivo=cmm.attivo(),
