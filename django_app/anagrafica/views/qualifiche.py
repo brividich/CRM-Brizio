@@ -66,7 +66,6 @@ def _check_skm_permission(request, code: str) -> bool:
 
 @login_required
 def qualifiche_list(request):
-    from datetime import timedelta
     from django.utils import timezone as tz
 
     legacy_user = get_legacy_user(request.user)
@@ -96,49 +95,6 @@ def qualifiche_list(request):
     )
 
     oggi = tz.localdate()
-    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
-
-    # Qualifiche in scadenza o scadute
-    scadenze_qs = list(
-        DipendenteQualifica.objects.filter(data_scadenza__isnull=False)
-        .filter(data_scadenza__lte=soglia)
-        .select_related("tipo")
-        .order_by("data_scadenza")
-    )
-
-    # Solo le qualifiche correnti (non quelle superate da un rinnovo), senza
-    # cessati: stessi numeri di cruscotto e scadenzario.
-    _conta = _qualifica_nel_perimetro(request)
-    scadenze_qs = [q for q in scadenze_qs if _conta(q)]
-
-    # Arricchisce con nome dipendente
-    legacy_ids = list({q.legacy_anagrafica_id for q in scadenze_qs})
-    nome_map: dict[int, str] = {}
-    if legacy_ids:
-        try:
-            rows = fetch_anagrafica_rows(ids=legacy_ids)
-            for r in rows:
-                rid = int(r.get("id") or 0)
-                if rid:
-                    nome_map[rid] = naming.nome_completo(r.get("nome"), r.get("cognome"))
-        except Exception:
-            pass
-
-    scadenze = []
-    for q in scadenze_qs:
-        scadenze.append({
-            "id": q.id,
-            "legacy_anagrafica_id": q.legacy_anagrafica_id,
-            "dipendente": nome_map.get(q.legacy_anagrafica_id, f"Dip. #{q.legacy_anagrafica_id}"),
-            "tipo_id": q.tipo_id,
-            "tipo_nome": q.tipo.nome,
-            "tipo_categoria": q.tipo.categoria,
-            "data_conseguimento": q.data_conseguimento,
-            "data_scadenza": q.data_scadenza,
-            "scaduta": q.data_scadenza < oggi,
-            "in_scadenza": oggi <= q.data_scadenza <= soglia,
-            "note": q.note,
-        })
 
     tipi_suggeriti = [
         ("Patentino carrellista", "PROFESSIONALE", 60),
@@ -167,10 +123,9 @@ def qualifiche_list(request):
         tabs.append((cat_code, cat_labels_q[cat_code],
                      sum(1 for t in tipi if t.categoria == cat_code)))
 
-    # Vista filtrata: restringe gruppi e scadenze alla categoria selezionata.
+    # Vista filtrata: restringe i gruppi alla categoria selezionata (le scadenze sono nello scadenzario).
     if cat_filter:
         tipi_grouped = [g for g in tipi_grouped if g[0] == cat_filter]
-        scadenze = [s for s in scadenze if s["tipo_categoria"] == cat_filter]
 
     # Processi qualificati MOD.128 (modulo additivo, fail-safe): mostrati nel
     # catalogo come famiglia a sé, così si vedono nella sezione Qualifiche.
@@ -202,7 +157,6 @@ def qualifiche_list(request):
         "processi_qualificati": processi_qualificati,
         "mostra_processi": mostra_processi,
         "solo_processi": solo_processi,
-        "scadenze": scadenze,
         "is_admin": is_admin,
         "oggi": oggi,
         "CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
@@ -228,7 +182,6 @@ def _classifica_scadenza_qualifica(data_scadenza, oggi, soglia_30, soglia_60):
     return ("valida", "Valida")
 
 
-@login_required
 def _qualifica_nel_perimetro(request):
     """Funzione che dice se una qualifica conta: stessa regola per cruscotto, scadenzario ed export.
 
@@ -250,6 +203,7 @@ def _qualifica_nel_perimetro(request):
     return conta
 
 
+@login_required
 def qualifiche_dashboard(request):
     """Cruscotto Qualifiche & Certificazioni — vista trasversale di sola lettura.
 
@@ -693,9 +647,21 @@ def tipo_qualifica_detail(request, tipo_id: int):
             })
 
     from ..services.mpq_persone import processi_che_richiedono
+    from ..services.qualifica_mancanti import persone_senza_qualifica
+
+    # «Richiesta a, ma mancante»: in forza, richiesta da processo/mansione/ruolo, senza la
+    # qualifica o con la corrente scaduta. Stesso ambito del ruolo dei possessori.
+    mancanti = persone_senza_qualifica(tipo, oggi=oggi, nomi=nomi)
+    if _helpers._ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request)
+        if visibili is not None:
+            mancanti = [m for m in mancanti if m["legacy_id"] in visibili]
 
     return render(request, "anagrafica/pages/tipo_qualifica_detail.html", {
         "tipo": tipo,
+        "mancanti": mancanti,
         # Processi qualificati MOD.128 che la chiedono («Cosa serve a una persona»).
         "processi_mpq": processi_che_richiedono(tipo_qualifica=tipo),
         "is_admin": is_admin,

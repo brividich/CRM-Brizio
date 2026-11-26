@@ -48,8 +48,10 @@ class FiloKpiTests(TestCase):
         self.assertContains(resp, "#conformita-qualifiche")
 
     def test_elenco_qualifiche_non_mostra_il_record_rinnovato(self):
+        # Il catalogo non ripete più lo scadenzario: porta allo scadenzario qualifiche.
         resp = self.client.get(reverse("anagrafica:qualifiche_list"))
-        self.assertEqual([s for s in resp.context["scadenze"] if s["legacy_anagrafica_id"] == self.p.pk], [])
+        self.assertNotIn("scadenze", resp.context)
+        self.assertContains(resp, reverse("anagrafica:qualifiche_scadenzario"))
 
     def test_conformita_filtro_mansione_visibile_e_guida(self):
         resp = self.client.get(reverse("anagrafica:conformita_report"), {"mansione": "Saldatore sintetico"})

@@ -352,7 +352,26 @@ def _subnav_anagrafica_calcola(context):
                 acl_memo[path] = False
         return acl_memo[path]
 
+    condizioni_memo: dict[str, bool] = {}
+
+    def _voce_utile(link):
+        """«MOD.176 in officina» compare solo se esiste almeno un Technical Plan approvato."""
+        if link.url_value != "anagrafica:mpq_officina":
+            return True
+        if link.url_value not in condizioni_memo:
+            try:
+                from anagrafica.models_mpq import TechnicalPlanRevisione
+
+                condizioni_memo[link.url_value] = TechnicalPlanRevisione.objects.filter(
+                    stato=TechnicalPlanRevisione.STATO_APPROVATA).exists()
+            except Exception:
+                logger.exception("Subnav anagrafica: verifica Technical Plan fallita")
+                condizioni_memo[link.url_value] = True
+        return condizioni_memo[link.url_value]
+
     def _build_link_item(link):
+        if not _voce_utile(link):
+            return None
         resolved = _resolve_url(link)
         if resolved == "#" or not _can_open(resolved):
             return None

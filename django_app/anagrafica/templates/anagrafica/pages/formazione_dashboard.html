@@ -300,58 +300,26 @@
       {% endif %}
     </section>
 
-    {# ── Aree del modulo: le stesse voci di prima, in elenco ───────────── #}
+    {# ── Edizioni dei corsi: in corso e da chiudere (le altre pagine sono nel menu) ── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Aree del modulo</div>
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Edizioni dei corsi</div>
       </div>
       <div class="fmd-arealist">
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_piani_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Piani formativi</span><span class="fmd-area-desc">Catalogo piani · regole obbligatorietà</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_corsi_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Corsi</span><span class="fmd-area-desc">Catalogo corsi · versioni · prerequisiti</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_sessioni_list' %}">
+        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_sessioni_list' %}?stato=IN_CORSO">
           <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Sessioni</span><span class="fmd-area-desc">Edizioni · lezioni · iscritti · presenze</span></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">In corso: {{ edizioni_in_corso }}</span><span class="fmd-area-desc">Sessioni con stato «In corso»</span></span>
         </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_istruttori_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-mic"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Docenti / Formatori</span><span class="fmd-area-desc">Catalogo interni ed esterni</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:qualifiche_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Qualifiche / Abilitazioni</span><span class="fmd-area-desc">Catalogo unico · sicurezza · professionali · gestionali</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_scadenzario' %}">
+        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_sessioni_list' %}?da_chiudere=1">
           <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-alarm"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Scadenzario formazione</span><span class="fmd-area-desc">Scaduti · ≤30gg · ≤90gg · mai frequentati</span></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">Da chiudere: {{ edizioni_da_chiudere }}</span><span class="fmd-area-desc">Finite ma ancora pianificate o in corso: esiti, presenze e firme da completare</span></span>
         </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_ccnl_dashboard' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Monte ore CCNL</span><span class="fmd-area-desc">Diritto alla formazione · 24h/3 anni per dipendente</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_plan' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Plan</span><span class="fmd-area-desc">Calendario corsi · scadenze · (DPI/assenze)</span></span>
-        </a>
-        {% if can_edit_formazione %}
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_scansioni_log' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Registro letture scansioni</span><span class="fmd-area-desc">Fogli firme caricati · esito · dov'è archiviato il file</span></span>
-        </a>
-        {% endif %}
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:sicurezza_hub' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-shield"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Salute e Sicurezza</span><span class="fmd-area-desc">Fattori di rischio, esposizioni, mansioni di rischio, idoneità (cruscotto + guida)</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:scadenzario' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Scadenzario HR generale</span><span class="fmd-area-desc">Qualifiche · visite mediche · formazione</span></span>
-        </a>
+      </div>
+      {# Pagine del modulo che non hanno una voce nel menu: restano raggiungibili da qui. #}
+      <div class="fmd-muted" style="font-size:12.5px;margin-top:10px;">Anche:
+        <a class="fmd-data-link" href="{% url 'anagrafica:formazione_ccnl_dashboard' %}">Monte ore CCNL</a> ·
+        <a class="fmd-data-link" href="{% url 'anagrafica:formazione_plan' %}">Plan</a>{% if can_edit_formazione %} ·
+        <a class="fmd-data-link" href="{% url 'anagrafica:formazione_scansioni_log' %}">Registro letture scansioni</a>{% endif %}
       </div>
     </section>
     </div>{# .fmd-low #}

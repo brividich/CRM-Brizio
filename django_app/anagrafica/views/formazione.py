@@ -70,7 +70,6 @@ from ..models_formazione import (
     TrainingCourse,
     TrainingCourseArgomento,
     TrainingCourseDependency,
-    TrainingCourseModule,
     TrainingCourseVersion,
     TrainingDeadline,
     TrainingEmployeeRecord,
@@ -899,6 +898,11 @@ def formazione_dashboard(request):
     deadline_cache_empty = not TrainingDeadline.objects.exists()
     copertura_corsi = _copertura_corsi_obbligatori(oggi, filtro_centro)
 
+    # Edizioni dei corsi: stessi numeri dell'elenco Sessioni a cui portano i link.
+    from ..services import formazione_aula as _aula_dash
+    edizioni_in_corso = TrainingSession.objects.filter(stato="IN_CORSO").count()
+    edizioni_da_chiudere = _aula_dash.da_chiudere(oggi).count()
+
     return render(request, "anagrafica/pages/formazione_dashboard.html", {
         "filtro_centro": filtro_centro,
         "copertura_corsi": copertura_corsi,
@@ -914,6 +918,8 @@ def formazione_dashboard(request):
         "kpi_corsi_attivi": kpi_corsi_attivi,
         "scadenze_urgenti": scadenze_raw,
         "deadline_cache_empty": deadline_cache_empty,
+        "edizioni_in_corso": edizioni_in_corso,
+        "edizioni_da_chiudere": edizioni_da_chiudere,
     })
 
 
@@ -1334,8 +1340,23 @@ def formazione_corsi_list(request):
         modi = {s.modalita for s in corso.sessioni.all()}
         corso.modi = [(k, e) for k, e in _MODI_ETICHETTE if (k == "sempre" and corso.is_elearning) or k in modi]
 
+    # Link di pastiglie e pagine: conservano tutti gli altri filtri attivi.
+    filtri_attuali = {
+        "q": q_search, "piano": filtro_piano, "stato": filtro_stato,
+        "obbligatorio": filtro_obbligatorio, "attivi": "1" if filtro_attivi else "",
+        "rinnovo": "1" if filtro_rinnovo else "", "modo": filtro_modo, "tipo": filtro_tipo,
+    }
+
+    def _base_qs(*escludi):
+        resto = {k: v for k, v in filtri_attuali.items() if v and k not in escludi}
+        return urlencode(resto) + "&" if resto else ""
+
     from ..models_formazione import TrainingCourseType
     return render(request, "anagrafica/pages/formazione_corsi.html", {
+        "qs_senza_modo": _base_qs("modo"),
+        "qs_senza_tipo": _base_qs("tipo"),
+        "qs_senza_rinnovo": _base_qs("rinnovo"),
+        "qs_filtri": _base_qs(),
         "modi_conteggi": modi_conteggi,
         "filtro_modo": filtro_modo,
         "filtro_tipo": filtro_tipo,
@@ -1641,11 +1662,6 @@ def formazione_corso_detail(request, corso_id: int):
         TrainingCourseDependency.objects.filter(corso_principale=corso)
         .select_related("prerequisito")
     )
-    moduli = list(
-        TrainingCourseModule.objects.filter(corso_padre=corso)
-        .select_related("corso_modulo")
-        .order_by("ordine")
-    )
     versioni = list(
         TrainingCourseVersion.objects.filter(corso=corso).order_by("-created_at")
     )
@@ -1795,7 +1811,6 @@ def formazione_corso_detail(request, corso_id: int):
         "tipi_allegato": TrainingAttachment.Tipo.choices,
         "prerequisiti": prerequisiti,
         "programma": list(corso.programma.all()),
-        "moduli": moduli,
         "versioni": versioni,
         "mansioni_da_competenze": list(mansioni_da_competenze.values()),
         "regole": regole,
@@ -2218,6 +2233,23 @@ def formazione_corso_assegna(request, corso_id: int):
 # FORMAZIONE HR — Istruttori (PATCH-03)
 # ============================================================================
 
+def _sessioni_per_istruttore(istruttori_ids) -> dict[int, set[int]]:
+    """Sessioni di ciascun docente: titolare **oppure** docente di almeno una lezione.
+
+    Stessa regola della scheda del docente, così elenco e scheda danno lo stesso numero.
+    """
+    ids = [i for i in istruttori_ids if i]
+    esito: dict[int, set[int]] = {i: set() for i in ids}
+    if not ids:
+        return esito
+    for docente_id, sess_id in TrainingSession.objects.filter(docente_id__in=ids).values_list("docente_id", "id"):
+        esito[docente_id].add(sess_id)
+    for docente_id, sess_id in (TrainingLesson.objects.filter(docente_id__in=ids)
+                                .values_list("docente_id", "sessione_id")):
+        esito[docente_id].add(sess_id)
+    return esito
+
+
 @login_required
 def formazione_istruttori_list(request):
     if not _helpers._can_view_formazione(request):
@@ -2243,12 +2275,7 @@ def formazione_istruttori_list(request):
     elif filtro_azienda.isdigit():
         qs = qs.filter(azienda_id=int(filtro_azienda))
 
-    istruttori = list(
-        qs.annotate(
-            n_sessioni=Count("sessioni", distinct=True),
-            n_lezioni=Count("lezioni", distinct=True),
-        ).order_by("nome")
-    )
+    istruttori = list(qs.annotate(n_lezioni=Count("lezioni", distinct=True)).order_by("nome"))
 
     # Le aziende formative aprono la pagina: sono l'ente da cui i docenti
     # arrivano, e il conteggio dice subito quali sono davvero in uso.
@@ -2260,9 +2287,7 @@ def formazione_istruttori_list(request):
         .annotate(n_istruttori=Count("istruttori", distinct=True))
         .prefetch_related(Prefetch(
             "istruttori",
-            queryset=TrainingInstructor.objects.annotate(
-                n_sessioni=Count("sessioni", distinct=True)
-            ).order_by("nome"),
+            queryset=TrainingInstructor.objects.order_by("nome"),
         ))
         .order_by("nome")
     )
@@ -2276,9 +2301,14 @@ def formazione_istruttori_list(request):
             .order_by("docente_id", "-data_inizio")
         ):
             ultime_sessioni_per_istruttore.setdefault(sess.docente_id, []).append(sess)
+    # «Sessioni»: stessa regola della scheda (titolare o docente di una lezione).
+    sessioni_di = _sessioni_per_istruttore({i.pk for i in istruttori} | set(tutti_istruttori_id))
+    for istr in istruttori:
+        istr.n_sessioni = len(sessioni_di.get(istr.pk, ()))
     for az in aziende:
         for istr in az.istruttori.all():
             istr.ultime_sessioni = ultime_sessioni_per_istruttore.get(istr.pk, [])[:3]
+            istr.n_sessioni = len(sessioni_di.get(istr.pk, ()))
 
     senza_azienda = TrainingInstructor.objects.filter(azienda__isnull=True).count()
     azienda_corrente = None
@@ -2304,7 +2334,7 @@ def formazione_istruttori_list(request):
 def formazione_istruttore_detail(request, istruttore_id: int):
     """Scheda del docente: chi è, da quale ente arriva, e cosa ha erogato.
 
-    I "corsi svolti" sono le sessioni in cui è docente titolare **oppure** ha
+    Le «Sessioni» sono quelle in cui è docente titolare **oppure** ha
     tenuto almeno una lezione: nel portale le due cose possono divergere
     (titolare della sessione, docente della singola giornata) e per la
     tracciabilità contano entrambe.
@@ -2315,17 +2345,13 @@ def formazione_istruttore_detail(request, istruttore_id: int):
 
     istr = get_object_or_404(TrainingInstructor.objects.select_related("azienda"), pk=istruttore_id)
 
-    # Due passaggi: prima gli id distinti (senza ordinamento, che con DISTINCT
-    # su SQL Server pretende la colonna nella select), poi la query annotata.
-    sessioni_ids = list(
-        TrainingSession.objects
-        .filter(Q(docente_id=istr.pk) | Q(lezioni__docente_id=istr.pk))
-        .order_by().values_list("id", flat=True).distinct()
-    )
+    # Due passaggi: prima gli id delle sessioni (stessa regola dell'elenco), poi la query annotata.
+    sessioni_ids = _sessioni_per_istruttore([istr.pk])[istr.pk]
     sessioni = list(
         TrainingSession.objects.filter(pk__in=sessioni_ids)
         .select_related("corso")
-        .annotate(n_iscritti=Count("iscrizioni", distinct=True))
+        # Discenti: gli iscritti senza i ritirati.
+        .annotate(n_iscritti=Count("iscrizioni", filter=~Q(iscrizioni__stato="RITIRATO"), distinct=True))
         .prefetch_related("lezioni")
         .order_by("-data_inizio")
     )
@@ -5513,44 +5539,15 @@ def formazione_elearning_manage(request, corso_id: int):
     slides = list(corso.slides.filter(is_active=True))
     domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
     n_invalid = sum(1 for d in domande if _problema_domanda(d))
-    salute = _elearning_salute(len(slides), len(domande), n_invalid)
-
-    iscritti = _elearning_iscritti_rows(corso)
-    counts = {"iscritti": len(iscritti), "in_corso": 0, "completati": 0, "non_superato": 0}
-    for r in iscritti:
-        if r["stato"] == "COMPLETATO":
-            counts["completati"] += 1
-        elif r["stato"] == "NON_SUPERATO":
-            counts["non_superato"] += 1
-        elif r["stato"] == "IN_CORSO":
-            counts["in_corso"] += 1
-    # ?esito=IN_CORSO|COMPLETATO|NON_SUPERATO: le tessere aprono la tabella con lo stesso stato.
-    filtro_esito = (request.GET.get("esito") or "").strip()
-    if filtro_esito not in ("IN_CORSO", "COMPLETATO", "NON_SUPERATO"):
-        filtro_esito = ""
-    iscritti_elenco = [r for r in iscritti if r["stato"] == filtro_esito] if filtro_esito else iscritti
 
     is_editor = _helpers._can_edit_formazione(request)
 
-    # Assegnazioni (obbligo) del corso + pool dipendenti assegnabili per il picker.
+    # Assegnazioni (obbligo) del corso; il pannello «Assegna» usa gestione.persone_assegnabili.
     assegnazioni = list(TrainingAssignment.objects.filter(corso=corso))
     nomi = _helpers._build_nomi_map() if (assegnazioni or is_editor) else {}
     for a in assegnazioni:
         a.nome = nomi.get(a.legacy_anagrafica_id, f"#{a.legacy_anagrafica_id}")
     assegnazioni.sort(key=lambda a: (a.nome or "").lower())
-    assegnabili = []
-    if is_editor:
-        assegnati_ids = {a.legacy_anagrafica_id for a in assegnazioni}
-        attivi_ids = set(
-            DipendenteAnagraficaAziendale.objects
-            .filter(data_cessazione__isnull=True)
-            .values_list("legacy_anagrafica_id", flat=True)
-        )
-        for lid in sorted(attivi_ids):
-            if lid not in assegnati_ids and lid in nomi:
-                assegnabili.append({"legacy_id": lid, "nome": nomi[lid]})
-        _ordine_ass = _helpers._build_ordine_map()
-        assegnabili.sort(key=lambda x: _ordine_ass.get(x["legacy_id"], x["nome"]).lower())
 
     # Storico delle versioni con i completamenti registrati su ciascuna.
     from django.db.models import Count as _Count
@@ -5614,13 +5611,7 @@ def formazione_elearning_manage(request, corso_id: int):
         "n_slide": len(slides),
         "n_domande": len(domande),
         "n_invalid": n_invalid,
-        "salute": salute,
-        "iscritti": iscritti_elenco,
-        "filtro_esito": filtro_esito,
-        "counts": counts,
-        "pubblicato": corso.stato == "ATTIVO" and corso.is_active,
         "assegnazioni": assegnazioni,
-        "assegnabili": assegnabili,
     })
 
 
