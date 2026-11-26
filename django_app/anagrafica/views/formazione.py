@@ -5606,6 +5606,12 @@ def formazione_elearning_hub(request):
                                                                      legacy_anagrafica_id__isnull=False)):
         for _cid, _lid in _qs.values_list("corso_id", "legacy_anagrafica_id").distinct():
             _iscritti_per_corso[_cid].add(_lid)
+    # Iscritti anche alle edizioni online («Slide + test») dello stesso corso: fanno il corso online.
+    for _cid, _lid in (TrainingEnrollment.objects
+                       .filter(sessione__corso__in=corsi, sessione__modalita="ONLINE")
+                       .exclude(stato="RITIRATO").exclude(sessione__stato="ANNULLATA")
+                       .values_list("sessione__corso_id", "legacy_anagrafica_id").distinct()):
+        _iscritti_per_corso[_cid].add(_lid)
     # Quiz superati dal link aperto ancora da abbinare (conteggio sul DB, non sull'elenco tagliato).
     _da_abbinare = dict(TrainingElearningRispostaAperta.objects
                         .filter(corso__in=corsi, superato=True, stato=TrainingElearningRispostaAperta.DA_ABBINARE)

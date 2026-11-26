@@ -96,7 +96,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
     </div>
   </div>
 
-  {% if motivo_blocco %}
+  {% if motivo_blocco and sessione.stato != "ANNULLATA" %}
   <div class="fm-cache-banner" role="status">🔒 {{ motivo_blocco }}</div>
   {% endif %}
   {% if aula_fase %}{% include "anagrafica/components/_aula_fasi.html" %}{% endif %}
@@ -200,7 +200,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
         </div>
         <div class="hr-metric-sub">
           {{ lezioni|length }} lezion{{ lezioni|length|pluralize:"e,i" }}, pause escluse
-          {% if ore_teoriche %}
+          {% if ore_teoriche and sessione.stato != "ANNULLATA" %}
             &nbsp;·&nbsp;
             {% if ore_scostamento == 0 %}<span style="color:#16a34a;">in linea con le {{ ore_teoriche|floatformat:"-2" }}h teoriche</span>
             {% elif ore_scostamento > 0 %}<span style="color:#b45309;">+{{ ore_scostamento|floatformat:"-2" }}h sulle {{ ore_teoriche|floatformat:"-2" }}h teoriche</span>

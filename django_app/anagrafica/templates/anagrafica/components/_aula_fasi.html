@@ -66,7 +66,6 @@ body.theme-dark .af-t,body.theme-dark .af-body h3{color:#e2e8f0}
       <p>{% if sessione.stato == "COMPLETATA" %}{% if sessione.chiusa_il %}Chiusa da {{ sessione.chiusa_da_nome|default:"—" }} il {{ sessione.chiusa_il|date:"d/m/Y" }}. {% endif %}Approvazione e verifica NC qui sotto.{% elif aula_online %}Chi ha superato il test va a libretto, chi non l'ha fatto risulta assente: una conferma chiude la sessione.{% else %}Esiti proposti da presenze e test: una conferma registra completamenti e attestati.{% endif %}</p></div>
     <div class="af-az">
       {% if gestore and not sessione.is_approvata %}<a class="hr-btn {% if sessione.stato == 'COMPLETATA' %}hr-btn-outline{% else %}hr-btn-primary{% endif %}" href="{% url 'anagrafica:formazione_aula_chiudi' sessione.pk %}">{% if sessione.stato == "COMPLETATA" %}Rivedi gli esiti{% else %}Chiudi l'edizione{% endif %}</a>{% endif %}
-      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_sessione_mod040' sessione.pk %}">MOD.040</a>
     </div>
   {% endif %}
 </div>
