@@ -81,15 +81,11 @@ class HeartbeatTests(_Pro):
 
 
 class RegoleFruizioneTests(_Pro):
-    def test_permanenza_minima_per_slide(self):
+    def test_nessuna_permanenza_minima_per_slide(self):
+        """Dal 26/11/2026 la permanenza minima per slide non si applica: aperta la slide 1, la 2 si apre subito."""
         self._regola(el_secondi_minimi_slide=60)
         self.client.get(reverse("anagrafica:formazione_online_player", args=[self.corso.pk]))
         self.assertEqual(self._slide(1).status_code, 200)
-        self.assertEqual(self._slide(2).status_code, 409)  # slide 1 non ancora completata
-        s1 = self.corso.slides.get(ordine=1)
-        for _ in range(2):
-            _indietro(self._enr(), 45)
-            self._beat(s1)
         self.assertEqual(self._slide(2).status_code, 200)
 
     def test_tempo_minimo_prima_del_quiz(self):

@@ -65,7 +65,12 @@ def regola_corso(corso) -> Regola:
 
 
 def secondi_richiesti_slide(slide, regola: Regola) -> int:
-    return max(int(slide.durata_minima_secondi or 0), int(regola.secondi_minimi_slide or 0))
+    """Nessun tempo minimo per passare alla slide successiva (decisione del 26/11/2026).
+
+    I campi «Permanenza minima per slide» del corso e «Visione minima» della slide restano nel
+    database ma non si applicano più; restano i video «da guardare fino in fondo» e il tempo minimo
+    complessivo del corso."""
+    return 0
 
 
 def puo_confermare_fad(user) -> bool:

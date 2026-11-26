@@ -438,13 +438,9 @@ def apri_slide(prog, ordine: int, n_slide: int) -> bool:
 
 
 def secondi_da_attendere(prog, ordine: int, cfg) -> int:
-    """Secondi che mancano al tempo minimo sulla slide (0 = si può andare avanti)."""
-    if ordine <= prog.slide_viste or not cfg.secondi_minimi_slide:
-        return 0
-    if prog.slide_corrente != ordine or prog.slide_aperta_il is None:
-        return cfg.secondi_minimi_slide
-    trascorsi = (timezone.now() - prog.slide_aperta_il).total_seconds()
-    return max(0, int(cfg.secondi_minimi_slide - trascorsi + 0.999))
+    """Nessun tempo minimo sulla slide (decisione del 26/11/2026): si va avanti subito.
+    Il campo ``secondi_minimi_slide`` della lezione resta ma non si applica più."""
+    return 0
 
 
 def completa_slide(prog, ordine: int, cfg) -> int:

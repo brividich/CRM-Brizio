@@ -76,14 +76,6 @@
         {% endif %}
         {% endif %}
 
-        <form method="post" action="{% url 'anagrafica:sessione_online_impostazioni' sessione.pk %}" class="so-actions" style="align-items:flex-end;">
-          {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
-          <label class="so-f">Tempo minimo su ogni slide (secondi, 0 = nessuno)
-            <input type="number" name="secondi_minimi_slide" min="0" max="600" value="{{ cfg.secondi_minimi_slide }}" style="width:160px;"></label>
-          <button type="submit" class="hr-btn hr-btn-ghost hr-btn-sm">Salva</button>
-          {% if n_slide and cfg.secondi_minimi_slide %}<span class="so-muted">≈ {% widthratio n_slide 1 cfg.secondi_minimi_slide as tot %}{{ tot|floatformat:0 }} secondi in tutto</span>{% endif %}
-        </form>
-
         {% if slides %}
         <div class="so-actions" style="justify-content:space-between;">
           <strong>{{ n_slide }} slide</strong>

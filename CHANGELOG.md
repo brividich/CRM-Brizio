@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Corsi online: niente tempo minimo per cambiare slide
+
+- «Avanti» vale subito su portale, link aperto e lezione online di sessione: `elearning_regole.secondi_richiesti_slide` e `sessione_online.secondi_da_attendere` restituiscono 0. I campi «Permanenza minima per slide» (regola FAD), «Visione minima» (video) e «Tempo minimo su ogni slide» (lezione) escono dai moduli e non si applicano più (i valori restano nel database). Restano il tempo minimo complessivo del corso e i video «da guardare fino in fondo».
+- File: `services/elearning_regole.py`, `services/sessione_online.py`, `forms_elearning.py`, template `formazione_corso_elearning.html`, `sessione_online_prepara.html`, `_sessione_online_gestione.html`, guide formazione e corsi online, Centro guide. Test adeguati: `tests_elearning_link_aperto.py`, `tests_elearning_pro.py`, `tests_sessione_online.py`.
+
 ### Formazione: ritocchi dopo gli screenshot
 
 - Copertura: messaggio «tutti in regola» coerente con la definizione unica di obbligo (prima parlava ancora di «regole di obbligatorietà»).

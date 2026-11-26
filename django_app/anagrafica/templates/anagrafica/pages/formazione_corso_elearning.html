@@ -74,7 +74,6 @@
         <p class="fmd-fhelp" style="margin:0 0 10px;">File <strong>.mp4</strong> anche grandi (fino al limite delle impostazioni e-learning): si carica a pezzi da 8 MB, con la barra di avanzamento, e se sul server c'è ffmpeg viene compresso in background per aprirsi più in fretta dal telefono. Diventa una slide in coda.</p>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <input type="text" name="titolo" class="fm-input" placeholder="Titolo del video" required maxlength="300" style="max-width:260px;" aria-label="Titolo del video">
-          <input type="number" name="durata_minima_secondi" class="fm-input" min="0" placeholder="Visione minima (s)" style="max-width:170px;" aria-label="Visione minima in secondi">
           {% if moduli %}<select name="modulo_id" class="fm-input" style="max-width:220px;" aria-label="Modulo"><option value="">Nessun modulo</option>{% for m in moduli %}<option value="{{ m.pk }}">{{ m.titolo }}</option>{% endfor %}</select>{% endif %}
           <label style="display:inline-flex;gap:6px;align-items:center;font-size:12.5px;"><input type="checkbox" name="fino_in_fondo" value="1"> Da guardare fino in fondo</label>
           <input type="file" name="video" accept=".mp4,video/mp4" class="fm-input" required style="max-width:320px;" aria-label="File video">
