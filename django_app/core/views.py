@@ -1838,6 +1838,19 @@ def api_global_search(request):
 
     results = []
 
+    # ── Pagine dei sottomenu dei moduli (es. «Recruiting» dentro Anagrafica) ──
+    # La palette conosce solo il menu principale e il sottomenu della pagina corrente.
+    try:
+        from core.ricerca_pagine import cerca_pagine
+
+        for voce in cerca_pagine(request, q, puo_aprire=_global_search_module_allowed):
+            voce["module"] = voce.get("sub") or ""
+            results.append(voce)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("ricerca globale: pagine dei moduli non disponibili", exc_info=True)
+
     # ── Dipendenti ──────────────────────────────────────────────────────────
     try:
         if not _global_search_module_allowed(request, "/anagrafica/dipendenti/"):

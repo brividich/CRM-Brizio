@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ricerca globale: trova le pagine interne di tutti i moduli
+
+- `core/ricerca_pagine.py` (nuovo): indice delle pagine dei sottomenu dei moduli (template `components/subnav.html`, `_nav.html`…, sottomenu Anagrafica a database, `assets.maintenance_nav`, Navigation Registry `subnav`/`admin_subnav`), con il nome del modulo preso dal menu principale; ogni voce che corrisponde passa da ACL (`_global_search_module_allowed`) e cancelli in-view (`section_gate_allows`).
+- `core/views.py` (`api_global_search`): risultati `tipo="pagina"`; `core/static/core/js/command-palette.js`: li unisce in «Vai a…» senza doppioni. Prima la palette conosceva solo il menu principale e il sottomenu della pagina aperta: «Recruiting», «Banco consegne», «Sorgenti»… non si trovavano da fuori del loro modulo.
+- `core/avvio.py`: l'indice dei template si prepara all'avvio del processo.
+- Guide: `core/guide_moduli/contenuti/home.py`, `docs/moduli/core.md`. Test: `core/test_ricerca_pagine.py`.
+
 ### Reportistica anagrafica: anteprima dal vivo, archivio, «Rigenera», chat che chiede
 
 - **Pagina principale**: tolti l'introduzione e i pulsanti ripetuti in testata (restano nel riquadro «Aree»); le «Sezioni dati disponibili» sono cliccabili e aprono «Chiedi un report» già impostato su quella sezione.
