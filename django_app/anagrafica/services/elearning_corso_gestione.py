@@ -222,6 +222,9 @@ def persone_assegnabili(corso) -> list[dict]:
     assegnati = set(TrainingAssignment.objects.filter(corso=corso).values_list("legacy_anagrafica_id", flat=True))
     completati = set(TrainingElearningEnrollment.objects.filter(corso=corso, stato="COMPLETATO")
                      .values_list("legacy_anagrafica_id", flat=True))
+    # Completato = ha un completamento valido del corso, da qualunque strada (aula, link aperto, sessione).
+    from .formazione_completamento import ids_con_completamento_valido
+    completati |= ids_con_completamento_valido(corso, attivi)
     out = []
     for lid in attivi:
         r = anag.get(lid)

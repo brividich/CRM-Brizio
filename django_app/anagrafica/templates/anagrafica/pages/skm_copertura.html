@@ -38,6 +38,7 @@ body.theme-dark .sc-cert{color:var(--text-light)}
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% load anagrafica_extras %}{% copertura_schede %}
 <div class="hr-shell">
 
   <div class="hr-pagehead">

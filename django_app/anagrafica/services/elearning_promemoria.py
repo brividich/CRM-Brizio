@@ -70,11 +70,30 @@ def voci_aperte() -> list[Voce]:
     completati = set(TrainingElearningEnrollment.objects.filter(stato="COMPLETATO", **pubblicati)
                      .values_list("corso_id", "legacy_anagrafica_id", "ciclo"))
     cessati = cessati_legacy_ids()
+    aperte = list(TrainingAssignment.objects
+                  .filter(stato__in=["ASSEGNATO", "IN_CORSO", "SCADUTO"], due_date__isnull=False, **pubblicati)
+                  .select_related("corso").order_by("due_date", "pk"))
+    # Completato = ha un completamento valido del corso (da qualunque strada: aula, e-learning, link
+    # aperto) fatto dopo l'assegnazione: chi l'ha già fatto non riceve promemoria.
+    from django.db.models import Max, Q
+    from django.utils import timezone
+
+    from ..models_formazione import TrainingEmployeeRecord
+    oggi = timezone.localdate()
+    ultimo_valido = {
+        (r["corso_id"], r["legacy_anagrafica_id"]): r["m"]
+        for r in (TrainingEmployeeRecord.objects
+                  .filter(corso_id__in={a.corso_id for a in aperte},
+                          legacy_anagrafica_id__in={a.legacy_anagrafica_id for a in aperte}, idoneo=True)
+                  .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=oggi))
+                  .values("corso_id", "legacy_anagrafica_id").annotate(m=Max("data_completamento")))
+    } if aperte else {}
     voci = {}
-    for a in (TrainingAssignment.objects
-              .filter(stato__in=["ASSEGNATO", "IN_CORSO", "SCADUTO"], due_date__isnull=False, **pubblicati)
-              .select_related("corso").order_by("due_date", "pk")):
+    for a in aperte:
         chiave = (a.corso_id, a.legacy_anagrafica_id, a.ciclo)
+        fatto = ultimo_valido.get((a.corso_id, a.legacy_anagrafica_id))
+        if fatto and a.data_assegnazione and fatto >= a.data_assegnazione:
+            continue
         if chiave in completati or chiave in voci or a.legacy_anagrafica_id in cessati:
             continue
         voci[chiave] = Voce(a.corso, a.legacy_anagrafica_id, a.ciclo, a.due_date)

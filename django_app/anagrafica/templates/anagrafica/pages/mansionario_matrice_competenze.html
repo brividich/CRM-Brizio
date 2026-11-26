@@ -17,6 +17,7 @@
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% load anagrafica_extras %}{% copertura_schede %}
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
   <div class="fmd-wrap">

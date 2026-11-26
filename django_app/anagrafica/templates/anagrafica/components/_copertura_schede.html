@@ -1,0 +1,6 @@
+{% if schede %}
+<nav class="fmd-chips" aria-label="Copertura e lacune" style="margin:0 0 14px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+  <span class="fmd-muted" style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-right:4px;">Copertura e lacune</span>
+  {% for s in schede %}<a class="fmd-chip{% if s.attiva %} on is-active{% endif %}" href="{{ s.url }}" title="{{ s.aiuto }}"{% if s.attiva %} aria-current="page"{% endif %} style="padding:6px 12px;border-radius:999px;border:1px solid var(--border,#d7e0ea);text-decoration:none;font-size:13px;{% if s.attiva %}background:var(--hub-color-navy,#0c2545);color:#fff;border-color:transparent;{% else %}color:inherit;{% endif %}">{{ s.etichetta }}</a>{% endfor %}
+</nav>
+{% endif %}

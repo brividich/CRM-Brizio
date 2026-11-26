@@ -303,6 +303,7 @@ urlpatterns = [
 
     # Qualifiche catalogo + scadenze
     path("qualifiche/", views.qualifiche_list, name="qualifiche_list"),
+    path("qualifiche/allinea-dai-corsi/", views.qualifiche_allinea, name="qualifiche_allinea"),
     path("qualifiche/nuovo", views.tipo_qualifica_create, name="tipo_qualifica_create"),
     # Sessioni di rinnovo (rilascio/rinnovo collettivo "a sessioni")
     path("qualifiche/sessioni/", views.qualifica_sessioni_list, name="qualifica_sessioni_list"),
@@ -636,6 +637,7 @@ urlpatterns = [
 
     # ── Formazione HR — Corsi ──────────────────────────────────────────────
     path("formazione/corsi/", views.formazione_corsi_list, name="formazione_corsi_list"),
+    path("formazione/corsi/azione/", views.formazione_corsi_azione, name="formazione_corsi_azione"),
     path("formazione/corsi/nuovo/", views.formazione_corso_create, name="formazione_corso_create"),
     path("formazione/corsi/<int:corso_id>/", views.formazione_corso_detail, name="formazione_corso_detail"),
     path("formazione/corsi/<int:corso_id>/modifica", views.formazione_corso_edit, name="formazione_corso_edit"),
