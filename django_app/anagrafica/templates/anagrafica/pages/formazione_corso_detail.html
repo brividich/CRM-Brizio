@@ -50,7 +50,7 @@
   {# ── KPI mini ────────────────────────────────────────────────────────────── #}
   <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
     <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ corso.durata_ore_teorica }}h</span></div><div class="fmd-mtr-lbl">Durata teorica</div><div class="fmd-mtr-sub">{% if corso.validita_mesi %}Rinnovo ogni {{ corso.validita_mesi }} mesi{% else %}Una tantum{% endif %}</div></div>
-    <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:formazione_sessioni_list' %}?corso={{ corso.pk }}" title="Apri l'elenco filtrato: tutte le sessioni del corso"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_sessioni }}</span></div><div class="fmd-mtr-lbl">Sessioni totali</div><div class="fmd-mtr-sub">Sessioni pianificate</div></a>
+    <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:formazione_sessioni_list' %}?corso={{ corso.pk }}" title="Apri l'elenco filtrato: tutte le sessioni del corso"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_sessioni }}</span></div><div class="fmd-mtr-lbl">Sessioni</div><div class="fmd-mtr-sub">{{ sessioni_sub }}</div></a>
     <a class="fmd-mtr fmd-t-green kpi-link" href="#corso-dipendenti" title="Vai ai dipendenti del corso: la colonna dei completati somma a questo numero"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_completamenti }}</span></div><div class="fmd-mtr-lbl">Completamenti</div><div class="fmd-mtr-sub">Registrati, rinnovi compresi</div></a>
   </section>
 
@@ -86,7 +86,7 @@
           {% elif m.online %}<span class="fmd-badge fmd-b-amber">Acceso · {% if not m.n_slide %}mancano le slide{% else %}corso non pubblicato{% endif %}</span>
           {% else %}<span class="fmd-badge fmd-b-grey">Spento</span>{% endif %}</div>
         <div class="fmd-muted">Sempre aperto in «I miei corsi online»: chi è assegnato lo trova tra le sue attività, chi non ha l'utente usa il link aperto.</div>
-        {% if m.online %}<div class="csf-num"><span><b>{{ m.assegnati }}</b> assegnati</span><span><b>{{ m.completati_online }}</b> completati online</span></div>{% endif %}
+        {% if m.online %}<div class="csf-num"><span><b>{{ m.assegnati }}</b> assegnati</span><span title="Persone con il corso valido, da qualunque strada: aula, sessioni, link aperto, online"><b>{{ m.completati_validi }}</b> con il corso valido</span>{% if m.dal_link_aperto %}<span><b>{{ m.dal_link_aperto }}</b> dal link aperto</span>{% endif %}</div>{% endif %}
         <div class="csf-act">
           {% if m.online %}<a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}">Risultati e assegnazioni</a>{% endif %}
           {% if is_editor %}
@@ -136,7 +136,7 @@
   {# ── Schede: la pagina era una colonna di dieci form. Ora: cosa serve ogni giorno in Panoramica, il resto per tema. #}
   <nav class="corso-tabs" aria-label="Sezioni del corso">
     <a href="#panoramica" data-corso-tab="panoramica" class="on">Panoramica</a>
-    <a href="#persone" data-corso-tab="persone">Persone <span class="fm-count">{{ candidati_assegnazione|length }}</span></a>
+    <a href="#persone" data-corso-tab="persone" title="Persone tenute al corso, non ancora a posto e non assegnate">Da assegnare{% if is_editor %} <span class="fm-count">{{ candidati_assegnazione|length }}</span>{% endif %}</a>
     <a href="#contenuti" data-corso-tab="contenuti">Contenuti</a>
     <a href="#superamento" data-corso-tab="superamento">Regola di superamento</a>
   </nav>
@@ -149,6 +149,13 @@
           <span class="muted" style="font-size:11px;">Mansioni, ruoli, aree, persone e processi qualificati per cui è obbligatorio</span>
         </div>
 
+        {% if corso.obbligatorio %}
+        <div style="padding:8px 16px 4px;font-size:13px;">
+          <strong>Tutti i dipendenti in forza</strong> <span class="muted">({{ n_in_forza }})</span>
+          <span class="fmd-badge fmd-b-orange">obbligatorio</span>
+          <span class="muted">· dalla spunta «Obbligatorio per tutti i dipendenti» del corso{% if is_editor %} (<a class="fm-link" href="{% url 'anagrafica:formazione_corso_edit' corso.pk %}">Modifica corso</a>){% endif %}</span>
+        </div>
+        {% endif %}
         {% if regole %}
         <div class="fm-table-wrap">
         <table class="fm-table">
@@ -197,7 +204,7 @@
           </tbody>
         </table>
         </div>
-        {% elif not processi_mpq %}
+        {% elif not processi_mpq and not corso.obbligatorio %}
         <div class="fm-empty">Non ancora collegato a nessuno: il corso non risulta obbligatorio, quindi non entra in scadenzario, copertura e onboarding.</div>
         {% endif %}
         {% if processi_mpq %}

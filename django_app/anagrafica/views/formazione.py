@@ -1616,6 +1616,16 @@ def _link_pubblico(request, corso):
         return None
 
 
+def _n_in_forza() -> int:
+    """Dipendenti in forza (senza cessati): i destinatari di un corso «Obbligatorio per tutti»."""
+    from ..services.training_eligibility import _dipendenti_attivi
+    try:
+        return len(_dipendenti_attivi())
+    except Exception:
+        logger.exception("Conteggio dipendenti in forza non riuscito")
+        return 0
+
+
 def _come_si_fa(corso) -> dict:
     """Riquadro «Come si fa questo corso»: online sempre aperto e sessioni, con slide e test unici."""
     from ..services.elearning_fruizione import corso_pubblicato
@@ -1630,7 +1640,12 @@ def _come_si_fa(corso) -> dict:
         "visibile": corso_pubblicato(corso),
         "n_slide": n_slide, "n_domande": len(domande), "n_invalid": n_invalid,
         "assegnati": TrainingAssignment.objects.filter(corso=corso).count(),
-        "completati_online": corso.iscrizioni_elearning.filter(stato="COMPLETATO").count(),
+        # Persone con il corso valido da qualunque strada (aula, sessione online, link aperto,
+        # e-learning, diretto): stessa regola di «Completato» nello stato persona × corso.
+        "completati_validi": TrainingEmployeeRecord.objects.filter(corso=corso, idoneo=True).filter(
+            Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=django_timezone.localdate())
+        ).values("legacy_anagrafica_id").distinct().count(),
+        "dal_link_aperto": corso.partecipazioni_aperte.filter(completata_il__isnull=False).count(),
         "sessioni": sessioni,
         "n_sessioni": corso.sessioni.exclude(stato="ANNULLATA").count(),
         "usati_da": int(corso.is_elearning) + n_sessioni_slide,
@@ -1702,7 +1717,17 @@ def formazione_corso_detail(request, corso_id: int):
     except TrainingCompletionRule.DoesNotExist:
         completion_rule = None
 
-    n_sessioni = corso.sessioni.count() if hasattr(corso, "sessioni") else 0
+    # Stato automatico delle edizioni («Pianificata» → «In corso» il giorno d'inizio), come in Sessioni.
+    from ..services.formazione_aula import aggiorna_stati
+    aggiorna_stati()
+    n_sessioni = corso.sessioni.exclude(stato="ANNULLATA").count()
+    _stati_sess = dict(corso.sessioni.exclude(stato="ANNULLATA").values_list("stato").order_by().annotate(n=Count("pk")))
+    _nomi_stato = (("PIANIFICATA", "pianificata", "pianificate"), ("IN_CORSO", "in corso", "in corso"),
+                   ("COMPLETATA", "completata", "completate"))
+    sessioni_sub = " · ".join(
+        f"{_stati_sess[k]} {uno if _stati_sess[k] == 1 else tanti}"
+        for k, uno, tanti in _nomi_stato if _stati_sess.get(k)
+    ) or "Nessuna sessione"
     n_completamenti = TrainingEmployeeRecord.objects.filter(corso=corso).count()
 
     # Lista sessioni del corso con conteggi lezioni/iscritti per la sezione
@@ -1821,7 +1846,9 @@ def formazione_corso_detail(request, corso_id: int):
         "link_pubblico": _link_pubblico(request, corso),
         "corso": corso,
         "processi_mpq": processi_mpq,
-        "n_a_chi_serve": len(regole) + len(processi_mpq),
+        "n_a_chi_serve": len(regole) + len(processi_mpq) + int(bool(corso.obbligatorio)),
+        "n_in_forza": _n_in_forza() if corso.obbligatorio else 0,
+        "sessioni_sub": sessioni_sub,
         # Materiale del corso: e' la base che ogni nuova edizione si ritrova
         # proposta in copia (vedi TrainingSessionForm.allegati_dal_corso).
         "allegati_corso": list(corso.allegati.order_by("tipo", "-created_at")),

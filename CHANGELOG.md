@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Scheda del corso: numeri coerenti con la regola unica
+
+- «A chi serve questo corso»: con la spunta «Obbligatorio per tutti i dipendenti» mostra «Tutti i dipendenti in forza (N)» invece di 0 e «Non ancora collegato».
+- «Come si fa questo corso»: «con il corso valido» conta le persone con completamento idoneo non scaduto da qualunque strada (aula, sessione online, link aperto, e-learning) e «dal link aperto» i quiz completati; prima «completati online» contava solo l'e-learning (0 anche con 11 completamenti).
+- Riquadro «Sessioni»: conteggio per stato (pianificate, in corso, completate) al posto di «Sessioni pianificate» fisso; aprendo la scheda lo stato delle edizioni si aggiorna come in Sessioni.
+- Scheda «Persone» rinominata «Da assegnare»; i candidati di un corso obbligatorio per tutti sono i dipendenti in forza non ancora a posto (`training_eligibility._legacy_ids_pertinenti`), esclusi quelli con completamento valido anche se la scadenza non è ancora ricalcolata.
+- File: `services/training_eligibility.py`, `views/formazione.py`, `formazione_corso_detail.html`, guida formazione; test `tests_scheda_corso_coerente.py`.
+
 ### Quote CMM veloce: analisi delle quote precalcolata per P/N
 
 - `/produzione/quote/` ricalcolava all'apertura l'analisi (Cpk, deriva, fuori nell'ultimo report) di tutti i P/N con report: in produzione 748 P/N e 2.871 programmi, con la cache vuota dopo l'aggiornamento e svuotata di continuo dalla rilettura dei report vecchi. Ora i tre numeri stanno in `ArticoloPN` (`quote_deriva`, `quote_fuori_ultimo`, `analisi_il`, migrazione `produzione 0007`, accanto a `quote_non_capaci`) e la pagina li legge: le colonne della mappa restano letture SQL. Li calcola il giro orario (`articoli.analizza`, stesse regole di `analisi_pn`): prima i P/N letti nel giro, poi quelli con l'analisi mai fatta o più vecchia dell'ultimo report letto o escluso; escludere o riammettere un report ricalcola subito il suo P/N. Finché un P/N non è calcolato la riga dice «in calcolo». «Quote da guardare» guarda i primi 8 P/N più gravi.
