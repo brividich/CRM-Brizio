@@ -190,3 +190,66 @@ def comprimi_slide(slide_id: int) -> dict:
             return {"esito": "compresso", "prima_mb": round(prima / 1048576, 1), "dopo_mb": round(dopo / 1048576, 1)}
         slide.save(update_fields=campi)
         return {"esito": "non_conveniente"}
+
+
+
+# ── Riconoscimento MP4 ──────────────────────────────────────────────────────
+# libmagic guarda i primi 2 KB e per alcuni MP4 validi risponde «application/octet-stream»
+# (file che iniziano con un box «free»/«wide»/«mdat» prima di «ftyp», o con marche poco note).
+MIME_VIDEO_AMMESSI = {"video/mp4", "video/x-m4v", "video/quicktime", "video/3gpp"}
+_BOX_NOTI = {b"ftyp", b"moov", b"mdat", b"free", b"skip", b"wide", b"pnot", b"uuid", b"meta", b"moof", b"styp"}
+
+
+def sembra_mp4(f, *, max_box: int = 12) -> bool:
+    """True se il file ha la struttura a box di un MP4/QuickTime (ISO BMFF) con «ftyp» o «moov» fra i
+    primi box. Legge solo le intestazioni dei box, saltando il contenuto."""
+    import struct
+
+    try:
+        f.seek(0, 2)
+        totale = f.tell()
+        pos = 0
+        for _ in range(max_box):
+            if pos + 8 > totale:
+                return False
+            f.seek(pos)
+            testa = f.read(16)
+            if len(testa) < 8:
+                return False
+            dim, tipo = struct.unpack(">I4s", testa[:8])
+            if tipo not in _BOX_NOTI:
+                return False
+            if tipo in (b"ftyp", b"moov"):
+                return True
+            if dim == 1:  # dimensione a 64 bit
+                if len(testa) < 16:
+                    return False
+                dim = struct.unpack(">Q", testa[8:16])[0]
+            elif dim == 0:  # il box arriva fino in fondo al file
+                return False
+            if dim < 8:
+                return False
+            pos += dim
+        return False
+    except Exception:  # noqa: BLE001
+        return False
+    finally:
+        try:
+            f.seek(0)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def valida_video(f, max_bytes: int) -> None:
+    """Nome, estensione .mp4, dimensione e contenuto. Solleva ``UploadMimeValidationError``."""
+    from core.upload_mime import sniff_upload_mime, validate_extension_and_mime
+
+    ammessi = set(MIME_VIDEO_AMMESSI)
+    try:
+        mime = sniff_upload_mime(f)
+    except Exception:  # noqa: BLE001 - ci riprova la validazione completa, che dà il messaggio giusto
+        mime = ""
+    if mime not in ammessi and sembra_mp4(f):
+        ammessi.add(mime)  # libmagic non lo riconosce, ma la struttura è quella di un MP4
+    validate_extension_and_mime(f, allowed_extensions={".mp4"}, allowed_mimes=ammessi,
+                                max_bytes=max_bytes, label="Video", allow_empty=False)

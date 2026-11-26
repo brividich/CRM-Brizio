@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Corsi online: video MP4 non più rifiutati per «application/octet-stream»
+
+- libmagic guarda solo i primi 2 KB: per MP4 che iniziano con un box `free`/`wide` o hanno marche poco note risponde `application/octet-stream` e il caricamento veniva rifiutato. Ora `elearning_video.valida_video` accetta anche `video/quicktime`, `video/x-m4v` e `video/3gpp` e, se libmagic non lo riconosce, controlla la struttura a box dell'MP4 (`ftyp`/`moov`); estensione `.mp4`, dimensione e nome restano obbligatori. Vale per il caricamento a pezzi e per quello semplice.
+- File: `services/elearning_video.py`, `views_elearning.py`. Test: `tests_elearning_video_mime.py`.
+
 ### Link aperto: chi ha già fatto il corso non lo riprende
 
 - Se la persona abbinata ha già un completamento valido del corso (aula, portale, una prova precedente), il link aperto mostra «Corso già completato»: niente ripresa del percorso da una partecipazione rimasta a metà, niente quiz; il materiale resta consultabile. Un completamento scaduto si può rifare (`views_corso_aperto._completato_il`).

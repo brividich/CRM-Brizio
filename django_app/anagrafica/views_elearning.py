@@ -536,12 +536,11 @@ def formazione_slide_video_upload(request, corso_id: int):
     if not f:
         messages.error(request, "Seleziona un file video MP4.")
         return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
-    from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+    from core.upload_mime import UploadMimeValidationError
     cfg = ElearningConfig.get_instance()
     try:
-        validate_extension_and_mime(f, allowed_extensions={".mp4"}, allowed_mimes={"video/mp4"},
-                                    max_bytes=int(cfg.video_max_mb or 500) * 1024 * 1024, label="Video",
-                                    allow_empty=False)
+        from .services.elearning_video import valida_video
+        valida_video(f, int(cfg.video_max_mb or 500) * 1024 * 1024)
     except UploadMimeValidationError as exc:
         messages.error(request, f"Video rifiutato: {exc}")
         return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
@@ -599,11 +598,10 @@ def formazione_video_pezzo(request, corso_id: int):
         return JsonResponse({"ok": False, "errore": str(exc)}, status=400)
     if indice < totale - 1:
         return JsonResponse({"ok": True, "ricevuti": ricevuti})
-    from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+    from core.upload_mime import UploadMimeValidationError
     f, percorso = ev.file_completo(request.user.pk, upload_id, request.POST.get("nome") or "video.mp4")
     try:
-        validate_extension_and_mime(f, allowed_extensions={".mp4"}, allowed_mimes={"video/mp4"},
-                                    max_bytes=max_bytes, label="Video", allow_empty=False)
+        ev.valida_video(f, max_bytes)
         titolo = (request.POST.get("titolo") or "").strip()[:300] or "Video"
         try:
             durata = max(int(request.POST.get("durata_minima_secondi") or 0), 0)
