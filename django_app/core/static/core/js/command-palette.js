@@ -164,14 +164,27 @@
         html += sectionHtml("Assistente AI");
         html += itemHtml(ask);
       }
-      if (lastPages.length) {
-        html += sectionHtml("Vai a…");
-        lastPages.forEach(function (d) { html += itemHtml(pageItem(d, false)); });
-      }
       var data = lastData;
+      // «Vai a…»: menu principale (dalla pagina) + pagine dei sottomenu di tutti i moduli
+      // (dal server, già filtrate per permessi), senza doppioni.
+      var vaiA = lastPages.slice(), urlVisti = {};
+      vaiA.forEach(function (d) { urlVisti[d.u] = 1; });
+      if (data && data.results) {
+        data.results.forEach(function (r) {
+          if (r.tipo === "pagina" && !urlVisti[r.url] && vaiA.length < 10) {
+            urlVisti[r.url] = 1;
+            vaiA.push({ l: r.label, u: r.url, g: r.sub || "" });
+          }
+        });
+      }
+      if (vaiA.length) {
+        html += sectionHtml("Vai a…");
+        vaiA.forEach(function (d) { html += itemHtml(pageItem(d, false)); });
+      }
       if (data && data.results && data.results.length) {
         var groups = {}, order = [];
         data.results.forEach(function (r) {
+          if (r.tipo === "pagina") return;
           if (!groups[r.tipo]) { groups[r.tipo] = []; order.push(r.tipo); }
           groups[r.tipo].push(r);
         });

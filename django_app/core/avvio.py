@@ -91,6 +91,13 @@ def riscalda() -> dict:
             pass
 
     try:
+        from core.ricerca_pagine import voci_dai_template
+
+        esito["pagine_ricerca"] = len(voci_dai_template())  # ~1 s: lettura dei sottomenu nei template
+    except Exception:
+        logger.warning("Avvio: pagine della ricerca globale non indicizzate", exc_info=True)
+
+    try:
         from django.template.loader import get_template
 
         pronti = 0

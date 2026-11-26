@@ -62,7 +62,7 @@ GUIDA = {
                     "(«Guida», «Impostazioni»…) mostrano accanto il modulo, es. «Guida · Gestione Specifiche». "
                     "Sullo smartphone si vede solo la pagina precedente («‹ Corsi») e i «…» per le altre.",
                     "Il logo in alto a sinistra riporta sempre alla home.",
-                    "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona, un documento, un OP, un FAI o un processo qualificato (anche per sigla, es. P11TF12) scrivendo il nome.",
+                    "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona, un documento, un OP, un FAI o un processo qualificato (anche per sigla, es. P11TF12) scrivendo il nome. In «Vai a…» compaiono anche le pagine interne dei moduli (es. «Recruiting» di Anagrafica, «Banco consegne» dei DPI) da qualunque pagina, solo quelle che puoi aprire.",
                 ]),
                 ("p", "Dal telefono:"),
                 ("ul", [
