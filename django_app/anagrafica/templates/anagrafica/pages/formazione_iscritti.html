@@ -267,7 +267,8 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
             {% endif %}
             <td style="font-weight:500;">{{ isc.nome_dip }}</td>
             <td>
-              {% if isc.stato == "ISCRITTO" %}<span class="fm-pill fm-pill-enrolled">Iscritto</span>
+              {% if isc.da_registrare %}<span class="fm-pill fm-pill-warning" title="Verifica superata: manca il completamento a libretto">Da registrare</span>
+              {% elif isc.stato == "ISCRITTO" %}<span class="fm-pill fm-pill-enrolled">Iscritto</span>
               {% elif isc.stato == "IN_CORSO" %}<span class="fm-pill fm-pill-warning">In corso</span>
               {% elif isc.stato == "COMPLETATO" %}<span class="fm-pill fm-pill-valid">Completato</span>
               {% elif isc.stato == "NON_IDONEO" %}<span class="fm-pill fm-pill-expired">Non idoneo</span>

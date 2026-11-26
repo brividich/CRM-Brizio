@@ -1615,11 +1615,13 @@ def formazione_corso_modo_online(request, corso_id: int):
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
     accendi = request.POST.get("azione") == "accendi"
-    corso.is_elearning = accendi
-    corso.save(update_fields=["is_elearning", "updated_at"])
+    from ..services.elearning_fruizione import spegni_online
+    if accendi:
+        corso.is_elearning = True
+        corso.save(update_fields=["is_elearning", "updated_at"])
     _helpers._audit_safe(request, "formazione_corso_online", "formazione", {"corso": corso.pk, "acceso": accendi})
     if not accendi:
-        messages.info(request, "Online spento: il corso non compare più tra i corsi online. Completamenti e sessioni restano.")
+        messages.info(request, spegni_online(corso))
     elif not corso.slides.filter(is_active=True).exists():
         messages.warning(request, "Online acceso: diventa visibile appena aggiungi le slide.")
     elif corso.stato != "ATTIVO":
@@ -1691,51 +1693,40 @@ def formazione_corso_detail(request, corso_id: int):
         s.corso = corso  # evita una query per sessione in erogatore_display (fallback ente_formativo)
 
     # Aggregazione dipendenti iscritti distinti (across all sessioni del corso).
-    # Per ciascuno: n. sessioni, stato sintetico, ultimo completamento, idoneo.
-    agg_dip = defaultdict(lambda: {
-        "n_sessioni": 0,
-        "stati": set(),
-        "data_completamento": None,
-        "idoneo": None,
-        "n_completati": 0,
-    })
-    for e in (TrainingEnrollment.objects
-              .filter(sessione__corso=corso)
-              .values("legacy_anagrafica_id", "stato")):
-        a = agg_dip[e["legacy_anagrafica_id"]]
-        a["n_sessioni"] += 1
-        a["stati"].add(e["stato"])
-    for r in (TrainingEmployeeRecord.objects
-              .filter(corso=corso)
-              .order_by("-data_completamento")
-              .values("legacy_anagrafica_id", "data_completamento", "idoneo")):
-        a = agg_dip[r["legacy_anagrafica_id"]]
-        a["n_completati"] += 1
-        if a["data_completamento"] is None:
-            a["data_completamento"] = r["data_completamento"]
-            a["idoneo"] = r["idoneo"]
+    # Per ciascuno: n. sessioni, n. completamenti e lo stato persona × corso della regola unica
+    # (services.formazione_completamento.stati_persona_corso): Completato solo con un completamento
+    # idoneo non scaduto; Scaduto, Da registrare (verifica superata senza libretto), In corso, Da fare.
+    from ..services.formazione_completamento import stati_persona_corso
+    agg_dip = defaultdict(lambda: {"n_sessioni": 0, "n_completati": 0})
+    _iscr_corso = list(TrainingEnrollment.objects.filter(sessione__corso=corso)
+                       .select_related("avanzamento_online"))
+    for e in _iscr_corso:
+        agg_dip[e.legacy_anagrafica_id]["n_sessioni"] += 1
+    for r in (TrainingEmployeeRecord.objects.filter(corso=corso).values("legacy_anagrafica_id")):
+        agg_dip[r["legacy_anagrafica_id"]]["n_completati"] += 1
+    _stati_dip = stati_persona_corso(corso, list(agg_dip), iscrizioni=_iscr_corso)
 
     nomi_dipendenti = _helpers._build_nomi_map() if agg_dip else {}
-    # Ordine sintetico stati per scegliere il più rappresentativo
-    _stato_priority = ["COMPLETATO", "IN_CORSO", "ISCRITTO", "NON_IDONEO", "ASSENTE", "RITIRATO"]
-    _etichette_stato = dict(TrainingEnrollment.STATO_CHOICES)
+    _pill_stato = {"COMPLETATO": "completato", "SCADUTO": "scaduto", "DA_REGISTRARE": "warning",
+                   "IN_CORSO": "in_corso"}
+    _pill_da_fare = {"Non idoneo": "non_idoneo", "Assente": "assente", "Ritirato": "ritirato"}
     dipendenti_iscritti = []
     for lid, a in agg_dip.items():
-        stato_sint = next((s for s in _stato_priority if s in a["stati"]), next(iter(a["stati"]), ""))
-        if a["n_completati"] and a["idoneo"] is not False:
-            # Un corso, un completamento: chi ha il completamento a libretto (da qualunque strada:
-            # aula, lezione online, e-learning, link aperto) è «Completato», anche se un'iscrizione
-            # a un'altra edizione è rimasta aperta.
-            stato_sint = "COMPLETATO"
+        st = _stati_dip.get(lid)
+        if st is None:
+            continue
+        rec = st.record
         dipendenti_iscritti.append({
             "legacy_id": lid,
             "nome": nomi_dipendenti.get(lid, f"#{lid}"),
             "n_sessioni": a["n_sessioni"],
             "n_completati": a["n_completati"],
-            "stato_sint": stato_sint,
-            "stato_label": _etichette_stato.get(stato_sint, stato_sint or "—"),
-            "data_completamento": a["data_completamento"],
-            "idoneo": a["idoneo"],
+            "stato_sint": st.codice,
+            "stato_label": st.etichetta,
+            "stato_pill": _pill_stato.get(st.codice) or _pill_da_fare.get(st.etichetta, "iscritto"),
+            "data_completamento": rec.data_completamento if rec is not None else None,
+            "data_scadenza": rec.data_scadenza if rec is not None else None,
+            "idoneo": rec.idoneo if rec is not None else None,
         })
     _ordine_dip = _helpers._build_ordine_map() if agg_dip else {}
     dipendenti_iscritti.sort(key=lambda x: _ordine_dip.get(x["legacy_id"], x["nome"]).lower())
@@ -1755,10 +1746,26 @@ def formazione_corso_detail(request, corso_id: int):
         from ..services.training_eligibility import candidati_corso
         _res = candidati_corso(corso)
         assegnazione_pool_filtrato = _res["pool_filtrato"]
-        _gia_assegnati = set(
-            TrainingAssignment.objects.filter(corso=corso)
-            .values_list("legacy_anagrafica_id", flat=True)
-        )
+        # Esclusi: chi ha un'assegnazione aperta o un esonero; chi ha l'assegnazione chiusa resta
+        # escluso solo se ha un completamento valido (qualunque strada, anche l'aula) non in scadenza.
+        # Chi l'ha scaduto o in scadenza torna fra i candidati per il rinnovo (nuovo ciclo).
+        from datetime import timedelta as _td
+
+        from ..scadenze_soglie import GIORNI_PREAVVISO
+        _gia_assegnati, _chiuse = set(), set()
+        for _lid, _st in TrainingAssignment.objects.filter(corso=corso).values_list("legacy_anagrafica_id", "stato"):
+            if _st == "COMPLETATO":
+                _chiuse.add(_lid)
+            else:
+                _gia_assegnati.add(_lid)
+        _chiuse -= _gia_assegnati
+        if _chiuse:
+            _soglia = django_timezone.localdate() + _td(days=GIORNI_PREAVVISO)
+            _gia_assegnati |= set(
+                TrainingEmployeeRecord.objects.filter(corso=corso, legacy_anagrafica_id__in=_chiuse, idoneo=True)
+                .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gt=_soglia))
+                .values_list("legacy_anagrafica_id", flat=True)
+            )
         candidati_assegnazione = [
             c for c in _res["idonei"] if c["legacy_id"] not in _gia_assegnati
         ]
@@ -3613,6 +3620,7 @@ def formazione_sessione_iscritti(request, sessione_id: int):
     )
     iscrizioni = list(
         TrainingEnrollment.objects.filter(sessione=sessione)
+        .select_related("avanzamento_online")
         .order_by("legacy_anagrafica_id")
     )
     lezioni = list(sessione.lezioni.order_by("data", "ora_inizio"))
@@ -3637,9 +3645,20 @@ def formazione_sessione_iscritti(request, sessione_id: int):
     record_per_iscrizione = {
         r.enrollment_id: r for r in TrainingEmployeeRecord.objects.filter(enrollment__in=iscrizioni)
     }
+    # Regola unica persona × corso: chi ha superato la verifica (o il test della lezione online)
+    # ma non ha il completamento a libretto è «Da registrare», non «Completato».
+    from ..services.formazione_completamento import COMPLETATO as _ST_COMPLETATO, stati_persona_corso
+    _stati_corso = stati_persona_corso(sessione.corso, ids)
     for i in iscrizioni:
         i.nome_dip = nomi_map.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}")
         i.record_attivo = record_per_iscrizione.get(i.pk)
+        _st = _stati_corso.get(i.legacy_anagrafica_id)
+        _prog = getattr(i, "avanzamento_online", None)
+        i.da_registrare = (
+            i.record_attivo is None
+            and (i.stato == "COMPLETATO" or bool(i.verifica_superata) or bool(getattr(_prog, "superata_il", None)))
+            and not (_st is not None and _st.codice == _ST_COMPLETATO)
+        )
         # Griglia presenze per riga (lista parallela alle lezioni)
         presenze_griglia = [
             presenze_map.get((i.legacy_anagrafica_id, lz.pk), "")
@@ -5459,11 +5478,22 @@ def formazione_elearning_hub(request):
         .annotate(
             n_slide=Count("slides", filter=Q(slides__is_active=True), distinct=True),
             n_domande=Count("quiz_domande", filter=Q(quiz_domande__is_active=True), distinct=True),
-            n_iscritti=Count("iscrizioni_elearning", distinct=True),
-            n_completati=Count("iscrizioni_elearning", filter=Q(iscrizioni_elearning__stato="COMPLETATO"), distinct=True),
+            # Persone distinte (un rinnovo apre un nuovo ciclo: non è un secondo iscritto).
+            n_iscritti=Count("iscrizioni_elearning__legacy_anagrafica_id", distinct=True),
         )
         .order_by("-is_active", "stato", "titolo")
     )
+    # «Completati»: persone con un completamento valido (idoneo, non scaduto) da qualunque strada
+    # (e-learning, link aperto, aula), come nella pagina del corso. Una query per tutti i corsi.
+    _oggi_hub = django_timezone.localdate()
+    _completati_per_corso: dict[int, set] = defaultdict(set)
+    for _cid, _lid in (TrainingEmployeeRecord.objects
+                       .filter(corso__in=corsi, idoneo=True)
+                       .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=_oggi_hub))
+                       .values_list("corso_id", "legacy_anagrafica_id")):
+        _completati_per_corso[_cid].add(_lid)
+    for c in corsi:
+        c.n_completati = len(_completati_per_corso.get(c.pk, ()))
     tot = {"corsi": len(corsi), "pubblicati": 0, "iscritti": 0, "completati": 0, "problemi": 0}
     rows = []
     for c in corsi:
@@ -5646,16 +5676,23 @@ def _elearning_export(request, corso, tipo: str, formato: str):
 @login_required
 @require_POST
 def formazione_elearning_publish_toggle(request, corso_id: int):
-    """Pubblica/ritira un micro-corso. La pubblicazione è bloccata se mancano le slide o
-    il quiz ha domande senza risposta corretta (controllo qualità centralizzato)."""
+    """Pubblica un micro-corso o ne spegne l'online. La pubblicazione è bloccata se mancano le slide o
+    il quiz ha domande senza risposta corretta (controllo qualità centralizzato).
+
+    «Spegni online» (ex «Ritira») fa la stessa cosa di «Spegni» nella scheda del corso e
+    dell'interruttore nelle impostazioni: toglie solo l'erogazione online, senza rimettere il corso
+    in bozza (prima spariva anche per l'aula)."""
     if not _helpers._can_edit_formazione(request):
         messages.error(request, "Permesso negato.")
         return redirect("anagrafica:formazione_elearning_hub")
     corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
-    if corso.stato == "ATTIVO":
-        corso.stato = "BOZZA"
-        corso.save(update_fields=["stato", "updated_at"])
-        messages.info(request, "Corso ritirato (bozza): non più visibile ai discenti.")
+    azione = request.POST.get("azione") or ("spegni" if corso.stato == "ATTIVO" else "pubblica")
+    if azione == "spegni":
+        from ..services.elearning_fruizione import spegni_online
+        messages.info(request, spegni_online(corso))
+        _helpers._audit_safe(request, "formazione_corso_online", "formazione", {"corso": corso.pk, "acceso": False})
+        # La pagina del corso online non esiste più per un corso spento: si torna alla scheda.
+        return redirect(reverse("anagrafica:formazione_corso_detail", args=[corso.pk]) + "#come-si-fa")
     else:
         n_slide = corso.slides.filter(is_active=True).count()
         domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))

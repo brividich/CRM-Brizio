@@ -46,7 +46,7 @@ ETICHETTE_STATO = {
     NON_INIZIATA: "Non iniziata",
     IN_CORSO: "Slide in corso",
     TEST_DA_FARE: "Test da fare",
-    SUPERATA: "Superata",
+    SUPERATA: "Superata, da registrare",
     NON_SUPERATA: "Non superata",
     REGISTRATA: "Completata a libretto",
 }

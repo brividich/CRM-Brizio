@@ -234,8 +234,30 @@ def iscrizione_proposta(persona_id: int, corso_id: int):
         .select_related("sessione").order_by("-sessione__data_inizio", "-pk").first())
 
 
-def _collega_edizione(riga: Riga, *, attore_nome: str = "", iscrizione=None) -> bool:
-    """Collega alla riga l'edizione completata del corso richiesto: corso, data, docente e verifica «Attestato».
+def _da_record(riga: Riga, record) -> None:
+    """Corso, data, docente ed esito presi dal completamento a libretto (anche senza edizione:
+    e-learning, link aperto, completamento diretto, import)."""
+    corso = record.corso
+    riga.corso = corso
+    if record.sessione_id:
+        riga.edizione = record.sessione
+    riga.data_corso = record.data_completamento
+    if not riga.docente_ente:
+        erogatore = getattr(record.sessione, "erogatore_display", "") if record.sessione_id else ""
+        if not erogatore and getattr(corso, "ente_formativo_id", None):
+            erogatore = str(corso.ente_formativo)
+        riga.docente_ente = (erogatore or "")[:200]
+    if not riga.verifica and record.idoneo:
+        riga.verifica = Riga.VERIFICA_ATTESTATO
+
+
+def _collega_edizione(riga: Riga, *, attore_nome: str = "", iscrizione=None, record=None) -> bool:
+    """Collega alla riga il corso richiesto completato: corso, data, docente e verifica «Attestato».
+
+    «Completato» è la regola unica ``completamento_valido``: un completamento idoneo e non scaduto,
+    da qualunque strada (aula, lezione online, e-learning, link aperto, import). Se il completamento
+    viene da un'edizione, si collega l'edizione; altrimenti i dati vengono dal completamento.
+    Un'iscrizione passata esplicitamente (aula appena chiusa) vale come prima.
 
     Modalità e livello restano a chi valuta: la riga diventa solo pronta da valutare.
     """
@@ -244,16 +266,43 @@ def _collega_edizione(riga: Riga, *, attore_nome: str = "", iscrizione=None) -> 
     if (corso is None or riga.edizione_id or riga.fatta or riga.modalita not in ("", Riga.MODO_CORSO)
             or not s.aperta or s.firma_approvatore_il):
         return False
-    iscrizione = iscrizione or _iscrizione_completata(riga.legacy_anagrafica_id, corso.pk)
     if iscrizione is None:
-        return False
-    _da_edizione(riga, iscrizione.sessione_id)
+        from .formazione_completamento import completamento_valido
+        record = record if record is not None and record.corso_id == corso.pk else completamento_valido(
+            corso, riga.legacy_anagrafica_id)
+        if record is None:
+            return False
+        if record.enrollment_id and TrainingEnrollment.objects.filter(
+                pk=record.enrollment_id, sessione__corso_id=corso.pk).exists():
+            iscrizione = record.enrollment
+            riga.data_corso = record.data_completamento
+    if iscrizione is not None:
+        _da_edizione(riga, iscrizione.sessione_id)
+    else:
+        if riga.corso_id == corso.pk and riga.data_corso == record.data_completamento:
+            return False  # già collegato a questo completamento
+        _da_record(riga, record)
     riga.save()
+    if riga.edizione_id:
+        dopo = riga.edizione.codice_sessione
+    else:
+        dopo = f"completato il {riga.data_corso:%d/%m/%Y}" if riga.data_corso else ""
     SessioneEvento.objects.create(
         sessione=s, riga=riga, utente=None, utente_nome=(attore_nome or "Portale")[:160], azione="Edizione collegata",
-        dopo=(riga.edizione.codice_sessione if riga.edizione_id else "")[:160],
+        dopo=(dopo or "")[:160],
         nota=f"{riga.competenza_nome}: corso richiesto «{corso.titolo}» completato. Pronta da valutare.")
     return True
+
+
+def collega_completamento(record) -> int:
+    """Completamento a libretto idoneo (qualunque strada): entra nelle righe aperte che chiedono quel corso."""
+    if record is None or not record.idoneo:
+        return 0
+    righe = (Riga.objects.filter(legacy_anagrafica_id=record.legacy_anagrafica_id, voce__corso_id=record.corso_id,
+                                 edizione__isnull=True, sessione__stato__in=S.STATI_APERTI,
+                                 sessione__firma_approvatore_il__isnull=True)
+             .exclude(stato__in=Riga.STATI_FATTI).select_related("sessione", "voce__corso"))
+    return sum(_collega_edizione(r, record=record) for r in righe)
 
 
 def collega_edizioni_completate(iscrizione) -> int:

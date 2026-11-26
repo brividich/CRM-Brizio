@@ -38,7 +38,13 @@ class _Scenario(_ScenarioSessioni):
         dati = dict(sessione=self.edizione, legacy_anagrafica_id=self.rossi, stato="COMPLETATO", idoneo=True,
                     data_completamento=date(2026, 10, 6))
         dati.update(extra)
-        return TrainingEnrollment.objects.create(**dati)
+        iscrizione = TrainingEnrollment.objects.create(**dati)
+        # «Corso completato» = completamento a libretto valido (regola unica completamento_valido).
+        from .models_formazione import TrainingEmployeeRecord
+        TrainingEmployeeRecord.objects.create(
+            corso=self.corso, sessione=self.edizione, enrollment=iscrizione, legacy_anagrafica_id=self.rossi,
+            data_completamento=dati["data_completamento"], idoneo=dati["idoneo"] is not False)
+        return iscrizione
 
     def _valido(self):
         TrainingDeadline.objects.update_or_create(

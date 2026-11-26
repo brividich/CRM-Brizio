@@ -49,6 +49,22 @@ def corso_pubblicato(corso) -> bool:
     return corso.slides.filter(is_active=True).exists()
 
 
+# Un solo interruttore «online» (scheda corso «Spegni online», gestione corso online, impostazioni
+# e-learning): spegnere toglie solo l'erogazione online, il corso resta pubblicato per l'aula.
+ETICHETTA_SPEGNI_ONLINE = "Spegni online"
+ETICHETTA_ACCENDI_ONLINE = "Accendi online"
+MESSAGGIO_ONLINE_SPENTO = ("Online spento: il corso non compare più tra i corsi online e il link aperto non "
+                           "funziona. Completamenti, sessioni e pubblicazione per l'aula restano.")
+
+
+def spegni_online(corso) -> str:
+    """Toglie l'erogazione online (``is_elearning``) senza toccare lo stato del corso."""
+    if corso.is_elearning:
+        corso.is_elearning = False
+        corso.save(update_fields=["is_elearning", "updated_at"])
+    return MESSAGGIO_ONLINE_SPENTO
+
+
 @dataclass
 class Accesso:
     consentito: bool
@@ -170,11 +186,23 @@ def segna_slide_vista(corso, legacy_id: int, ordine: int, n_slide: int):
 
 
 def ciclo_per_nuova_assegnazione(corso, legacy_id: int) -> int:
-    """Ciclo di un'assegnazione manuale: se il ciclo corrente è già completato, il successivo."""
-    from ..models_formazione import TrainingElearningEnrollment
+    """Ciclo di un'assegnazione manuale: se il ciclo corrente è già completato, il successivo.
+
+    «Completato» da qualunque strada, non solo online: assegnazione del ciclo chiusa come
+    completata (anche dal completamento in aula), iscrizione e-learning del ciclo completata,
+    o completamento idoneo a libretto (valido o scaduto) registrato dopo l'assegnazione del ciclo.
+    Così il rinnovo si assegna anche a chi ha fatto il corso in aula."""
+    from ..models_formazione import TrainingAssignment, TrainingElearningEnrollment, TrainingEmployeeRecord
     ciclo = ciclo_corrente(corso, legacy_id)
-    completato = TrainingElearningEnrollment.objects.filter(
+    a = TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id, ciclo=ciclo).first()
+    if a is not None and a.stato == "ESONERATO":
+        return ciclo
+    completato = (a is not None and a.stato == "COMPLETATO") or TrainingElearningEnrollment.objects.filter(
         corso=corso, legacy_anagrafica_id=legacy_id, ciclo=ciclo, stato="COMPLETATO").exists()
+    if not completato and a is not None:
+        completato = TrainingEmployeeRecord.objects.filter(
+            corso=corso, legacy_anagrafica_id=legacy_id, idoneo=True,
+            data_completamento__gte=a.data_assegnazione).exists()
     return ciclo + 1 if completato else ciclo
 
 

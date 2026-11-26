@@ -48,9 +48,13 @@ class GestioneCorsoTests(TestCase):
 
     def test_righe_unificate(self):
         TrainingAssignment.objects.create(corso=self.corso, legacy_anagrafica_id=1, piano=self.corso.piano)
+        from django.utils import timezone
+        from .models_formazione import TrainingEmployeeRecord
+        rec = TrainingEmployeeRecord.objects.create(corso=self.corso, legacy_anagrafica_id=2,
+                                                    data_completamento=timezone.localdate())
         TrainingElearningEnrollment.objects.create(corso=self.corso, legacy_anagrafica_id=2, stato="COMPLETATO",
                                                    n_slide_totali=1, ultima_slide_ordine=1,
-                                                   best_punteggio_pct=Decimal("100"))
+                                                   best_punteggio_pct=Decimal("100"), record_completamento=rec)
         righe = g.righe_risultati(self.corso)
         stati = {r["legacy_id"]: r["stato"] for r in righe}
         self.assertEqual(stati, {1: g.DA_INIZIARE, 2: g.COMPLETATO})

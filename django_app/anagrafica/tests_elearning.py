@@ -275,7 +275,9 @@ class ElearningManageTests(TestCase):
         self.corso.save(update_fields=["stato"])
         self.client.post(reverse("anagrafica:formazione_elearning_publish_toggle", args=[self.corso.pk]))
         self.corso.refresh_from_db()
-        self.assertEqual(self.corso.stato, "BOZZA")
+        # «Spegni online» (ex «Ritira»): toglie solo l'online, il corso resta pubblicato per l'aula.
+        self.assertEqual(self.corso.stato, "ATTIVO")
+        self.assertFalse(self.corso.is_elearning)
 
     def test_pubblica_bloccata_senza_slide(self):
         self.corso.slides.all().delete()
