@@ -624,53 +624,43 @@ def formazione_corso_allegato_upload(request, corso_id: int):
 
 @login_required
 def formazione_corso_report_iscritti_csv(request, corso_id: int):
-    """CSV dei dipendenti del corso (aggregato su tutte le sessioni)."""
+    """CSV delle persone del corso: stesse righe e stesso stato della scheda, ex dipendenti marcati."""
     if not _helpers._can_view_formazione(request):
         messages.error(request, "Non hai i permessi per esportare i report.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
 
-    agg = defaultdict(lambda: {"n_sessioni": 0, "stati": set(), "data": None, "idoneo": None, "n_compl": 0, "perc": None})
-    for e in TrainingEnrollment.objects.filter(sessione__corso=corso).values(
-        "legacy_anagrafica_id", "stato", "percentuale_presenza"
-    ):
-        a = agg[e["legacy_anagrafica_id"]]
-        a["n_sessioni"] += 1
-        a["stati"].add(e["stato"])
-        if e["percentuale_presenza"] is not None:
-            a["perc"] = e["percentuale_presenza"]
-    for r in TrainingEmployeeRecord.objects.filter(corso=corso).order_by("-data_completamento").values(
-        "legacy_anagrafica_id", "data_completamento", "idoneo"
-    ):
-        a = agg[r["legacy_anagrafica_id"]]
-        a["n_compl"] += 1
-        if a["data"] is None:
-            a["data"] = r["data_completamento"]
-            a["idoneo"] = r["idoneo"]
-
-    nomi = _helpers._build_nomi_map()
-    ordine = _helpers._build_ordine_map()
-    _prio = ["COMPLETATO", "IN_CORSO", "ISCRITTO", "NON_IDONEO", "ASSENTE", "RITIRATO"]
+    # Stesse persone e stesso stato della scheda corso (formazione_catalogo.persone_del_corso +
+    # stati_persona_corso); gli ex dipendenti in fondo, marcati.
+    from ..services import formazione_catalogo as _cat
+    pers = _cat.persone_del_corso(corso)
+    nomi, ordine = _cat.nomi_e_ordine()
 
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = f'attachment; filename="corso_{corso.codice}_iscritti.csv"'
-    response.write("﻿")
+    response["Content-Disposition"] = f'attachment; filename="corso_{corso.codice}_persone.csv"'
+    response.write("\ufeff")
     writer = safe_csv_writer(response, delimiter=";")
-    writer.writerow(["Dipendente", "ID anagrafica", "Stato", "Sessioni", "Completamenti",
-                     "% presenza", "Idoneo", "Ultimo completamento"])
-    for lid, a in sorted(agg.items(), key=lambda kv: ordine.get(kv[0], f"#{kv[0]}").casefold()):
-        stato = next((s for s in _prio if s in a["stati"]), next(iter(a["stati"]), ""))
+    writer.writerow(["Dipendente", "ID anagrafica", "In forza", "Stato", "Sessioni", "Completamenti",
+                     "Completamenti idonei", "% presenza", "Idoneo", "Ultimo completamento", "Scadenza"])
+    righe = sorted(pers["ids"], key=lambda lid: (lid in pers["cessati"], ordine.get(lid, f"#{lid}").casefold()))
+    for lid in righe:
+        st = pers["stati"].get(lid)
+        rec = st.record if st is not None else None
+        perc = pers["presenza"].get(lid)
         writer.writerow([
-            nomi.get(lid, f"#{lid}"), lid, stato, a["n_sessioni"], a["n_compl"],
-            a["perc"] if a["perc"] is not None else "",
-            "" if a["idoneo"] is None else ("Sì" if a["idoneo"] else "No"),
-            a["data"].strftime("%d-%m-%Y") if a["data"] else "",
+            nomi.get(lid, f"#{lid}"), lid, "No (ex dipendente)" if lid in pers["cessati"] else "Sì",
+            st.etichetta if st is not None else "", pers["n_sessioni"].get(lid, 0),
+            pers["n_completamenti"].get(lid, 0), pers["n_idonei"].get(lid, 0),
+            perc if perc is not None else "",
+            "" if rec is None else ("Sì" if rec.idoneo else "No"),
+            rec.data_completamento.strftime("%d-%m-%Y") if rec is not None and rec.data_completamento else "",
+            rec.data_scadenza.strftime("%d-%m-%Y") if rec is not None and rec.data_scadenza else "",
         ])
 
     try:
         TrainingExportLog.objects.create(
             tipo="CORSI", filtri_json={"corso_id": corso.pk, "formato": "iscritti_csv"},
-            righe_esportate=len(agg), generato_da=request.user,
+            righe_esportate=len(righe), generato_da=request.user,
             ip_address=request.META.get("REMOTE_ADDR") or None,
         )
     except Exception:
@@ -680,7 +670,7 @@ def formazione_corso_report_iscritti_csv(request, corso_id: int):
 
 @login_required
 def formazione_corso_attestati_zip(request, corso_id: int):
-    """ZIP con gli attestati PDF di tutti i completamenti idonei del corso."""
+    """ZIP con l'attestato PDF dell'ultimo completamento valido (idoneo, non scaduto) di ogni persona."""
     if not _helpers._can_view_formazione(request):
         messages.error(request, "Non hai i permessi per esportare gli attestati.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
@@ -690,14 +680,21 @@ def formazione_corso_attestati_zip(request, corso_id: int):
     import zipfile
     from ..services.attestato_pdf import build_attestato_pdf_bytes, build_attestato_context
 
-    records = list(
-        TrainingEmployeeRecord.objects
-        .filter(corso=corso)
-        .select_related("corso", "corso__piano", "corso__qualifica", "sessione", "sessione__docente")
-        .order_by("-data_completamento", "-id")
-    )
+    # Solo completamenti idonei e, per persona, l'ultimo valido (non scaduto): un non idoneo non ha
+    # attestato e un attestato rinnovato sostituisce il precedente.
+    oggi = django_timezone.localdate()
+    records, visti = [], set()
+    for rec in (TrainingEmployeeRecord.objects
+                .filter(corso=corso, idoneo=True)
+                .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=oggi))
+                .select_related("corso", "corso__piano", "corso__qualifica", "sessione", "sessione__docente")
+                .order_by("-data_completamento", "-id")):
+        if rec.legacy_anagrafica_id in visti:
+            continue
+        visti.add(rec.legacy_anagrafica_id)
+        records.append(rec)
     if not records:
-        messages.info(request, "Nessun completamento da esportare per questo corso.")
+        messages.info(request, "Nessun completamento valido da esportare per questo corso.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
 
     nomi = _helpers._build_nomi_map()
@@ -746,7 +743,7 @@ def formazione_corso_attestati_zip(request, corso_id: int):
 
 @login_required
 def formazione_corso_registri_pdf(request, corso_id: int):
-    """PDF del foglio firme (vuoto) di tutte le lezioni del corso."""
+    """PDF del foglio firme (vuoto) delle prossime lezioni del corso (sessioni pianificate o in corso)."""
     if not _helpers._can_view_formazione(request):
         messages.error(request, "Non hai i permessi per generare i report.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
@@ -1199,8 +1196,12 @@ def formazione_piano_detail(request, piano_id: int):
     corsi = list(
         TrainingCourse.objects.filter(piano=piano)
         .order_by("titolo")
-        .annotate(n_sessioni=Count("sessioni", distinct=True))
+        .annotate(n_sessioni=Count("sessioni", filter=~Q(sessioni__stato="ANNULLATA"), distinct=True))
     )
+    from ..services.formazione_catalogo import corsi_obbligatori
+    _obblighi = corsi_obbligatori([c.pk for c in corsi])
+    for c in corsi:
+        c.obbligo = _obblighi.get(c.pk, "")
     regole = list(
         TrainingRequirementRule.objects.filter(piano=piano, is_active=True)
         .select_related("mansione", "area", "ruolo_operativo", "competenza")
@@ -1261,19 +1262,6 @@ def formazione_piano_delete(request, piano_id: int):
 # FORMAZIONE HR — Corsi (PATCH-03)
 # ============================================================================
 
-# «Come si fa» un corso: dalle modalità delle sue sessioni e dall'online sempre aperto.
-_MODI_CORSO = [
-    ("aula", "In aula", Q(sessioni__modalita="IN_SEDE")),
-    ("esterno", "Ente esterno", Q(sessioni__modalita="ESTERNO")),
-    ("diretta", "Online in diretta", Q(sessioni__modalita="REMOTO")),
-    ("slide", "Slide + test", Q(sessioni__modalita="ONLINE")),
-    ("misto", "Misto", Q(sessioni__modalita="MISTO")),
-    ("sempre", "Online sempre aperto", Q(is_elearning=True)),
-]
-_MODI_ETICHETTE = [("IN_SEDE", "In aula"), ("ESTERNO", "Ente esterno"), ("REMOTO", "Online in diretta"),
-                   ("ONLINE", "Slide + test"), ("MISTO", "Misto"), ("sempre", "Sempre aperto")]
-
-
 @login_required
 def formazione_corsi_list(request):
     if not _helpers._can_view_formazione(request):
@@ -1281,74 +1269,22 @@ def formazione_corsi_list(request):
         return redirect("anagrafica:index")
     is_editor = _helpers._can_edit_formazione(request)
 
-    filtro_piano = request.GET.get("piano", "")
-    filtro_stato = request.GET.get("stato", "")
-    filtro_obbligatorio = request.GET.get("obbligatorio", "")
-    filtro_attivi = request.GET.get("attivi", "") == "1"
-    q_search = (request.GET.get("q") or "").strip()
-    filtro_modo = request.GET.get("modo", "")
-    filtro_tipo = request.GET.get("tipo", "")
+    # Stessi filtri dell'export (services.formazione_catalogo.corsi_filtrati): stesse righe a video e nel file.
+    from ..services import formazione_catalogo as _cat
+    qs, _f, modi_conteggi = _cat.corsi_filtrati(request.GET, con_conteggi=True)
+    filtro_piano, filtro_stato, filtro_obbligatorio = _f["piano"], _f["stato"], _f["obbligatorio"]
+    filtro_attivi, q_search, filtro_modo, filtro_tipo = _f["attivi"], _f["q"], _f["modo"], _f["tipo"]
+    filtro_rinnovo = _f["rinnovo"]
+    ids_una_tantum_da_rivedere = _cat.ids_una_tantum_da_rivedere
 
-    qs = TrainingCourse.objects.select_related("piano", "ente_formativo", "tipo").prefetch_related(
-        Prefetch(
-            "sessioni",
-            queryset=TrainingSession.objects.select_related("docente__azienda").order_by("-data_inizio"),
-        )
-    )
-    if filtro_piano:
-        qs = qs.filter(piano_id=filtro_piano)
-    if filtro_stato:
-        qs = qs.filter(stato=filtro_stato)
-    if filtro_attivi:
-        qs = qs.filter(is_active=True)
-    if filtro_obbligatorio == "1":
-        qs = qs.filter(obbligatorio=True)
-    elif filtro_obbligatorio == "0":
-        qs = qs.filter(obbligatorio=False)
-    if q_search:
-        qs = qs.filter(
-            Q(titolo__icontains=q_search) | Q(codice__icontains=q_search)
-            | Q(ente_formativo__nome__icontains=q_search)
-        )
-    if filtro_tipo == "nessuno":
-        qs = qs.filter(tipo__isnull=True)
-    elif filtro_tipo.isdigit():
-        qs = qs.filter(tipo_id=int(filtro_tipo))
-    filtro_rinnovo = request.GET.get("rinnovo") == "1"
-    from ..services.formazione_catalogo import ids_una_tantum_da_rivedere
-    if filtro_rinnovo:
-        qs = qs.filter(pk__in=ids_una_tantum_da_rivedere())
-    # «Come si fa»: conteggi sul resto dei filtri, poi il filtro scelto.
-    modi_conteggi = [(chiave, etichetta, qs.filter(cond).distinct().count())
-                     for chiave, etichetta, cond in _MODI_CORSO]
-    for chiave, _etichetta, cond in _MODI_CORSO:
-        if filtro_modo == chiave:
-            qs = qs.filter(cond).distinct()
-
-    paginator = Paginator(qs.order_by("piano__nome", "titolo"), 50)
+    paginator = Paginator(qs, 50)
     page_obj = paginator.get_page(request.GET.get("page"))
     piani = list(TrainingPlan.objects.filter(is_active=True).order_by("nome"))
 
+    obblighi = _cat.corsi_obbligatori([c.pk for c in page_obj])
     for corso in page_obj:
-        nomi = []
-        visti = set()
-        # L'ente di riferimento del corso (esplicito) viene per primo; gli enti
-        # visti solo tramite i docenti delle sessioni completano l'elenco quando
-        # differiscono (es. corso storicamente erogato da più provider).
-        if corso.ente_formativo_id:
-            nomi.append(corso.ente_formativo.nome)
-            visti.add(corso.ente_formativo.nome)
-        for sessione in corso.sessioni.all():
-            docente = sessione.docente
-            if not docente:
-                continue
-            nome = docente.azienda.nome if docente.azienda_id else docente.ragione_sociale
-            if nome and nome not in visti:
-                visti.add(nome)
-                nomi.append(nome)
-        corso.enti_formatori = nomi
-        modi = {s.modalita for s in corso.sessioni.all()}
-        corso.modi = [(k, e) for k, e in _MODI_ETICHETTE if (k == "sempre" and corso.is_elearning) or k in modi]
+        _cat.arricchisci_corso(corso)
+        corso.obbligo = obblighi.get(corso.pk, "")
 
     # Link di pastiglie e pagine: conservano tutti gli altri filtri attivi.
     filtri_attuali = {
@@ -1372,6 +1308,7 @@ def formazione_corsi_list(request):
         "filtro_tipo": filtro_tipo,
         "filtro_rinnovo": filtro_rinnovo,
         "n_da_rivedere": len(ids_una_tantum_da_rivedere()),
+        "n_senza_tipo": _cat.n_corsi_senza_tipo(),
         "tipi": TrainingCourseType.objects.filter(is_active=True).order_by("ordine", "nome"),
         "page_obj": page_obj,
         "is_editor": is_editor,
@@ -1616,8 +1553,10 @@ def _link_pubblico(request, corso):
         return None
 
 
-def _n_in_forza() -> int:
+def _n_in_forza(attivi=None) -> int:
     """Dipendenti in forza (senza cessati): i destinatari di un corso «Obbligatorio per tutti»."""
+    if attivi is not None:
+        return len(attivi)
     from ..services.training_eligibility import _dipendenti_attivi
     try:
         return len(_dipendenti_attivi())
@@ -1626,7 +1565,7 @@ def _n_in_forza() -> int:
         return 0
 
 
-def _come_si_fa(corso) -> dict:
+def _come_si_fa(corso, attivi=None) -> dict:
     """Riquadro «Come si fa questo corso»: online sempre aperto e sessioni, con slide e test unici."""
     from ..services.elearning_fruizione import corso_pubblicato
     n_slide = corso.slides.filter(is_active=True).count()
@@ -1639,7 +1578,11 @@ def _come_si_fa(corso) -> dict:
         "online": corso.is_elearning,
         "visibile": corso_pubblicato(corso),
         "n_slide": n_slide, "n_domande": len(domande), "n_invalid": n_invalid,
-        "assegnati": TrainingAssignment.objects.filter(corso=corso).count(),
+        # Persone distinte in forza con un'assegnazione aperta (non le righe: i cicli si ripetono).
+        "assegnati": len({
+            lid for lid in TrainingAssignment.objects.filter(corso=corso, stato__in=("ASSEGNATO", "IN_CORSO"))
+            .values_list("legacy_anagrafica_id", flat=True) if attivi is None or lid in attivi
+        }),
         # Persone con il corso valido da qualunque strada (aula, sessione online, link aperto,
         # e-learning, diretto): stessa regola di «Completato» nello stato persona × corso.
         "completati_validi": TrainingEmployeeRecord.objects.filter(corso=corso, idoneo=True).filter(
@@ -1684,6 +1627,15 @@ def formazione_corso_detail(request, corso_id: int):
         return redirect("anagrafica:index")
     is_editor = _helpers._can_edit_formazione(request)
     corso = get_object_or_404(TrainingCourse.objects.select_related("piano", "ente_formativo"), pk=corso_id)
+    # Anagrafica letta una volta sola per tutta la pagina (prima: nomi ×3, ordinamento ×2, in forza ×2).
+    from ..services import formazione_catalogo as _cat
+    from ..services.training_eligibility import _dipendenti_attivi
+    nomi_dip, ordine_dip = _cat.nomi_e_ordine()
+    try:
+        attivi = _dipendenti_attivi()
+    except Exception:
+        logger.exception("Dipendenti in forza non leggibili (corso %s)", corso_id)
+        attivi = {}
 
     prerequisiti = list(
         TrainingCourseDependency.objects.filter(corso_principale=corso)
@@ -1705,12 +1657,8 @@ def formazione_corso_detail(request, corso_id: int):
         .select_related("mansione", "area", "ruolo_operativo", "competenza")
         .order_by("-priority")
     )
-    nomi_singoli: dict[int, str] = {}
-    ids_singoli = [r.legacy_anagrafica_id for r in regole if r.legacy_anagrafica_id]
-    if ids_singoli:
-        nomi_singoli = _helpers._build_nomi_map()
     for r in regole:
-        r.dipendente_nome = nomi_singoli.get(r.legacy_anagrafica_id, "") if r.legacy_anagrafica_id else ""
+        r.dipendente_nome = nomi_dip.get(r.legacy_anagrafica_id, "") if r.legacy_anagrafica_id else ""
 
     try:
         completion_rule = corso.regola_superamento
@@ -1728,13 +1676,14 @@ def formazione_corso_detail(request, corso_id: int):
         f"{_stati_sess[k]} {uno if _stati_sess[k] == 1 else tanti}"
         for k, uno, tanti in _nomi_stato if _stati_sess.get(k)
     ) or "Nessuna sessione"
-    n_completamenti = TrainingEmployeeRecord.objects.filter(corso=corso).count()
+    # Completamenti idonei (rinnovi ed ex dipendenti compresi): un «non idoneo» non è un completamento.
+    n_completamenti = TrainingEmployeeRecord.objects.filter(corso=corso, idoneo=True).count()
 
     # Lista sessioni del corso con conteggi lezioni/iscritti per la sezione
     # "Sessioni del corso" nel dettaglio. Limita a 100 per evitare pagine enormi
     # su corsi storici molto frequentati (ordine: piu recenti prima).
     sessioni_list = list(
-        corso.sessioni
+        corso.sessioni.exclude(stato="ANNULLATA")
         .select_related("docente", "docente_ente")
         .annotate(n_lezioni=Count("lezioni", distinct=True),
                   n_iscritti=Count("iscrizioni", distinct=True))
@@ -1743,35 +1692,26 @@ def formazione_corso_detail(request, corso_id: int):
     for s in sessioni_list:
         s.corso = corso  # evita una query per sessione in erogatore_display (fallback ente_formativo)
 
-    # Aggregazione dipendenti iscritti distinti (across all sessioni del corso).
-    # Per ciascuno: n. sessioni, n. completamenti e lo stato persona × corso della regola unica
-    # (services.formazione_completamento.stati_persona_corso): Completato solo con un completamento
-    # idoneo non scaduto; Scaduto, Da registrare (verifica superata senza libretto), In corso, Da fare.
-    from ..services.formazione_completamento import stati_persona_corso
-    agg_dip = defaultdict(lambda: {"n_sessioni": 0, "n_completati": 0})
-    _iscr_corso = list(TrainingEnrollment.objects.filter(sessione__corso=corso)
-                       .select_related("avanzamento_online"))
-    for e in _iscr_corso:
-        agg_dip[e.legacy_anagrafica_id]["n_sessioni"] += 1
-    for r in (TrainingEmployeeRecord.objects.filter(corso=corso).values("legacy_anagrafica_id")):
-        agg_dip[r["legacy_anagrafica_id"]]["n_completati"] += 1
-    _stati_dip = stati_persona_corso(corso, list(agg_dip), iscrizioni=_iscr_corso)
-
-    nomi_dipendenti = _helpers._build_nomi_map() if agg_dip else {}
+    # Persone con un'attività sul corso (iscrizioni, completamenti, assegnazioni, e-learning, link aperto
+    # abbinato) e lo stato persona × corso della regola unica (stati_persona_corso): Completato solo con
+    # un completamento idoneo non scaduto; Scaduto, Da registrare, In corso, Da fare. Gli ex dipendenti
+    # non entrano nel conteggio: restano in una riga a parte.
+    _pers = _cat.persone_del_corso(corso)
+    _stati_dip = _pers["stati"]
     _pill_stato = {"COMPLETATO": "completato", "SCADUTO": "scaduto", "DA_REGISTRARE": "warning",
                    "IN_CORSO": "in_corso"}
     _pill_da_fare = {"Non idoneo": "non_idoneo", "Assente": "assente", "Ritirato": "ritirato"}
     dipendenti_iscritti = []
-    for lid, a in agg_dip.items():
+    for lid in _pers["ids"] - _pers["cessati"]:
         st = _stati_dip.get(lid)
         if st is None:
             continue
         rec = st.record
         dipendenti_iscritti.append({
             "legacy_id": lid,
-            "nome": nomi_dipendenti.get(lid, f"#{lid}"),
-            "n_sessioni": a["n_sessioni"],
-            "n_completati": a["n_completati"],
+            "nome": nomi_dip.get(lid, f"#{lid}"),
+            "n_sessioni": _pers["n_sessioni"].get(lid, 0),
+            "n_completati": _pers["n_idonei"].get(lid, 0),
             "stato_sint": st.codice,
             "stato_label": st.etichetta,
             "stato_pill": _pill_stato.get(st.codice) or _pill_da_fare.get(st.etichetta, "iscritto"),
@@ -1779,9 +1719,9 @@ def formazione_corso_detail(request, corso_id: int):
             "data_scadenza": rec.data_scadenza if rec is not None else None,
             "idoneo": rec.idoneo if rec is not None else None,
         })
-    _ordine_dip = _helpers._build_ordine_map() if agg_dip else {}
-    dipendenti_iscritti.sort(key=lambda x: _ordine_dip.get(x["legacy_id"], x["nome"]).lower())
+    dipendenti_iscritti.sort(key=lambda x: ordine_dip.get(x["legacy_id"], x["nome"]).lower())
     n_dipendenti_iscritti = len(dipendenti_iscritti)
+    n_ex_dipendenti = len(_pers["cessati"])
 
     edit_form = TrainingCourseForm(instance=corso)
     dep_form = TrainingCourseDependencyForm(corso_principale=corso)
@@ -1795,20 +1735,21 @@ def formazione_corso_detail(request, corso_id: int):
     assegnazione_pool_filtrato = False
     if is_editor:
         from ..services.training_eligibility import candidati_corso
-        _res = candidati_corso(corso)
+        _res = candidati_corso(corso, dipendenti=attivi)
         assegnazione_pool_filtrato = _res["pool_filtrato"]
-        # Esclusi: chi ha un'assegnazione aperta o un esonero; chi ha l'assegnazione chiusa resta
-        # escluso solo se ha un completamento valido (qualunque strada, anche l'aula) non in scadenza.
-        # Chi l'ha scaduto o in scadenza torna fra i candidati per il rinnovo (nuovo ciclo).
+        # Esclusi: chi ha un'assegnazione aperta (Assegnato, In corso) o un esonero; chi ce l'ha chiusa
+        # (Completato, Scaduto, Rimandato) resta escluso solo se ha un completamento valido (qualunque
+        # strada, anche l'aula) non in scadenza. Chi l'ha scaduto o in scadenza torna fra i candidati
+        # per il rinnovo (nuovo ciclo).
         from datetime import timedelta as _td
 
         from ..scadenze_soglie import GIORNI_PREAVVISO
         _gia_assegnati, _chiuse = set(), set()
         for _lid, _st in TrainingAssignment.objects.filter(corso=corso).values_list("legacy_anagrafica_id", "stato"):
-            if _st == "COMPLETATO":
-                _chiuse.add(_lid)
-            else:
+            if _st in ("ASSEGNATO", "IN_CORSO", "ESONERATO"):
                 _gia_assegnati.add(_lid)
+            else:
+                _chiuse.add(_lid)
         _chiuse -= _gia_assegnati
         if _chiuse:
             _soglia = django_timezone.localdate() + _td(days=GIORNI_PREAVVISO)
@@ -1831,10 +1772,10 @@ def formazione_corso_detail(request, corso_id: int):
             "data_completamento": _tz.localdate(),
             "idoneo": True,
         })
-        _ordine_pool = _helpers._build_ordine_map()
+        # Solo i dipendenti in forza (prima: tutta l'anagrafica, ex dipendenti compresi).
         dipendenti_pool = sorted(
-            _helpers._build_nomi_map().items(),
-            key=lambda x: _ordine_pool.get(x[0], x[1]).casefold(),
+            ((lid, nomi_dip.get(lid) or d.get("nome") or f"#{lid}") for lid, d in attivi.items()),
+            key=lambda x: ordine_dip.get(x[0], x[1]).casefold(),
         )
 
     from ..services.mpq_persone import processi_che_richiedono
@@ -1842,12 +1783,13 @@ def formazione_corso_detail(request, corso_id: int):
     # Processi qualificati MOD.128 che lo chiedono («Cosa serve a una persona»).
     processi_mpq = processi_che_richiedono(corso=corso)
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
-        "come_si_fa": _come_si_fa(corso),
+        "come_si_fa": _come_si_fa(corso, attivi),
         "link_pubblico": _link_pubblico(request, corso),
         "corso": corso,
         "processi_mpq": processi_mpq,
         "n_a_chi_serve": len(regole) + len(processi_mpq) + int(bool(corso.obbligatorio)),
-        "n_in_forza": _n_in_forza() if corso.obbligatorio else 0,
+        "n_in_forza": _n_in_forza(attivi) if corso.obbligatorio else 0,
+        "obbligo_catalogo": _cat.corsi_obbligatori([corso.pk]).get(corso.pk, ""),
         "sessioni_sub": sessioni_sub,
         # Materiale del corso: e' la base che ogni nuova edizione si ritrova
         # proposta in copia (vedi TrainingSessionForm.allegati_dal_corso).
@@ -1864,6 +1806,7 @@ def formazione_corso_detail(request, corso_id: int):
         "sessioni_list": sessioni_list,
         "dipendenti_iscritti": dipendenti_iscritti,
         "n_dipendenti_iscritti": n_dipendenti_iscritti,
+        "n_ex_dipendenti": n_ex_dipendenti,
         "edit_form": edit_form,
         "dep_form": dep_form,
         "completion_form": completion_form,
@@ -1916,13 +1859,22 @@ def formazione_corso_delete(request, corso_id: int):
         messages.error(request, "Non hai i permessi per eliminare corsi formativi.")
         return redirect("anagrafica:formazione_corsi_list")
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
-    if corso.sessioni.exists():
-        messages.error(request, f'Il corso "{corso.titolo}" ha sessioni associate. Archivia o rimuovi prima le sessioni.')
+    from ..services.formazione_catalogo import motivi_blocco_eliminazione
+    motivi = motivi_blocco_eliminazione(corso)
+    if motivi:
+        # Niente cascate silenziose su storico e attestati: il corso si archivia.
+        messages.error(request, f'Il corso "{corso.titolo}" ha {", ".join(motivi)}: non si può eliminare. '
+                                "Archivia il corso (Modifica corso › Stato «Archiviato»): lo storico resta.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     piano_id = corso.piano_id
     nome = corso.titolo
     codice = corso.codice
-    corso.delete()
+    from django.db.models import ProtectedError
+    try:
+        corso.delete()
+    except ProtectedError:
+        messages.error(request, f'Il corso "{nome}" è collegato ad altri dati: non si può eliminare. Archivia il corso.')
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     _audit_formazione(request, "corso_eliminato", {
         "corso_id": corso_id, "codice": codice, "titolo": nome, "piano_id": piano_id,
     })
@@ -2821,7 +2773,9 @@ def formazione_sessioni_list(request):
             qs = qs.filter(_aula.q_da_approvare())
     if filtro_corso:
         qs = qs.filter(corso_id=int(filtro_corso))
-    if filtro_stato:
+    if filtro_stato == "NON_ANNULLATE":  # dalla tessera «Sessioni» della scheda corso
+        qs = qs.exclude(stato="ANNULLATA")
+    elif filtro_stato:
         qs = qs.filter(stato=filtro_stato)
     if filtro_modalita:
         qs = qs.filter(modalita=filtro_modalita)
