@@ -1,0 +1,85 @@
+{% load static %}<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Locandina · {{ corso.titolo }}</title>
+<style nonce="{{ csp_nonce }}">
+@page { size: A4 portrait; margin: 0; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #e5e9f0; font-family: 'Segoe UI', system-ui, sans-serif; color: #172033; }
+.lc-barra { max-width: 210mm; margin: 14px auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.lc-barra a, .lc-barra button { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 10px; border: 1px solid #c9d3e0; background: #fff; color: #002b5c; text-decoration: none; cursor: pointer; }
+.lc-barra .on { background: #002b5c; color: #fff; border-color: #002b5c; }
+.lc-barra .lc-primario { background: #ff6b00; color: #fff; border-color: #ff6b00; font-weight: 700; }
+.lc-barra span { color: #475569; font-size: 13px; }
+.lc-foglio { width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #fff; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(15,23,42,.18); }
+.lc-testa { display: flex; justify-content: space-between; align-items: center; padding: 12mm 14mm 6mm; border-bottom: 3mm solid #ff6b00; }
+.lc-testa img { height: 15mm; width: auto; }
+.lc-testa span { font-size: 11pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #64748b; }
+.lc-titolo { background: #002b5c; color: #fff; padding: 12mm 14mm 10mm; }
+.lc-titolo small { display: block; font-size: 12pt; letter-spacing: .1em; text-transform: uppercase; color: #ffb27a; font-weight: 700; margin-bottom: 3mm; }
+.lc-titolo h1 { margin: 0; font-size: 30pt; line-height: 1.12; }
+.lc-titolo p { margin: 4mm 0 0; font-size: 13pt; color: #d5e2f1; line-height: 1.4; }
+.lc-corpo { flex: 1; display: grid; grid-template-columns: 1fr 78mm; gap: 10mm; padding: 10mm 14mm; align-items: start; }
+.lc-fatti { display: grid; gap: 5mm; }
+.lc-fatto small { display: block; font-size: 10pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #64748b; }
+.lc-fatto strong { display: block; font-size: 16pt; margin-top: 1mm; }
+.lc-fatto ul { margin: 1mm 0 0; padding: 0; list-style: none; font-size: 14pt; line-height: 1.5; }
+.lc-qr { border: 1mm solid #002b5c; border-radius: 6mm; padding: 6mm; text-align: center; }
+.lc-qr h2 { margin: 0 0 4mm; font-size: 16pt; color: #002b5c; }
+.lc-qr svg { width: 64mm; height: 64mm; display: block; margin: 0 auto; }
+.lc-qr p { margin: 4mm 0 0; font-size: 11pt; line-height: 1.4; color: #334155; }
+.lc-qr code { display: block; margin-top: 3mm; font-size: 8pt; color: #64748b; word-break: break-all; }
+.lc-vuoto { color: #991b1b; font-size: 12pt; }
+.lc-piede { padding: 6mm 14mm 10mm; font-size: 10pt; color: #64748b; display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; }
+@media print { body { background: #fff; } .lc-barra { display: none; } .lc-foglio { margin: 0; box-shadow: none; } }
+</style>
+</head>
+<body>
+<div class="lc-barra">
+  <a href="{{ torna }}">← Torna</a>
+  <button type="button" class="lc-primario js-stampa">Stampa la locandina</button>
+  {% if qr_altri|length > 1 %}<span>QR:</span>{% for k, t in qr_altri %}<a href="?qr={{ k }}" class="{% if k == qr_scelta %}on{% endif %}">{% if k == "aperto" %}Link aperto{% elif k == "aula" %}Firma in aula{% else %}Portale{% endif %}</a>{% endfor %}{% endif %}
+</div>
+<div class="lc-foglio">
+  <div class="lc-testa"><img src="{% static 'core/img/novicrom_hub.png' %}" alt="NOVICROM HUB · Costruzioni Novicrom"><span>Formazione</span></div>
+  <div class="lc-titolo">
+    <small>{% if sessione %}{% if online %}Corso online{% else %}Corso in aula{% endif %}{% else %}Corso online · sempre aperto{% endif %}{% if corso.tipo %} · {{ corso.tipo.nome }}{% endif %}</small>
+    <h1>{{ corso.titolo }}</h1>
+    {% if corso.descrizione %}<p>{{ corso.descrizione|truncatewords:40 }}</p>{% endif %}
+  </div>
+  <div class="lc-corpo">
+    <div class="lc-fatti">
+      {% if sessione and not online and giornate %}
+      <div class="lc-fatto"><small>Quando</small><ul>{% for g in giornate %}<li>{{ g.data|date:"l j F Y"|capfirst }}{% if g.ora_inizio %}, {{ g.ora_inizio|time:"H:i" }}{% if g.ora_fine %}–{{ g.ora_fine|time:"H:i" }}{% endif %}{% endif %}</li>{% endfor %}</ul></div>
+      {% elif sessione and not online %}
+      <div class="lc-fatto"><small>Quando</small><strong>{{ sessione.data_inizio|date:"j F Y" }}{% if sessione.data_fine and sessione.data_fine != sessione.data_inizio %} – {{ sessione.data_fine|date:"j F Y" }}{% endif %}</strong></div>
+      {% endif %}
+      {% if online %}
+      <div class="lc-fatto"><small>Come</small><strong>Dal telefono o dal PC, quando vuoi</strong></div>
+      {% if cfg and cfg.scadenza %}<div class="lc-fatto"><small>Da completare entro</small><strong>{{ cfg.scadenza|date:"j F Y" }}</strong></div>{% endif %}
+      {% endif %}
+      {% if sessione and sessione.sede and not online %}<div class="lc-fatto"><small>Dove</small><strong>{{ sessione.sede }}</strong></div>{% endif %}
+      {% if corso.durata_ore_teorica %}<div class="lc-fatto"><small>Durata</small><strong>{{ corso.durata_ore_teorica|floatformat:"-1" }} or{{ corso.durata_ore_teorica|pluralize:"a,e" }}</strong></div>{% endif %}
+      {% if sessione and sessione.docente_nome and not online %}<div class="lc-fatto"><small>Docente</small><strong>{{ sessione.docente_nome }}</strong></div>{% endif %}
+      {% if online %}<div class="lc-fatto"><small>Alla fine</small><strong>Un breve quiz: superato, il corso va sulla tua scheda</strong></div>{% endif %}
+    </div>
+    <div class="lc-qr">
+      {% if qr_svg %}
+      <h2>{{ qr_titolo }}</h2>
+      {{ qr_svg }}
+      <p>{{ qr_istruzioni }}</p>
+      <code>{{ qr_url }}</code>
+      {% else %}
+      <p class="lc-vuoto">Nessun QR disponibile: attiva il link aperto del corso o pubblica la lezione online.</p>
+      {% endif %}
+    </div>
+  </div>
+  <div class="lc-piede"><span>Costruzioni Novicrom Srl · Formazione</span><span>{% if sessione %}Edizione {{ sessione.codice_sessione }}{% else %}{{ corso.codice }}{% endif %}</span></div>
+</div>
+<script nonce="{{ csp_nonce }}">
+document.querySelector(".js-stampa").addEventListener("click", function () { window.print(); });
+</script>
+</body>
+</html>

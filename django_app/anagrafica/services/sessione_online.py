@@ -616,9 +616,61 @@ def righe_gestione(sessione, cfg, n_slide: int) -> list[dict]:
             "da_registrare": stato == SUPERATA,
             "da_sollecitare": stato in (NON_INIZIATA, IN_CORSO, TEST_DA_FARE),
         })
+    _dati_da_altri_canali(sessione, righe, n_slide)
     ordine = [NON_SUPERATA, TEST_DA_FARE, IN_CORSO, NON_INIZIATA, SUPERATA, REGISTRATA]
     righe.sort(key=lambda x: (ordine.index(x["stato"]), x["nome"]))
     return righe
+
+
+def _dati_da_altri_canali(sessione, righe: list[dict], n_slide: int) -> None:
+    """Il corso è uno solo: chi l'ha completato dal link aperto o dal corso online vede nella riga
+    slide, tempo, punteggio e ultimo accesso di quel percorso (non i vuoti della lezione)."""
+    da_fuori = {r["enrollment"].legacy_anagrafica_id: r for r in righe
+                if r["stato"] == REGISTRATA and not (r["prog"] and r["prog"].superata_il)}
+    if not da_fuori:
+        return
+    from ..models_elearning import TrainingElearningPartecipazioneAperta as P
+    from ..models_elearning import TrainingElearningRispostaAperta as R
+    from ..models_formazione import TrainingElearningEnrollment
+
+    corso_id = sessione.corso_id
+    ids = list(da_fuori)
+    for p in (P.objects.filter(corso_id=corso_id, legacy_anagrafica_id__in=ids, completata_il__isnull=False)
+              .order_by("completata_il")):
+        risposta = R.objects.filter(partecipazione=p, superato=True).order_by("-pk").first()
+        _riempi(da_fuori[p.legacy_anagrafica_id], n_slide, fonte="link aperto", quando=p.completata_il,
+                viste=len(p.slide_viste or {}), secondi=p.secondi, pct=getattr(risposta, "punteggio_pct", None),
+                accesso=p.ultimo_accesso_il)
+    for e in (TrainingElearningEnrollment.objects.filter(corso_id=corso_id, legacy_anagrafica_id__in=ids,
+                                                        stato="COMPLETATO").order_by("ciclo")):
+        r = da_fuori[e.legacy_anagrafica_id]
+        if r.get("fonte"):
+            continue
+        _riempi(r, n_slide, fonte="corso online", quando=e.data_completamento, viste=e.n_slide_totali,
+                secondi=e.secondi_accreditati, pct=e.best_punteggio_pct, accesso=getattr(e, "updated_at", None))
+    # Completamento senza traccia del percorso (es. dal link aperto prima del 26/11 o registrato a mano).
+    for r in da_fuori.values():
+        if not r.get("fonte"):
+            rec = getattr(r["enrollment"], "record_completamento", None)
+            if rec is not None:
+                calc = rec.completion_calculation_snapshot_json or {}
+                r["fonte"] = "corso online" if calc.get("modalita") == "ELEARNING" else "registro"
+                r["fonte_quando"] = rec.data_completamento
+                if calc.get("quiz_punteggio_pct") and r["miglior_pct"] is None:
+                    r["miglior_pct"] = calc.get("quiz_punteggio_pct")
+
+
+def _riempi(r: dict, n_slide: int, *, fonte, quando, viste, secondi, pct, accesso) -> None:
+    viste = min(int(viste or 0), n_slide) if n_slide else int(viste or 0)
+    r.update({
+        "fonte": fonte, "fonte_quando": quando,
+        "slide_viste": max(r["slide_viste"], viste),
+        "slide_pct": 100 if n_slide and viste >= n_slide else (int(round(100 * viste / n_slide)) if n_slide else 0),
+        "minuti": max(r["minuti"], round((secondi or 0) / 60)),
+        "miglior_pct": pct if pct is not None else r["miglior_pct"],
+    })
+    if accesso and (not r["ultimo_accesso"] or accesso > r["ultimo_accesso"]):
+        r["ultimo_accesso"] = accesso
 
 
 def numeri(righe: list[dict], cfg) -> dict:
