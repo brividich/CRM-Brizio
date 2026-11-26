@@ -26,6 +26,7 @@ from django.utils import timezone
 
 from tasks.identity import normalize_part_number
 
+from . import spc
 from .models import AliasQuotaCMM, CartellaReportCMM, MisuraCMM, NotaQuotaCMM, ReportCMM
 
 logger = logging.getLogger(__name__)
@@ -575,7 +576,8 @@ def deriva(us: list[float], ultimi: int = 20) -> dict | None:
 
     In deriva se la retta sale (o scende) di almeno il 20% della tolleranza in quei pezzi, l'ultimo punto della
     retta è oltre metà tolleranza nella stessa direzione e, al ritmo attuale, il limite arriva entro 50 pezzi.
-    ``{"pendenza": per pezzo, "pezzi": quanti pezzi al limite (0 se già oltre), "verso": "sup"|"inf"}``."""
+    ``{"pendenza": per pezzo, "pezzi": quanti pezzi al limite (0 se già oltre), "verso": "sup"|"inf",
+    "pezzi_min"/"pezzi_max": forchetta al 95% (``None`` = oltre 200 pezzi)}``."""
     v = [u for u in us if u is not None][-ultimi:]
     n = len(v)
     if n < 10:
@@ -591,40 +593,16 @@ def deriva(us: list[float], ultimi: int = 20) -> dict | None:
     pezzi = max(0, int(math.ceil((limite - fine) / b)))
     if pezzi > 50:
         return None
-    return {"pendenza": b, "pezzi": pezzi, "verso": "sup" if b > 0 else "inf"}
+    # forchetta: pendenza ± 1,96 errori standard della retta
+    res = sum((u - (my + b * (i - mx))) ** 2 for i, u in enumerate(v))
+    se_b = math.sqrt(res / (n - 2) / den) if n > 2 else 0.0
+    prima, dopo = spc.pezzi_al_limite(b, se_b, fine)
+    return {"pendenza": b, "pezzi": pezzi, "verso": "sup" if b > 0 else "inf", "pezzi_min": prima, "pezzi_max": dopo}
 
 
 def segnali(xs: list[float]) -> list[dict]:
-    """Regole di controllo (Western Electric / Nelson) su una serie di valori:
-    punto oltre 3σ dalla media, 9 punti di fila dallo stesso lato della media, 6 di fila in salita o discesa.
-    ``[{"regola", "da", "a"}]`` con indici della serie."""
-    n = len(xs)
-    if n < 9:
-        return []
-    media = sum(xs) / n
-    sd = (sum((x - media) ** 2 for x in xs) / (n - 1)) ** 0.5
-    out = []
-    if sd > 0:
-        out += [{"regola": "3sigma", "da": i, "a": i} for i, x in enumerate(xs) if abs(x - media) > 3 * sd]
-    i = 0
-    while i < n:
-        lato = xs[i] > media
-        j = i
-        while j + 1 < n and (xs[j + 1] > media) == lato and xs[j + 1] != media:
-            j += 1
-        if j - i + 1 >= 9:
-            out.append({"regola": "lato", "da": i, "a": j, "sopra": lato})
-        i = j + 1
-    i = 0
-    while i < n - 1:
-        su = xs[i + 1] > xs[i]
-        j = i
-        while j + 1 < n and ((xs[j + 1] > xs[j]) if su else (xs[j + 1] < xs[j])):
-            j += 1
-        if j - i + 1 >= 6:
-            out.append({"regola": "trend", "da": i, "a": j, "su": su})
-        i = max(j, i + 1)
-    return out
+    """Regole di Nelson 1-8 ed EWMA: vedi ``spc.segnali``."""
+    return spc.segnali(xs)
 
 
 def unilaterale(nominale: float, lsl: float, usl: float) -> bool:
@@ -641,29 +619,22 @@ def usata(x: float, nominale: float, lsl: float, usl: float) -> float | None:
 
 
 def statistiche(punti: list[tuple[float, float, float]], nominale: float | None = None) -> dict:
-    """``punti`` = ``[(rilevato, limite inferiore, limite superiore)]`` dal più vecchio.
+    """``punti`` = ``[(rilevato, limite inferiore, limite superiore)]`` dal più vecchio, sui limiti dell'ultima misura.
 
-    Media, deviazione standard (campione), Cp e Cpk sui limiti dell'ultima misura (servono almeno 5 punti),
-    tolleranza usata dall'ultima misura (``u``, vedi ``usata``). Con il nominale, una quota unilaterale
-    (nominale 0, limite inferiore 0) ha Cpk = (limite superiore − media) / 3σ e nessun Cp."""
+    Le formule sono in ``spc.capacita``: Cp/Cpk con la σ di breve periodo, Pp/Ppk con la σ totale, metodo dei
+    percentili per le quote di forma e posizione, intervallo del Cpk e verdetto; qui in più min, max, ultimo valore
+    e tolleranza usata dall'ultima misura (``u``, vedi ``usata``)."""
     n = len(punti)
     if not n:
         return {"n": 0}
     xs = [p[0] for p in punti]
-    media = sum(xs) / n
-    sd = (sum((x - media) ** 2 for x in xs) / (n - 1)) ** 0.5 if n > 1 else 0.0
     x, lsl, usl = punti[-1]
     banda = usl - lsl
-    uni = nominale is not None and unilaterale(nominale, lsl, usl)
-    out = {"n": n, "media": media, "sd": sd, "min": min(xs), "max": max(xs), "ultimo": x, "cp": None, "cpk": None,
-           "u": usata(x, nominale, lsl, usl) if nominale is not None
-           else ((x - (usl + lsl) / 2) / (banda / 2) if banda > 0 else None)}
-    if n >= 5 and sd > 0 and banda > 0:
-        if uni:
-            out["cpk"] = (usl - media) / (3 * sd)
-        else:
-            out["cp"] = banda / (6 * sd)
-            out["cpk"] = min(usl - media, media - lsl) / (3 * sd)
+    out = spc.capacita(xs, lsl, usl, nominale)
+    out.pop("weibull", None)
+    out.update({"min": min(xs), "max": max(xs), "ultimo": x,
+                "u": usata(x, nominale, lsl, usl) if nominale is not None
+                else ((x - (usl + lsl) / 2) / (banda / 2) if banda > 0 else None)})
     return out
 
 
@@ -676,15 +647,58 @@ def ultima_per_seriale(report: list) -> list[int]:
     return sorted(ultimo.values())
 
 
+def _confronto_op(vals, rep, lsl, usl, nom) -> dict | None:
+    """Gli OP sono diversi fra loro? Kruskal-Wallis sui valori per OP e Cpk/Ppk di ognuno (almeno 5 pezzi)."""
+    gruppi: dict[str, list] = {}
+    for v in vals:
+        gruppi.setdefault(rep[v[0]][2] or "—", []).append(v[1])
+    test = spc.kruskal(gruppi)
+    if not test:
+        return None
+    per_op = []
+    for op, xs in gruppi.items():
+        if len(xs) >= spc.MIN_CAPACITA:
+            c = spc.capacita(xs, lsl, usl, nom)
+            per_op.append({"op": op, "n": len(xs), "media": c["media"], "indice": c["indice"]})
+    per_op.sort(key=lambda o: (o["indice"] if o["indice"] is not None else 99))
+    return {"p": test["p"], "diversi": test["p"] < 0.05, "op": per_op}
+
+
+def _ripetibilita(tutti, rep, banda) -> dict | None:
+    """Ripetibilità della CMM dalle rimisure dello stesso S/N entro 2 giorni, quando la prima misura non aveva quote
+    fuori (altrimenti il pezzo è stato probabilmente rilavorato in mezzo)."""
+    per_sn: dict[str, list] = {}
+    for v in tutti:
+        if v[1] is None:
+            continue
+        r = rep[v[0]]
+        k = re.sub(r"[^A-Z0-9]", "", str(r[1] or "").upper())
+        if k:
+            per_sn.setdefault(k, []).append((r[3] or "", v[1], r[5]))
+    diff = []
+    for misure in per_sn.values():
+        misure.sort()
+        for (d1, x1, f1), (d2, x2, _f2) in zip(misure, misure[1:]):
+            try:
+                giorni = (date.fromisoformat(d2) - date.fromisoformat(d1)).days
+            except ValueError:
+                continue
+            if giorni <= 2 and not f1:
+                diff.append(x2 - x1)
+    return spc.ripetibilita(diff, banda)
+
+
 def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
     """Ogni quota di ogni programma del P/N sugli ultimi ``ultimi`` report validi (esclusi fuori, rimisure fuori):
-    fuori nell'ultimo report, volte fuori, media, σ, Cp, Cpk, tolleranza usata dall'ultima, deriva e la serie dei
-    valori (per il grafico del protocollo). In cache finché non arrivano report nuovi."""
+    fuori nell'ultimo report, volte fuori, capacità (``spc.capacita``: Cpk, Ppk, ``indice`` = il peggiore dei due,
+    intervallo e verdetto), deriva con forchetta, rischio del prossimo pezzo, limiti di controllo, segnali, punti di
+    cambio, famiglia di quote che si muovono insieme, confronto fra OP, ripetibilità della misura e la serie dei
+    valori. In cache finché non arrivano report nuovi."""
     from django.core.cache import cache
     from django.db.models import Max
 
     firma = ReportCMM.objects.filter(pn=pn).aggregate(m=Max("letto_il"), e=Max("escluso_il"))
-    chiave = f"prod_cmm_analisi2:{pn}:{ultimi}:{firma['m']}:{firma['e']}:{AliasQuotaCMM.objects.filter(pn=pn).count()}"
+    chiave = f"prod_cmm_analisi3:{pn}:{ultimi}:{firma['m']}:{firma['e']}:{AliasQuotaCMM.objects.filter(pn=pn).count()}"
     trovato = cache.get(chiave)
     if trovato is not None:
         return trovato
@@ -693,24 +707,51 @@ def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
         d = dati_programma(pn, p["programma_base"], limite=ultimi * 2, con_esclusi=False)
         if not d["report"]:
             continue
-        tieni = set(ultima_per_seriale(d["report"])[-ultimi:])
+        rep = d["report"]
+        tieni = set(ultima_per_seriale(rep)[-ultimi:])
         ultimo = max(tieni)
-        for q, vals in zip(d["quote"], d["valori"]):
-            vals = [v for v in vals if v[0] in tieni and v[1] is not None]
+        righe_prog = []
+        serie_famiglie = {}
+        for q, tutti in zip(d["quote"], d["valori"]):
+            vals = [v for v in tutti if v[0] in tieni and v[1] is not None]
             if not vals:
                 continue
-            punti = [(v[1], q["nominale"] + v[3], q["nominale"] + v[2]) for v in vals]
-            s = statistiche(punti, q["nominale"])
-            us = [usata(v[1], q["nominale"], q["nominale"] + v[3], q["nominale"] + v[2]) for v in vals]
-            out.append({
+            nom = q["nominale"]
+            punti = [(v[1], nom + v[3], nom + v[2]) for v in vals]
+            s_ = statistiche(punti, nom)
+            xs = [v[1] for v in vals]
+            lsl, usl = punti[-1][1], punti[-1][2]
+            us = [usata(v[1], nom, nom + v[3], nom + v[2]) for v in vals]
+            der = deriva(us)
+            pend_x = 0.0
+            if der:
+                pend_x = der["pendenza"] * (usl if unilaterale(nom, lsl, usl) else (usl - lsl) / 2)
+            lim = spc.limiti_controllo(xs)
+            cambi = [{"indice": c["indice"], "prima": c["prima"], "dopo": c["dopo"], "report": rep[vals[c["indice"]][0]][0],
+                      "sn": rep[vals[c["indice"]][0]][1]} for c in spc.punti_cambio(xs)]
+            serie_famiglie[q["id"]] = {rep[v[0]][0]: v[1] for v in vals}
+            righe_prog.append({
                 "prog": p["programma_base"], "quota": q, "fuori_ultimo": bool(vals[-1][0] == ultimo and vals[-1][4]),
-                "n_fuori": sum(v[4] for v in vals), "n": len(vals), "cpk": s.get("cpk"), "u": s.get("u"),
-                "u_abs": abs(s["u"]) if s.get("u") is not None else None, "deriva": deriva(us),
-                "media": s.get("media"), "sd": s.get("sd"), "cp": s.get("cp"), "lsl": punti[-1][1], "usl": punti[-1][2],
-                "deriva_info": deriva(us),
+                "n_fuori": sum(v[4] for v in vals), "n": len(vals), "cpk": s_.get("cpk"), "u": s_.get("u"),
+                "ppk": s_.get("ppk"), "indice": s_.get("indice"), "cpk_basso": s_.get("cpk_basso"),
+                "cpk_alto": s_.get("cpk_alto"), "verdetto": s_.get("verdetto"), "metodo": s_.get("metodo"),
+                "u_abs": abs(s_["u"]) if s_.get("u") is not None else None, "deriva": der,
+                "media": s_.get("media"), "sd": s_.get("sd"), "sigma_breve": s_.get("sigma_breve"), "cp": s_.get("cp"),
+                "pp": s_.get("pp"), "lsl": lsl, "usl": usl, "deriva_info": der,
+                "rischio": spc.rischio_prossimo(xs, lsl, usl, nom, pend_x),
+                "controllo": lim, "segnali": spc.segnali(xs), "cambi": cambi,
+                "op_confronto": _confronto_op(vals, rep, lsl, usl, nom),
+                "ripetibilita": _ripetibilita(tutti, rep, usl - lsl if not unilaterale(nom, lsl, usl) else usl),
                 # per il grafico del protocollo: [rilevato, fuori 0/1, id report] dal più vecchio
-                "serie": [[round(v[1], 6), int(v[4]), d["report"][v[0]][0]] for v in vals],
+                "serie": [[round(v[1], 6), int(v[4]), rep[v[0]][0]] for v in vals],
             })
+        numero, legami = spc.famiglie(serie_famiglie)
+        nomi = {r["quota"]["id"]: r["quota"]["nome"] for r in righe_prog}
+        for r in righe_prog:
+            qid = r["quota"]["id"]
+            r["famiglia"] = numero.get(qid)
+            r["legami"] = [{"nome": nomi.get(o, o), "id": o, "r": round(rr, 2)} for o, rr in legami.get(qid, [])[:3]]
+        out += righe_prog
     cache.set(chiave, out, 6 * 3600)
     return out
 
@@ -718,8 +759,8 @@ def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
 def quote_critiche(pn: str, ultimi: int = 30, quante: int = 6) -> list[dict]:
     """Le quote da guardare del P/N: fuori nell'ultimo report, poi in deriva, poi Cpk sotto 1,33 dal peggiore."""
     righe = [r for r in analisi_pn(pn, ultimi)
-             if r["fuori_ultimo"] or r["deriva"] or (r["cpk"] is not None and r["cpk"] < 1.33)]
-    righe.sort(key=lambda r: (not r["fuori_ultimo"], not r["deriva"], r["cpk"] if r["cpk"] is not None else 9))
+             if r["fuori_ultimo"] or r["deriva"] or (r["indice"] is not None and r["indice"] < spc.CAPACE)]
+    righe.sort(key=lambda r: (not r["fuori_ultimo"], -(r["rischio"] or 0), r["indice"] if r["indice"] is not None else 9))
     return righe[:quante]
 
 
@@ -746,16 +787,15 @@ def settimane_mappa(settimane: int = 12) -> list[dict]:
     return [{"da": inizio + timedelta(days=7 * k), "n": (inizio + timedelta(days=7 * k)).isocalendar()[1]} for k in range(settimane)]
 
 
-def quote_da_guardare_tutte(pns: list[str], quante: int = 12, max_pn: int = 8) -> list[dict]:
-    """Le quote da guardare (come ``quote_critiche``: fuori nell'ultimo report, in deriva, Cpk sotto 1,33) dei primi
-    ``max_pn`` P/N, già ordinati dal più grave: la loro analisi è in cache dal giro, la pagina resta veloce."""
-    righe = []
-    for pn in pns[:max_pn]:
-        for a in analisi_pn(pn):
-            if a["fuori_ultimo"] or a["deriva"] or (a["cpk"] is not None and a["cpk"] < 1.33):
-                righe.append(dict(a, pn=pn))
-    righe.sort(key=lambda r: (not r["fuori_ultimo"], not r["deriva"], r["cpk"] if r["cpk"] is not None else 9))
-    return righe[:quante]
+def quote_da_guardare_tutte(pns: list[str], quante: int = 15) -> list:
+    """Le quote da guardare di questi P/N, dalla tabella precalcolata ``QuotaCapacita``: fuori nell'ultimo report,
+    in deriva o non capaci (Cpk o Ppk sotto 1,33), dal rischio più alto."""
+    from django.db.models import Q
+
+    from .models import QuotaCapacita
+
+    return list(QuotaCapacita.objects.filter(pn__in=pns).filter(Q(fuori_ultimo=True) | Q(deriva=True) | Q(indice__lt=spc.CAPACE))
+                .order_by("-fuori_ultimo", "-rischio", "indice")[:quante])
 
 
 def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
@@ -793,7 +833,7 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
     from .models import ArticoloPN
 
     calcolati = {a["pn"]: a for a in ArticoloPN.objects.filter(pn__in=list(righe)).values(
-        "pn", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "analisi_il")}
+        "pn", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "analisi_il", "rischio_max", "salute")}
     out = []
     for pn, r in righe.items():
         a = calcolati.get(pn) or {}
@@ -806,6 +846,7 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
             "cpk_bassi": a.get("quote_non_capaci", 0) if pronto else 0,
             "deriva": a.get("quote_deriva", 0) if pronto else 0,
             "fuori_ultimo": a.get("quote_fuori_ultimo", 0) if pronto else 0,
+            "rischio": a.get("rischio_max") if pronto else None, "salute": a.get("salute") if pronto else None,
             "ultimo": ultimi.get(pn),
         })
     for r in out:
@@ -814,7 +855,7 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
                       for k, v in enumerate(r["settimane"])]
         for b in r["barre"]:
             b["y"] = 22 - b["h"]
-    out.sort(key=lambda r: (-r["fuori_ultimo"], -r["fuori_rec"], -r["deriva"], -r["cpk_bassi"], r["pn"]))
+    out.sort(key=lambda r: (r["salute"] if r["salute"] is not None else 101, -r["fuori_ultimo"], -r["fuori_rec"], r["pn"]))
     return out
 
 
@@ -832,7 +873,7 @@ def capacita_dopo(report: ReportCMM, quante: int = 8) -> list[dict]:
     analisi = {(a["prog"], a["quota"]["id"]): a for a in analisi_pn(report.pn, ultimi=60)}
     for m in report.misure.all():
         a = analisi.get((report.programma_base, id_quota(m.chiave, m.nominale)))
-        righe.append({"misura": m, "cpk": a["cpk"] if a else None, "deriva": a["deriva"] if a else None,
+        righe.append({"misura": m, "cpk": a["indice"] if a else None, "deriva": a["deriva"] if a else None,
                       "id": id_quota(m.chiave, m.nominale)})
     righe.sort(key=lambda r: (not r["misura"].fuori, r["cpk"] if r["cpk"] is not None else 9))
     return righe[:quante]

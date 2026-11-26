@@ -36,7 +36,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "produzione": ("Operations", "#0d9488", "Ordini di produzione: scheda dell'OP (tabella legacy ordini_produzione, letta) con i documenti "
                    "di produzione registrati e i tipi decisi in Impostazioni; FAI, programmi CAM/CMM e anomalie letti dai loro moduli; "
                    "archivio dei report CMM letti dalla share Collaudo (report e misure, esclusioni, note, quote unite, impostazioni avvisi) per l'analisi delle quote; "
-                   "anagrafica dei P/N (produzione_articolopn: descrizione, cliente, disegno, stato e riepilogo precalcolato del catalogo)"),
+                   "anagrafica dei P/N (produzione_articolopn: descrizione, cliente, disegno, stato e riepilogo precalcolato del catalogo, rischio e salute), capacità per quota (produzione_quotacapacita: Cpk, Ppk, verdetto, rischio, per Quote CMM e il confronto fra P/N)"),
     "presenti": ("Persone e HR", "#16a34a", "Presenti in azienda dalle timbrature Solari e esterni dal GuestPortal (letti, non copiati): "
                  "appelli di evacuazione con le persone contate, avvisi delle uscite non timbrate"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),

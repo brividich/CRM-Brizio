@@ -80,6 +80,7 @@
     righe.forEach(function (r) { r.classList.toggle("is-sel", r.getAttribute("data-i") === String(i)); });
     Array.prototype.forEach.call(foglie, function (f) { f.classList.toggle("is-sel", f.getAttribute("data-i") === String(i)); });
     var cpkCl = q.cpk === null || q.cpk === undefined ? "" : (q.cpk < 1 ? "is-ko" : (q.cpk < 1.33 ? "is-wa" : "is-ok"));
+    var vb = function (v) { return v === null || v === undefined ? "—" : num(v, 2); };
     var andamento = sez.getAttribute("data-andamento") + "&q=" + encodeURIComponent(q.chiave) + "&nom=" + Number(q.nom).toFixed(4);
     var anomalia = sez.getAttribute("data-anomalia");
     det.innerHTML =
@@ -94,8 +95,11 @@
       "<div class='prot-det-sez'>Andamento sul programma</div>" + carta(q) +
       "<div class='prot-indici'>" +
       indice("Cpk", q.cpk === null || q.cpk === undefined ? "—" : num(q.cpk, 2), cpkCl) +
+      indice("Ppk", q.ppk === null || q.ppk === undefined ? "—" : num(q.ppk, 2), q.ppk === null || q.ppk === undefined ? "" : (q.ppk < 1 ? "is-ko" : (q.ppk < 1.33 ? "is-wa" : "is-ok"))) +
+      indice("Rischio", q.rischio === null || q.rischio === undefined ? "—" : Math.round(q.rischio * 100) + "%", q.rischio >= 0.1 ? "is-ko" : (q.rischio >= 0.01 ? "is-wa" : "")) +
       indice("Deriva", q.deriva ? "sì" : "no", q.deriva ? "is-wa" : "") +
       indice("Fuori", q.n ? q.n_fuori + " / " + q.n : "—", q.n_fuori ? "is-ko" : "") +
+      indice("Verdetto", q.verdetto || "—", q.verdetto === "non capace" ? "is-ko" : (q.verdetto === "al limite" ? "is-wa" : (q.verdetto === "capace" ? "is-ok" : ""))) +
       "</div>" +
       "<div class='prot-det-azioni'><a class='prod-btn prod-btn-piccolo' href='" + esc(andamento) + "'>Analisi quote</a>" +
       (anomalia ? "<a class='prod-btn prod-btn-piccolo prod-btn-primary' href='" + esc(anomalia) + "'>Apri anomalia</a>" : "") + "</div>";
@@ -150,6 +154,7 @@
   var s = q.serie, xs = s.map(function (p) { return p[0]; });
   var w = 720, h = 230, sx = 34, dx = 8, top = 10, bot = 18;
   var lo = Math.min(q.lsl, Math.min.apply(null, xs)), hi = Math.max(q.usl, Math.max.apply(null, xs));
+  if (q.controllo) { lo = Math.min(lo, q.controllo.lci); hi = Math.max(hi, q.controllo.lcs); }
   var pad = (hi - lo) * 0.1 || 0.001;
   lo -= pad; hi += pad;
   function y(v) { return top + (hi - v) / (hi - lo) * (h - top - bot); }
@@ -158,6 +163,30 @@
   function riga(v, cls, et) {
     return "<line class='" + cls + "' x1='" + sx + "' x2='" + (w - dx) + "' y1='" + y(v).toFixed(1) + "' y2='" + y(v).toFixed(1) + "'/>" +
       "<text x='" + (sx - 4) + "' y='" + (y(v) + 3).toFixed(1) + "' text-anchor='end'>" + et + "</text>";
+  }
+  /* limiti di controllo (media ± 3σ di breve periodo), dentro il riquadro del grafico */
+  function controllo() {
+    var c = q.controllo; if (!c) return "";
+    var out = "";
+    [[c.lcs, "LCS"], [c.lci, "LCI"]].forEach(function (l) {
+      if (l[0] < lo || l[0] > hi) return;
+      out += "<line class='ctl' x1='" + sx + "' x2='" + (w - dx) + "' y1='" + y(l[0]).toFixed(1) + "' y2='" + y(l[0]).toFixed(1) + "'/>" +
+        "<text x='" + (w - dx - 2) + "' y='" + (y(l[0]) - 3).toFixed(1) + "' text-anchor='end'>" + l[1] + "</text>";
+    });
+    return out;
+  }
+  function cambi() {
+    return (q.cambi || []).map(function (c) {
+      var xc = (x(c.indice) + x(Math.max(0, c.indice - 1))) / 2;
+      return "<line class='cambio' x1='" + xc.toFixed(1) + "' x2='" + xc.toFixed(1) + "' y1='" + top + "' y2='" + (h - bot) + "'><title>Il processo è cambiato qui</title></line>";
+    }).join("");
+  }
+  function segnaliCarta() {
+    return (q.segnali || []).map(function (g) {
+      if (g.regola === "1") return "<circle class='segn1' cx='" + x(g.da).toFixed(1) + "' cy='" + y(s[g.da][0]).toFixed(1) + "' r='8'/>";
+      var x0 = x(g.da) - 3, x1 = x(g.a) + 3;
+      return "<rect class='segn' x='" + x0.toFixed(1) + "' y='" + (h - bot + 3) + "' width='" + (x1 - x0).toFixed(1) + "' height='4' rx='2'><title>Segnale " + g.regola + "</title></rect>";
+    }).join("");
   }
   var pts = s.map(function (p, i) { return x(i).toFixed(1) + "," + y(p[0]).toFixed(1); }).join(" ");
   var punti = s.map(function (p, i) {
@@ -169,6 +198,7 @@
     "<rect class='fascia' x='" + sx + "' y='" + y(q.usl).toFixed(1) + "' width='" + (w - sx - dx) + "' height='" + (y(q.lsl) - y(q.usl)).toFixed(1) + "'/>" +
     riga(q.usl, "lim", "LS") + riga(q.lsl, "lim", "LI") +
     riga(media, "med", Math.min(Math.abs(y(media) - y(q.usl)), Math.abs(y(media) - y(q.lsl))) < 12 ? "" : "x̄") +
+    controllo() + cambi() + segnaliCarta() +
     "<polyline class='linea' points='" + pts + "'/>" + punti +
     "<text x='" + (w - dx) + "' y='" + (h - 3) + "' text-anchor='end'>" + s.length + " pezzi, dal più vecchio →</text></svg>";
 

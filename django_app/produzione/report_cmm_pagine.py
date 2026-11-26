@@ -101,6 +101,9 @@ def righe_report(report: ReportCMM) -> dict:
             "delta": (m.misurato - prec[qid]) if qid in prec else None,
             "prima": prec.get(qid),
             "cpk": a["cpk"] if a else None, "cp": a.get("cp") if a else None, "deriva": bool(a and a["deriva"]),
+            "ppk": a.get("ppk") if a else None, "indice": a.get("indice") if a else None,
+            "cpk_basso": a.get("cpk_basso") if a else None, "verdetto": a.get("verdetto") if a else None,
+            "rischio": a.get("rischio") if a else None, "controllo": a.get("controllo") if a else None,
             "media": a.get("media") if a else None, "sd": a.get("sd") if a else None,
             "n_fuori": a["n_fuori"] if a else None, "n": a["n"] if a else None,
             "serie": (a.get("serie") or []) if a else [],
@@ -141,6 +144,8 @@ def pannello(righe: list[dict], report: ReportCMM) -> list[dict]:
             "i": m.indice, "nome": m.nome, "tipo": m.tipo, "stato": r["stato"], "nom": m.nominale, "sup": m.tol_sup,
             "inf": m.tol_inf, "x": m.misurato, "dev": r["dev"], "ecc": r["ecc"], "u": r["u_pct"], "prima": r["prima"],
             "cpk": r["cpk"], "cp": r["cp"], "deriva": r["deriva"], "media": r["media"], "sd": r["sd"],
+            "ppk": r["ppk"], "indice": r["indice"], "cpk_basso": r["cpk_basso"], "verdetto": r["verdetto"],
+            "rischio": r["rischio"], "controllo": r["controllo"],
             "n_fuori": r["n_fuori"], "n": r["n"], "lsl": r["lsl"], "usl": r["usl"], "chiave": m.chiave,
             "serie": r["serie"], "corrente": report.pk,
         })
@@ -151,6 +156,54 @@ def _banda(m) -> float:
     return (m.tol_sup - m.tol_inf) or 0.0
 
 
+# --- Anomalie da aprire (solo report nuovi) ---------------------------------------------------------------
+
+GIORNI_NUOVI = 30
+
+
+def anomalia_aperta_per(report: ReportCMM) -> bool:
+    """C'è già una segnalazione aperta per lo stesso S/N (e, se si sa, lo stesso OP)?"""
+    from core import ordini_produzione as op_db
+
+    if not report.seriale or not op_db.disponibile():
+        return False
+    for a in op_db.anomalie_del_seriale(report.seriale):
+        if a["aperta"] and (not report.op or not a["op"] or a["op"].replace("-", "/").upper() == report.op.upper()):
+            return True
+    return False
+
+
+def anomalie_da_aprire(quante: int = 15, pns: list[str] | None = None) -> list[dict]:
+    """Report nuovi (data negli ultimi ``GIORNI_NUOVI`` giorni, mai i vecchi riletti) con quote fuori, non esclusi e
+    senza una segnalazione aperta per lo stesso S/N: per ognuno il link per aprirla già compilata."""
+    from datetime import timedelta
+
+    from django.urls import reverse
+    from django.utils import timezone
+    from urllib.parse import urlencode
+
+    from core import ordini_produzione as op_db
+
+    da = timezone.localdate() - timedelta(days=GIORNI_NUOVI)
+    qs = ReportCMM.objects.filter(righe__gt=0, fuori__gt=0, escluso=False, data__gte=da)
+    if pns is not None:
+        qs = qs.filter(pn__in=pns)
+    out, op_cache = [], {}
+    for r in qs.order_by("-data", "-id")[: quante * 3]:
+        if anomalia_aperta_per(r):
+            continue
+        op = None
+        if r.op and op_db.disponibile():
+            op = op_cache.setdefault(r.op, op_db.per_titolo(r.op))
+        url = (f"{reverse('apertura_segnalazione')}?{urlencode({'op_id': op['id'], 'report_cmm': r.pk})}" if op
+               else reverse("produzione:report_cmm", args=[r.pk]))
+        out.append({"report": r, "url": url, "con_op": bool(op),
+                    "quote": list(r.misure.filter(fuori=True).values_list("nome", flat=True)[:3])})
+        if len(out) >= quante:
+            break
+    return out
+
+
 # --- Scheda P/N: Qualità CMM -----------------------------------------------------------------------------
 
 def _stato_quota(a: dict) -> str:
@@ -158,9 +211,9 @@ def _stato_quota(a: dict) -> str:
     senza Cpk (pochi pezzi)."""
     if a["fuori_ultimo"]:
         return "fuori"
-    if a["deriva"] or (a["cpk"] is not None and a["cpk"] < 1.33):
+    if a["deriva"] or (a["indice"] is not None and a["indice"] < 1.33):
         return "limite"
-    return "ok" if a["cpk"] is not None else "nd"
+    return "ok" if a["indice"] is not None else "nd"
 
 
 def chiave_quota(a: dict) -> str:
@@ -193,8 +246,17 @@ def lettura_quota(a: dict) -> str:
         verso = "superiore" if d.get("verso") == "sup" else "inferiore"
         frase += (f" È in deriva verso il limite {verso}" + (f": al ritmo attuale ci arriva in circa {d['pezzi']} pezzi."
                                                               if d.get("pezzi") else ", già raggiunto."))
-    if a["cpk"] is not None:
-        frase += f" Cpk {a['cpk']:.2f}".replace(".", ",") + (": sotto 1,33." if a["cpk"] < 1.33 else ": capace.")
+    if a.get("indice") is not None:
+        cpk = "—" if a.get("cpk") is None else f"{a['cpk']:.2f}".replace(".", ",")
+        ppk = "—" if a.get("ppk") is None else f"{a['ppk']:.2f}".replace(".", ",")
+        frase += f" Cpk {cpk}, Ppk {ppk}"
+        if a.get("cpk") is not None and a.get("ppk") is not None and a["cpk"] > 0 and a["ppk"] < a["cpk"] * 0.8:
+            frase += " (il processo si sposta più di quanto la macchina disperda)"
+        v = a.get("verdetto")
+        frase += {"capace": ": capace.", "al limite": ": al limite.", "non capace": ": non capace.",
+                  "pochi dati": ": pochi pezzi per un verdetto."}.get(v, ".")
+    if a.get("rischio") is not None and a["rischio"] >= 0.01:
+        frase += f" Rischio che il prossimo pezzo esca: {round(a['rischio'] * 100)}%."
     if a["n_fuori"]:
         frase += f" {a['n_fuori']} pezz{'o' if a['n_fuori'] == 1 else 'i'} fuori su {a['n']}."
     return frase
@@ -211,7 +273,7 @@ def qualita_pn(pn: str, scelta: str = "") -> dict:
         p = programmi.setdefault(a["prog"], {"nome": a["prog"] or "—", "quote": [], "stato": "nd"})
         p["quote"].append(a)
     for p in programmi.values():
-        p["quote"].sort(key=lambda a: (gravita[a["stato"]], a["cpk"] if a["cpk"] is not None else 99, a["quota"]["nome"]))
+        p["quote"].sort(key=lambda a: (gravita[a["stato"]], a["indice"] if a["indice"] is not None else 99, a["quota"]["nome"]))
         p["stato"] = min((a["stato"] for a in p["quote"]), key=lambda s: gravita[s], default="nd")
     elenco = sorted(programmi.values(), key=lambda p: (gravita[p["stato"]], p["nome"]))
     tutte = [a for p in elenco for a in p["quote"]]
@@ -219,8 +281,19 @@ def qualita_pn(pn: str, scelta: str = "") -> dict:
     grafico = None
     if scelta_a:
         grafico = {"nome": scelta_a["quota"]["nome"], "lsl": scelta_a["lsl"], "usl": scelta_a["usl"],
-                   "serie": scelta_a.get("serie") or [], "media": scelta_a.get("media")}
-    tabella = sorted(tutte, key=lambda a: (a["cpk"] if a["cpk"] is not None else 99, a["prog"], a["quota"]["nome"]))
+                   "serie": scelta_a.get("serie") or [], "media": scelta_a.get("media"),
+                   "controllo": scelta_a.get("controllo"), "cambi": scelta_a.get("cambi") or [],
+                   "segnali": [{"regola": str(g["regola"]), "da": g["da"], "a": g["a"]} for g in scelta_a.get("segnali") or []]}
+        from . import spc
+
+        gruppi: dict = {}
+        for g in scelta_a.get("segnali") or []:
+            tratto = f"{g['da'] + 1}" if g["da"] == g["a"] else f"{g['da'] + 1}–{g['a'] + 1}"
+            gruppi.setdefault(g["regola"], []).append(tratto)
+        scelta_a = dict(scelta_a, segnali_testo=[
+            {"titolo": spc.TESTI_REGOLE[r][0], "spiega": spc.TESTI_REGOLE[r][1], "pezzi": ", ".join(t[:4]) + ("…" if len(t) > 4 else "")}
+            for r, t in gruppi.items()])
+    tabella = sorted(tutte, key=lambda a: (-(a["rischio"] or 0), a["indice"] if a["indice"] is not None else 99, a["prog"], a["quota"]["nome"]))
     return {"programmi": elenco, "scelta": scelta_a, "grafico": grafico, "tabella": tabella,
             "lettura": lettura_quota(scelta_a) if scelta_a else "",
             "conta": {"quote": len(tutte), "fuori": sum(a["stato"] == "fuori" for a in tutte),

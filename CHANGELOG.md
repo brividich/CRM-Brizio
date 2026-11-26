@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: statistica di processo (Cpk/Ppk, percentili, rischio, segnali, cambi, famiglie, OP, ripetibilità)
+
+- Numeri giusti: il «Cpk» era in realtà un Ppk (σ di tutti i pezzi). Ora Cpk con la σ di breve periodo (macchina) e Ppk con la σ totale (processo), mostrati insieme; conteggi, classifiche e «da guardare» sul peggiore dei due. Quote di forma e posizione col metodo dei percentili (ISO 22514-2, Weibull) invece della normale. Intervallo di confidenza al 95% e verdetto sul suo limite basso; sotto 25 pezzi «pochi dati».
+- Accorgersi prima: limiti di controllo (media ± 3σ di breve periodo) sulla carta; regole di Nelson 1-8 (prima 3) ed EWMA per gli spostamenti piccoli; rischio che il prossimo pezzo esca; deriva con la forchetta dei pezzi al limite; punto in cui il processo è cambiato, con la media prima e dopo.
+- Capire le cause: quote che si muovono insieme, confronto fra OP (Kruskal-Wallis, indice per OP), quanta tolleranza consuma la misura dalle rimisure dello stesso pezzo.
+- Lavoro quotidiano: «Anomalie da aprire» in Quote CMM e nell'avviso, solo per i report nuovi (ultimi 30 giorni), con la segnalazione già compilata e senza doppioni se ce n'è già una aperta per lo stesso S/N; «Salute» 0-100 del P/N (Quote CMM ordinata dalla più bassa); «Stessa caratteristica su P/N diversi».
+- Formule in un posto solo: `produzione/spc.py` e la copia `spc.js` per Analisi quote, controllate da un test che confronta i numeri.
+- Corretti due errori di `core/ordini_produzione.anomalie_del_seriale` (usata anche nella pagina del pezzo): S/N con trattini o spazi non trovati, e anomalie aperte contate come chiuse.
+- Migrazione `produzione 0010` (tabella `produzione_quotacapacita`, `ArticoloPN.rischio_max` e `salute`). File: `produzione/spc.py` (nuovo), `static/produzione/js/spc.js` (nuovo), `report_cmm_indice.py`, `report_cmm_pagine.py`, `articoli.py`, `avvisi_cmm.py`, `models.py`, `views.py`, template `pn_scheda`, `quote_cruscotto`, `quote`, `protocollo.js`, `analisi_quote.js`, CSS, `core/ordini_produzione.py`, guida in-app, Centro guide, `docs/moduli/produzione.md`, `hub_tools/schema_db.py`. Test: `tests_spc.py` (nuovo), test del modulo aggiornati alle nuove definizioni. `collectstatic`.
+
 ### Ordini di produzione: database più veloce e stabile (indici, misure compresse, manutenzione notturna)
 
 - Misurato in produzione il 26/11: misure CMM 2,4 milioni di righe (719 MB, oltre 2 GB a regime) lette sempre per report ma ordinate per id, con un accesso alla tabella per ogni misura; statistiche ferme a 30.000 righe; quattro indici mai usati (164 MB solo quello su `chiave`, frammentato al 99%); indici mancanti segnalati da SQL Server su `pn` con `letto_il` e su `pn`/`righe` con programma, data e fuori; nessuna manutenzione automatica sull'istanza.

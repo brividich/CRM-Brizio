@@ -466,3 +466,21 @@ a.prod-dato:hover{background:var(--tbody-hover)}
 .prot-num-allerta{color:var(--danger);font-weight:800}
 .prot-mappa td.prot-cella{text-align:center}
 .prod-confronta-barra[hidden]{display:none}
+/* SPC: salute, ricerca caratteristica, indici */
+.prot-salute{display:inline-block;min-width:34px;padding:2px 7px;border-radius:999px;font-weight:800;font-size:12px;text-align:center}
+.prot-salute.is-ok{background:var(--success-bg,#dcfce7);color:var(--success,#16a34a)}
+.prot-salute.is-wa{background:var(--warning-bg);color:var(--warning-text,#a16207)}
+.prot-salute.is-ko{background:var(--danger,#dc2626);color:#fff}
+.prot-cerca{display:flex;gap:6px;align-items:center}
+.prot-cerca input{min-height:28px;padding:0 9px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font:inherit;font-size:12.5px;width:220px}
+.prot-ic-sm{font-size:11px;color:var(--text-mid);font-weight:600}
+.prot-indici div small{display:block;font-size:10.5px;font-weight:600;color:var(--text-mid);min-height:13px}
+.prot-schede{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.prot-scheda{border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:12.5px}
+.prot-scheda h4{margin:0 0 5px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-mid)}
+.prot-scheda ul{margin:0;padding-left:16px}.prot-scheda li{margin:2px 0}.prot-scheda li span,.prot-scheda p{color:var(--text-mid)}
+.prot-scheda p{margin:4px 0 0}
+.prot-carta .ctl{stroke:var(--info,#2563eb);stroke-dasharray:6 3;stroke-width:1.2}
+.prot-carta .cambio{stroke:var(--warning,#d97706);stroke-width:1.5;stroke-dasharray:3 3}
+.prot-carta .segn{fill:color-mix(in srgb,var(--warning,#d97706) 55%,transparent)}
+.prot-carta .segn1{fill:none;stroke:var(--danger,#dc2626);stroke-width:1.5}

@@ -180,14 +180,17 @@ def anomalie_del_seriale(seriale: str, limite: int = 30) -> list[dict]:
     if "seriale" not in colonne or len(chiave) < 2:
         return []
     campi = ["id", "seriale"] + [c for c in ("ex_op_nominativo", "descrizione", "chiudere") if c in colonne]
-    righe = _righe(f"SELECT {', '.join(campi)} FROM anomalie WHERE UPPER(seriale) LIKE %s ORDER BY id DESC",
+    # il confronto ignora trattini, spazi, barre e punti anche nel database («SN-12 34» trova «SN1234»)
+    pulito = "UPPER(REPLACE(REPLACE(REPLACE(REPLACE(seriale, '-', ''), ' ', ''), '/', ''), '.', ''))"
+    righe = _righe(f"SELECT {', '.join(campi)} FROM anomalie WHERE {pulito} LIKE %s ORDER BY id DESC",
                    [f"%{chiave[-6:]}%"], 400)
     out = []
     for r in righe:
         pezzi = {re.sub(r"[^A-Z0-9]", "", p.upper()) for p in re.split(r"[,;/\s]+", str(r.get("seriale") or ""))}
         if chiave in pezzi:
             out.append({"id": r["id"], "op": r.get("ex_op_nominativo") or "", "descrizione": r.get("descrizione") or "",
-                        "aperta": not r.get("chiudere")})
+                        # _righe rende tutto testo: «0», «False» o vuoto = aperta (prima «0» contava come chiusa)
+                        "aperta": str(r.get("chiudere") or "").strip().lower() in ("", "0", "false", "none")})
         if len(out) >= limite:
             break
     return out

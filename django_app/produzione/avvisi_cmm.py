@@ -54,6 +54,19 @@ def invia_avvisi(pn: str) -> dict:
                 altro = f" e altre {r.fuori - len(nomi)}" if r.fuori > len(nomi) else ""
                 msg = f"{pn} · {r.seriale or r.file}: {r.fuori} quote fuori tolleranza ({', '.join(nomi)}{altro}) · {r.op}"
                 url = reverse("produzione:report_cmm", args=[r.pk])
+                # bozza di anomalia: se non ce n'è già una aperta per questo S/N, il link apre la segnalazione compilata
+                try:
+                    from core import ordini_produzione as op_db
+
+                    from .report_cmm_pagine import anomalia_aperta_per
+
+                    if not anomalia_aperta_per(r) and r.op and op_db.disponibile():
+                        op = op_db.per_titolo(r.op)
+                        if op:
+                            msg = "Anomalia da aprire · " + msg
+                            url = f"{reverse('apertura_segnalazione')}?{urlencode({'op_id': op['id'], 'report_cmm': r.pk})}"
+                except Exception:  # pragma: no cover - l'avviso parte comunque, col link al report
+                    logger.exception("bozza anomalia per il report %s", r.pk)
                 for lid in dest:
                     invia_notifica(lid, "generico", msg[:500], url)
                 esito["fuori"] += 1

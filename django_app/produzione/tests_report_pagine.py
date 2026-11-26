@@ -216,7 +216,9 @@ class QualitaPnTests(QuoteBase):
         self.assertEqual(d["grafico"]["lsl"], 40.0)
         self.assertEqual(len(d["grafico"]["serie"]), 6)
         self.assertIn("verso il limite inferiore", d["lettura"])
-        self.assertIn("sotto 1,33", d["lettura"])
+        self.assertIn("Cpk", d["lettura"])
+        self.assertIn("Ppk", d["lettura"])
+        self.assertIn("pochi pezzi per un verdetto", d["lettura"])        # 6 pezzi: sotto i 25 del verdetto
         altra = pagine.qualita_pn("PN-ALFA-1", quote[1]["chiave"])
         self.assertEqual(altra["scelta"]["quota"]["nome"], "Ø62 k6")
         self.assertEqual(pagine.qualita_pn("PN-ALFA-1", "sbagliata")["scelta"]["chiave"], quote[0]["chiave"])
