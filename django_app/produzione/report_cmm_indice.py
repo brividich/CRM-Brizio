@@ -35,7 +35,20 @@ _OP_CARTELLA = re.compile(r"^(OP|OG)-(\d{4})-(\d+)$", re.I)
 _OP_NEL_FILE = re.compile(r"(?:^|_)((?:OP|OG)-\d{4}-\d+)_", re.I)
 _REV = re.compile(r"_REV[\w-]*?(?=_|$)", re.I)
 _DATA = re.compile(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})")
+# Mesi per esteso dei report vecchi (italiano, inglese, tedesco): chiave = prime tre lettere.
+_MESI = {k: i for i, ks in enumerate((
+    ("gen", "jan"), ("feb",), ("mar", "mär"), ("apr",), ("mag", "may", "mai"), ("giu", "jun"),
+    ("lug", "jul"), ("ago", "aug"), ("set", "sep"), ("ott", "oct", "okt"), ("nov",), ("dic", "dec", "dez"),
+), start=1) for k in ks}
+_DATA_ESTESA = re.compile(r"\b(\d{1,2})\.?\s+([A-Za-zäÄ]{3,})\.?\s+(\d{4})\b")
+_DATA_ESTESA_EN = re.compile(r"\b([A-Za-z]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})\b")
 _NON_STAMPABILI = re.compile(r"[^\w\s./-]", re.U)
+
+
+# Versione del lettore dei PDF (anomalie.report_cmm.leggi_pdf). Va alzata quando il lettore impara un formato
+# nuovo: i report rimasti senza quote con una versione più vecchia si rileggono anche se il file non è cambiato.
+# 2 = formato vecchio dei report (CALYPSO con novaPDF, «Aktual», fino al 2024).
+LETTORE = 2
 
 
 def radice() -> str:
@@ -85,13 +98,21 @@ def pulisci_seriale(testo: str) -> str:
 
 
 def data_report(testo: str) -> date | None:
-    m = _DATA.search(str(testo or ""))
-    if not m:
-        return None
+    """«13/09/2023» o, nei report vecchi, «13 settembre 2023» / «September 13, 2023»."""
+    testo = str(testo or "")
+    m = _DATA.search(testo)
     try:
-        return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
-    except ValueError:
+        if m:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        m = _DATA_ESTESA.search(testo)
+        if m:
+            return date(int(m.group(3)), _MESI[m.group(2).lower()[:3]], int(m.group(1)))
+        m = _DATA_ESTESA_EN.search(testo)
+        if m:
+            return date(int(m.group(3)), _MESI[m.group(1).lower()[:3]], int(m.group(2)))
+    except (ValueError, KeyError):
         return None
+    return None
 
 
 # --- Cartelle dei P/N --------------------------------------------------------------------------------
@@ -187,7 +208,7 @@ def _leggi_report(cartella: CartellaReportCMM, percorso: str, file: str, dimensi
         "op": titolo_op(cartella_op) or titolo_op(file), "fase": dal_nome["fase"], "programma": dal_nome["programma"],
         "programma_base": programma_base(dal_nome["programma"]), "seriale": dal_nome["seriale"],
         "data": datetime.fromtimestamp(mtime).date() if mtime else None,
-        "pn_report": "", "righe": 0, "fuori": 0, "da_verificare": 0, "errore": "",
+        "pn_report": "", "righe": 0, "fuori": 0, "da_verificare": 0, "errore": "", "lettore": LETTORE,
     }
     righe = []
     if dimensione > MAX_BYTES:
@@ -253,7 +274,8 @@ def leggi_cartella(pn: str, percorso: str, scadenza: float | None = None) -> dic
         for p, f, dim, mtime, base in _pdf_della_cartella(percorso, scadenza):
             visti.add(p[:500])
             vecchio = noti.get(p[:500])
-            if vecchio and vecchio.dimensione == dim and abs(vecchio.modificato - mtime) < 1:
+            if (vecchio and vecchio.dimensione == dim and abs(vecchio.modificato - mtime) < 1
+                    and (vecchio.righe or vecchio.lettore >= LETTORE)):
                 stat["invariati"] += 1
                 continue
             if scadenza and time.monotonic() > scadenza:
@@ -290,20 +312,25 @@ def leggi_pn(pn: str) -> dict:
 
 
 def giro(minuti: int | None = None) -> dict:
-    """Giro pianificato: prima le cartelle mai lette, poi le più vecchie, finché c'è tempo."""
+    """Giro pianificato: prima le cartelle mai lette, poi quelle cambiate, poi quelle con report da rileggere
+    (lettore aggiornato), poi le più vecchie, finché c'è tempo."""
     if not attivo():
         return {"saltato": "cartella dei report non impostata"}
     minuti = minuti or int(getattr(settings, "PRODUZIONE_REPORT_CMM_MINUTI", 15) or 15)
     scadenza = time.monotonic() + minuti * 60
     lette = {c.percorso: c.letta_il for c in CartellaReportCMM.objects.all()}
+    da_rileggere = set(ReportCMM.objects.filter(righe=0, lettore__lt=LETTORE, errore="")
+                       .values_list("cartella__percorso", flat=True).distinct())
     cartelle = cartelle_pn()
-    # Mai lette prima; poi quelle cambiate dopo l'ultima lettura; poi dalla lettura più vecchia.
+    # Mai lette prima; poi quelle cambiate dopo l'ultima lettura; poi quelle con report da rileggere; poi
+    # dalla lettura più vecchia.
     def ordine(c):
         letta = lette.get(c[1][:500])
         if letta is None:
             return (0, -c[2])
-        cambiata = c[2] > letta.timestamp()
-        return (1 if cambiata else 2, letta.timestamp())
+        if c[2] > letta.timestamp():
+            return (1, letta.timestamp())
+        return (2 if c[1][:500] in da_rileggere else 3, letta.timestamp())
     cartelle.sort(key=ordine)
     tot = {"cartelle": 0, "letti": 0, "invariati": 0, "tolti": 0, "da_finire": 0}
     for pn, percorso, _m in cartelle:

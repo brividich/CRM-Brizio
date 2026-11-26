@@ -344,6 +344,97 @@ class CasiRealiPdfTests(SimpleTestCase):
         self.assertFalse(p["fuori"])
 
 
+def _pdf_formato_vecchio(seriale="SN00002") -> bytes:
+    """Report CALYPSO del formato vecchio (stampato con novaPDF, fino al 2024), valori inventati: colonne
+    «Aktual / pos Tol / neg Tol / <--|-->», testata in italiano, barretta grafica al posto dell'eccedenza."""
+    import fitz
+
+    doc = fitz.open()
+    pagina = doc.new_page(width=595, height=842)
+
+    def scrivi(x, y, testo):
+        pagina.insert_text((x, y), testo, fontsize=8)
+
+    scrivi(38, 34, "Report ZEISS Calypso")
+    scrivi(38, 74, "Nome piano"); scrivi(228, 74, "Data"); scrivi(358, 74, "Ordine")
+    scrivi(38, 84, "101_PN-PROVA_EC_ZP_A_REV0"); scrivi(228, 84, "21 Novembre 2014"); scrivi(358, 84, "23000")
+    scrivi(38, 104, "No. di disegno"); scrivi(228, 104, "Commento:")
+    scrivi(38, 114, "PN-PROVA"); scrivi(228, 114, "PEZZO DI PROVA")
+    scrivi(38, 134, "Firma:"); scrivi(228, 134, "CMM"); scrivi(358, 134, "Numero pezzo incrementale")
+    scrivi(38, 144, "ROSSI P."); scrivi(228, 144, "Prismo"); scrivi(358, 144, seriale)
+    for x, t in ((50, "Name"), (161, "ID"), (240, "Aktual"), (300, "Nominal"), (350, "pos"), (367, "Tol"),
+                 (405, "neg"), (422, "Tol"), (461, "Diff"), (512, "<--|-->")):
+        scrivi(x, 190, t)
+
+    def riga(y, nome, tipo, att, nom, pos, neg, diff, ecc):
+        if nome:
+            scrivi(43, y, nome)
+        scrivi(158, y, tipo)
+        for x, v in ((249, att), (308, nom), (359, pos), (412, neg), (460, diff), (513, ecc)):
+            if v:
+                scrivi(x, y, v)
+
+    scrivi(38, 210, "PIANO -E- LATO PROVA")
+    riga(236, "005,00", "Plan", "0.0302", "0.0000", "0.1000", "", "0.0302", "|--")       # forma: «neg Tol» vuota
+    scrivi(38, 260, "DIAMETRO -F-")
+    riga(286, "063,00", "D", "33.9984", "34.0000", "0.0390", "0.0000", "-0.0016", "-0.0016")
+    riga(301, "064,00", "Pos2D", "0.0584", "0.0000", "0.0500", "0.0500", "0.0584", "0.0084")
+    riga(313, "", "X", "0.0018", "0.0000", "", "", "0.0018", "")                          # senza tolleranze
+    riga(330, "070,00", "Po2d DIN", "0.081", "0.000", "0.250", "0.278", "0.081", "|-")   # bonus di materiale
+    riga(345, "071,00", "Po2d DIN", "0.557", "0.000", "0.250", "0.287", "0.557", "0.270")
+    riga(360, "002,00", "DistCart", "11.0441", "11.0000", "0.1000", "-0.1000", "0.0441", "-|")
+    scrivi(38, 832, "Mod. 009 - CMM - Rev. 2")
+    dati = doc.tobytes()
+    doc.close()
+    return dati
+
+
+class FormatoVecchioPdfTests(SimpleTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.esito = rc.leggi_pdf(_pdf_formato_vecchio())
+        cls.righe = {r["caratteristica"]: r for r in cls.esito["righe"]}
+
+    def test_testata_in_italiano(self):
+        t = self.esito["intestazione"]
+        self.assertEqual(t["programma"], "101_PN-PROVA_EC_ZP_A_REV0")
+        self.assertEqual(t["part_number"], "PN-PROVA")
+        self.assertEqual(t["seriale"], "SN00002")
+        self.assertEqual(t["data"], "21 Novembre 2014")
+        self.assertEqual(t["odl"], "23000")
+
+    def test_righe_e_colonne(self):
+        self.assertEqual(list(self.righe), ["005,00", "063,00", "064,00", "070,00", "071,00", "002,00"])
+        self.assertFalse(any(r["da_verificare"] for r in self.righe.values()))
+        self.assertEqual(self.righe["063,00"]["sezione"], "DIAMETRO -F-")
+
+    def test_forma_senza_toll_negativa(self):
+        r = self.righe["005,00"]
+        self.assertEqual((r["modo"], r["a"], r["tol_inf"]), ("max", "0.1", 0.0))
+        self.assertFalse(r["fuori"])
+        self.assertIsNone(r["eccedenza"])                 # barretta grafica, non un numero
+
+    def test_fuori_con_eccedenza_stampata(self):
+        r = self.righe["063,00"]
+        self.assertTrue(r["fuori"])
+        self.assertEqual(r["fuori_di"], -0.0016)
+        self.assertEqual(self.righe["064,00"]["fuori_di"], 0.0084)
+        self.assertEqual(self.righe["064,00"]["tol_inf"], 0.0)
+
+    def test_posizione_con_bonus_di_materiale(self):
+        dentro, fuori = self.righe["070,00"], self.righe["071,00"]
+        self.assertFalse(dentro["fuori"])
+        self.assertEqual(dentro["tol_sup"], 0.278)
+        self.assertTrue(fuori["fuori"])
+        self.assertEqual(fuori["fuori_di"], 0.27)
+
+    def test_toll_negativa_con_segno(self):
+        r = self.righe["002,00"]
+        self.assertEqual((r["a"], r["b"]), ("10.9", "11.1"))
+        self.assertFalse(r["fuori"])
+
+
 class EndpointPdfTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_superuser(username="cmm-pdf", password="pass12345", email="p@example.local")

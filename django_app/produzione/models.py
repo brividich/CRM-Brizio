@@ -97,6 +97,9 @@ class ReportCMM(models.Model):
     escluso_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     escluso_il = models.DateTimeField(null=True, blank=True)
     avvisato = models.BooleanField(default=False, help_text="Avviso dei fuori tolleranza già inviato.")
+    # Versione del lettore che ha letto il PDF: i report senza quote letti da un lettore più vecchio si
+    # rileggono al giro dopo (es. formato vecchio dei report, riconosciuto dalla versione 2).
+    lettore = models.PositiveSmallIntegerField(default=1)
 
     class Meta:
         ordering = ["-data", "-id"]
@@ -106,6 +109,13 @@ class ReportCMM(models.Model):
 
     def __str__(self) -> str:
         return self.file
+
+    @property
+    def da_rileggere(self) -> bool:
+        """Report senza quote letto da un lettore più vecchio: il giro lo rilegge."""
+        from .report_cmm_indice import LETTORE
+
+        return not self.righe and self.lettore < LETTORE
 
 
 class MisuraCMM(models.Model):
