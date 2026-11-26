@@ -60,7 +60,8 @@ body.theme-dark .fint-bassa{ background:rgba(224,242,254,.12); color:#7dd3fc; }
         {% for c in controlli %}
           <tr class="{% if not c.n %}fint-ok{% endif %}">
             <td><strong>{{ c.titolo }}</strong><br><span class="fint-esempi">{{ c.spiegazione }}</span>
-              {% if c.n and c.esempi %}<br><span class="fint-esempi">Esempi (id): {{ c.esempi|join:", " }}</span>{% endif %}</td>
+              {% if c.n and c.sessioni %}<br><span class="fint-esempi">Esempi: {% for sid, cod in c.sessioni %}<a href="{% url 'anagrafica:formazione_sessione_detail' sid %}" title="Apri la sessione">{{ cod }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+              {% elif c.n and c.esempi %}<br><span class="fint-esempi">Esempi (id): {{ c.esempi|join:", " }}</span>{% endif %}</td>
             <td>{{ c.riferimento }}</td>
             <td><span class="fint-badge fint-{{ c.gravita }}">{{ c.gravita }}</span></td>
             <td>{% if c.correggibile %}automatica{% else %}a mano{% endif %}</td>

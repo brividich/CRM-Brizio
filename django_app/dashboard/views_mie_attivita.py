@@ -470,10 +470,13 @@ def _my_efficacia(request) -> list[dict]:
     except Exception:
         return []
     url = _safe_url("anagrafica:formazione_efficacia") + "?mie=1"
+    oggi = timezone.localdate()
     return [{
         "title": nomi.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}"),
         "meta": (v.record.course_title_snapshot or "")[:60],
-        "status": f"entro {v.attesa_dal:%d/%m/%Y}",
+        # Già dovuta: «scaduta dal», non «entro» una data passata.
+        "status": (f"scaduta dal {v.attesa_dal:%d/%m/%Y}" if v.attesa_dal <= oggi
+                   else f"entro {v.attesa_dal:%d/%m/%Y}"),
         "url": url,
     } for v in elenco[:12]]
 
@@ -486,7 +489,8 @@ def _my_mod040(request) -> list[dict]:
             return []
         from anagrafica.services.formazione_aula import edizioni_da_approvare, verifiche_nc_dovute
         out = [{"code": s.codice_sessione, "title": s.corso.titolo[:60], "meta": "Approvazione MOD.040",
-                "status": f"chiusa il {s.chiusa_il:%d/%m/%Y}",
+                "status": (f"chiusa il {timezone.localtime(s.chiusa_il):%d/%m/%Y}" if s.chiusa_il
+                           else f"finita il {s.data_fine:%d/%m/%Y}"),
                 "url": _safe_url("anagrafica:formazione_sessione_detail", s.pk) + "#chiusura-edizione"}
                for s in edizioni_da_approvare()[:10]]
         out += [{"code": s.codice_sessione, "title": s.corso.titolo[:60], "meta": "Verifica assenza NC (6 mesi)",
@@ -743,7 +747,7 @@ def _build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "tone": "warning",
             "icon": "✅",
             "items": _my_mod040(request),
-            "all_url": _safe_url("anagrafica:formazione_sessioni_list") + "?stato=COMPLETATA",
+            "all_url": _safe_url("anagrafica:formazione_sessioni_list") + "?da_approvare=1",
             "empty": "Nessuna edizione da approvare.",
         },
         {

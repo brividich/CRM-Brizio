@@ -270,10 +270,34 @@ class Controllo:
     esempi: list = field(default_factory=list)
     correggibile: bool = False
     gravita: str = "media"   # alta | media | bassa
+    # Esempi da aprire: [(id sessione, codice)] per i controlli su edizioni o iscrizioni.
+    sessioni: list = field(default_factory=list)
 
 
 def _esempi(qs, n: int = 10) -> list:
     return list(qs.order_by().values_list("pk", flat=True)[:n])
+
+
+def _sessioni_di(qs, n: int = 10) -> list:
+    """[(id, codice)] delle edizioni: ``qs`` di sessioni."""
+    return [(pk, cod) for pk, cod in qs.order_by().values_list("pk", "codice_sessione").distinct()[:n]]
+
+
+def _sessioni_da_iscrizioni(qs, n: int = 10) -> list:
+    """[(id, codice)] delle edizioni a cui appartengono le iscrizioni di ``qs``, senza doppioni."""
+    out, visti = [], set()
+    for pk, cod in qs.order_by().values_list("sessione_id", "sessione__codice_sessione")[:n * 5]:
+        if pk not in visti:
+            visti.add(pk)
+            out.append((pk, cod))
+        if len(out) >= n:
+            break
+    return out
+
+
+def _sessione(c: Controllo, qs, *, iscrizioni: bool = False) -> Controllo:
+    c.sessioni = _sessioni_da_iscrizioni(qs) if iscrizioni else _sessioni_di(qs)
+    return c
 
 
 def controlli_integrita(oggi: date | None = None) -> list[Controllo]:
@@ -288,8 +312,8 @@ def controlli_integrita(oggi: date | None = None) -> list[Controllo]:
     out: list[Controllo] = []
 
     qs = TrainingSession.objects.filter(data_fine__lt=F("data_inizio"))
-    out.append(Controllo("sessione_date_invertite", "Edizioni con fine prima dell'inizio", "MT CN 06 §9.2",
-                         "La data di fine precede quella di inizio.", qs.count(), _esempi(qs), True, "alta"))
+    out.append(_sessione(Controllo("sessione_date_invertite", "Edizioni con fine prima dell'inizio", "MT CN 06 §9.2",
+                         "La data di fine precede quella di inizio.", qs.count(), _esempi(qs), True, "alta"), qs))
 
     qs = TrainingLesson.objects.filter(Q(data__lt=F("sessione__data_inizio")) | Q(data__gt=F("sessione__data_fine")))
     out.append(Controllo("lezioni_fuori_intervallo", "Giornate fuori dalle date dell'edizione", "MT CN 06 §9.2",
@@ -324,9 +348,17 @@ def controlli_integrita(oggi: date | None = None) -> list[Controllo]:
                          "riportate alla durata della giornata.", len(oltre), oltre[:10], True, "media"))
 
     qs = TrainingEnrollment.objects.filter(stato="COMPLETATO", record_completamento__isnull=True)
-    out.append(Controllo("completati_senza_record", "Iscrizioni «Completato» senza completamento a libretto",
+    out.append(_sessione(Controllo("completati_senza_record", "Iscrizioni «Completato» senza completamento a libretto",
                          "MT CN 06 §9.2", "Lo stato dice completato ma nessun record è a libretto: "
-                         "riaprire l'iscrizione e chiuderla di nuovo.", qs.count(), _esempi(qs), False, "alta"))
+                         "riaprire l'iscrizione e chiuderla di nuovo.", qs.count(), _esempi(qs), False, "alta"),
+                         qs, iscrizioni=True))
+
+    qs = (TrainingEnrollment.objects.filter(verifica_superata=True, record_completamento__isnull=True)
+          .exclude(stato__in=("COMPLETATO", "RITIRATO", "NON_IDONEO")).exclude(sessione__stato="ANNULLATA"))
+    out.append(_sessione(Controllo("test_superato_non_a_libretto", "Test superato ma corso non a libretto",
+                         "MT CN 06 §9.2", "La verifica è superata ma l'iscrizione non è completata: manca la "
+                         "presenza, una regola del corso blocca o l'edizione non è stata chiusa.",
+                         qs.count(), _esempi(qs), False, "media"), qs, iscrizioni=True))
 
     doppi = (TrainingEmployeeRecord.objects.values("corso_id", "legacy_anagrafica_id", "data_completamento")
              .order_by().annotate(n=Count("id")).filter(n__gt=1))
@@ -358,31 +390,49 @@ def controlli_integrita(oggi: date | None = None) -> list[Controllo]:
                          "completamento. Può essere voluta (attestato esterno): verificare prima di correggere.",
                          len(incoerenti), incoerenti[:10], False, "media"))
 
-    qs = TrainingSession.objects.filter(stato="COMPLETATA").annotate(np=Count("lezioni__presenze")).filter(np=0)
-    out.append(Controllo("completate_senza_presenze", "Edizioni completate senza presenze", "MT CN 06 §9.2",
-                         "Nessuna presenza registrata: il registro firme è l'evidenza della partecipazione.",
-                         qs.count(), _esempi(qs), False, "media"))
+    # Presso ente esterno l'evidenza è l'attestato dell'ente; online in diretta e slide + test
+    # non hanno un registro firme d'aula.
+    qs = (TrainingSession.objects.filter(stato="COMPLETATA").exclude(modalita__in=("ESTERNO", "REMOTO", "ONLINE"))
+          .annotate(np=Count("lezioni__presenze")).filter(np=0))
+    out.append(_sessione(Controllo("completate_senza_presenze", "Edizioni completate senza presenze", "MT CN 06 §9.2",
+                         "Nessuna presenza registrata: il registro firme è l'evidenza della partecipazione "
+                         "(escluse le edizioni presso ente esterno e online).",
+                         qs.count(), _esempi(qs), False, "media"), qs))
+
+    qs = TrainingSession.objects.filter(stato="COMPLETATA", iscrizioni__stato__in=("ISCRITTO", "IN_CORSO")).distinct()
+    out.append(_sessione(Controllo("completate_iscrizioni_aperte", "Edizioni completate con iscrizioni ancora aperte",
+                         "MT CN 06 §9.2", "L'edizione è chiusa ma qualcuno è ancora «Iscritto» o «In corso»: "
+                         "dagli un esito da «Rivedi gli esiti».", qs.count(), _esempi(qs), False, "media"), qs))
 
     qs = TrainingSession.objects.filter(docente__isnull=True, docente_ente__isnull=True, docente_nome="")
     qs = qs.exclude(lezioni__docente__isnull=False).exclude(lezioni__docente_ente__isnull=False)
-    out.append(Controllo("edizioni_senza_docente", "Edizioni senza docente o tutor", "MT CN 06 §9.2",
+    out.append(_sessione(Controllo("edizioni_senza_docente", "Edizioni senza docente o tutor", "MT CN 06 §9.2",
                          "La registrazione deve riportare il docente o tutor.",
-                         qs.distinct().count(), _esempi(qs.distinct()), False, "media"))
+                         qs.distinct().count(), _esempi(qs.distinct()), False, "media"), qs.distinct()))
 
-    qs = TrainingSession.objects.filter(stato="PIANIFICATA", data_fine__lt=oggi)
-    out.append(Controllo("pianificate_passate", "Edizioni passate ancora «Pianificata»", "MT CN 06 §9.1",
-                         "L'edizione è finita ma risulta solo pianificata.", qs.count(), _esempi(qs), False, "bassa"))
+    # Stessa definizione dell'elenco «Da chiudere» delle Sessioni (formazione_aula.da_chiudere).
+    from .formazione_aula import da_chiudere, q_da_approvare
+    qs = da_chiudere(oggi)
+    out.append(_sessione(Controllo("pianificate_passate", "Edizioni finite e non chiuse", "MT CN 06 §9.1",
+                         "L'edizione è finita (le online: lezione scaduta) ma risulta ancora pianificata o in "
+                         "corso: sono le stesse dell'elenco «Da chiudere» delle Sessioni.",
+                         qs.count(), _esempi(qs), False, "bassa"), qs))
 
-    qs = TrainingSession.objects.filter(stato="COMPLETATA", approvata_il__isnull=True)
-    out.append(Controllo("completate_non_approvate", "Edizioni completate da approvare (MOD.040)", "MT CN 06 §9.3",
+    qs = da_chiudere(oggi).filter(modalita="ONLINE")
+    out.append(_sessione(Controllo("online_scadute_aperte", "Edizioni online scadute ancora aperte", "MT CN 06 §9.2",
+                         "La lezione online è scaduta: «Chiudi l'edizione» registra chi ha superato il test e "
+                         "chiude la sessione.", qs.count(), _esempi(qs), False, "bassa"), qs))
+
+    qs = TrainingSession.objects.filter(q_da_approvare())
+    out.append(_sessione(Controllo("completate_non_approvate", "Edizioni completate da approvare (MOD.040)", "MT CN 06 §9.3",
                          "MSM o MSO approvano il registro con una verifica formale.",
-                         qs.count(), _esempi(qs), False, "bassa"))
+                         qs.count(), _esempi(qs), False, "bassa"), qs))
 
     limite = aggiungi_mesi(oggi, -TrainingSession.MESI_VERIFICA_NC)
     qs = TrainingSession.objects.filter(approvata_il__isnull=False, verifica_nc_esito="", data_fine__lte=limite)
-    out.append(Controllo("verifiche_nc_dovute", "Verifiche «assenza NC a 6 mesi» dovute", "MOD.040",
+    out.append(_sessione(Controllo("verifiche_nc_dovute", "Verifiche «assenza NC a 6 mesi» dovute", "MOD.040",
                          "Sono passati 6 mesi dalla fine dell'edizione: registrare l'esito della verifica.",
-                         qs.count(), _esempi(qs), False, "bassa"))
+                         qs.count(), _esempi(qs), False, "bassa"), qs))
 
     qs = TrainingRequirementRule.objects.filter(override_frequenza_mesi__isnull=False, is_active=True)
     out.append(Controllo("override_frequenza", "Regole con «frequenza diversa dal corso»", "—",

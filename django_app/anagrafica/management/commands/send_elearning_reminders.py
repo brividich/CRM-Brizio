@@ -47,6 +47,13 @@ class Command(BaseCommand):
             + (" [DRY-RUN]" if dry_run else "") + "."
         )
 
+        # Stato automatico delle edizioni: «Pianificata» → «In corso» il giorno d'inizio.
+        if not dry_run:
+            from anagrafica.services.formazione_aula import aggiorna_stati
+            n_st = aggiorna_stati(today)
+            if n_st:
+                self.stdout.write(f"Edizioni passate a «In corso»: {n_st}.")
+
         # Lezioni online delle sessioni: promemoria N giorni prima della scadenza.
         if not dry_run:
             from anagrafica.services.sessione_online import promemoria_in_scadenza

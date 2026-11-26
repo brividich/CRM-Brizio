@@ -2720,25 +2720,35 @@ def formazione_sessioni_list(request):
     filtro_corso  = request.GET.get("corso", "")
     filtro_stato  = request.GET.get("stato", "")
     filtro_anno   = request.GET.get("anno", "")
+    filtro_modalita = request.GET.get("modalita", "")
     q_search      = (request.GET.get("q") or "").strip()
+    if filtro_modalita not in dict(TrainingSession.MODALITA_CHOICES):
+        filtro_modalita = ""
 
     # Valori non numerici ignorati (prima davano errore 500 sul filtro).
     filtro_corso = filtro_corso if filtro_corso.isdigit() else ""
     filtro_anno = filtro_anno if filtro_anno.isdigit() else ""
 
     from ..services import formazione_aula as _aula
+    _aula.aggiorna_stati()
     da_chiudere = request.GET.get("da_chiudere") == "1"
+    da_approvare = not da_chiudere and request.GET.get("da_approvare") == "1"
     n_da_chiudere = _aula.da_chiudere().count()
+    n_da_approvare = TrainingSession.objects.filter(_aula.q_da_approvare()).count()
+    conteggi = {"n_iscritti_tot": Count("iscrizioni", distinct=True),
+                "n_aperti": Count("iscrizioni", filter=Q(iscrizioni__stato__in=_aula.STATI_APERTI), distinct=True)}
     if da_chiudere:
-        qs = (_aula.da_chiudere().select_related("corso", "corso__piano", "docente")
-              .annotate(n_iscritti_tot=Count("iscrizioni", distinct=True),
-                        n_aperti=Count("iscrizioni", filter=Q(iscrizioni__stato__in=_aula.STATI_APERTI), distinct=True)))
+        qs = _aula.da_chiudere().select_related("corso", "corso__piano", "docente").annotate(**conteggi)
     else:
-        qs = TrainingSession.objects.select_related("corso", "corso__piano", "docente").all()
+        qs = TrainingSession.objects.select_related("corso", "corso__piano", "docente").annotate(**conteggi)
+        if da_approvare:
+            qs = qs.filter(_aula.q_da_approvare())
     if filtro_corso:
         qs = qs.filter(corso_id=int(filtro_corso))
     if filtro_stato:
         qs = qs.filter(stato=filtro_stato)
+    if filtro_modalita:
+        qs = qs.filter(modalita=filtro_modalita)
     if filtro_anno:
         qs = qs.filter(data_inizio__year=int(filtro_anno))
     if q_search:
@@ -2754,6 +2764,8 @@ def formazione_sessioni_list(request):
         for s in page_obj:
             s.manca_testo, s.manca_tono = _aula.cosa_manca_breve(s)
 
+    import json
+
     corsi_attivi = list(TrainingCourse.objects.filter(is_active=True).order_by("titolo"))
     anni = list(
         TrainingSession.objects
@@ -2768,12 +2780,17 @@ def formazione_sessioni_list(request):
         "filtro_corso": filtro_corso,
         "filtro_stato": filtro_stato,
         "filtro_anno": filtro_anno,
+        "filtro_modalita": filtro_modalita,
         "q_search": q_search,
         "corsi_attivi": corsi_attivi,
         "anni": anni,
         "STATO_CHOICES": TrainingSession.STATO_CHOICES,
+        "MODALITA_CHOICES": TrainingSession.MODALITA_CHOICES,
+        "modalita_options_json": json.dumps([list(c) for c in TrainingSession.MODALITA_CHOICES]),
         "da_chiudere": da_chiudere,
         "n_da_chiudere": n_da_chiudere,
+        "da_approvare": da_approvare,
+        "n_da_approvare": n_da_approvare,
     })
 
 
@@ -2920,6 +2937,8 @@ def formazione_sessione_detail(request, sessione_id: int):
         return redirect("anagrafica:index")
     is_editor = _helpers._can_edit_formazione(request)
 
+    from ..services.formazione_aula import aggiorna_stati
+    aggiorna_stati()
     sessione = get_object_or_404(
         TrainingSession.objects.select_related(
             "corso", "corso__piano", "corso__ente_formativo", "docente", "docente_ente",
@@ -3018,6 +3037,8 @@ def formazione_sessione_detail(request, sessione_id: int):
         "ore_pianificate": ore_pianificate,
         "ore_teoriche":    ore_teoriche,
         "ore_scostamento": ore_scostamento,
+        # Online (slide + test) senza giornate: niente ore d'aula, generatore e programma.
+        "solo_online":    sessione.modalita == "ONLINE" and not lezioni,
         "programma":          programma,
         "programma_scoperti": programma_scoperti,
         "is_editor":    is_editor,
@@ -3043,10 +3064,15 @@ def _guestportal_ok() -> bool:
 
 
 def _contesto_aula(sessione) -> dict:
-    """Fasi Prima · Durante · Dopo per le sessioni in aula (non online, non presso ente esterno)."""
-    if sessione.modalita in ("ONLINE",):
-        return {"aula_fase": ""}
+    """Fasi Prima · Durante · Dopo: in aula (giornate, QR) e online (pubblica, fino alla scadenza, chiudi)."""
     from ..services import formazione_aula as aula
+    if sessione.modalita == "ONLINE":
+        try:
+            return {"aula_fase": aula.fase(sessione), "aula_online": True,
+                    "aula_scadenza_online": aula.scadenza_online(sessione)}
+        except Exception:
+            logger.exception("Fasi online non calcolate (sessione %s)", sessione.pk)
+            return {"aula_fase": ""}
     try:
         oggi_lz = aula.lezione_di_oggi(sessione)
         return {
