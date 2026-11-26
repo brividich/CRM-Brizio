@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from datetime import date
 
+from ..scadenze_soglie import GIORNI_PREAVVISO, GIORNI_URGENTE
+
 
 def _compute_stato(
     data_scadenza: date | None,
@@ -26,9 +28,9 @@ def _compute_stato(
     giorni = (data_scadenza - today).days
     if giorni < 0:
         return "SCADUTO", giorni
-    if giorni <= 30:
+    if giorni <= GIORNI_URGENTE:
         return "IN_SCADENZA_30", giorni
-    if giorni <= 90:
+    if giorni <= GIORNI_PREAVVISO:
         return "IN_SCADENZA_90", giorni
     return "VALIDO", giorni
 

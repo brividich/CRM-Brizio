@@ -331,6 +331,9 @@ class Command(BaseCommand):
             if ckey in seen_compl:
                 return None
             seen_compl.add(ckey)
+            if data > timezone.localdate():
+                counters["futuri_saltati"] = counters.get("futuri_saltati", 0) + 1
+                return None  # completamento con data nel futuro: errore del foglio, non si registra
             counters["completamenti"] += 1
             if dry or corso is None:
                 return None
@@ -355,6 +358,9 @@ class Command(BaseCommand):
                     "validity_months_snapshot": corso.validita_mesi,
                 },
             )
+            if _:
+                from anagrafica.services.formazione_completamento import dopo_completamento
+                dopo_completamento(record, assegnatore, storico=True)
             return record
 
         @transaction.atomic

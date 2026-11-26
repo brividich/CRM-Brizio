@@ -500,6 +500,21 @@ GUIDA = {
             ],
         },
         {
+            "id": "corso-un-completamento",
+            "titolo": "Un corso, un completamento; tipo, validità, qualifiche e date",
+            "blocchi": [
+                ("ul", [
+                    "Ogni strada (aula, online, diretto, e-learning, link aperto, import) chiude il corso nello stesso modo: "
+                    "scadenze, qualifica, assegnazioni e sessioni online dello stesso corso chiuse.",
+                    "Elenco Corsi: «Assegna tipo» e «Imposta validità» in blocco; filtro «Una tantum da rivedere».",
+                    "Corsi senza tipo: efficacia dopo 3 mesi (modificabile in Tipi di corso).",
+                    "Qualifiche → «Allinea dai corsi fatti»: qualifiche dei completamenti precedenti al collegamento.",
+                    "Integrità dati → completamenti con data futura: «Porta alla data reale» o «Annulla con motivo».",
+                    "Copertura: definizione unica di obbligo e schede delle pagine di copertura; soglie 30/90 giorni.",
+                ]),
+            ],
+        },
+        {
             "id": "sessioni-aula",
             "titolo": "Sessioni in aula: presenze, QR d'aula, chiusura, efficacia",
             "blocchi": [

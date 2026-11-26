@@ -52,6 +52,7 @@ body.theme-dark .mc-dip a{color:#93c5fd}
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% load anagrafica_extras %}{% copertura_schede %}
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="hr-shell">
 

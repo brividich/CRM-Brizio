@@ -37,7 +37,13 @@ def formazione_tipi_corso(request):
         "n_da_rivedere": len(doppi) + len(prova),
         "is_editor": _helpers._can_edit_formazione(request),
         "modifica": request.GET.get("modifica") or "",
+        "efficacia_senza_tipo": _efficacia_senza_tipo(),
     })
+
+
+def _efficacia_senza_tipo() -> int:
+    from .services.formazione_efficacia import mesi_efficacia_senza_tipo
+    return mesi_efficacia_senza_tipo()
 
 
 @login_required
@@ -67,6 +73,16 @@ def formazione_tipi_corso_azione(request):
                 tipo.efficacia_mesi = min(int(mesi), 36)
             tipo.save()
             messages.success(request, f"Tipo «{tipo.nome}» salvato.")
+        elif azione == "efficacia_senza_tipo":
+            from .models_formazione import AttestatoFormazioneConfig
+            mesi = (p.get("efficacia_mesi") or "").strip()
+            if not mesi.isdigit():
+                raise servizio.TipiError("Scrivi i mesi (0 = non richiesta).")
+            cfg = AttestatoFormazioneConfig.get_instance()
+            cfg.efficacia_mesi_senza_tipo = min(int(mesi), 36)
+            cfg.save(update_fields=["efficacia_mesi_senza_tipo"])
+            messages.success(request, "Corsi senza tipo: " + (f"efficacia dopo {cfg.efficacia_mesi_senza_tipo} mesi."
+                                                              if cfg.efficacia_mesi_senza_tipo else "efficacia non richiesta."))
         elif azione == "elimina":
             tipo = get_object_or_404(TrainingCourseType, pk=p.get("tipo_id") or 0)
             n = tipo.corsi.count()

@@ -1197,61 +1197,9 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
         },
     )
 
-    # Invalida cache scadenze e tenta ricalcolo immediato (fail-safe come il flusso d'aula)
-    TrainingDeadline.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).update(needs_refresh=True)
-    try:
-        from ..services.training_deadline_service import refresh_deadlines
-        refresh_deadlines(legacy_id=legacy_id, corso_id=corso.pk)
-    except NotImplementedError:
-        pass
-    except Exception:
-        logger.exception("Refresh scadenze e-learning fallito per dip=%s corso=%s", legacy_id, corso.pk)
-
-    # Allineamento qualifica (competency management), fail-safe
-    try:
-        if corso.qualifica_id and record.idoneo:
-            qual, _ = _upsert_dipendente_qualifica(
-                legacy_id, corso.qualifica, record.data_completamento, record.data_scadenza, user=created_by,
-            )
-            if qual.record_formazione_id != record.pk:
-                qual.record_formazione = record
-                qual.save(update_fields=["record_formazione"])
-    except Exception:
-        logger.exception("Allineamento qualifica e-learning fallito per record %s", record.pk)
-
-    # Un corso, un completamento: chiude anche le sessioni online dello stesso corso
-    # a cui la persona è iscritta (non deve rifarlo lì). Fail-safe.
-    try:
-        from ..services.sessione_online import completa_iscrizioni_da_record
-        with transaction.atomic():
-            completa_iscrizioni_da_record(record)
-    except Exception:
-        logger.exception("Sessioni online non allineate al completamento e-learning %s", record.pk)
-
-    # Valutazione di efficacia sul campo, se il corso la prevede: come il flusso
-    # d'aula (prima l'e-learning non la apriva mai). Fail-safe.
-    try:
-        from ..services.formazione_efficacia import pianifica_valutazione_efficacia
-        with transaction.atomic():  # savepoint: un errore qui non rovina il completamento
-            pianifica_valutazione_efficacia(record)
-    except Exception:
-        logger.exception("Valutazione di efficacia non pianificata per record e-learning %s", record.pk)
-
-    # Archiviazione automatica dell'attestato nella cartella documenti del dipendente
-    # (stesso flusso dei corsi d'aula: cartella «Attestati formazione» o quella scelta
-    # in Impostazioni → Template attestato). Fail-safe: non deve bloccare il completamento.
-    # Dopo il commit: la generazione del PDF non tiene lock né lascia file orfani
-    # se il completamento viene annullato.
-    def _archivia():
-        try:
-            cfg = AttestatoFormazioneConfig.get_instance()
-            if cfg.auto_salva_attestato:
-                from ..services.attestato_pdf import archivia_attestato
-                archivia_attestato(record, cfg=cfg, user=created_by)
-        except Exception:
-            logger.exception("Archiviazione automatica attestato e-learning fallita per record %s", record.pk)
-
-    transaction.on_commit(_archivia)
+    # Effetti comuni a ogni completamento: un solo punto (services/formazione_completamento.py).
+    from ..services.formazione_completamento import dopo_completamento
+    dopo_completamento(record, created_by)
     return record
 
 

@@ -173,14 +173,10 @@ def abbinamento_con_matricola(nome: str, cognome: str, matricola: str,
 
 
 def _record_esistente(corso, legacy_id: int):
-    """Completamento già nato dal link aperto per la stessa persona e la stessa versione del corso."""
-    from ..models_elearning import TrainingElearningRispostaAperta
-
-    prec = (TrainingElearningRispostaAperta.objects
-            .filter(corso=corso, legacy_anagrafica_id=legacy_id, record__isnull=False,
-                    record__annullato_il__isnull=True, record__course_version_snapshot=corso.versione)
-            .select_related("record").first())
-    return prec.record if prec else None
+    """Completamento valido della persona per il corso, da qualunque strada (aula, e-learning, test
+    della sessione, link aperto): un corso = un completamento, nessun doppione."""
+    from .formazione_completamento import completamento_valido
+    return completamento_valido(corso, legacy_id)
 
 
 def _completa(risposta, legacy_id: int, user):
@@ -198,6 +194,8 @@ def _completa(risposta, legacy_id: int, user):
         type(record).objects.filter(pk=record.pk).update(note=((record.note + "\n") if record.note else "") + nota)
     TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).exclude(
         stato__in=("COMPLETATO", "ESONERATO")).update(stato="COMPLETATO")
+    from .sessione_online import completa_iscrizioni_da_record
+    completa_iscrizioni_da_record(record)  # anche col completamento già esistente (es. fatto in aula)
     return record
 
 
@@ -261,6 +259,8 @@ def _annulla_record(risposta, user, motivo: str) -> None:
     record = risposta.record
     if record is None or record.is_annullato:
         return
+    if f"risposta #{risposta.pk}" not in (record.note or ""):
+        return  # completamento nato altrove (aula, e-learning…): la risposta lo usava soltanto
     if R.objects.filter(record=record).exclude(pk=risposta.pk).exists():
         return
     annulla_record(record, user, motivo)

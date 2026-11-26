@@ -808,3 +808,46 @@ def permessi_azioni(context) -> dict:
         "visite": _helpers._can_view_visite_mediche(request) and _helpers._can_edit_visite_mediche(request),
         "qualifiche": _helpers._qualifiche_can_edit(request),
     }
+
+
+# ── Copertura e lacune: una barra di schede comune alle 5 pagine (analisi 26/11/2026) ──
+_SCHEDE_COPERTURA = (
+    ("anagrafica:formazione_copertura", "Corsi obbligatori", "Chi non è in regola con i corsi richiesti"),
+    ("anagrafica:mansionario_lacune", "Lacune di mansione", "Competenze della mansione non ancora raggiunte"),
+    ("anagrafica:mansionario_matrice_competenze", "Matrice competenze", "Persone × competenze della mansione"),
+    ("anagrafica:skm_copertura", "Copertura macchine", "Skill matrix MOD.187: chi sa usare cosa"),
+    ("anagrafica:matrice_competenze", "Matrice sicurezza", "Qualifiche e abilitazioni per mansione"),
+)
+
+
+@register.inclusion_tag("anagrafica/components/_copertura_schede.html", takes_context=True)
+def copertura_schede(context):
+    """Schede di «Copertura e lacune» che la persona può aprire (stessa decisione ACL v2 del middleware)."""
+    from django.urls import reverse
+
+    request = context.get("request")
+    attuale = getattr(getattr(request, "resolver_match", None), "view_name", "")
+    user = getattr(request, "user", None)
+    legacy = None
+    if user is not None and getattr(user, "is_authenticated", False) and not user.is_superuser:
+        try:
+            from core.legacy_utils import get_legacy_user
+            legacy = get_legacy_user(user)
+        except Exception:
+            legacy = None
+    schede = []
+    for nome, etichetta, aiuto in _SCHEDE_COPERTURA:
+        try:
+            url = reverse(nome)
+        except Exception:
+            continue
+        ok = True
+        if user is not None and not getattr(user, "is_superuser", False):
+            try:
+                from core.acl_v2 import check_acl_access_v2
+                ok = bool(check_acl_access_v2(path=url, legacy_user=legacy, django_user=user, request=request))
+            except Exception:
+                ok = False
+        if ok or nome == attuale:
+            schede.append({"url": url, "etichetta": etichetta, "aiuto": aiuto, "attiva": nome == attuale})
+    return {"schede": schede if len(schede) > 1 else []}

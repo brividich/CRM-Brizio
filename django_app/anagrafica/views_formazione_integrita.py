@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -152,6 +153,8 @@ def formazione_integrita(request):
     if not _can_edit_formazione(request):
         messages.error(request, "La pagina «Integrità dati» è riservata a chi gestisce la formazione.")
         return redirect("anagrafica:formazione_dashboard")
+    if request.method == "POST" and request.POST.get("azione") in ("futuri_data", "futuri_annulla"):
+        return _futuri_azione(request)
     if request.method == "POST" and request.POST.get("azione") == "correggi":
         fatti = fi.correggi()
         _audit_formazione(request, "integrita_correzioni_automatiche", fatti)
@@ -165,9 +168,44 @@ def formazione_integrita(request):
         "controlli": controlli,
         "n_anomalie": sum(c.n for c in controlli),
         "n_correggibili": sum(c.n for c in controlli if c.correggibile),
+        "futuri": fi.record_futuri(),
         "annullati": TrainingEmployeeRecord.tutti.filter(annullato_il__isnull=False)
                      .select_related("corso").order_by("-annullato_il")[:50],
     })
+
+
+def _futuri_azione(request):
+    """Completamenti con data futura selezionati: data reale (fine dell'edizione) o annullamento."""
+    azione = request.POST.get("azione")
+    ids = [int(x) for x in request.POST.getlist("record_id") if str(x).isdigit()]
+    if not ids:
+        messages.error(request, "Seleziona almeno un completamento.")
+        return redirect(reverse("anagrafica:formazione_integrita") + "#futuri")
+    fatti, saltati = 0, []
+    motivo = (request.POST.get("motivo") or "").strip()
+    if azione == "futuri_annulla" and not motivo:
+        messages.error(request, "Scrivi il motivo dell'annullamento.")
+        return redirect(reverse("anagrafica:formazione_integrita") + "#futuri")
+    for r in TrainingEmployeeRecord.objects.filter(pk__in=ids).select_related("corso", "sessione"):
+        try:
+            if azione == "futuri_data":
+                if fi.porta_alla_data_reale(r, request.user):
+                    fatti += 1
+                else:
+                    saltati.append(r.course_code_snapshot or str(r.pk))
+            else:
+                fi.annulla_record(r, request.user, motivo)
+                fatti += 1
+        except (ValueError, fi.EdizioneChiusa) as exc:
+            saltati.append(f"{r.course_code_snapshot or r.pk}: {exc}")
+    _audit_formazione(request, f"integrita_{azione}", {"record": ids[:200], "fatti": fatti, "motivo": motivo})
+    if fatti:
+        messages.success(request, (f"{fatti} completament{'o' if fatti == 1 else 'i'} "
+                                   + ("riportat" if azione == "futuri_data" else "annullat")
+                                   + ("o" if fatti == 1 else "i") + (" alla fine dell'edizione." if azione == "futuri_data" else ".")))
+    if saltati:
+        messages.warning(request, "Non toccati (data reale sconosciuta o edizione approvata): " + "; ".join(saltati[:8]))
+    return redirect(reverse("anagrafica:formazione_integrita") + "#futuri")
 
 
 @login_required

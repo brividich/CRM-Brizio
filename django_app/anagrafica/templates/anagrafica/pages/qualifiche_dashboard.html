@@ -62,7 +62,7 @@
       <a class="fmd-mtr fmd-t-yellow kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=60{{ filtro_centro.suffisso }}" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div>
-        <div class="fmd-mtr-lbl">In scadenza ≤60gg</div>
+        <div class="fmd-mtr-lbl">In scadenza ≤90gg</div>
         <div class="fmd-mtr-sub">{{ n_s30 }} entro 30 giorni</div>
       </a>
       <a class="fmd-mtr fmd-t-amber kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=scaduta{{ filtro_centro.suffisso }}" style="text-decoration:none;">
@@ -88,7 +88,7 @@
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ mpq.n }}</span></div>
         <div class="fmd-mtr-lbl">Processi qualificati</div>
-        <div class="fmd-mtr-sub">{{ mpq.attivi }} attivi · {{ mpq.scaduti }} scaduti · {{ mpq.in_scadenza }} ≤60gg</div>
+        <div class="fmd-mtr-sub">{{ mpq.attivi }} attivi · {{ mpq.scaduti }} scaduti · {{ mpq.in_scadenza }} ≤90gg</div>
       </a>
       {% endif %}
     </section>
@@ -104,7 +104,7 @@
           <svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenze urgenti
           {% if scadenze_urgenti %}<span class="fmd-count">{{ scadenze_urgenti|length }}</span>{% endif %}
         </div>
-        <div class="fmd-block-aside">Scadute e in scadenza ≤60gg (top 15)</div>
+        <div class="fmd-block-aside">Scadute e in scadenza ≤90gg (top 15)</div>
       </div>
 
       {% if scadenze_urgenti %}
@@ -146,7 +146,7 @@
                 {% elif d.stato == "s30" %}
                   <span class="fmd-badge fmd-b-orange">≤30gg</span>
                 {% else %}
-                  <span class="fmd-badge fmd-b-amber">≤60gg</span>
+                  <span class="fmd-badge fmd-b-amber">≤90gg</span>
                 {% endif %}
               </td>
               <td>
@@ -164,7 +164,7 @@
         </a>
       </div>
       {% else %}
-      <div class="fmd-empty">Nessuna qualifica scaduta o in scadenza nei prossimi 60 giorni. 🎉</div>
+      <div class="fmd-empty">Nessuna qualifica scaduta o in scadenza nei prossimi 90 giorni. 🎉</div>
       {% endif %}
     </section>
 

@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from django.db import transaction
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -608,7 +609,9 @@ def import_courses_person(xlsx_path: str | Path, commit: bool = False) -> dict:
                     enroll.save()
                     report["iscrizioni_updated"] += 1
 
-                if ha_superato is True and d_fine is not None:
+                if ha_superato is True and d_fine is not None and d_fine > timezone.localdate():
+                    report["errors"].append(f"riga {i}: completamento del {d_fine:%d-%m-%Y} nel futuro: non registrato")
+                elif ha_superato is True and d_fine is not None:
                     rec, rec_created = TrainingEmployeeRecord.objects.get_or_create(
                         corso=corso, legacy_anagrafica_id=legacy_id,
                         data_completamento=d_fine,
@@ -625,10 +628,14 @@ def import_courses_person(xlsx_path: str | Path, commit: bool = False) -> dict:
                             "duration_hours_snapshot": durata,
                             "validity_months_snapshot": corso.validita_mesi,
                             "session_code_snapshot": sessione.codice_sessione[:40],
+                            "data_scadenza": (_add_months_import(d_fine, corso.validita_mesi)
+                                              if corso.validita_mesi else None),
                         },
                     )
                     if rec_created:
                         report["record_created"] += 1
+                        from .formazione_completamento import dopo_completamento
+                        dopo_completamento(rec, None, storico=True)
 
             except Exception as e:
                 report["errors"].append(f"riga {i}: {type(e).__name__}: {e}")
@@ -1425,3 +1432,9 @@ def import_training_providers_xlsx(xlsx_path: str | Path, commit: bool = False) 
         _do_import()
 
     return report
+
+
+
+def _add_months_import(data, mesi: int):
+    from ..views._helpers import _add_months
+    return _add_months(data, mesi)

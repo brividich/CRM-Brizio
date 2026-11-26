@@ -71,6 +71,37 @@ body.theme-dark .fint-bassa{ background:rgba(224,242,254,.12); color:#7dd3fc; }
       </table>
     </section>
 
+    {% if futuri %}
+    <section class="fmd-panel" id="futuri" style="padding:16px 20px;margin-bottom:14px;">
+      <h2 style="font-size:16px;margin:0 0 4px;">Completamenti con data futura <span class="fmd-count">{{ futuri|length }}</span></h2>
+      <p class="fmd-muted" style="margin:0 0 10px;font-size:13px;">Un completamento non può essere nel futuro: di solito arriva da un import. «Porta alla data reale» usa la fine dell'edizione, se è già passata, e ricalcola la scadenza; per gli altri (edizione ancora da fare o nessuna edizione) «Annulla con motivo».</p>
+      <form method="post">
+        {% csrf_token %}
+        <div class="fmd-tablewrap" data-fm-table-skip="1"><table class="fmd-table">
+          <thead><tr><th style="width:28px;"><input type="checkbox" class="js-fut-tutti" aria-label="Seleziona tutti"></th><th>Corso</th><th>Persona</th><th>Data scritta</th><th>Edizione</th><th>Data reale proposta</th></tr></thead>
+          <tbody>{% for r in futuri %}<tr>
+            <td><input type="checkbox" name="record_id" value="{{ r.pk }}" class="js-fut" aria-label="Seleziona"></td>
+            <td>{{ r.course_code_snapshot|default:r.corso.codice }} · {{ r.course_title_snapshot|default:r.corso.titolo|truncatechars:60 }}</td>
+            <td>#{{ r.legacy_anagrafica_id }}</td>
+            <td>{{ r.data_completamento|date:"d-m-Y" }}</td>
+            <td>{% if r.sessione %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_sessione_detail' r.sessione.pk %}">{{ r.sessione.codice_sessione }}</a> · {{ r.sessione.get_stato_display }}{% else %}<span class="fmd-muted">nessuna</span>{% endif %}</td>
+            <td>{% if r.data_proposta %}{{ r.data_proposta|date:"d-m-Y" }}{% elif r.edizione_futura %}<span class="fmd-muted">edizione ancora da fare: annullare</span>{% else %}<span class="fmd-muted">sconosciuta</span>{% endif %}</td>
+          </tr>{% endfor %}</tbody>
+        </table></div>
+        <div class="fmd-toolbar" style="margin-top:10px;">
+          <button type="submit" name="azione" value="futuri_data" class="fmd-btn fmd-btn-primary">Porta alla data reale</button>
+          <span class="fmd-spacer"></span>
+          <input name="motivo" maxlength="300" placeholder="Motivo (per annullare)" class="fmd-select" style="min-width:260px;">
+          <button type="submit" name="azione" value="futuri_annulla" class="fmd-btn fmd-btn-ghost" data-hub-confirm="Annullare i completamenti selezionati? Restano nello storico con il motivo.">Annulla con motivo</button>
+        </div>
+      </form>
+      <script>
+      (function () { var t = document.querySelector(".js-fut-tutti"); if (t) t.addEventListener("change", function () {
+        document.querySelectorAll(".js-fut").forEach(function (c) { c.checked = t.checked; }); }); })();
+      </script>
+    </section>
+    {% endif %}
+
     <section class="fmd-panel" style="padding:16px 20px;">
       <h2 style="font-size:16px;margin:0 0 8px;">Completamenti annullati (ultimi 50)</h2>
       {% if annullati %}
