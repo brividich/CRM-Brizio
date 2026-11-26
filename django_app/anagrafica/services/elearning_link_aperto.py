@@ -174,28 +174,28 @@ def abbinamento_con_matricola(nome: str, cognome: str, matricola: str,
 
 def _record_esistente(corso, legacy_id: int):
     """Completamento valido della persona per il corso, da qualunque strada (aula, e-learning, test
-    della sessione, link aperto): un corso = un completamento, nessun doppione."""
-    from .formazione_completamento import completamento_valido
-    return completamento_valido(corso, legacy_id)
+    della sessione, link aperto): un corso = un completamento, nessun doppione. Non si riusa se
+    è un rinnovo (assegnazione aperta, scadenza vicina): lì nasce un nuovo completamento."""
+    from .formazione_completamento import completamento_riusabile
+    return completamento_riusabile(corso, legacy_id)
 
 
 def _completa(risposta, legacy_id: int, user):
     """Crea (o riusa) il completamento per un quiz superato. Ritorna il record."""
-    from ..models_formazione import TrainingAssignment
     from ..views import _crea_record_completamento_elearning
+    from .formazione_completamento import chiudi_aperti
 
     corso = risposta.corso
     record = _record_esistente(corso, legacy_id)
     if record is None:
-        tentativo = _TentativoFinto(risposta)
+        tentativo = _TentativoFinto(risposta) if risposta.n_totali else None  # corso senza quiz
         record = _crea_record_completamento_elearning(corso, legacy_id, tentativo, user)
         nota = (f"Completato dal link aperto (nome scritto: {risposta.cognome} {risposta.nome}); "
                 f"risposta #{risposta.pk}.")
         type(record).objects.filter(pk=record.pk).update(note=((record.note + "\n") if record.note else "") + nota)
-    TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).exclude(
-        stato__in=("COMPLETATO", "ESONERATO")).update(stato="COMPLETATO")
-    from .sessione_online import completa_iscrizioni_da_record
-    completa_iscrizioni_da_record(record)  # anche col completamento già esistente (es. fatto in aula)
+    else:
+        # Completamento già esistente (es. fatto in aula): chiude solo ciò che è nato prima di esso.
+        chiudi_aperti(record)
     return record
 
 

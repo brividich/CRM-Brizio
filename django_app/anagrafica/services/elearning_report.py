@@ -15,8 +15,6 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from datetime import timedelta
 
-from django.db.models import Avg, Count, Sum
-from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 
@@ -74,43 +72,40 @@ def copertura(*, reparto: str = "", corso_id: int | None = None) -> dict:
 def andamento(mesi: int = 12, *, corso_id: int | None = None) -> dict:
     """Completamenti per mese, ore effettive, punteggio e tempo medi per corso.
 
-    Il periodo parte da una data (``dal``, giorno locale) e non da un istante:
-    è lo stesso filtro ``creato_il__date__gte`` del registro, così la tessera
-    «Completamenti (12 mesi)» conta le righe di ``registro(dal=...)``.
+    Una sola fonte: le righe del :func:`registro` dal giorno ``dal`` (e-learning con login e
+    link aperto, senza completamenti annullati). La tessera «Completamenti (12 mesi)», la tabella
+    per corso e le ore contano le stesse righe che il registro elenca.
     Con ``corso_id`` tutti i numeri sono del solo corso (filtro del cruscotto).
     """
-    from ..models_elearning import TrainingElearningCompletamento
-    from ..models_formazione import TrainingElearningEnrollment
+    from datetime import date as _date
 
     dal = timezone.localdate() - timedelta(days=31 * mesi)
-    completamenti = TrainingElearningCompletamento.objects.filter(creato_il__date__gte=dal)
-    iscrizioni = TrainingElearningEnrollment.objects.all()
-    if corso_id:
-        completamenti = completamenti.filter(enrollment__corso_id=corso_id)
-        iscrizioni = iscrizioni.filter(corso_id=corso_id)
-    # Anche i completamenti dal link aperto (quiz superato e abbinato: nessuna iscrizione e-learning),
-    # come nel registro: la tessera conta le stesse righe.
-    da_link = _risposte_aperte_registrate(corso_id=corso_id, dal=dal)
+    righe = registro(corso_id=corso_id, dal=dal)
     conteggi: Counter = Counter()
-    for qs in (completamenti.annotate(mese=TruncMonth("creato_il")),
-               da_link.annotate(mese=TruncMonth("inviato_il"))):
-        for r in qs.values("mese").annotate(n=Count("pk")).order_by("mese"):
-            mese = r["mese"]
-            chiave = (mese.year, mese.month)
-            conteggi[chiave] += r["n"]
-    from datetime import date as _date
+    corsi: dict = {}
+    secondi_tot = 0
+    for r in righe:
+        quando = timezone.localtime(r["data"]) if timezone.is_aware(r["data"]) else r["data"]
+        conteggi[(quando.year, quando.month)] += 1
+        secondi_tot += r.get("secondi") or 0
+        c = corsi.setdefault(r["corso_id"], {"corso_id": r["corso_id"], "corso__titolo": r["corso"], "n": 0,
+                                            "_punteggi": [], "_secondi": 0})
+        c["n"] += 1
+        c["_secondi"] += r.get("secondi") or 0
+        if r.get("punteggio") not in ("", None):
+            try:
+                c["_punteggi"].append(float(r["punteggio"]))
+            except (TypeError, ValueError):
+                pass
     per_mese = [{"mese": _date(a, m, 1), "n": n} for (a, m), n in sorted(conteggi.items())]
-    per_corso = list(
-        iscrizioni.filter(stato="COMPLETATO")
-        .values("corso_id", "corso__titolo")
-        .annotate(n=Count("pk"), punteggio=Avg("best_punteggio_pct"), secondi=Avg("secondi_accreditati"))
-        .order_by("corso__titolo")
-    )
-    ore = (iscrizioni.aggregate(s=Sum("secondi_accreditati"))["s"] or 0) / 3600
-    for r in per_corso:
-        r["minuti_medi"] = round((r["secondi"] or 0) / 60)
-        r["punteggio"] = round(float(r["punteggio"] or 0), 1)
-    return {"per_mese": per_mese, "per_corso": per_corso, "ore_erogate": round(ore, 1),
+    per_corso = []
+    for c in sorted(corsi.values(), key=lambda x: (x["corso__titolo"] or "").casefold()):
+        punteggi = c.pop("_punteggi")
+        secondi = c.pop("_secondi")
+        c["punteggio"] = round(sum(punteggi) / len(punteggi), 1) if punteggi else 0
+        c["minuti_medi"] = round(secondi / c["n"] / 60) if c["n"] else 0
+        per_corso.append(c)
+    return {"per_mese": per_mese, "per_corso": per_corso, "ore_erogate": round(secondi_tot / 3600, 1),
             "totale_periodo": sum(m["n"] for m in per_mese), "dal": dal}
 
 
@@ -132,7 +127,11 @@ def domande_piu_sbagliate(limite: int = 10, ultimi: int = 2000) -> list[dict]:
 
 
 def _risposte_aperte_registrate(*, corso_id: int | None = None, dal=None, al=None):
-    """Quiz dal link aperto superati e abbinati, con il completamento a libretto (non annullato)."""
+    """Quiz dal link aperto superati e abbinati il cui completamento a libretto (non annullato) è
+    nato da quella risposta (nota «risposta #pk»): una riga per completamento. Una risposta che ha
+    solo riusato un completamento nato altrove (aula, e-learning) non è un completamento in più."""
+    import re
+
     from ..models_elearning import TrainingElearningRispostaAperta
     qs = TrainingElearningRispostaAperta.objects.filter(
         superato=True, record__isnull=False, record__annullato_il__isnull=True)
@@ -142,7 +141,13 @@ def _risposte_aperte_registrate(*, corso_id: int | None = None, dal=None, al=Non
         qs = qs.filter(inviato_il__date__gte=dal)
     if al:
         qs = qs.filter(inviato_il__date__lte=al)
-    return qs
+    nate, visti = [], set()
+    for pk, record_id, nota in qs.order_by("pk").values_list("pk", "record_id", "record__note"):
+        if record_id in visti or not re.search(rf"risposta #{pk}\b", nota or ""):
+            continue
+        visti.add(record_id)
+        nate.append(pk)
+    return TrainingElearningRispostaAperta.objects.filter(pk__in=nate)
 
 
 def registro(*, corso_id: int | None = None, dal=None, al=None) -> list[dict]:
@@ -153,7 +158,8 @@ def registro(*, corso_id: int | None = None, dal=None, al=None) -> list[dict]:
     from core import naming
     from core.legacy_anagrafica import fetch_anagrafica_rows
 
-    qs = TrainingElearningCompletamento.objects.select_related("enrollment__corso", "record").order_by("-creato_il")
+    qs = (TrainingElearningCompletamento.objects.filter(record__annullato_il__isnull=True)
+          .select_related("enrollment__corso", "record").order_by("-creato_il"))
     if corso_id:
         qs = qs.filter(enrollment__corso_id=corso_id)
     if dal:
@@ -176,6 +182,7 @@ def registro(*, corso_id: int | None = None, dal=None, al=None) -> list[dict]:
             "codice": c.enrollment.corso.codice, "ciclo": c.enrollment.ciclo,
             "versione": c.enrollment.versione_label_snapshot or c.record.course_version_snapshot or "",
             "minuti_effettivi": round((v.get("secondi_effettivi") or 0) / 60),
+            "secondi": int(v.get("secondi_effettivi") or 0), "corso_id": c.enrollment.corso_id,
             "slide": f"{v.get('slide_completate', '')}/{v.get('slide_totali', '')}",
             "tentativi": v.get("tentativi", ""), "punteggio": quiz.get("punteggio_pct", ""),
             "protocollo": c.record.numero_protocollo or "", "impronta": c.sha256[:16],
@@ -189,8 +196,9 @@ def registro(*, corso_id: int | None = None, dal=None, al=None) -> list[dict]:
             "legacy_id": lid, "corso": r.corso.titolo, "codice": r.corso.codice, "ciclo": "",
             "versione": r.versione_corso or r.record.course_version_snapshot or "",
             "minuti_effettivi": round(((pa.secondi if pa else 0) or 0) / 60),
+            "secondi": int((pa.secondi if pa else 0) or 0), "corso_id": r.corso_id,
             "slide": str(len(pa.slide_viste or {})) if pa else "",
-            "tentativi": "", "punteggio": r.punteggio_pct,
+            "tentativi": "", "punteggio": r.punteggio_pct if r.n_totali else "",
             "protocollo": r.record.numero_protocollo or "", "impronta": "link aperto",
             "fonte": "Link aperto",
         })

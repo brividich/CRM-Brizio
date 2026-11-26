@@ -84,15 +84,30 @@ def voci_aperte() -> list[Voce]:
         (r["corso_id"], r["legacy_anagrafica_id"]): r["m"]
         for r in (TrainingEmployeeRecord.objects
                   .filter(corso_id__in={a.corso_id for a in aperte},
-                          legacy_anagrafica_id__in={a.legacy_anagrafica_id for a in aperte}, idoneo=True)
+                          legacy_anagrafica_id__in={a.legacy_anagrafica_id for a in aperte}, idoneo=True,
+                          data_completamento__lte=oggi)
                   .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=oggi))
                   .values("corso_id", "legacy_anagrafica_id").annotate(m=Max("data_completamento")))
     } if aperte else {}
+    # Già in regola (completamento valido che non scade entro il preavviso): un'assegnazione fatta
+    # a mano dopo non è un rinnovo, nessun promemoria.
+    from datetime import timedelta
+
+    from ..scadenze_soglie import GIORNI_PREAVVISO
+    oltre = oggi + timedelta(days=GIORNI_PREAVVISO)
+    in_regola = set(TrainingEmployeeRecord.objects
+                    .filter(corso_id__in={a.corso_id for a in aperte},
+                            legacy_anagrafica_id__in={a.legacy_anagrafica_id for a in aperte}, idoneo=True,
+                            data_completamento__lte=oggi)
+                    .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gt=oltre))
+                    .values_list("corso_id", "legacy_anagrafica_id")) if aperte else set()
     voci = {}
     for a in aperte:
         chiave = (a.corso_id, a.legacy_anagrafica_id, a.ciclo)
         fatto = ultimo_valido.get((a.corso_id, a.legacy_anagrafica_id))
         if fatto and a.data_assegnazione and fatto >= a.data_assegnazione:
+            continue
+        if (a.corso_id, a.legacy_anagrafica_id) in in_regola:
             continue
         if chiave in completati or chiave in voci or a.legacy_anagrafica_id in cessati:
             continue

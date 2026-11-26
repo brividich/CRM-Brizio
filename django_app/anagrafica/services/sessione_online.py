@@ -934,7 +934,9 @@ def completa_iscrizioni_da_record(record) -> int:
 
     Il primo collegamento libero va sul completamento (l'attestato si vede nella sessione);
     nessun secondo completamento nasce. Ritorna quante iscrizioni ha chiuso."""
-    if record is None or getattr(record, "annullato_il", None):
+    from .formazione_completamento import nato_entro, record_valido
+
+    if not record_valido(record):
         return 0
     calc = record.completion_calculation_snapshot_json or {}
     try:
@@ -943,6 +945,8 @@ def completa_iscrizioni_da_record(record) -> int:
         punteggio = None
     n = 0
     for e in iscrizioni_da_allineare(record.corso_id, record.legacy_anagrafica_id):
+        if not nato_entro(record, e.created_at):
+            continue  # iscrizione di un ciclo successivo al completamento
         with transaction.atomic():
             e.stato = "COMPLETATO"
             e.data_completamento = record.data_completamento

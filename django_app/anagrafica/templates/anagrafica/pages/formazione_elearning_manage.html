@@ -165,7 +165,7 @@ body.theme-dark .elg-chip[aria-pressed=true]{background:#93c5fd;border-color:#93
             <tbody>
             {% for r in righe %}
               <tr data-stato="{{ r.stato }}" data-ritardo="{% if r.in_ritardo %}1{% endif %}" data-cerca="{{ r.nome|lower }} {{ r.reparto|lower }}">
-                <td><strong>{{ r.nome }}</strong>{% if r.reparto %}<div class="fmd-muted" style="font-size:12px;">{{ r.reparto }}</div>{% endif %}</td>
+                <td><strong>{{ r.nome }}</strong>{% if r.cessato %} <span class="fmd-badge fmd-b-grey" title="Ex dipendente: non conta nei numeri del corso">Cessato</span>{% endif %}{% if r.reparto %}<div class="fmd-muted" style="font-size:12px;">{{ r.reparto }}</div>{% endif %}</td>
                 <td><span class="fmd-badge fmd-b-{{ r.tono }}">{{ r.etichetta }}</span>{% if r.da_link_aperto %} <span class="fmd-muted" style="font-size:11.5px;">dal link aperto</span>{% elif not r.assegnato %} <span class="fmd-muted" style="font-size:11.5px;">facoltativo</span>{% endif %}</td>
                 <td style="min-width:110px;"><span class="fmd-muted" style="font-size:12px;">{{ r.slide }}</span><div class="elg-bar{% if r.slide_pct < 100 %} in{% endif %}"><span style="width:{{ r.slide_pct }}%"></span></div></td>
                 <td class="fmd-c fmd-num">{% if r.best is not None %}{{ r.best|floatformat:0 }}%{% else %}—{% endif %}</td>
