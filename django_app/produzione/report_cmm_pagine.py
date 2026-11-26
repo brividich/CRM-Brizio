@@ -341,7 +341,7 @@ def matrice_op(titolo: str, anomalie_sn: dict[str, int] | None = None) -> dict:
     from .models import MisuraCMM
 
     anomalie_sn = anomalie_sn or {}
-    righe = list(ReportCMM.objects.filter(op__iexact=titolo, righe__gt=0)
+    righe = list(ReportCMM.objects.filter(op=titolo, righe__gt=0)
                  .order_by("data", "id").values("id", "seriale", "programma_base", "data", "fuori", "escluso")[:MAX_REPORT_OP])
     validi = [r for r in righe if not r["escluso"]]
     massimo: dict[int, float] = {}
@@ -380,7 +380,7 @@ def matrice_op(titolo: str, anomalie_sn: dict[str, int] | None = None) -> dict:
 def cronologia_op(titolo: str, documenti, quanti: int = 12) -> list[dict]:
     """Cosa è successo sull'OP, dal più recente: report CMM (con le quote fuori) e documenti registrati."""
     eventi = []
-    for r in ReportCMM.objects.filter(op__iexact=titolo, righe__gt=0).order_by("-data", "-id")[:quanti]:
+    for r in ReportCMM.objects.filter(op=titolo, righe__gt=0).order_by("-data", "-id")[:quanti]:
         eventi.append({"quando": r.data, "tipo": "fuori" if r.fuori else "ok", "id": r.id,
                        "testo": f"{r.seriale or r.file} · {r.programma_base or '—'}",
                        "esito": f"{r.fuori} quot{'a' if r.fuori == 1 else 'e'} fuori" if r.fuori else "tutto in tolleranza"})
@@ -463,7 +463,7 @@ def pezzo(pn: str, sn: str, solo: str = "") -> dict | None:
     stesso_op = []
     if ultimo.op:
         visti_sn: dict[str, dict] = {}
-        for r in (ReportCMM.objects.filter(pn=pn, op__iexact=ultimo.op, righe__gt=0, escluso=False)
+        for r in (ReportCMM.objects.filter(pn=pn, op=ultimo.op, righe__gt=0, escluso=False)
                   .order_by("data", "id").only("seriale", "fuori", "data")[:MAX_REPORT_OP]):
             k = chiave_seriale(r.seriale)
             if k and k != chiave_seriale(ultimo.seriale):

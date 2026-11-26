@@ -172,6 +172,14 @@ class AnalisiTests(QuoteBase):
         self.assertEqual(pagina.status_code, 200)
         r = pagina.context["righe"][0]
         self.assertEqual((r["pn"], r["fuori_rec"], r["fuori_ultimo"]), ("PN-ALFA-1", 1, 1))
+        self.assertEqual(r["ultimo"][0], "SN2")                           # ultimo report del P/N (sottoquery)
+        from . import manutenzione_db
+        from django.db import connection as conn
+        if conn.vendor != "microsoft":
+            self.assertEqual(manutenzione_db.manutenzione(), {"saltata": "solo SQL Server"})
+        else:
+            esito = manutenzione_db.manutenzione()
+            self.assertIn("statistiche", esito)
         self.assertTrue(r["da_guardare"])
         self.assertContains(pagina, "Quote CMM")
         # mappa: l'ultima settimana ha SN2 (fuori) → cella rossa, link ai report di quella settimana

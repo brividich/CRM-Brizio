@@ -30,6 +30,16 @@ def run_giro_report_cmm():
         cache.delete(_BLOCCO_GIRO)
 
 
+@system_job_run("produzione_manutenzione_db")
+def run_manutenzione_db():
+    """Notte: statistiche e indici delle tabelle del modulo (``manutenzione_db``). Non parte durante un giro."""
+    if cache.get(_BLOCCO_GIRO):
+        return {"saltata": "giro dei report in corso"}
+    from . import manutenzione_db
+
+    return manutenzione_db.manutenzione()
+
+
 def run_leggi_pn(pn: str):
     """Pulsante «Leggi i report» della scheda P/N: solo la cartella di quel P/N."""
     chiave = _BLOCCO_PN.format(indice.normalize_part_number(pn))

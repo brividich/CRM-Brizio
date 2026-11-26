@@ -72,7 +72,7 @@ class ReportCMM(models.Model):
     """Un report CMM in PDF della share, letto con il lettore di Gestione anomalie."""
 
     cartella = models.ForeignKey(CartellaReportCMM, on_delete=models.CASCADE, related_name="report")
-    pn = models.CharField(max_length=100, db_index=True, verbose_name="P/N")
+    pn = models.CharField(max_length=100, verbose_name="P/N")  # indice: prod_rcmm_pn_prog_cop (pn in testa)
     op = models.CharField(max_length=100, db_index=True, blank=True, default="", verbose_name="OP")
     percorso = models.CharField(max_length=500, unique=True)
     file = models.CharField(max_length=255)
@@ -80,7 +80,7 @@ class ReportCMM(models.Model):
     modificato = models.FloatField(default=0)
     fase = models.CharField(max_length=40, blank=True, default="")
     programma = models.CharField(max_length=200, blank=True, default="", verbose_name="Programma")
-    programma_base = models.CharField(max_length=200, blank=True, default="", db_index=True,
+    programma_base = models.CharField(max_length=200, blank=True, default="",
                                       verbose_name="Programma senza revisione")
     seriale = models.CharField(max_length=100, blank=True, default="", verbose_name="S/N")
     data = models.DateField(null=True, blank=True)
@@ -91,7 +91,7 @@ class ReportCMM(models.Model):
     errore = models.CharField(max_length=300, blank=True, default="")
     letto_il = models.DateTimeField(auto_now=True)
     # Escluso dall'analisi (prova, rilavorazione, doppione): il PDF resta, il report non conta.
-    escluso = models.BooleanField(default=False, db_index=True)
+    escluso = models.BooleanField(default=False)
     escluso_motivo = models.CharField(max_length=120, blank=True, default="")
     escluso_nota = models.CharField(max_length=300, blank=True, default="")
     escluso_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
@@ -103,7 +103,12 @@ class ReportCMM(models.Model):
 
     class Meta:
         ordering = ["-data", "-id"]
-        indexes = [models.Index(fields=["pn", "programma_base"], name="prod_rcmm_pn_prog")]
+        # Le letture del modulo filtrano per P/N (e programma) o per data: indici di copertura con le colonne che
+        # leggono, senza tornare alla tabella (SQL Server; altrove «include» è ignorato).
+        indexes = [
+            models.Index(fields=["pn", "programma_base"], include=["righe", "escluso", "data", "fuori", "seriale", "op", "letto_il", "escluso_il"], name="prod_rcmm_pn_prog_cop"),
+            models.Index(fields=["data"], include=["pn", "righe", "escluso", "fuori"], name="prod_rcmm_data"),
+        ]
         verbose_name = "Report CMM"
         verbose_name_plural = "Report CMM"
 
@@ -126,7 +131,7 @@ class MisuraCMM(models.Model):
     pagina = models.PositiveIntegerField(default=0)
     sezione = models.CharField(max_length=200, blank=True, default="")
     nome = models.CharField(max_length=200)
-    chiave = models.CharField(max_length=200, db_index=True)
+    chiave = models.CharField(max_length=200)  # senza indice: si legge sempre per report (cluster report_id, id)
     tipo = models.CharField(max_length=40, blank=True, default="")
     misurato = models.FloatField()
     nominale = models.FloatField()
