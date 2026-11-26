@@ -335,7 +335,7 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
 
 
 def righe_gap_formativo(
-    *, filtro_reparto: str = "", filtro_corso: str = "", filtro_stato: str = "",
+    *, filtro_reparto: str = "", filtro_corso: str = "", filtro_stato: str = "", info: dict | None = None,
 ) -> tuple[list, list[str], list[dict]]:
     """Una riga per (dipendente in forza, corso obbligatorio) non in regola: scaduto, in scadenza o
     mai frequentato. Condivisa da `views.formazione_copertura` e dal suo export.
@@ -343,7 +343,10 @@ def righe_gap_formativo(
     «Obbligatorio» ha una definizione sola: quella del motore dei requisiti
     (``services.requisiti.formazione``), che unisce mansione, fattori di rischio, esposizioni, regole di
     obbligo e processi MOD.128 — la stessa di scadenzario, cruscotto HR e conformità. Prima la pagina
-    leggeva solo le regole di obbligo (in produzione nessuna) e restava vuota (analisi 26/11/2026)."""
+    leggeva solo le regole di obbligo (in produzione nessuna) e restava vuota (analisi 26/11/2026).
+
+    ``info`` (facoltativo) riceve ``n_obblighi``: quante coppie persona × corso obbligatorio il motore
+    trova in tutto. Zero vuol dire «nessun obbligo configurato», non «tutti in regola»."""
     from django.utils import timezone
 
     from ..models_formazione import TrainingDeadline
@@ -354,8 +357,11 @@ def righe_gap_formativo(
     oggi = timezone.localdate()
     ctx = requisiti.ambito(oggi)
     persone = {p.id: p for p in ctx._tutti() if p.in_forza_al(oggi)}
-    voci = [v for v in requisiti.formazione(ctx, persone) if v.obbligatorio
-            and v.stato in ("SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO")]
+    obbligatorie = [v for v in requisiti.formazione(ctx, persone) if v.obbligatorio]
+    if info is not None:
+        info["n_obblighi"] = len(obbligatorie)
+    voci = [v for v in obbligatorie
+            if v.stato in ("SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO")]
     corsi_all = sorted({v.corso.pk: v.corso for v in voci}.values(), key=lambda c: (c.titolo or "").casefold())
     _ord = {"SCADUTO": 0, "IN_SCADENZA_30": 1, "IN_SCADENZA_90": 2, "MAI_FREQUENTATO": 3}
     righe: list[dict] = []

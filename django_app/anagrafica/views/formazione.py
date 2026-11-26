@@ -863,18 +863,22 @@ def formazione_dashboard(request):
     filtro_centro = centro_filtro.leggi(request)
     scadenze_qs = filtro_centro.applica(TrainingDeadline.objects.all())
 
-    # KPI da TrainingEmployeeRecord (non dipende dalla cache)
-    kpi_dipendenti_formazione = (
-        filtro_centro.applica(TrainingEmployeeRecord.objects.all())
-        .values("legacy_anagrafica_id").distinct().count()
-    )
+    # KPI da TrainingEmployeeRecord (non dipende dalla cache): solo persone in forza,
+    # gli ex dipendenti restano nello storico ma non sono «dipendenti con formazione».
+    cessati = _helpers._cessati_legacy_ids()
+    kpi_dipendenti_formazione = len({
+        lid for lid in filtro_centro.applica(TrainingEmployeeRecord.objects.all())
+        .values_list("legacy_anagrafica_id", flat=True).distinct()
+        if lid and lid not in cessati
+    })
 
     # KPI da TrainingDeadline (cache — può essere 0 se non ancora ricalcolata).
     # Stessi filtri dello scadenzario a cui portano le tessere.
     from ..services.training_deadline_service import STATO_MANCANTE, filtra_stato_scadenze
 
-    kpi_scaduti         = filtra_stato_scadenze(scadenze_qs, "SCADUTO").count()
-    kpi_in_scadenza_30  = filtra_stato_scadenze(scadenze_qs, "IN_SCADENZA_30").count()
+    # Solo obbligatori, come lo scadenzario (di default) a cui portano le tessere.
+    kpi_scaduti         = filtra_stato_scadenze(scadenze_qs, "SCADUTO", solo_obbligatori=True).count()
+    kpi_in_scadenza_30  = filtra_stato_scadenze(scadenze_qs, "IN_SCADENZA_30", solo_obbligatori=True).count()
     kpi_obbligatori_mancanti = filtra_stato_scadenze(
         scadenze_qs, STATO_MANCANTE, solo_obbligatori=True,
     ).count()
@@ -884,9 +888,11 @@ def formazione_dashboard(request):
     kpi_corsi_attivi = _corsi_attivi(TrainingCourse.objects.all()).count()
 
     # Scadenzario urgente TOP 20 (ordinato per urgenza crescente)
+    # Solo corsi obbligatori: il riquadro vuoto dice «obbligatori in regola», quindi
+    # non deve elencare corsi facoltativi (prima li mescolava).
     scadenze_raw = list(
         scadenze_qs
-        .filter(stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90"])
+        .filter(is_required=True, stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90"])
         .select_related("corso", "corso__piano")
         .order_by("data_scadenza", "legacy_anagrafica_id")[:20]
     )
@@ -897,6 +903,9 @@ def formazione_dashboard(request):
 
     deadline_cache_empty = not TrainingDeadline.objects.exists()
     copertura_corsi = _copertura_corsi_obbligatori(oggi, filtro_centro)
+    # Nessuna scadenza obbligatoria nella cache calcolata = nessun obbligo configurato
+    # (non «tutti in regola»): stessa logica della pagina Copertura.
+    nessun_obbligo = not deadline_cache_empty and not TrainingDeadline.objects.filter(is_required=True).exists()
 
     # Edizioni dei corsi: stessi numeri dell'elenco Sessioni a cui portano i link.
     from ..services import formazione_aula as _aula_dash
@@ -920,6 +929,7 @@ def formazione_dashboard(request):
         "deadline_cache_empty": deadline_cache_empty,
         "edizioni_in_corso": edizioni_in_corso,
         "edizioni_da_chiudere": edizioni_da_chiudere,
+        "nessun_obbligo": nessun_obbligo,
     })
 
 
@@ -4705,7 +4715,9 @@ def formazione_scadenzario(request):
     filtro_stato = request.GET.get("stato", "").strip()
     filtro_corso = request.GET.get("corso", "").strip()
     filtro_q     = request.GET.get("q", "").strip()
-    filtro_obbligatori = request.GET.get("obbligatori", "") == "1"
+    # Di default solo i corsi obbligatori (lo scadenzario è per gli obblighi);
+    # «?obbligatori=0» (interruttore spento) mostra anche i facoltativi.
+    filtro_obbligatori = request.GET.get("obbligatori", "1") != "0"
 
     filtro_centro = centro_filtro.leggi(request)
 
@@ -4743,14 +4755,16 @@ def formazione_scadenzario(request):
         s.nome_dip = nomi_map.get(s.legacy_anagrafica_id, f"#{s.legacy_anagrafica_id}")
 
     # KPI con gli stessi filtri della lista (centro, corso, ricerca), stato a parte.
-    n_scaduti  = filtra_stato_scadenze(base_qs, "SCADUTO").count()
-    n_30gg     = filtra_stato_scadenze(base_qs, "IN_SCADENZA_30").count()
-    n_90gg     = filtra_stato_scadenze(base_qs, "IN_SCADENZA_90").count()
+    # Le tessere seguono l'interruttore «Solo obbligatori», come la lista che aprono.
+    n_scaduti  = filtra_stato_scadenze(base_qs, "SCADUTO", filtro_obbligatori).count()
+    n_30gg     = filtra_stato_scadenze(base_qs, "IN_SCADENZA_30", filtro_obbligatori).count()
+    n_90gg     = filtra_stato_scadenze(base_qs, "IN_SCADENZA_90", filtro_obbligatori).count()
     n_mai      = filtra_stato_scadenze(base_qs, "MAI_FREQUENTATO", solo_obbligatori=True).count()
 
     # Querystring dei filtri da conservare nei link delle tessere (stato escluso).
     kpi_qs_extra = urlencode([(k, v) for k, v in (
-        ("corso", filtro_corso), ("q", filtro_q), ("dipendente", filtro_dipendente)) if v])
+        ("corso", filtro_corso), ("q", filtro_q), ("dipendente", filtro_dipendente),
+        ("obbligatori", "" if filtro_obbligatori else "0")) if v])
     if kpi_qs_extra:
         kpi_qs_extra = "&" + kpi_qs_extra
 
@@ -4806,8 +4820,9 @@ def formazione_copertura(request):
     # Un solo calcolo senza stato: la lista applica lo stato scelto, le tessere
     # «Scaduti»/«Mai frequentati» contano sugli altri filtri (reparto, corso),
     # come l'elenco che aprono (?stato=… con reparto e corso conservati).
+    info: dict = {}
     corsi_all, reparti, tutte = righe_gap_formativo(
-        filtro_reparto=filtro_reparto, filtro_corso=filtro_corso, filtro_stato="",
+        filtro_reparto=filtro_reparto, filtro_corso=filtro_corso, filtro_stato="", info=info,
     )
     righe = [r for r in tutte if r["stato"] == filtro_stato] if filtro_stato else tutte
 
@@ -4824,6 +4839,9 @@ def formazione_copertura(request):
         "n_gap": len(righe),
         "n_scaduti": sum(1 for r in tutte if r["stato"] == "SCADUTO"),
         "n_mai": sum(1 for r in tutte if r["stato"] == "MAI_FREQUENTATO"),
+        "n_in_scadenza": sum(1 for r in tutte if r["stato"] in ("IN_SCADENZA_30", "IN_SCADENZA_90")),
+        # Il motore non trova nessun obbligo: non è «tutti in regola», manca la configurazione.
+        "nessun_obbligo": not info.get("n_obblighi"),
         "filtri_qs": filtri_qs,
         "lista_qs": urlencode([(k, v) for k, v in (
             ("reparto", filtro_reparto), ("corso", filtro_corso), ("stato", filtro_stato)) if v]),

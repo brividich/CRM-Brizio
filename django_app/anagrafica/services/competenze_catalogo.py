@@ -149,7 +149,12 @@ def matrice(reparto_id: int | None = None) -> dict:
 
         abil = abil.filter(Q(competenza__area__reparto_id=reparto_id)
                            | Q(competenza__area__isnull=True, competenza__reparto_id=reparto_id))
-    abil_ids = list(abil.values_list("pk", flat=True))
+    # Gli ex dipendenti non sono nella matrice: restano in lista solo per lo storico.
+    from .organigramma_albero import cessati_legacy_ids
+
+    cessati = cessati_legacy_ids()
+    in_forza = [(pk, lid) for pk, lid in abil.values_list("pk", "legacy_anagrafica_id") if lid not in cessati]
+    abil_ids = [pk for pk, _lid in in_forza]
     celle: dict[tuple[int, int], str] = {}
     colonne: dict[int, CompetenzaCatalogo] = {}
     for r in (AbilitazioneMacchinaVoce.objects.filter(abilitazione_id__in=abil_ids, voce__catalogo__isnull=False,
@@ -163,7 +168,7 @@ def matrice(reparto_id: int | None = None) -> dict:
     for v in (VoceMacchinaCatalogo.objects.filter(mansione__abilitazioni__pk__in=abil_ids, attiva=True,
                                                   catalogo__isnull=False).select_related("catalogo").distinct()):
         colonne.setdefault(v.catalogo_id, v.catalogo)
-    persone_ids = sorted(set(abil.values_list("legacy_anagrafica_id", flat=True)))
+    persone_ids = sorted({lid for _pk, lid in in_forza})
     nomi = {int(r["id"]): naming.nome_completo(r.get("nome"), r.get("cognome"))
             for r in fetch_anagrafica_rows(ids=persone_ids)} if persone_ids else {}
     cols = sorted(colonne.values(), key=lambda c: c.nome.casefold())

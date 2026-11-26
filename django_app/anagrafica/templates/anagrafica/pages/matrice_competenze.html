@@ -23,7 +23,8 @@
 .mc-cell-valido { background:#dcfce7; color:#166534; font-weight:700; }
 .mc-cell-in_scadenza { background:#fef9c3; color:#854d0e; font-weight:700; }
 .mc-cell-scaduto { background:#fee2e2; color:#991b1b; font-weight:700; }
-.mc-cell-mancante { color:#cbd5e1; }
+.mc-cell-mancante { background:#fff1f2; color:#be123c; font-weight:700; }
+.mc-cell-non_richiesta { color:#cbd5e1; }
 .mc-dip a { color:#1f87cd; text-decoration:none; }
 .mc-dip a:hover { text-decoration:underline; }
 .mc-tabs { display:flex; flex-wrap:wrap; gap:6px; }
@@ -45,6 +46,7 @@ body.theme-dark .mc-table th,body.theme-dark .mc-table td{border-color:var(--bor
 body.theme-dark .mc-cell-valido{background:rgba(56,161,105,.18);color:#86efac}
 body.theme-dark .mc-cell-in_scadenza{background:rgba(214,158,46,.16);color:#fcd34d}
 body.theme-dark .mc-cell-scaduto{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .mc-cell-mancante{background:rgba(225,29,72,.12);color:#fda4af}
 body.theme-dark .mc-dip a{color:#93c5fd}
 </style>
 {% endblock %}
@@ -64,7 +66,7 @@ body.theme-dark .mc-dip a{color:#93c5fd}
         <span class="fm-crumb-sep">›</span> Matrice qualifiche
       </template>
       <h2 class="hr-pagehead-title">📊 Matrice qualifiche{% info_hint "matrice_competenze" %}</h2>
-      <p class="hr-pagehead-desc">Dipendenti × abilitazioni/qualifiche per audit ISO 45001: valido · in scadenza (≤60gg) · scaduto · non posseduto.</p>
+      <p class="hr-pagehead-desc">Dipendenti in forza × qualifiche richieste (ruolo, mansione, processi MOD.128) e possedute, per audit ISO 45001: valido · in scadenza (≤{{ giorni_preavviso }}gg) · scaduto · mancante (richiesta e non posseduta).</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       {% include "anagrafica/partials/_export_buttons.html" with export_key="matrice_competenze" %}
@@ -73,7 +75,7 @@ body.theme-dark .mc-dip a{color:#93c5fd}
     </div>
   </div>
 
-  <nav class="mc-tabs" aria-label="Filtra competenze per categoria">
+  <nav class="mc-tabs" aria-label="Filtra qualifiche per categoria">
     {% for code, label, count in tabs %}
       <a href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&{% endif %}{% if code %}categoria={{ code }}{% endif %}" class="{% if active_categoria == code %}active{% endif %}">{{ label }} <span class="cnt">{{ count }}</span></a>
     {% endfor %}
@@ -88,7 +90,7 @@ body.theme-dark .mc-dip a{color:#93c5fd}
           {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
         </select>
       </div>
-      <span class="muted" style="font-size:12px;color:#94a3b8;">{{ totale }} dipendenti · {{ tipi|length }} competenze</span>
+      <span class="muted" style="font-size:12px;color:#94a3b8;">{{ totale }} dipendenti · {{ tipi|length }} qualifiche</span>
     </form>
   </div>
 
@@ -96,9 +98,10 @@ body.theme-dark .mc-dip a{color:#93c5fd}
     {% if righe and tipi %}
     <div class="mc-legend">
       <span><span class="sw" style="background:#dcfce7;"></span>✓ Valido</span>
-      <span><span class="sw" style="background:#fef9c3;"></span>⚠ In scadenza (≤60gg)</span>
+      <span><span class="sw" style="background:#fef9c3;"></span>⚠ In scadenza (≤{{ giorni_preavviso }}gg)</span>
       <span><span class="sw" style="background:#fee2e2;"></span>✗ Scaduto</span>
-      <span><span class="sw" style="background:#f1f5f9;"></span>— Non posseduto</span>
+      <span><span class="sw" style="background:#fff1f2;"></span>! Mancante (richiesta)</span>
+      <span><span class="sw" style="background:#f1f5f9;"></span>· Non richiesta</span>
     </div>
     <div class="mc-wrap">
       <table class="mc-table">
@@ -113,8 +116,8 @@ body.theme-dark .mc-dip a{color:#93c5fd}
           <tr>
             <td class="mc-dip"><a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{% nominativo r %}</a>{% if r.reparto %}<br><small>{{ r.reparto }}</small>{% endif %}</td>
             {% for c in r.celle %}
-            <td class="mc-cell-{{ c.stato }}" title="{% if c.data %}scadenza {{ c.data|date:'d/m/Y' }}{% elif c.stato == 'valido' %}valido{% else %}non posseduto{% endif %}">
-              {% if c.stato == 'valido' %}✓{% elif c.stato == 'in_scadenza' %}<a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}?rinnova={{ c.tipo_id }}" title="Rinnova: apre la scheda con il rinnovo precompilato" style="color:inherit;text-decoration:none;">⚠</a>{% elif c.stato == 'scaduto' %}<a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}?rinnova={{ c.tipo_id }}" title="Rinnova: apre la scheda con il rinnovo precompilato" style="color:inherit;text-decoration:none;">✗</a>{% else %}—{% endif %}
+            <td class="mc-cell-{{ c.stato }}" title="{% if c.data %}scadenza {{ c.data|date:'d/m/Y' }}{% elif c.stato == 'valido' %}valido{% elif c.stato == 'mancante' %}richiesta e non posseduta{% else %}non richiesta{% endif %}{% if c.perche %} · richiesta da: {{ c.perche }}{% endif %}">
+              {% if c.stato == 'valido' %}✓{% elif c.stato == 'in_scadenza' %}<a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}?rinnova={{ c.tipo_id }}" title="Rinnova: apre la scheda con il rinnovo precompilato" style="color:inherit;text-decoration:none;">⚠</a>{% elif c.stato == 'scaduto' %}<a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}?rinnova={{ c.tipo_id }}" title="Rinnova: apre la scheda con il rinnovo precompilato" style="color:inherit;text-decoration:none;">✗</a>{% elif c.stato == 'mancante' %}!{% else %}·{% endif %}
             </td>
             {% endfor %}
           </tr>
@@ -123,7 +126,7 @@ body.theme-dark .mc-dip a{color:#93c5fd}
       </table>
     </div>
     {% else %}
-    <div class="fm-empty" style="padding:24px;">Nessun dato: servono dipendenti attivi e qualifiche assegnate (vedi import ASR o assegnazione manuale).</div>
+    <div class="fm-empty" style="padding:24px;">Nessun dato: servono dipendenti in forza e qualifiche richieste (ruolo, mansione, processi) o assegnate.</div>
     {% endif %}
   </div>
 

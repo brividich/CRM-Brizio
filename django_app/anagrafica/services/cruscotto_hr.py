@@ -12,9 +12,13 @@ from datetime import date, timedelta
 
 from django.utils import timezone
 
+from ..scadenze_soglie import GIORNI_PREAVVISO
 from . import requisiti
 
-SOGLIA_GIORNI = 60
+# Formazione e qualifiche: soglia unica «in scadenza» (scadenze_soglie).
+SOGLIA_GIORNI = GIORNI_PREAVVISO
+# Le visite mediche hanno regole proprie: restano a 60 giorni.
+SOGLIA_GIORNI_VISITE = 60
 MAX_RIGHE = 8
 
 
@@ -86,12 +90,12 @@ class Cruscotto:
         return tot
 
 
-def _tono_scadenza(scadenza: date | None, oggi: date) -> str:
+def _tono_scadenza(scadenza: date | None, oggi: date, soglia: int = SOGLIA_GIORNI) -> str:
     if scadenza is None:
         return ""
     if scadenza < oggi:
         return "ko"
-    if (scadenza - oggi).days <= SOGLIA_GIORNI:
+    if (scadenza - oggi).days <= soglia:
         return "warn"
     return ""
 
@@ -174,7 +178,7 @@ def calcola(
                 out.visite.mancante += 1
                 righe.append(Riga(v.persona, nomi[v.persona], v.tipo_da_mostrare.nome, None, "mancante"))
                 continue
-            tono = _tono_scadenza(v.scadenza, oggi)
+            tono = _tono_scadenza(v.scadenza, oggi, SOGLIA_GIORNI_VISITE)
             if tono == "ko":
                 out.visite.ko += 1
                 persone_ko.add(v.persona)

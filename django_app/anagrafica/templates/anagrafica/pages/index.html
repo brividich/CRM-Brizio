@@ -189,7 +189,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
         {% endfor %}
       </div>
       {% else %}
-      <div class="hr-todo-empty">Nessuna scadenza entro i prossimi 60 giorni.</div>
+      <div class="hr-todo-empty">Nessuna scadenza entro i prossimi 90 giorni (visite mediche: 60).</div>
       {% endif %}
     </div>
   </div>
@@ -277,7 +277,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
           <span class="hrg-box-title">🎓 Qualifiche e abilitazioni</span>
           <a class="hrg-box-link" href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica">Scadenzario →</a>
         </div>
-        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_qualifiche vuoto="Nessuna qualifica scaduta o in scadenza nei prossimi 60 giorni." ancora="qualifiche" %}
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_qualifiche vuoto="Nessuna qualifica scaduta o in scadenza nei prossimi 90 giorni." ancora="qualifiche" %}
       </section>
       <section class="hr-card hrg-box">
         <div class="hrg-box-head">
@@ -302,7 +302,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
     </div>
     {% else %}
     <section class="hr-card hrg-box hrg-tutto-ok">
-      <span>✅ <b>Niente da sistemare</b>: formazione{% if cruscotto.visite %}, visite{% endif %} e qualifiche in regola per i prossimi 60 giorni, nessun cambio mansione aperto, nessun movimento di personale negli ultimi 30 giorni.</span>
+      <span>✅ <b>Niente da sistemare</b>: formazione{% if cruscotto.visite %}, visite{% endif %} e qualifiche in regola per i prossimi 90 giorni{% if cruscotto.visite %} (visite: 60){% endif %}, nessun cambio mansione aperto, nessun movimento di personale negli ultimi 30 giorni.</span>
       <a class="hrg-box-link" href="{% url 'anagrafica:scadenzario' %}">Scadenzario →</a>
     </section>
     {% endif %}
@@ -352,11 +352,11 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
           <div class="hr-metric-sub">Vedi scadenzario →</div>
         </div>
       </a>
-      <a class="hr-metric kpi-link" href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&amp;stato=60" title="Apri lo scadenzario filtrato: qualifiche in scadenza nei prossimi 60 giorni">
+      <a class="hr-metric kpi-link" href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&amp;stato=90" title="Apri lo scadenzario filtrato: qualifiche in scadenza nei prossimi 90 giorni">
         <div class="hr-metric-ico amber">⏰</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">In scadenza</span><span class="hr-metric-val">{{ n_qualifiche_scadenza }}</span></div>
-          <div class="hr-metric-sub">Prossimi 60 giorni →</div>
+          <div class="hr-metric-sub">Prossimi 90 giorni →</div>
         </div>
       </a>
       {% if carico_home %}

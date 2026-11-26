@@ -463,13 +463,13 @@ def scadenzario(request):
     can_view_contratti = _helpers._check_hr_permission(request)
 
     filtro_tipo    = request.GET.get("tipo", "")         # "qualifica" / "visita" / "formazione" / "contratto" / ""
-    filtro_stato   = request.GET.get("stato", "")        # "scaduta" / "30" / "60" / ""
+    filtro_stato   = request.GET.get("stato", "")        # "scaduta" / "30" / "90" (alias "60") / ""
     filtro_reparto = request.GET.get("reparto", "").strip()
     export_csv     = request.GET.get("format") == "csv"
     # Periodo: «questo mese», «prossimo mese» o un intervallo dal/al libero.
     filtro_periodo, periodo_dal, periodo_al, periodo = _scadenzario_periodo(request, oggi)
 
-    # Le voci si raccolgono senza stato (finestra «scadute + entro 60 giorni», o il
+    # Le voci si raccolgono senza stato (finestra «scadute + entro 90 giorni», o il
     # periodo scelto) e lo stato si applica qui: le tessere contano sulla stessa
     # base con la stessa regola, quindi il numero è quello della lista che aprono.
     voci_base = _helpers._build_scadenzario_voci(
@@ -484,21 +484,30 @@ def scadenzario(request):
     filtro_centro = centro_filtro.leggi(request)
     voci_base = [v for v in voci_base if filtro_centro.contiene(v.get("legacy_id"))]
 
+    from ..scadenze_soglie import GIORNI_PREAVVISO, GIORNI_URGENTE
+
     def _nello_stato(v, stato: str) -> bool:
+        # Soglie uniche 30/90; le visite mediche hanno la loro (60 giorni).
         if stato == "scaduta":
             return v["scaduta"]
-        if stato in ("30", "60"):
-            return not v["scaduta"] and v["giorni"] <= int(stato)
+        if stato == "30":
+            return not v["scaduta"] and v["giorni"] <= GIORNI_URGENTE
+        if stato == "90":
+            limite = (_helpers.GIORNI_PREAVVISO_VISITE if v["kind"] == "visita"
+                      else GIORNI_PREAVVISO)
+            return not v["scaduta"] and v["giorni"] <= limite
         return True
 
-    if filtro_stato not in ("scaduta", "30", "60"):
+    if filtro_stato == "60":
+        filtro_stato = "90"  # chiave storica dei link: «in scadenza»
+    if filtro_stato not in ("scaduta", "30", "90"):
         filtro_stato = ""
     voci = [v for v in voci_base if _nello_stato(v, filtro_stato)] if filtro_stato else voci_base
 
-    # KPI: «entro 60 giorni» comprende i 30 (stessa regola di ?stato=60).
+    # KPI: «in scadenza» comprende le urgenti (stessa regola di ?stato=90).
     n_scadute = sum(1 for v in voci_base if _nello_stato(v, "scaduta"))
     n_30gg    = sum(1 for v in voci_base if _nello_stato(v, "30"))
-    n_60gg    = sum(1 for v in voci_base if _nello_stato(v, "60"))
+    n_60gg    = sum(1 for v in voci_base if _nello_stato(v, "90"))
     # Filtri correnti da conservare nei link delle tessere (stato e pagina esclusi).
     from urllib.parse import urlencode
 
@@ -972,7 +981,7 @@ def impostazioni(request):
         ("anagrafica:qualifiche_dashboard", "Competenze — cruscotto qualifiche"),
         ("anagrafica:qualifiche_list", "Competenze — catalogo qualifiche"),
         ("anagrafica:qualifica_sessioni_list", "Competenze — sessioni di rinnovo"),
-        ("anagrafica:matrice_competenze", "Competenze — matrice competenze"),
+        ("anagrafica:matrice_competenze", "Competenze — matrice qualifiche"),
         ("anagrafica:mpq_matrice", "Competenze — matrice persone × processi (MOD.128)"),
         # Compliance (salute & sicurezza)
         ("anagrafica:sicurezza_hub", "Compliance — hub sicurezza"),

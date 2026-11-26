@@ -78,10 +78,10 @@
         <div class="fmd-mtr-lbl">Processi attivi</div>
         <div class="fmd-mtr-sub">{{ n_sospesi }} sospesi · {{ n_dismessi }} dismessi/non rinnovati</div>
       </a>
-      <a href="{% url 'anagrafica:mpq_cruscotto' %}?scad=60#registro-processi" title="Apri il registro filtrato: processi in scadenza entro 60 giorni" class="fmd-mtr fmd-t-yellow kpi-link">
+      <a href="{% url 'anagrafica:mpq_cruscotto' %}?scad=60#registro-processi" title="Apri il registro filtrato: processi in scadenza entro 90 giorni" class="fmd-mtr fmd-t-yellow kpi-link">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div>
-        <div class="fmd-mtr-lbl">Processi in scadenza ≤60gg</div>
+        <div class="fmd-mtr-lbl">Processi in scadenza ≤90gg</div>
         <div class="fmd-mtr-sub">{{ n_s30 }} entro 30 giorni</div>
       </a>
       <a href="{% url 'anagrafica:mpq_cruscotto' %}?scad=scaduta#registro-processi" title="Apri il registro filtrato: processi scaduti" class="fmd-mtr fmd-t-amber kpi-link">
@@ -99,7 +99,7 @@
       <div class="fmd-mtr fmd-t-violet">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alarm"/></svg></span><span class="fmd-mtr-val">{{ cert_scad }}</span></div>
-        <div class="fmd-mtr-lbl">Certificati individuali ≤60gg</div>
+        <div class="fmd-mtr-lbl">Certificati individuali ≤90gg</div>
         <div class="fmd-mtr-sub">Seconda scadenza (per persona)</div>
       </div>
     </section>
@@ -154,7 +154,7 @@
           <svg class="fmd-ico"><use href="#i-alarm"/></svg>Processi in scadenza
           {% if scadenze_urgenti %}<span class="fmd-count">{{ scadenze_urgenti|length }}</span>{% endif %}
         </div>
-        <div class="fmd-block-aside">Scaduti e in scadenza ≤60gg (top 15)</div>
+        <div class="fmd-block-aside">Scaduti e in scadenza ≤90gg (top 15)</div>
       </div>
       {% if scadenze_urgenti %}
       <div class="fmd-tablewrap" style="margin:0 -22px;">
@@ -184,7 +184,7 @@
               <td>
                 {% if r.scad_stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>
                 {% elif r.scad_stato == "s30" %}<span class="fmd-badge fmd-b-orange">≤30gg</span>
-                {% else %}<span class="fmd-badge fmd-b-amber">≤60gg</span>{% endif %}
+                {% else %}<span class="fmd-badge fmd-b-amber">≤90gg</span>{% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -192,7 +192,7 @@
         </table>
       </div>
       {% else %}
-      <div class="fmd-empty">Nessun processo scaduto o in scadenza nei prossimi 60 giorni. 🎉</div>
+      <div class="fmd-empty">Nessun processo scaduto o in scadenza nei prossimi 90 giorni. 🎉</div>
       {% endif %}
     </section>
 

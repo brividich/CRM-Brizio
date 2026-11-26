@@ -76,7 +76,7 @@ class CoseDaGestireTests(TestCase):
         resp = self.client.get(reverse("anagrafica:index"))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.context["cose_da_gestire"], [])
-        self.assertContains(resp, "Nessuna scadenza entro i prossimi 60 giorni")
+        self.assertContains(resp, "Nessuna scadenza entro i prossimi 90 giorni")
 
     def test_qualifiche_scadute_e_in_scadenza_righe_separate(self):
         self._qualifica(301, -10)
@@ -87,11 +87,12 @@ class CoseDaGestireTests(TestCase):
 
         self.assertEqual(righe["Qualifiche scadute"]["count"], 2)
         self.assertTrue(righe["Qualifiche scadute"]["urgente"])
-        self.assertEqual(righe["Qualifiche in scadenza (60 giorni)"]["count"], 1)
-        self.assertFalse(righe["Qualifiche in scadenza (60 giorni)"]["urgente"])
+        self.assertEqual(righe["Qualifiche in scadenza (90 giorni)"]["count"], 1)
+        self.assertFalse(righe["Qualifiche in scadenza (90 giorni)"]["urgente"])
 
-    def test_scadenza_oltre_60_giorni_non_e_una_cosa_da_gestire(self):
-        self._qualifica(304, 90)
+    def test_scadenza_oltre_90_giorni_non_e_una_cosa_da_gestire(self):
+        # Soglia unica «in scadenza» (scadenze_soglie.GIORNI_PREAVVISO = 90).
+        self._qualifica(304, 120)
         resp = self.client.get(reverse("anagrafica:index"))
         self.assertEqual(resp.context["cose_da_gestire"], [])
 
@@ -100,7 +101,7 @@ class CoseDaGestireTests(TestCase):
         self._qualifica(306, -1)
         resp = self.client.get(reverse("anagrafica:index"))
         titoli = [r["titolo"] for r in resp.context["cose_da_gestire"]]
-        self.assertEqual(titoli, ["Qualifiche scadute", "Qualifiche in scadenza (60 giorni)"])
+        self.assertEqual(titoli, ["Qualifiche scadute", "Qualifiche in scadenza (90 giorni)"])
 
     def test_il_conteggio_coincide_con_lo_scadenzario_che_apre(self):
         """Il contratto vero del blocco: cliccando la riga si trovano ESATTAMENTE

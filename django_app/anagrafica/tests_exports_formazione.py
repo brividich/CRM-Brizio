@@ -218,11 +218,15 @@ class FormazioneExportTests(TestCase):
         self.client.get(self._url("formazione_scadenzario", format="xlsx"))
         log = self._last_log()
         self.assertEqual(log.dettaglio.get("n_righe"), 1)  # solo lo SCADUTO
+        # Di default solo obbligatori (come la pagina): il VALIDO facoltativo esce;
+        # con obbligatori=0 (interruttore spento) torna.
         self.client.get(self._url("formazione_scadenzario", format="xlsx", stato="VALIDO"))
+        self.assertEqual(self._last_log().dettaglio.get("n_righe"), 0)
+        self.client.get(self._url("formazione_scadenzario", format="xlsx", stato="VALIDO", obbligatori="0"))
         self.assertEqual(self._last_log().dettaglio.get("n_righe"), 1)
         self.client.get(self._url("formazione_scadenzario", format="xlsx", corso=self.corso_a.pk))
         self.assertEqual(self._last_log().dettaglio.get("n_righe"), 1)
-        self.client.get(self._url("formazione_scadenzario", format="xlsx", q="bianchi", stato="VALIDO"))
+        self.client.get(self._url("formazione_scadenzario", format="xlsx", q="bianchi", stato="VALIDO", obbligatori="0"))
         self.assertEqual(self._last_log().dettaglio.get("n_righe"), 1)
         self.client.get(self._url("formazione_scadenzario", format="xlsx", q="bianchi"))
         self.assertEqual(self._last_log().dettaglio.get("n_righe"), 0)

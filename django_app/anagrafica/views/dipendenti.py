@@ -410,7 +410,7 @@ def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
         voci_kind = [v for v in voci if v["kind"] == kind]
         n_scadute = sum(1 for v in voci_kind if v["scaduta"])
         # Le voci non scadute che _build_scadenzario_voci restituisce senza filtro
-        # stato sono già solo quelle entro 60 giorni.
+        # stato sono già solo quelle in scadenza (90 giorni; visite 60).
         n_prossime = len(voci_kind) - n_scadute
         if n_scadute:
             scadute.append({
@@ -423,10 +423,10 @@ def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
         if n_prossime:
             in_scadenza.append({
                 "icona": icona,
-                "titolo": f"{label} in scadenza (60 giorni)",
+                "titolo": f"{label} in scadenza ({60 if kind == 'visita' else 90} giorni)",
                 "count": n_prossime,
                 "urgente": False,
-                "url": f"{base}?tipo={kind}&stato=60",
+                "url": f"{base}?tipo={kind}&stato=90",
             })
     return _righe_richieste(request) + scadute + in_scadenza
 
@@ -492,11 +492,12 @@ def index(request):
     n_reparti_catalog = Reparto.objects.filter(is_active=True).count()
     n_qualifiche = TipoQualifica.objects.filter(is_active=True).count()
 
-    # Qualifiche scadute e in scadenza (prossimi 60 giorni)
+    # Qualifiche scadute e in scadenza (soglia unica «in scadenza», 90 giorni)
     from datetime import timedelta
     from django.utils import timezone as tz
+    from ..scadenze_soglie import GIORNI_PREAVVISO
     oggi = tz.localdate()
-    soglia = oggi + timedelta(days=60)
+    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
     n_qualifiche_scadute = DipendenteQualifica.objects.filter(
         data_scadenza__isnull=False, data_scadenza__lt=oggi
     ).count()

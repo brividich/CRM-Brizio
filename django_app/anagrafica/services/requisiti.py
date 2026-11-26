@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 ORIGINE_FREQUENTATO = "Corso frequentato (non richiesto)"
 ORIGINE_VISITA_REGISTRATA = "Visita registrata (non richiesta)"
 ORIGINE_PROTOCOLLO = "Protocollo sanitario"
+ORIGINE_OBBLIGATORIO_TUTTI = "Corso obbligatorio per tutti"
 
 
 def _aggiungi(origini: dict, chiave, etichetta: str) -> None:
@@ -180,6 +181,96 @@ def qualifiche_correnti(ctx, qs, persone: dict) -> tuple[dict, list]:
     return correnti, sostituite
 
 
+def qualifiche_richieste(legacy_ids, oggi: date | None = None) -> dict[int, dict[int, list[str]]]:
+    """``{legacy_id: {tipo_qualifica_id: [origini]}}`` delle qualifiche *richieste* alla persona.
+
+    Fonti (le stesse che altrove decidono se una persona può operare):
+
+    - ruolo operativo in essere → qualifiche obbligatorie del ruolo (``RuoloQualifica``);
+    - mansione del Mansionario su cui la persona è in lista → requisito formale
+      «qualifica» di una competenza (``VoceMacchinaCatalogo.qualifica``);
+    - processi qualificati MOD.128 con abilitazione attiva → requisiti persona di tipo
+      qualifica bloccanti (stessa regola di ``mpq_persone.obblighi_richiesti``).
+
+    Le chiavi sono gli id legacy passati (nessuna fusione delle anagrafiche doppie):
+    il chiamante confronta con le ``DipendenteQualifica`` per lo stesso id.
+    """
+    from django.utils import timezone
+
+    from anagrafica.models import (
+        AbilitazioneMacchina,
+        DipendenteRuoloOperativo,
+        RuoloQualifica,
+        VoceMacchinaCatalogo,
+    )
+
+    oggi = oggi or timezone.localdate()
+    ids = sorted({int(i) for i in legacy_ids if i})
+    out: dict[int, dict[int, list[str]]] = {}
+    if not ids:
+        return out
+
+    # 1) Ruoli operativi in essere.
+    ruoli_persona: dict[int, set[int]] = {}
+    nomi_ruolo: dict[int, str] = {}
+    for a in filtra_in(DipendenteRuoloOperativo.objects.select_related("ruolo"), "legacy_anagrafica_id", ids):
+        if a.data_fine and a.data_fine < oggi:
+            continue
+        ruoli_persona.setdefault(a.legacy_anagrafica_id, set()).add(a.ruolo_id)
+        nomi_ruolo[a.ruolo_id] = str(a.ruolo)
+    if ruoli_persona:
+        per_ruolo: dict[int, list[int]] = {}
+        for ruolo_id, tipo_id in RuoloQualifica.objects.filter(
+            obbligatoria=True, ruolo_id__in=sorted(nomi_ruolo),
+        ).values_list("ruolo_id", "qualifica_id"):
+            per_ruolo.setdefault(ruolo_id, []).append(tipo_id)
+        for lid, ruoli in ruoli_persona.items():
+            for ruolo_id in ruoli:
+                for tipo_id in per_ruolo.get(ruolo_id, []):
+                    _aggiungi(out.setdefault(lid, {}), tipo_id, f"Ruolo «{nomi_ruolo[ruolo_id]}»")
+
+    # 2) Mansioni del Mansionario (persona in lista, competenza con qualifica richiesta).
+    voci_per_mansione: dict[int, list[tuple[int, str]]] = {}
+    for v in VoceMacchinaCatalogo.objects.filter(
+        attiva=True, qualifica__isnull=False, mansione__isnull=False, mansione__attiva=True,
+    ).select_related("mansione"):
+        voci_per_mansione.setdefault(v.mansione_id, []).append((v.qualifica_id, v.mansione.nome))
+    if voci_per_mansione:
+        for lid, mansione_id in filtra_in(
+            AbilitazioneMacchina.objects.filter(in_lista=True, competenza_id__in=sorted(voci_per_mansione))
+            .values_list("legacy_anagrafica_id", "competenza_id"),
+            "legacy_anagrafica_id", ids,
+        ):
+            for tipo_id, nome in voci_per_mansione.get(mansione_id, []):
+                _aggiungi(out.setdefault(lid, {}), tipo_id, f"Mansione «{nome}»")
+
+    # 3) Processi qualificati MOD.128 (abilitazione attiva, requisito bloccante).
+    try:
+        from anagrafica.models_mpq import AbilitazioneProcesso, RequisitoPersona
+        from anagrafica.services.mpq_persone import requisiti_per_abilitazione
+
+        abilitazioni = list(filtra_in(
+            AbilitazioneProcesso.objects.filter(stato=AbilitazioneProcesso.STATO_ATTIVA)
+            .select_related("processo").prefetch_related("ruoli_processo"),
+            "legacy_anagrafica_id", ids,
+        ))
+        requisiti_proc: dict[int, list] = {}
+        for req in (RequisitoPersona.objects.filter(
+            attivo=True, tipo=RequisitoPersona.TIPO_QUALIFICA, tipo_qualifica__isnull=False,
+            processo_id__in=sorted({a.processo_id for a in abilitazioni}),
+        ).prefetch_related("ruoli") if abilitazioni else ()):
+            requisiti_proc.setdefault(req.processo_id, []).append(req)
+        for a in abilitazioni:
+            for req in requisiti_per_abilitazione(a, requisiti_proc.get(a.processo_id, [])):
+                if req.is_obbligo:
+                    _aggiungi(out.setdefault(a.legacy_anagrafica_id, {}), req.tipo_qualifica_id,
+                              f"Processo «{a.processo.nome}»")
+    except Exception:
+        # Modulo processi non migrato (dev): restano le altre fonti.
+        logger.warning("qualifiche richieste: processi qualificati non risolvibili", exc_info=True)
+    return out
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Formazione
 # ═══════════════════════════════════════════════════════════════════════════
@@ -260,6 +351,17 @@ def requisiti_formazione(ctx, persone: dict) -> dict[int, dict[int, list[str]]]:
                     _aggiungi(richiesti[pid], r.corso_id, etichetta)
                 elif r.piano_id:
                     _aggiungi(piani_richiesti[pid], r.piano_id, f"{etichetta} (piano)")
+
+    # 4) Corsi con la spunta «Obbligatorio per tutti i dipendenti» (``TrainingCourse.obbligatorio``):
+    #    valgono per ogni persona in forza, cosi' copertura, scadenzario e cruscotto la vedono.
+    obbligatori_tutti = list(TrainingCourse.objects.filter(obbligatorio=True, is_active=True).values_list("pk", flat=True))
+    if obbligatori_tutti:
+        for pid, p in persone.items():
+            in_forza = getattr(p, "in_forza_al", None)
+            if callable(in_forza) and not in_forza(ctx.today):
+                continue
+            for corso_id in obbligatori_tutti:
+                _aggiungi(richiesti[pid], corso_id, ORIGINE_OBBLIGATORIO_TUTTI)
 
     # Un piano richiesto = tutti i suoi corsi attivi.
     id_piani = {pk for voci in piani_richiesti.values() for pk in voci}

@@ -26,7 +26,7 @@
          style="font-size:12px;color:#3b82f6;text-decoration:none;">🖨 Libretto formativo →</a>
       <a href="{% url 'anagrafica:formazione_plan_dipendente' legacy_id %}"
          style="font-size:12px;color:#3b82f6;text-decoration:none;">📆 Plan →</a>
-      <a href="{% url 'anagrafica:formazione_scadenzario' %}?dipendente={{ legacy_id }}"
+      <a href="{% url 'anagrafica:formazione_scadenzario' %}?dipendente={{ legacy_id }}&amp;obbligatori=0"
          style="font-size:12px;color:#3b82f6;text-decoration:none;">Scadenzario completo →</a>
     </div>
   </div>

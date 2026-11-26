@@ -16,18 +16,40 @@ from ..models_skillmatrix import (
 def _conta_asset(asset_id, livello_minimo) -> int:
     """Abilitati operativi su un asset con livello ≥ ``livello_minimo``.
 
-    Operativo = in lista, stato attivo, conteggiabile nel carico. La soglia di
-    livello è quella della soglia di copertura (non quella globale di config).
+    Operativo = in lista, stato attivo, conteggiabile nel carico, non ex dipendente.
+    La soglia di livello è quella della soglia di copertura (non quella globale di
+    config). Se la mansione ha competenze nel Mansionario, conta solo chi non è
+    «non abilitato» (requisito formale mancante o competenza bloccante sotto il
+    minimo): stessa valutazione di ``mansionario_competenze.valuta``.
     """
+    from ..models import SkillMatrixConfig, VoceMacchinaCatalogo
+    from .mansionario_competenze import NON_ABILITATO, Requisiti, valuta
+    from .organigramma_albero import cessati_legacy_ids
+
     soglia_ord = ordinale_livello(livello_minimo)
+    cessati = cessati_legacy_ids()
+    candidati = [
+        ab for ab in (AbilitazioneMacchina.objects.filter(asset_id=asset_id).prefetch_related("voci"))
+        if ab.stato == AbilitazioneMacchina.STATO_ATTIVA and ab.in_lista and ab.conteggiabile_nel_carico
+        and ab.ordinale >= soglia_ord and ab.legacy_anagrafica_id not in cessati
+    ]
+    voci_per_mansione: dict[int, list] = {}
+    mansioni = {ab.competenza_id for ab in candidati if ab.competenza_id}
+    if mansioni:
+        for v in (VoceMacchinaCatalogo.objects.filter(mansione_id__in=sorted(mansioni), attiva=True)
+                  .select_related("corso", "qualifica", "processo_mpq").order_by("ordine", "pk")):
+            voci_per_mansione.setdefault(v.mansione_id, []).append(v)
+    if not voci_per_mansione:
+        return len(candidati)
+    config = SkillMatrixConfig.get_instance()
+    requisiti = Requisiti({ab.legacy_anagrafica_id for ab in candidati},
+                          [v for vs in voci_per_mansione.values() for v in vs])
     n = 0
-    for ab in (AbilitazioneMacchina.objects
-               .filter(asset_id=asset_id)
-               .only("livello", "in_lista", "stato", "conteggiabile_nel_carico")):
-        if (ab.stato == AbilitazioneMacchina.STATO_ATTIVA
-                and ab.in_lista and ab.conteggiabile_nel_carico
-                and ab.ordinale >= soglia_ord):
-            n += 1
+    for ab in candidati:
+        voci = voci_per_mansione.get(ab.competenza_id)
+        if voci and valuta(ab, voci=voci, config=config, requisiti=requisiti).esito == NON_ABILITATO:
+            continue
+        n += 1
     return n
 
 

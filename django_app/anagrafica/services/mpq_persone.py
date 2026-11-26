@@ -26,7 +26,10 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-SOGLIA_IN_SCADENZA = 30
+from ..scadenze_soglie import GIORNI_PREAVVISO
+
+# Soglia unica «in scadenza» (scadenze_soglie), come Formazione e qualifiche.
+SOGLIA_IN_SCADENZA = GIORNI_PREAVVISO
 _RELATED = ("corso", "tipo_visita", "tipo_qualifica", "categoria_dpi")
 
 _ESITO_LABEL = {
