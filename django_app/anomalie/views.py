@@ -4834,6 +4834,9 @@ def api_anomalie_esito(request):
                 cursor.execute(f"UPDATE anomalie SET {', '.join(sets)} WHERE id = %s", params + [local_id])
         except DatabaseError as exc:
             return _json_error(f"Esito registrato ma chiusura non riuscita: {exc}", status=500)
+        from anomalie.chiusura_service import dopo_chiusura
+
+        dopo_chiusura(local_id, chi=nome_utente)
 
     try:
         log_action(request, "anomalia_esito", "anomalie",
@@ -4955,10 +4958,20 @@ MSG_NOTA_STATO_IN_ATTESA = (
 # Risposta del referente RDC: rimanda l'anomalia al capocommessa, spunte comprese.
 AVANZAMENTO_INFO_RICHIESTE = "In attesa di ulteriori informazioni"
 _SQL_INFO = AVANZAMENTO_INFO_RICHIESTE.lower()  # costante, mai input: sicuro nelle query
-_STATI_ATTESA = {*STATI_RISPOSTA, _SQL_INFO}
 _STATI_CHIUSURA = {"accetto lo stato", "apertura ore/ripi"}
+# Stati di Configurazione che chiudono anche con un testo dopo (es. «Accettato con
+# riserva (necessario ripetere controlli successivi)»).
+_PREFISSI_CHIUSURA = ("accettato con riserva",)
 MSG_RISPOSTA_SENZA_STATO = ("Hai scritto la risposta: scegli lo stato definitivo "
                             "(oppure spunta «Chiudi»).")
+
+
+def stato_di_chiusura(avanzamento) -> bool:
+    """Lo stato chiude da solo l'anomalia (senza spunte, se il capocommessa può chiudere)."""
+    from anomalie.segnalato_service import stato_canonico
+
+    av = stato_canonico(avanzamento)
+    return av in _STATI_CHIUSURA or av.startswith(_PREFISSI_CHIUSURA)
 
 
 def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avanzamento,
@@ -4966,17 +4979,21 @@ def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avan
                         cc_chiude: bool = True, chiarimenti: bool = False) -> bool:
     """Regola unica della chiusura automatica (pagina, link mail, decisione qualità).
 
-    - stati d'attesa (risposta del cliente / terzista, ulteriori informazioni) o
-      richiesta di chiarimenti aperta: resta aperta;
+    - richiesta di chiarimenti aperta o «In attesa di ulteriori informazioni»: aperta;
     - «Segnalare al cliente» / «Segnala a terzista» non ancora «Segnalato»: aperta;
-    - con «Aprire RDC»: si chiude quando c'è il numero RDC (lo scrive la qualità);
+    - con «Aprire RDC»: si chiude quando c'è il numero RDC (lo scrive la qualità),
+      anche se si aspetta la risposta del cliente: la risposta si segue nell'RDC;
+    - senza RDC, in attesa della risposta del cliente / terzista: aperta;
     - senza RDC, segnalazioni fatte: si chiude;
-    - senza spunte: «Accetto lo stato» / «Apertura ORE/RIPI», se in Configurazione il
-      capocommessa può chiudere (``cc_chiude``).
-    «Chiudi» (a mano) non passa da qui.
+    - senza spunte: uno stato di chiusura («Accetto lo stato», «Apertura ORE/RIPI»,
+      «Accettato con riserva…»), se in Configurazione il capocommessa può chiudere.
+    Le varianti di Configurazione contano come lo stato che intendono
+    (``segnalato_service.stato_canonico``). «Chiudi» (a mano) non passa da qui.
     """
-    av = str(avanzamento or "").strip().lower()
-    if av in _STATI_ATTESA or chiarimenti:
+    from anomalie.segnalato_service import stato_canonico
+
+    av = stato_canonico(avanzamento)
+    if chiarimenti or av == _SQL_INFO:
         return False
     if segnalare and not segnalato_fatto:
         return False
@@ -4984,9 +5001,11 @@ def chiusura_automatica(aprire_rdc, numero_rdc, segnalare, segnalato_fatto, avan
         return False
     if aprire_rdc:
         return bool(str(numero_rdc or "").strip())
+    if av in STATI_RISPOSTA:
+        return False
     if segnalare or terzista:
         return True
-    return cc_chiude and av in _STATI_CHIUSURA
+    return cc_chiude and stato_di_chiusura(av)
 
 
 _CAMPI_REGISTRO_EXTRA = ("descrizione", "seriale", "aprire_rdc", "segnalare_cliente", "pezzo_recuperato")
@@ -5051,10 +5070,10 @@ def _registra_segnalati_e_risposte(request, local_id, op_id, legacy_user, segnal
             logger.warning("api_salva: segnalato/risposta %s non registrati id=%s", chi, local_id, exc_info=True)
 
 
-def _serve_azione_per_chiudere(anomalia_id: int) -> bool:
+def _serve_azione_per_chiudere(anomalia_id: int, nuovo_avanzamento: str | None = None) -> bool:
     try:
         from anomalie.tempi_service import serve_azione_per_chiudere
-        return serve_azione_per_chiudere(anomalia_id)
+        return serve_azione_per_chiudere(anomalia_id, nuovo_avanzamento)
     except Exception:
         logger.warning("tempi: verifica azione effettuata fallita id=%s", anomalia_id, exc_info=True)
         return False
@@ -5088,11 +5107,12 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
                 "avanzamento": "In attesa"}
     # Con RDC, cliente o terzista da segnalare la nota può restare «In attesa»:
     # l'anomalia aspetta la segnalazione, non una decisione.
+    # «Chiudi» a mano non vale come decisione: con una nota serve lo stato anche lì.
     in_attesa_di_segnalazione = any(_as_bool_int(data.get(k)) for k in ("aprire_rdc", "segnalare", "segnala_terzista"))
-    if (not da_controllo and not in_attesa_di_segnalazione
+    chiudi_manuale = bool(_as_bool_int(data.get("chiudi_manuale"))) and puo_modificare
+    if (not da_controllo and (chiudi_manuale or not in_attesa_di_segnalazione)
             and _nota_con_stato_in_attesa(data.get("note"), data.get("avanzamento"))):
         return {"success": False, "error": MSG_NOTA_STATO_IN_ATTESA, "status": 400}
-    chiudi_manuale = bool(_as_bool_int(data.get("chiudi_manuale"))) and puo_modificare
     risposte = {chi: _safe_text(data.get(f"risposta_{chi}"), 4000) or "" for chi in ("cliente", "terzista")}
     if (puo_modificare and any(risposte.values()) and not chiudi_manuale
             and str(data.get("avanzamento") or "").strip().lower() in STATI_RISPOSTA):
@@ -5196,7 +5216,7 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
                 # Con segnalazioni la chiusura è automatica: lì resta aperta senza errore.
                 if (not prev_chiuso and (chiudere_val or chiudi_manuale) and not _as_bool_int(data.get("aprire_rdc"))
                         and (chiudi_manuale or not (segnalare_val or _as_bool_int(data.get("segnala_terzista"))))
-                        and _serve_azione_per_chiudere(local_pk_id)):
+                        and _serve_azione_per_chiudere(local_pk_id, payload_map.get("avanzamento"))):
                     from anomalie.tempi_service import MSG_SERVE_AZIONE
                     return {"success": False, "error": MSG_SERVE_AZIONE, "status": 400}
         except DatabaseError:
@@ -5245,7 +5265,8 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
             payload_map["avanzamento"], terzista_val, segnalati["terzista"],
             cc_chiude=cc_chiude, chiarimenti=bool(info_q.get("richiesta_aperta")),
         )
-        if regola and not payload_map["aprire_rdc"] and local_pk_id and _serve_azione_per_chiudere(local_pk_id):
+        if (regola and not payload_map["aprire_rdc"] and local_pk_id
+                and _serve_azione_per_chiudere(local_pk_id, payload_map["avanzamento"])):
             regola = False
         chiudere_val = 1 if (chiudi_manuale or regola) else 0
     elif prev_chiuso:
@@ -5340,6 +5361,12 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
         )
     except Exception:
         logger.warning("api_salva: timeline log fallita op=%s", op_id, exc_info=True)
+
+    # Appena chiusa: stato finale e richieste di informazioni (chiusura_service).
+    if chiudere_val and not prev_chiuso and local_id is not None:
+        from anomalie.chiusura_service import dopo_chiusura
+
+        dopo_chiusura(local_id, chi=_current_user_identity(request).get("name") or request.user.username)
 
     # Notifiche in-app (fire-and-forget)
     sn_val = _safe_text(data.get("sn")) or ""
