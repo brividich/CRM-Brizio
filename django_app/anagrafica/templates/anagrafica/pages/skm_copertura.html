@@ -107,7 +107,7 @@ body.theme-dark .sc-cert{color:var(--text-light)}
                   data-processo="{{ r.soglia.processo_id|default_if_none:'' }}" data-ambito="{{ r.soglia.descrizione_ambito }}"
                   data-livello="{{ r.soglia.livello_minimo }}" data-minimo="{{ r.soglia.minimo_abilitati }}"
                   data-cert="{{ r.soglia.certificazione }}" data-rif="{{ r.soglia.rif_normativo }}" data-note="{{ r.soglia.note }}">Modifica</button>
-          <form method="post" data-sc-elimina="{{ r.soglia.nome }}">{% csrf_token %}<input type="hidden" name="azione" value="elimina"><input type="hidden" name="soglia_id" value="{{ r.soglia.pk }}"><button type="submit" class="danger">Elimina</button></form>
+          <form method="post" data-hub-confirm="Eliminare la soglia «{{ r.soglia.nome }}»?">{% csrf_token %}<input type="hidden" name="azione" value="elimina"><input type="hidden" name="soglia_id" value="{{ r.soglia.pk }}"><button type="submit" class="danger">Elimina</button></form>
         </div></td>{% endif %}
       </tr>
       {% endfor %}
@@ -166,10 +166,6 @@ body.theme-dark .sc-cert{color:var(--text-light)}
       if (e.target.closest("[data-sc-nuova]")) apri({});
       var b = e.target.closest("[data-sc-modifica]"); if (b) apri(b.dataset);
       if (e.target.closest("[data-sc-chiudi]")) dlg.close();
-    });
-    document.addEventListener("submit", function(e){
-      var fe = e.target.closest("[data-sc-elimina]");
-      if (fe && !window.confirm("Eliminare la soglia «" + fe.dataset.scElimina + "»?")) e.preventDefault();
     });
     if (dlg.hasAttribute("data-sc-apri")) dlg.showModal();
   })();
