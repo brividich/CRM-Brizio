@@ -274,14 +274,15 @@ def pronto(request, token: str):
                 type(p).objects.filter(pk=p.pk).update(percorso=scelta)
         return _ricorda(redirect("corso_aperto:corso", token=token), link, stato)
     scegliere = a_scelta and (not stato.get("percorso") or (request.GET.get("cambia") == "1" and not n_viste))
+    fatto_il = _completato_il(link, p)
     return _ricorda(render(request, "anagrafica/corso_aperto/pronto.html", {
         "link": link, "corso": link.corso, "chi": stato["chi"], "codice": getattr(p, "codice", ""),
-        "email": stato.get("email", ""), "ripresa": bool(stato.get("ripresa")) and n_viste > 0,
+        "email": stato.get("email", ""), "ripresa": bool(stato.get("ripresa")) and n_viste > 0 and not fatto_il,
         "n_viste": n_viste, "n_slide": len(slides),
         "da_slide": _punto_di_ripresa(stato, slides) + 1 if slides else 1,
-        "scegliere": scegliere and not getattr(p, "completata_il", None),
+        "scegliere": scegliere and not fatto_il,
         "info": info_percorsi(link.corso) if scegliere else {},
-        "completata_il": getattr(p, "completata_il", None),
+        "completata_il": fatto_il,
         "percorso": stato.get("percorso", "") if a_scelta else "", "puo_cambiare": a_scelta and not n_viste,
     }), link, stato)
 
@@ -318,7 +319,9 @@ def corso(request, token: str):
     if not slides:
         raise Http404
     regola = regola_corso(corso_obj)
-    if _registrato(stato) and _deve_scegliere(corso_obj, stato) and not request.GET.get("c"):
+    if _registrato(stato) and not request.GET.get("c") and (
+            _deve_scegliere(corso_obj, stato) or _completato_il(link, _partecipazione(stato))):
+        # Corso già fatto: niente percorso da riprendere, solo il materiale da consultare.
         return redirect("corso_aperto:pronto", token=token)
     if not _registrato(stato):
         url = reverse("corso_aperto:registrati", args=[token])
@@ -491,9 +494,25 @@ def _prima_consegna(link, token: str) -> bool:
         return True
 
 
-def _gia_completato(request, link, p):
+def _completato_il(link, p):
+    """Data del completamento, se la persona ha già fatto il corso: la partecipazione completata
+    oppure un completamento valido della persona abbinata, da qualunque strada (aula, portale, una
+    prova precedente). None se il corso è ancora da fare."""
+    if p is None:
+        return None
+    if p.completata_il:
+        return timezone.localtime(p.completata_il).date()
+    if p.legacy_anagrafica_id:
+        from .services.formazione_completamento import completamento_valido
+        rec = completamento_valido(link.corso, p.legacy_anagrafica_id)
+        if rec is not None:
+            return rec.data_completamento
+    return None
+
+
+def _gia_completato(request, link, quando):
     url = reverse("corso_aperto:materiale", args=[link.token])
-    quando = timezone.localtime(p.completata_il).strftime("%d-%m-%Y")
+    quando = quando.strftime("%d-%m-%Y")
     return render(request, "anagrafica/corso_aperto/esito.html", {
         "link": link, "corso": link.corso, "titolo": "Corso già completato",
         "testo": f"Hai completato questo corso il {quando}: il quiz non si ripete. Il materiale resta da consultare.",
@@ -517,9 +536,9 @@ def quiz_finale(request, token: str):
     if _deve_scegliere(corso_obj, stato):
         return redirect("corso_aperto:pronto", token=token)
     url_corso = reverse("corso_aperto:corso", args=[token])
-    p_ora = _partecipazione(stato)
-    if p_ora is not None and p_ora.completata_il:
-        return _gia_completato(request, link, p_ora)
+    fatto_il = _completato_il(link, _partecipazione(stato))
+    if fatto_il:
+        return _gia_completato(request, link, fatto_il)
     blocco = _blocco_quiz(stato, slides, regola) if slides else "Il corso non ha slide."
     if blocco:
         return render(request, "anagrafica/corso_aperto/esito.html",
@@ -584,8 +603,8 @@ def quiz_finale(request, token: str):
         # Blocco sulla partecipazione: due consegne in parallelo passano una alla volta e la
         # seconda trova il corso già completato.
         p_lock = P.objects.select_for_update().filter(pk=stato.get("pid")).first() if stato.get("pid") else None
-        if p_lock is not None and p_lock.completata_il:
-            return _gia_completato(request, link, p_lock)
+        if _completato_il(link, p_lock):
+            return _gia_completato(request, link, _completato_il(link, p_lock))
         risposta = servizio.registra(
             corso_obj, nome=dati["nome"], cognome=dati["cognome"], matricola=dati.get("matricola", ""), esito=esito,
             partecipazione=p_lock,
