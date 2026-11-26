@@ -304,3 +304,32 @@ class RigheDaAltriCanaliTests(_Base):
         self.assertEqual((riga["fonte"], riga["slide_viste"], riga["slide_pct"]), ("link aperto", 2, 100))
         self.assertEqual(int(riga["miglior_pct"]), 100)
         self.assertIsNotNone(riga["ultimo_accesso"])
+
+
+class GiaCompletatoAltroveTests(_Base):
+    """Chi ha già un completamento valido del corso (aula, portale, prova precedente) non rifà il percorso
+    dal link aperto, anche se ha una partecipazione iniziata e mai finita."""
+
+    def _record(self):
+        return TrainingEmployeeRecord.objects.create(
+            corso=self.corso, legacy_anagrafica_id=self.dip.id, data_completamento=date.today() - timedelta(days=3),
+            idoneo=True, course_code_snapshot=self.corso.codice)
+
+    def test_partecipazione_a_meta_ma_corso_gia_fatto(self):
+        self.registra()
+        self.anonimo.get(self.url())  # slide 1: partecipazione iniziata e lasciata lì
+        self._record()
+        altro = Client()
+        self.registra(altro)  # stessa matricola: riprende la partecipazione a metà...
+        pagina = altro.get(self.url("pronto"))
+        self.assertContains(pagina, "già completato")  # ...ma il corso risulta già fatto
+        self.assertNotContains(pagina, "Riprendi dalla slide")
+        self.assertEqual(altro.get(self.url())["Location"], self.url("pronto"))
+        self.assertEqual(altro.get(self.url("quiz")).status_code, 409)
+        self.assertEqual(altro.get(self.url() + "?c=1").status_code, 200)  # il materiale resta consultabile
+
+    def test_completamento_scaduto_si_rifa(self):
+        r = self._record()
+        TrainingEmployeeRecord.objects.filter(pk=r.pk).update(data_scadenza=date.today() - timedelta(days=1))
+        self.registra()
+        self.assertEqual(self.anonimo.get(self.url()).status_code, 200)
