@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Scheda del corso: numeri coerenti con la regola unica
+
+- «A chi serve questo corso»: con la spunta «Obbligatorio per tutti i dipendenti» mostra «Tutti i dipendenti in forza (N)» invece di 0 e «Non ancora collegato».
+- «Come si fa questo corso»: «con il corso valido» conta le persone con completamento idoneo non scaduto da qualunque strada (aula, sessione online, link aperto, e-learning) e «dal link aperto» i quiz completati; prima «completati online» contava solo l'e-learning (0 anche con 11 completamenti).
+- Riquadro «Sessioni»: conteggio per stato (pianificate, in corso, completate) al posto di «Sessioni pianificate» fisso; aprendo la scheda lo stato delle edizioni si aggiorna come in Sessioni.
+- Scheda «Persone» rinominata «Da assegnare»; i candidati di un corso obbligatorio per tutti sono i dipendenti in forza non ancora a posto (`training_eligibility._legacy_ids_pertinenti`), esclusi quelli con completamento valido anche se la scadenza non è ancora ricalcolata.
+- File: `services/training_eligibility.py`, `views/formazione.py`, `formazione_corso_detail.html`, guida formazione; test `tests_scheda_corso_coerente.py`.
+
 ### Ordini di produzione: stile unico in tutto il modulo
 
 - Filtri (Elenco OP «Da sistemare», catalogo «Mostra», report, Analisi quote: chip e scelte Periodo/Misure) con lo stesso aspetto dei filtri del protocollo: rettangolo arrotondato, scelto = pieno scuro (chiaro nel tema scuro), non più pillola arancione.
