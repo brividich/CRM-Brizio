@@ -134,6 +134,17 @@ def pn_anagrafica(request, pn: str):
     return redirect(services.url_pn(pn))
 
 
+def _periodo(request):
+    """``?da=AAAA-MM-GG&a=AAAA-MM-GG`` (dalla mappa di Quote CMM), altrimenti ``None``."""
+    from datetime import date
+
+    try:
+        da, a = date.fromisoformat(request.GET.get("da", "")), date.fromisoformat(request.GET.get("a", ""))
+    except ValueError:
+        return None
+    return (da, a) if da <= a else None
+
+
 @login_required
 @require_GET
 def pn_scheda(request, pn: str | None = None):
@@ -155,11 +166,19 @@ def pn_scheda(request, pn: str | None = None):
     conta = {"op": len(dati["ops"]), "report": dati["report_cmm"]["n"], "programmi": len(dati["programmi"]),
              "fai": len(dati["fai_pn"])}
     if sezione == "report":
-        dati["report_cmm"]["ultimi"] = list(cmm.ReportCMM.objects.filter(pn=dati["pn"], righe__gt=0, escluso=False)
-                                            .order_by("-data", "-id")[:60])
+        qs = cmm.ReportCMM.objects.filter(pn=dati["pn"], righe__gt=0, escluso=False)
+        periodo = _periodo(request)
+        if periodo:
+            qs = qs.filter(data__gte=periodo[0], data__lte=periodo[1])
+            dati["periodo"] = periodo
+        dati["report_cmm"]["ultimi"] = list(qs.order_by("-data", "-id")[:60])
         dati["programmi_cmm"] = cmm.programmi_del_pn(dati["pn"])
+    if sezione == "qualita":
+        dati["qualita"] = pagine_cmm.qualita_pn(dati["pn"], request.GET.get("q", ""))
+        dati["vista_qualita"] = "tabella" if request.GET.get("vista") == "tabella" else "carta"
     tab = [{"chiave": k, "nome": v, "n": conta.get(k), "url": services.url_pn(dati["pn"], k)}
-           for k, v in services.SEZIONI_PN if k in ("", "op", "report") or dati["vede_kickoff"]]
+           for k, v in services.SEZIONI_PN
+           if k in ("", "op", "report") or (k == "qualita" and dati["report_cmm"]["n"]) or (k in ("programmi", "fai") and dati["vede_kickoff"])]
     return render(request, "produzione/pn_scheda.html", _ctx(
         request, "pn", sezione=sezione, sezioni=tab, puo_articoli=request_has_permission_code(request, PERM_ARTICOLI),
         form_articolo=ArticoloForm(instance=dati["articolo"]) if dati["articolo"] else ArticoloForm(), **dati))
@@ -364,6 +383,7 @@ def quote_cruscotto(request):
     visibili = [r for r in righe if r["da_guardare"]] if filtro == "guardare" else righe
     return render(request, "produzione/quote_cruscotto.html", _ctx(
         request, "quote", righe=visibili, filtro=filtro, n_guardare=sum(1 for r in righe if r["da_guardare"]), n_tutti=len(righe),
+        settimane=cmm.settimane_mappa(), quote_guardare=cmm.quote_da_guardare_tutte([r["pn"] for r in righe if r["da_guardare"]]),
         tot={"pn": len(righe), "fuori": sum(1 for r in righe if r["fuori_rec"]), "cpk": sum(r["cpk_bassi"] for r in righe),
              "deriva": sum(r["deriva"] for r in righe)},
         oggi=ReportCMM.objects.filter(letto_il__date=timezone.localdate(), righe__gt=0).count(), attivo=cmm.attivo(),
@@ -435,8 +455,9 @@ def pn_leggi_report(request):
 @login_required
 @require_GET
 def report_cmm(request, pk: int):
-    """Un report CMM: tutte le quote (le fuori in cima) con posizione nella tolleranza, differenza dal pezzo
-    prima e Cpk della quota; pezzo prima / dopo, confronti pronti e link all'anomalia."""
+    """Un report CMM come protocollo: testata con l'esito, quote per gruppo del report con grafico di deviazione,
+    pannello di dettaglio della quota scelta (andamento sugli ultimi 30 pezzi, Cpk, deriva); pezzo prima / dopo,
+    confronti pronti e link all'anomalia."""
     report = get_object_or_404(ReportCMM, pk=pk)
     dati = pagine_cmm.righe_report(report)
     filtro = request.GET.get("f", "")
@@ -454,8 +475,20 @@ def report_cmm(request, pk: int):
     url_anomalia = ""
     if op:
         url_anomalia = f"{reverse('apertura_segnalazione')}?{urlencode({'op_id': op['id'], 'report_cmm': report.pk})}"
+    conta = dati["conta"]
+    if not report.righe:
+        esito = ("vuoto", "—")
+    elif report.escluso:
+        esito = ("escluso", "ESCLUSO")
+    elif conta["fuori"]:
+        esito = ("nok", "NOK")
+    elif conta["verifica"]:
+        esito = ("verifica", "DA VERIFICARE")
+    else:
+        esito = ("ok", "OK")
     return render(request, "produzione/report_cmm.html", _ctx(
-        request, "pn", report=report, righe=righe, conta=dati["conta"], filtro=filtro, prima=dati["prima"],
+        request, "pn", report=report, righe=righe, gruppi=pagine_cmm.gruppi(righe), esito=esito,
+        pannello=pagine_cmm.pannello(righe, report), conta=conta, filtro=filtro, prima=dati["prima"],
         dopo=dati["dopo"], proposte=pagine_cmm.proposte(report), op=op, motivi=MOTIVI_ESCLUSIONE,
         url_anomalia=url_anomalia,
         altri=[r for r in pagine_cmm.report_del_pezzo(report.pn, report.seriale) if r.pk != report.pk][:20] if report.seriale else [],
@@ -699,7 +732,8 @@ def guida(request):
 @login_required
 @require_GET
 def pezzo(request):
-    """Pagina del pezzo (``?pn=&sn=``): tutti i suoi report, le quote fase per fase, la storia; ``formato=pdf``."""
+    """Pagina del pezzo (``?pn=&sn=``): esito, matrice quote × report (% di tolleranza, deviazione o valore), report,
+    storia e pezzi dello stesso OP; ``formato=pdf``."""
     pn = normalize_part_number(request.GET.get("pn") or "")
     sn = (request.GET.get("sn") or "").strip()
     dati = pagine_cmm.pezzo(pn, sn, request.GET.get("solo", "")) if pn and sn else None
@@ -713,10 +747,8 @@ def pezzo(request):
         resp = HttpResponse(contenuto, content_type="application/pdf")
         resp["Content-Disposition"] = f'attachment; filename="Scheda_pezzo_{pn}_{dati["sn"]}.pdf"'
         return resp
-    colori = ["#2563eb", "#0d9488", "#d97706", "#9333ea", "#db2777", "#4b5563"]
-    dati["intestazioni"] = [{"r": c, "colore": colori[i % len(colori)]} for i, c in enumerate(dati["colonne"])]
     for riga in dati["righe"]:
-        riga["celle"] = [(v, colori[i % len(colori)]) for i, v in enumerate(riga["valori"])]
+        riga["celle"] = list(zip(riga["valori"], dati["intestazioni_fasi"]))
     op = op_db.per_titolo(dati["ultimo"].op) if dati["ultimo"].op and op_db.disponibile() else None
     url_anomalia = ""
     if op:

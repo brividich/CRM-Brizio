@@ -2,10 +2,10 @@
 {% load static %}
 
 {% block title %}Quote CMM · Ordini di produzione{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261125c">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261126h">{% endblock %}
 
 {% block content %}
-<div class="prod">
+<div class="prod prod-largo">
   <div class="prod-head">
     <div><h1>Quote CMM</h1></div>
   </div>
@@ -14,45 +14,67 @@
 
   {% if not attivo %}<p class="prod-avviso">La cartella dei report CMM non è impostata (PRODUZIONE_REPORT_CMM_ROOT).</p>{% endif %}
 
-  <div class="prod-dati">
-    <div class="prod-dato"><span>P/N con report</span><b>{{ tot.pn }}</b></div>
-    <div class="prod-dato{% if tot.fuori %} is-allerta{% endif %}"><span>Con fuori negli ultimi 30 giorni</span><b>{{ tot.fuori }} P/N</b></div>
-    <div class="prod-dato{% if tot.cpk %} is-allerta{% endif %}"><span>Quote con Cpk sotto 1,33</span><b>{{ tot.cpk }}</b></div>
-    <div class="prod-dato"><span>Quote in deriva</span><b>{{ tot.deriva }}</b></div>
-    <div class="prod-dato"><span>Report letti oggi</span><b>{{ oggi }}</b></div>
+  <div class="prot-esito prot-esito-dati">
+    <div class="prot-campo"><small>P/N con report</small><b>{{ tot.pn }}</b></div>
+    <div class="prot-campo{% if tot.fuori %} is-allerta{% endif %}"><small>Con fuori negli ultimi 30 giorni</small><b>{{ tot.fuori }} P/N</b></div>
+    <div class="prot-campo{% if tot.cpk %} is-allerta{% endif %}"><small>Quote con Cpk sotto 1,33</small><b>{{ tot.cpk }}</b></div>
+    <div class="prot-campo"><small>Quote in deriva</small><b>{{ tot.deriva }}</b></div>
+    <div class="prot-campo"><small>Report letti oggi</small><b>{{ oggi }}</b></div>
   </div>
 
-  <div class="prod-chips">
-    <a class="prod-chip{% if filtro == 'guardare' %} is-on{% endif %}" href="?f=guardare">Da guardare <b>{{ n_guardare }}</b></a>
-    <a class="prod-chip{% if filtro != 'guardare' %} is-on{% endif %}" href="?f=tutti">Tutti <b>{{ n_tutti }}</b></a>
-  </div>
-
-  <section class="prod-card">
+  <section class="prot">
+    <div class="prot-barra">
+      <span class="prot-titolo">Mappa qualità</span>
+      <a class="prot-filtro{% if filtro == 'guardare' %} is-on{% endif %}" href="?f=guardare">Da guardare <b>{{ n_guardare }}</b></a>
+      <a class="prot-filtro{% if filtro != 'guardare' %} is-on{% endif %}" href="?f=tutti">Tutti <b>{{ n_tutti }}</b></a>
+      <span class="prot-spazio"></span>
+      <span class="prot-conta">Report con quote fuori / report misurati, settimana per settimana (ultime 12)</span>
+    </div>
     {% if righe %}
-    <div class="prod-scorri">
-      <table class="prod-tab">
-        <thead><tr><th>P/N</th><th title="Report con quote fuori, settimana per settimana">Fuori per settimana (12)</th><th class="prod-n">Fuori 30 gg</th><th class="prod-n" title="Quote fuori nell'ultimo report">Fuori ora</th><th class="prod-n">Cpk &lt; 1,33</th><th>In deriva</th><th>Ultimo report</th><th></th></tr></thead>
+    <div class="prot-tabella">
+      <table class="prot-tab prot-mappa" data-fm-table-skip="1">
+        <thead><tr><th class="l">P/N</th>{% for s in settimane %}<th class="prot-sett">S{{ s.n }}<span>{{ s.da|date:"d/m" }}</span></th>{% endfor %}<th title="Quote fuori nell'ultimo report">Fuori ora</th><th>Cpk &lt; 1,33</th><th>Deriva</th><th class="l">Ultimo report</th></tr></thead>
         <tbody>
           {% for r in righe %}
-          {% url 'produzione:pn_quote' as url_aq %}
           <tr>
-            <td><a class="prod-op" href="{% url 'produzione:pn' r.pn %}">{{ r.pn }}</a></td>
-            <td><svg class="prod-sett" width="108" height="24" role="img" aria-label="Report con quote fuori per settimana">{% for b in r.barre %}<rect x="{{ b.x }}" y="{{ b.y }}" width="7" height="{{ b.h }}" rx="1.5"{% if b.v %} class="is-fuori"{% endif %}><title>{{ b.v }}</title></rect>{% endfor %}</svg></td>
-            <td class="prod-n">{% if r.fuori_rec %}<span class="prod-manca is-allerta">{{ r.fuori_rec }}</span>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
-            <td class="prod-n">{% if r.fuori_ultimo %}<span class="prod-stato is-danger">{{ r.fuori_ultimo }}</span>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
-            <td class="prod-n">{% if r.cpk_bassi %}<span class="prod-manca is-allerta">{{ r.cpk_bassi }}</span>{% else %}<span class="prod-zero">0</span>{% endif %}</td>
-            <td>{% if r.deriva %}<span class="prod-stato is-warn">{{ r.deriva }} in deriva</span>{% else %}—{% endif %}</td>
-            <td>{% if r.ultimo %}<a href="{% url 'produzione:report_cmm' r.ultimo.2 %}">{{ r.ultimo.1|date:"d/m/Y" }} · {{ r.ultimo.0 }}</a>{% else %}—{% endif %}</td>
-            <td><a class="prod-btn prod-btn-piccolo" href="{{ url_aq }}?pn={{ r.pn|urlencode }}">Analisi quote</a></td>
+            <td class="l"><a class="prot-link" href="{% url 'produzione:pn' r.pn %}?sez=qualita"><b>{{ r.pn }}</b></a></td>
+            {% for c in r.celle %}<td class="prot-cella">{% if c.n %}<a class="prot-liv is-{{ c.livello }}" href="{% url 'produzione:pn' r.pn %}?sez=report&amp;da={{ c.da|date:'Y-m-d' }}&amp;a={{ c.a|date:'Y-m-d' }}" title="Settimana dal {{ c.da|date:'d/m' }}: {{ c.fuori }} report con quote fuori su {{ c.n }}">{{ c.fuori }}/{{ c.n }}</a>{% else %}<span class="prot-liv is-vuoto" title="Nessun report">·</span>{% endif %}</td>{% endfor %}
+            <td>{% if r.fuori_ultimo %}<span class="prot-num-allerta">{{ r.fuori_ultimo }}</span>{% else %}0{% endif %}</td>
+            <td>{% if r.cpk_bassi %}<span class="prot-num-allerta">{{ r.cpk_bassi }}</span>{% else %}0{% endif %}</td>
+            <td>{% if r.deriva %}<span class="prot-deriva">{{ r.deriva }}</span>{% else %}0{% endif %}</td>
+            <td class="l">{% if r.ultimo %}<a class="prot-link" href="{% url 'produzione:report_cmm' r.ultimo.2 %}">{{ r.ultimo.1|date:"d/m/Y" }} · {{ r.ultimo.0 }}</a>{% else %}—{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    <p class="prod-nota prod-nota-sotto">Ordinati dalla situazione più grave. Cpk e deriva sugli ultimi 30 pezzi validi di ogni programma (report esclusi e rimisure non contano).</p>
+    <div class="prot-legenda"><span><i class="mp-zero"></i>nessun fuori</span><span><i class="mp-basso"></i>fino al 12%</span><span><i class="mp-medio"></i>12-25%</span><span><i class="mp-alto"></i>oltre il 25%</span><span class="prot-spazio"></span><span>Clic su una cella: i report di quella settimana · sul P/N: Qualità CMM · ordinati dal più grave</span></div>
     {% else %}
     <p class="prod-vuoto">{% if filtro == 'guardare' %}Nessun P/N da guardare: niente fuori recenti né quote in deriva.{% else %}Nessun report CMM letto.{% endif %}</p>
     {% endif %}
   </section>
+
+  {% if quote_guardare %}
+  <section class="prot">
+    <div class="prot-barra"><span class="prot-titolo">Quote da guardare</span><span class="prot-spazio"></span><span class="prot-conta">Fuori nell'ultimo report, poi in deriva, poi Cpk sotto 1,33 · ultimi 30 pezzi validi</span></div>
+    <div class="prot-tabella">
+      <table class="prot-tab" data-fm-table-skip="1">
+        <thead><tr><th class="l">Quota</th><th class="l">P/N</th><th class="l">Programma</th><th>Cpk</th><th>Fuori</th><th class="l">Tendenza</th></tr></thead>
+        <tbody>
+          {% for a in quote_guardare %}
+          <tr class="prot-riga is-{% if a.fuori_ultimo %}fuori{% else %}limite{% endif %}">
+            <td class="l"><span class="prot-ic is-{% if a.fuori_ultimo %}fuori{% else %}limite{% endif %}" aria-hidden="true"></span> <a class="prot-link" href="{% url 'produzione:pn' a.pn %}?sez=qualita&amp;q={{ a.prog|urlencode }}%3A%3A{{ a.quota.id|urlencode }}"><b>{{ a.quota.nome }}</b></a></td>
+            <td class="l">{{ a.pn }}</td>
+            <td class="l">{{ a.prog|default:"—" }}</td>
+            <td>{% if a.cpk is not None %}{{ a.cpk|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>{{ a.n_fuori }} / {{ a.n }}</td>
+            <td class="l">{% if a.deriva_info %}<span class="prot-deriva">deriva verso il limite {% if a.deriva_info.verso == "sup" %}superiore{% else %}inferiore{% endif %}</span>{% elif a.fuori_ultimo %}fuori nell'ultimo report{% else %}Cpk basso{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}

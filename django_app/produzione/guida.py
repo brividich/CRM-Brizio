@@ -71,8 +71,14 @@ SEZIONI: list[dict] = [
                  "degli ultimi 6 mesi, in rosso quelli con quote fuori); «Quote da tenere d'occhio» e gli OP."),
                 ("OP", "tutti gli OP con CAR, stato, documenti e anomalie aperte; «Manca» e il numero delle anomalie portano "
                  "alla scheda dell'OP."),
-                ("Report CMM", "le quote da tenere d'occhio, i programmi CMM letti (con «Analisi quote») e gli ultimi 60 "
-                 "report, da spuntare per il confronto."),
+                ("Report CMM", "i programmi CMM letti (con «Analisi quote») e gli ultimi 60 report, da spuntare per il "
+                 "confronto; arrivando dalla mappa di «Quote CMM» solo i report di quella settimana («tutti» li rimostra)."),
+                ("Qualità CMM", "a sinistra i programmi e le loro quote, dalla peggiore (icona rossa = fuori nell'ultimo "
+                 "report, gialla = Cpk sotto 1,33 o in deriva, verde = capace, grigia = pochi pezzi per il Cpk) con il Cpk "
+                 "accanto. Al centro la quota scelta: carta di controllo dei singoli valori sugli ultimi 30 pezzi validi "
+                 "(fascia di tolleranza, LS e LI, media x̄, punti rossi = fuori, cerchiato l'ultimo pezzo), «Distribuzione», "
+                 "Cpk, Cp, Media, σ, Fuori e Deriva, e una «Lettura» scritta dai numeri (dove lavora la media, la deriva, il "
+                 "Cpk). «Tabella Cpk» elenca tutte le quote dal Cpk più basso; «Apri in Analisi quote» porta allo strumento completo."),
                 ("Programmi", "i programmi CAM e CMM del KICK-OFF."),
                 ("FAI", "la situazione per cliente (con la data «entro» cui ripeterlo), tutti i FAI del P/N con il loro OP e "
                  "il report CMM del primo articolo; «+ Nuovo FAI» apre la scheda FAI col P/N già scritto."),
@@ -197,22 +203,38 @@ SEZIONI: list[dict] = [
             ("p", "«Esporta CSV» scarica le misure con i filtri attivi (la quota scelta nella vista Quota, altrimenti le "
                   "quote dell'elenco). L'indirizzo della pagina conserva filtri e vista: si può copiare e mandare. "
                   "«Leggi i report» rilegge subito la cartella del P/N (in background: ricarica dopo qualche minuto)."),
-            ("p", "«Quote CMM» (scheda della sezione): tutti i P/N con report, dal più grave: report con quote fuori per settimana "
-                  "(12 settimane), fuori negli ultimi 30 giorni, quote fuori nell'ultimo report, quote con Cpk sotto 1,33, quote in "
-                  "deriva, ultimo report. «Da guardare» mostra solo quelli con fuori recenti o quote in deriva."),
+            ("p", "«Quote CMM» (scheda della sezione): in alto P/N con report, P/N con fuori negli ultimi 30 giorni, quote con "
+                  "Cpk sotto 1,33, quote in deriva e report letti oggi. La «Mappa qualità» ha una riga per P/N e una colonna per "
+                  "settimana (ultime 12, «S» e numero della settimana): in ogni casella i report con quote fuori su quelli "
+                  "misurati, verde senza fuori, giallo fino al 12%, rosa fino al 25%, rosso oltre; «·» nessun report. Clic su una "
+                  "casella: i report di quel P/N in quella settimana; clic sul P/N: la sua Qualità CMM. Poi «Fuori ora», «Cpk < "
+                  "1,33», «Deriva» e «Ultimo report». «Da guardare» mostra solo i P/N con fuori recenti o quote in deriva. Sotto, "
+                  "«Quote da guardare» di tutti questi P/N: fuori nell'ultimo report, poi in deriva, poi Cpk sotto 1,33."),
             ("p", "Escludere un report (prova, rilavorazione, doppione): nella pagina del report «Escludi dall'analisi», con motivo "
                   "e nota. Resta scritto chi e quando; «Riammetti» lo rimette. Il PDF non si tocca. Serve il permesso «Gestire le "
                   "quote CMM» (di default solo admin)."),
             ("p", "Avvisi: in Impostazioni › «Avvisi delle quote CMM» si sceglie chi li riceve (campanella del portale) e se "
                   "avvisare per i report nuovi con quote fuori e per le quote che vanno in deriva (al massimo un avviso al mese per "
                   "quota). Il FAI mostra il «Report CMM del primo articolo» del suo OP con il Cpk sui pezzi dopo."),
-            ("p", "Dal report (clic su un S/N): tutte le quote, con le fuori in cima. Per ogni quota la barra «Nella "
-                  "tolleranza» (zona verde = tolleranza, linea al centro = valore ideale), «Usata» (quanto della metà "
-                  "tolleranza è consumato: 100% = al limite, gialla oltre l'80%), «Δ pezzo prima» (differenza dal report "
-                  "precedente dello stesso programma), il Cpk sugli ultimi 30 pezzi e «Andamento». I filtri «Tutte», «Fuori», "
-                  "«Al limite» e «Diverse dal pezzo prima» (oltre il 20% della tolleranza) restringono l'elenco. In alto "
-                  "«‹ Pezzo prima» e «Pezzo dopo ›», «Confronta», «Apri il PDF» e «Apri segnalazione anomalia», che apre "
-                  "Gestione anomalie sull'OP con il pannello «📄 Dal report CMM (PDF)» già pronto."),
+            ("p", "Il report (clic su un S/N) è un protocollo come quello della CMM. In alto il timbro «Esito»: NOK con "
+                  "quote fuori, DA VERIFICARE se il calcolo e l'eccedenza stampata non coincidono, OK, ESCLUSO se tolto "
+                  "dall'analisi; accanto P/N, S/N, OP, programma, data e quote (fuori, al limite, totale)."),
+            ("p", "Sotto, il «Protocollo» in tre parti. A sinistra «Quote» per gruppo del report, con l'icona di ognuna (✓ "
+                  "dentro, ! al limite oltre l'80% della tolleranza, ✕ fuori, ? da verificare): un clic porta alla quota. Al "
+                  "centro la tabella nell'ordine del report: Nominale, Toll. sup, Toll. inf, Misurato, Deviazione (misurato − "
+                  "nominale), «Grafico», «Fuori di» (di quanto supera il limite) e «Usata» (quanto della metà tolleranza è "
+                  "consumato: 100% = al limite). Il grafico mostra la zona di tolleranza fra i due limiti, la fascia fino "
+                  "all'80%, il nominale tratteggiato e la barra dal centro della tolleranza alla misura: verde dentro, gialla "
+                  "al limite, rossa fuori; per forma e posizione parte da zero. Accanto alla quota «deriva» se va verso un limite."),
+            ("p", "A destra il dettaglio della quota scelta (all'apertura la prima fuori): valori, «Pezzo prima», l'andamento "
+                  "sugli ultimi 30 pezzi dello stesso programma con questo pezzo cerchiato, Cpk, Deriva e Fuori, «Analisi "
+                  "quote» e «Apri anomalia». Si sceglie con un clic sulla riga o con le frecce ↑ ↓. I filtri «Tutte», "
+                  "«Fuori», «Al limite» e «Cambiate dal pezzo prima» (oltre il 20% della tolleranza) restringono le righe; "
+                  "«‹ S/N» e «S/N ›» passano al pezzo prima o dopo con lo stesso filtro; «Compatta» stringe le righe e il "
+                  "browser lo ricorda. In alto «Confronta», «PDF originale» e «Apri segnalazione anomalia», che apre Gestione "
+                  "anomalie sull'OP con il pannello «📄 Dal report CMM (PDF)» già pronto."),
+            ("p", "Nelle pagine di dettaglio (report, pezzo, P/N, OP, confronto, Analisi quote) non ci sono le schede del "
+                  "modulo: in alto il percorso «Ordini di produzione › P/N › OP» con i link e il pulsante «? Guida»."),
         ],
     },
     {
@@ -222,11 +244,17 @@ SEZIONI: list[dict] = [
             ("p", "Tutto quello che è successo a un pezzo. Si apre con un clic sul S/N nel titolo del report, da «Pagina del "
                   "pezzo» in «Altri report dello stesso S/N» e dal S/N nella tabella «Pezzi e fasi» della scheda dell'OP. Lo "
                   "stesso pezzo scritto in modi diversi (SN-7, SN7, sn 7) è riconosciuto come uno solo."),
-            ("p", "In alto il P/N, gli OP, lo stato dell'ultimo report, quanti report, quante quote sono andate fuori almeno "
-                  "una volta, le anomalie e se è il primo articolo del FAI. «Le quote del pezzo, report per report»: una "
-                  "colonna per report (al massimo gli ultimi 12) con la barra «Nella tolleranza» e «Δ ultimo − primo»; i "
-                  "filtri «Fuori almeno una volta» e «Cambiate fra i report» (oltre il 20% della tolleranza). A destra la "
-                  "storia: report (con le rimisure e gli esclusi) e anomalie che citano il S/N."),
+            ("p", "In alto il timbro «Stato pezzo»: NOK se l'ultimo report di almeno una fase ha quote fuori (una rimisura "
+                  "in tolleranza sostituisce la misura fuori, e la riga sotto dice quali fasi sono NOK), altrimenti OK; poi "
+                  "P/N, OP, fasi misurate e report, ultimo report, quote fuori almeno una volta, anomalie e se è il primo "
+                  "articolo del FAI."),
+            ("p", "Il «Multi-protocollo» è una matrice: una riga per quota (per gruppo del report), una colonna per report dal "
+                  "più vecchio (al massimo gli ultimi 12; «R» = rimisura della stessa fase) e «Δ ultimo − primo». Ogni "
+                  "casella è colorata dalla tolleranza usata: fino al 50%, 50-80%, oltre l'80% (al limite), fuori; «% "
+                  "tolleranza usata», «Deviazione» e «Valore misurato» cambiano il numero scritto (il browser ricorda la "
+                  "scelta). Clic su una casella: il report a quella quota. Filtri «Fuori almeno una volta» e «Cambiate fra i "
+                  "report» (oltre il 20% della tolleranza). A sinistra «Report del pezzo» (tutti, con rimisure ed esclusi), "
+                  "«Anomalie» che citano il S/N e «Stesso OP», gli altri pezzi dell'OP con il loro esito."),
             ("p", "«Confronta le fasi» apre il Confronto report sugli ultimi 6 report del pezzo. «Scheda pezzo (PDF)» "
                   "scarica la scheda con l'elenco dei report e le quote degli ultimi 6, da allegare o mandare al cliente."),
         ],

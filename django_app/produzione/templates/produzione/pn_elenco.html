@@ -8,7 +8,7 @@
 <div class="prod">
   <div class="prod-head">
     <div>
-      <h1>Ordini di produzione</h1>
+      <h1>Catalogo P/N</h1>
     </div>
     {% if puo_articoli %}
     <form method="post" action="{% url 'produzione:pn_sincronizza' %}">{% csrf_token %}<button class="prod-btn" type="submit" title="Articoli nuovi da OP, KICK-OFF e cartelle Collaudo; ricalcola i numeri del catalogo">Aggiorna il catalogo</button></form>

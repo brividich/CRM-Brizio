@@ -159,6 +159,25 @@ class AnalisiTests(QuoteBase):
         self.assertEqual((r["pn"], r["fuori_rec"], r["fuori_ultimo"]), ("PN-ALFA-1", 1, 1))
         self.assertTrue(r["da_guardare"])
         self.assertContains(pagina, "Quote CMM")
+        # mappa: l'ultima settimana ha SN2 (fuori) → cella rossa, link ai report di quella settimana
+        cella = r["celle"][-1]
+        self.assertEqual((cella["fuori"], cella["n"], cella["livello"]), (1, 1, "alto"))
+        self.assertEqual(len(pagina.context["settimane"]), 12)
+        self.assertContains(pagina, "Mappa qualità")
+        self.assertContains(pagina, f"da={cella['da']:%Y-%m-%d}")
+        self.assertEqual(pagina.context["quote_guardare"][0]["pn"], "PN-ALFA-1")
+        self.assertEqual(cmm._cella_mappa(0, 0, date.today())["livello"], "vuoto")
+        self.assertEqual(cmm._cella_mappa(0, 5, date.today())["livello"], "zero")
+        self.assertEqual(cmm._cella_mappa(1, 10, date.today())["livello"], "basso")
+        self.assertEqual(cmm._cella_mappa(2, 10, date.today())["livello"], "medio")
+        # scheda P/N: Qualità CMM e report della settimana scelta dalla mappa
+        url = reverse("produzione:pn_scheda")
+        q = self.client.get(url, {"pn": "PN-ALFA-1", "sez": "qualita"}, follow=True)
+        self.assertContains(q, "Carta di controllo")
+        oggi = date.today().isoformat()
+        sett = self.client.get(reverse("produzione:pn", args=["PN-ALFA-1"]), {"sez": "report", "da": oggi, "a": oggi})
+        self.assertEqual([x.seriale for x in sett.context["report_cmm"]["ultimi"]], ["SN2"])
+        self.assertContains(sett, "nella settimana")
 
     def test_pdf_di_capacita(self):
         for i in range(6):
