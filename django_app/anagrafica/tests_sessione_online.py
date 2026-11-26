@@ -133,7 +133,7 @@ class ServizioTests(_Base):
         self.assertEqual(self.iscr.modalita_verifica, "TEST")
         self.assertEqual(self.iscr.percentuale_presenza, Decimal("100"))
         self.assertEqual(self.iscr.ore_frequentate, Decimal("6.00"))
-        self.assertEqual(self.iscr.stato, "IN_CORSO")
+        self.assertEqual(self.iscr.stato, "COMPLETATO")          # test superato = completamento a libretto
         with self.assertRaises(so.LezioneOnlineError):        # già superato
             so.correggi(self.iscr, cfg, {})
 
@@ -159,9 +159,9 @@ class ServizioTests(_Base):
         prog.save()
         d1, d2 = so.domande(self.sessione)
         scelte = {d.pk: {o.pk for o in d.opzioni.all() if o.corretta} for d in (d1, d2)}
-        so.correggi(self.iscr, cfg, scelte)
+        so.correggi(self.iscr, cfg, scelte)                   # superato: registrato subito
         fatti, bloccati = so.registra_completamenti(self.sessione, self.admin)
-        self.assertEqual((fatti, bloccati), (1, []))
+        self.assertEqual((fatti, bloccati), (0, []))           # niente più da registrare a mano
         self.iscr.refresh_from_db()
         self.assertEqual(self.iscr.stato, "COMPLETATO")
         self.assertTrue(TrainingEmployeeRecord.objects.filter(enrollment=self.iscr).exists())

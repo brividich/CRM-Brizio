@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Lezione online: test superato = completato subito; scheda del corso coerente con l'edizione
+
+- Nella lezione online di una sessione chi supera il test va a libretto subito (`sessione_online.correggi` chiama `registra_completamenti` per quell'iscrizione), come l'e-learning; prima restava «Superata» con iscrizione «In corso» finché l'HR non premeva «Registra completamenti» (in produzione 7 persone nella sessione 1054). Chi è bloccato dalle regole del corso resta da registrare a mano. Il test in aula non cambia.
+- Scheda del corso, «Dipendenti iscritti»: chi ha il completamento a libretto risulta «Completato» anche con un'altra iscrizione aperta; stato con l'etichetta leggibile («In corso», non «IN_CORSO»).
+- File: `services/sessione_online.py`, `views/formazione.py`, `formazione_corso_detail.html`, guida formazione, Centro guide. Test: `tests_sessione_online.py` adeguati.
+
 ### Corsi online: video MP4 non più rifiutati per «application/octet-stream»
 
 - libmagic guarda solo i primi 2 KB: per MP4 che iniziano con un box `free`/`wide` o hanno marche poco note risponde `application/octet-stream` e il caricamento veniva rifiutato. Ora `elearning_video.valida_video` accetta anche `video/quicktime`, `video/x-m4v` e `video/3gpp` e, se libmagic non lo riconosce, controlla la struttura a box dell'MP4 (`ftyp`/`moov`); estensione `.mp4`, dimensione e nome restano obbligatori. Vale per il caricamento a pezzi e per quello semplice.

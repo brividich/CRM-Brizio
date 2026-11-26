@@ -386,7 +386,7 @@
           <td>
             <a class="fm-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">{{ d.nome }}</a>
           </td>
-          <td><span class="fm-pill fm-pill-{{ d.stato_sint|lower }}">{{ d.stato_sint|default:"—" }}</span></td>
+          <td><span class="fm-pill fm-pill-{{ d.stato_sint|lower }}">{{ d.stato_label }}</span></td>
           <td class="num">{{ d.n_sessioni }}</td>
           <td class="num">{{ d.n_completati }}</td>
           <td class="nowrap muted">{% if d.data_completamento %}{{ d.data_completamento|date:"d-m-Y" }}{% else %}—{% endif %}</td>

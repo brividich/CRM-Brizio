@@ -1718,15 +1718,22 @@ def formazione_corso_detail(request, corso_id: int):
     nomi_dipendenti = _helpers._build_nomi_map() if agg_dip else {}
     # Ordine sintetico stati per scegliere il più rappresentativo
     _stato_priority = ["COMPLETATO", "IN_CORSO", "ISCRITTO", "NON_IDONEO", "ASSENTE", "RITIRATO"]
+    _etichette_stato = dict(TrainingEnrollment.STATO_CHOICES)
     dipendenti_iscritti = []
     for lid, a in agg_dip.items():
         stato_sint = next((s for s in _stato_priority if s in a["stati"]), next(iter(a["stati"]), ""))
+        if a["n_completati"] and a["idoneo"] is not False:
+            # Un corso, un completamento: chi ha il completamento a libretto (da qualunque strada:
+            # aula, lezione online, e-learning, link aperto) è «Completato», anche se un'iscrizione
+            # a un'altra edizione è rimasta aperta.
+            stato_sint = "COMPLETATO"
         dipendenti_iscritti.append({
             "legacy_id": lid,
             "nome": nomi_dipendenti.get(lid, f"#{lid}"),
             "n_sessioni": a["n_sessioni"],
             "n_completati": a["n_completati"],
             "stato_sint": stato_sint,
+            "stato_label": _etichette_stato.get(stato_sint, stato_sint or "—"),
             "data_completamento": a["data_completamento"],
             "idoneo": a["idoneo"],
         })
