@@ -165,6 +165,11 @@ class TrainingElearningModulo(models.Model):
     titolo = models.CharField(max_length=200)
     obbligatorio = models.BooleanField(default=True, help_text="Fa parte del percorso guidato per il quiz. "
                                                                "Se no, è solo materiale da consultare.")
+    ALTERNATIVA_CHOICES = [("", "Per tutti"), ("VIDEO", "Solo percorso video"), ("SLIDE", "Solo percorso slide")]
+    alternativa = models.CharField(
+        max_length=5, choices=ALTERNATIVA_CHOICES, blank=True, default="",
+        help_text="Con almeno un modulo «Solo percorso video» e uno «Solo percorso slide» nel percorso, "
+                  "il discente sceglie all'inizio se guardare il video o seguire le slide.")
     creato_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -261,6 +266,7 @@ class TrainingElearningPartecipazioneAperta(models.Model):
     secondi = models.PositiveIntegerField(default=0, help_text="Tempo effettivo misurato dal server.")
     slide_viste = models.JSONField(default=dict, blank=True, help_text="{ordine: timestamp della prima apertura}")
     video_visti = models.JSONField(default=dict, blank=True, help_text="{slide_id: secondi guardati}")
+    percorso = models.CharField(max_length=5, blank=True, default="", help_text="VIDEO o SLIDE, se il corso li offre a scelta.")
     completata_il = models.DateTimeField(null=True, blank=True)
     ip = models.GenericIPAddressField(null=True, blank=True)
 

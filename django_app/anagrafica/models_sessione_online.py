@@ -135,6 +135,8 @@ class TrainingSessionProgress(models.Model):
     enrollment = models.OneToOneField("anagrafica.TrainingEnrollment", on_delete=models.CASCADE,
                                       related_name="avanzamento_online")
     slide_viste = models.PositiveSmallIntegerField(default=0, help_text="Slide completate, in sequenza.")
+    percorso = models.CharField(max_length=5, blank=True, default="",
+                                help_text="VIDEO o SLIDE, se il materiale del corso li offre a scelta.")
     slide_corrente = models.PositiveSmallIntegerField(default=0)
     slide_aperta_il = models.DateTimeField(null=True, blank=True)
     secondi = models.PositiveIntegerField(default=0, help_text="Tempo passato sulle slide (dal server).")

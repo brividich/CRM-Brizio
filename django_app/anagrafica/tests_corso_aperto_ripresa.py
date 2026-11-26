@@ -127,3 +127,49 @@ class CorsoUnicoTests(_Base):
         da_fare, disp, completati = _sezioni_catalogo([card], [lz], oggi)
         self.assertEqual((len(da_fare), len(disp), len(completati)), (1, 0, 0))
         self.assertEqual(da_fare[0]["tipo"], "sessione")
+
+
+class PercorsoVideoOSlideTests(_Base):
+    def setUp(self):
+        super().setUp()
+        from .models_elearning import TrainingElearningModulo as M
+        from .models_formazione import TrainingSlide
+        m_slide = M.objects.create(corso=self.corso, ordine=1, titolo="Presentazione", alternativa="SLIDE")
+        m_video = M.objects.create(corso=self.corso, ordine=2, titolo="Video", alternativa="VIDEO")
+        self.corso.slides.update(modulo=m_slide)
+        self.v = TrainingSlide.objects.create(corso=self.corso, ordine=3, titolo="Il video", contenuto="(video)",
+                                              modulo=m_video)
+
+    def test_percorsi(self):
+        from .services import elearning_fruizione as f
+        self.assertTrue(f.percorsi_a_scelta(self.corso))
+        self.assertEqual(f.ordini_slide(self.corso, "VIDEO"), [3])
+        self.assertEqual(f.ordini_slide(self.corso, "SLIDE"), [1, 2])
+        self.assertEqual(f.ordini_slide(self.corso), [1, 2])
+
+    def test_link_aperto_sceglie_video_e_fa_il_quiz(self):
+        self.registra()
+        self.assertContains(self.anonimo.get(self.url("pronto")), "Guarda il video")
+        r = self.anonimo.get(self.url())
+        self.assertEqual(r["Location"], self.url("pronto"))
+        self.assertEqual(self.anonimo.get(self.url("quiz"))["Location"], self.url("pronto"))
+        self.anonimo.post(self.url("pronto"), {"percorso": "VIDEO"})
+        r = self.anonimo.get(self.url())
+        self.assertEqual((r.context["slide"].pk, r.context["n_slide"]), (self.v.pk, 1))
+        self.assertEqual(self.anonimo.get(self.url("quiz")).status_code, 200)
+        self.assertEqual(P.objects.get().percorso, "VIDEO")
+        r = self.anonimo.post(self.url("quiz"), {f"q_{self.q.pk}": [self.giusta.pk]})
+        self.assertContains(r, "Corso completato")
+
+    def test_scelta_bloccata_dopo_la_prima_slide(self):
+        self.registra()
+        self.anonimo.post(self.url("pronto"), {"percorso": "SLIDE"})
+        self.anonimo.get(self.url())
+        self.anonimo.post(self.url("pronto"), {"percorso": "VIDEO"})
+        self.assertEqual(P.objects.get().percorso, "SLIDE")
+
+    def test_un_solo_tipo_nessuna_scelta(self):
+        from .services import elearning_fruizione as f
+        self.corso.moduli_elearning.filter(alternativa="VIDEO").update(alternativa="")
+        self.assertFalse(f.percorsi_a_scelta(self.corso))
+        self.assertEqual(f.ordini_slide(self.corso), [1, 2, 3])
