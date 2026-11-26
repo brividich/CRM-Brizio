@@ -86,6 +86,13 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 - `produzione 0009` (solo SQL Server, `atomic = False`): `produzione_misuracmm` con indice cluster `prod_mcmm_report_cl` (report_id, id) PAGE e `PK_produzione_misuracmm` non cluster; `UPDATE STATISTICS … WITH FULLSCAN`. Durata stimata in produzione 30-60 s: fare `migrate` con qcluster fermo.
 - `produzione/manutenzione_db.py` + schedule `produzione_manutenzione_db` (03:10): statistiche (>10% modifiche, almeno 5.000), REORGANIZE 10-30%, REBUILD oltre 30% (indici con almeno 1.000 pagine).
 
+### Statistica di processo (27/11/2026)
+
+- `produzione/spc.py` (unico posto delle formule) e `static/produzione/js/spc.js` (stessa cosa per Analisi quote; `tests_spc.py` confronta i numeri con Node): σ di breve periodo MR̄/1,128 → Cp/Cpk; σ totale → Pp/Ppk; `indice` = min(Cpk, Ppk) per conteggi e classifiche; Weibull e percentili (ISO 22514-2) per le unilaterali; intervallo di Bissell e verdetto sul limite basso, «pochi dati» sotto 25; limiti I-MR; Nelson 1-8 + EWMA (λ 0,2, L 3, base = prima metà); rischio del prossimo pezzo (EWMA + pendenza della deriva, normale o coda Weibull); punti di cambio (segmentazione binaria, penalità 3σ²ln n, salto ≥ 1σ); famiglie (|r| ≥ 0,7 su ≥ 15 report); Kruskal-Wallis; ripetibilità da rimisure entro 2 giorni senza fuori nella prima.
+- `report_cmm_indice.statistiche` e `analisi_pn` (chiave cache `prod_cmm_analisi3`) usano `spc`; `deriva()` dà anche `pezzi_min`/`pezzi_max`.
+- Migrazione `produzione 0010`: tabella `produzione_quotacapacita` (una riga per quota: Cpk, Ppk, indice, verdetto, metodo, rischio, deriva, fuori, famiglia, `caratteristica` = nome senza numerazione) e `ArticoloPN.rischio_max`, `salute`; le riempie `articoli.analizza`. Quote CMM legge da qui (salute, rischio, quote da guardare, `?car=`).
+- Anomalie da aprire (`report_cmm_pagine.anomalie_da_aprire`, solo report con data negli ultimi 30 giorni) e avviso «Anomalia da aprire» con il link a `apertura_segnalazione?op_id&report_cmm`. `core.ordini_produzione.anomalie_del_seriale`: confronto senza separatori anche in SQL e `aperta` corretta (prima «0»/«False» testuali contavano come chiuse).
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |

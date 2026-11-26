@@ -388,14 +388,21 @@ def report_escludi(request, pk: int):
 @login_required
 @require_GET
 def quote_cruscotto(request):
-    """Quote CMM di tutti i P/N, dalla situazione più grave."""
+    """Quote CMM di tutti i P/N, dalla salute più bassa: mappa, anomalie da aprire (solo report nuovi), quote da
+    guardare e la stessa caratteristica su P/N diversi (``?car=``)."""
+    from .models import QuotaCapacita
+
     righe = cmm.cruscotto()
     filtro = request.GET.get("f") or "guardare"
+    car = (request.GET.get("car") or "").strip()[:80]
+    caratteristiche = (list(QuotaCapacita.objects.filter(caratteristica__icontains=car.upper())
+                            .order_by("caratteristica", "-indice")[:200]) if car else [])
     visibili = [r for r in righe if r["da_guardare"]] if filtro == "guardare" else righe
     return render(request, "produzione/quote_cruscotto.html", _ctx(
         request, "quote", righe=visibili, filtro=filtro, n_guardare=sum(1 for r in righe if r["da_guardare"]), n_tutti=len(righe),
         settimane=cmm.settimane_mappa(),
         quote_guardare=cmm.quote_da_guardare_tutte([r["pn"] for r in righe if r["da_guardare"] and r["analisi_pronta"]]),
+        anomalie_aprire=pagine_cmm.anomalie_da_aprire(), car=car, caratteristiche=caratteristiche,
         da_calcolare=sum(1 for r in righe if not r["analisi_pronta"]),
         tot={"pn": len(righe), "fuori": sum(1 for r in righe if r["fuori_rec"]), "cpk": sum(r["cpk_bassi"] for r in righe),
              "deriva": sum(r["deriva"] for r in righe)},

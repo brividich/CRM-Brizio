@@ -216,3 +216,5 @@ body.theme-dark .aq-badge.is-warn{color:var(--aq-warn)}
 body.theme-dark .aq select,body.theme-dark .aq input[type=search],body.theme-dark .aq input[type=date]{background:var(--surface)!important;color:var(--text)!important;color-scheme:dark}
 .aq-filtri-riga:first-child>.aq-campo:first-child .ts-wrapper{min-width:380px}
 .aq-campo .ts-wrapper{min-width:150px}
+.aq-stato.is-muto{color:var(--aq-muto)}
+.aq-badge.is-muto{color:var(--aq-muto);border-color:var(--border)}

@@ -28,10 +28,10 @@ class CalcoliTests(SimpleTestCase):
     def test_segnali(self):
         xs = [10.0, 10.02, 9.98, 10.01, 9.99] * 2 + [10.03] * 9 + [10.0, 9.97, 10.01]
         regole = {g["regola"] for g in cmm.segnali(xs)}
-        self.assertIn("lato", regole)
+        self.assertIn(2, regole)                                          # Nelson 2: 9 punti dallo stesso lato
         sale = [1, 2, 3, 4, 5, 6, 7, 5, 4, 3]
-        self.assertTrue(any(g["regola"] == "trend" and g["su"] for g in cmm.segnali(sale)))
-        self.assertTrue(any(g["regola"] == "3sigma" for g in cmm.segnali([0.0] * 30 + [5.0] + [0.0] * 5)))
+        self.assertTrue(any(g["regola"] == 3 and g["sopra"] for g in cmm.segnali(sale)))   # Nelson 3: 6 in salita
+        self.assertTrue(any(g["regola"] == 1 for g in cmm.segnali([0.0] * 30 + [5.0] + [0.0] * 5)))
 
     def test_ultima_per_seriale(self):
         report = [[1, "SN1", "OP", "2026-01-01"], [2, "SN2", "OP", "2026-01-02"], [3, "sn-1", "OP", "2026-01-03"]]
@@ -188,7 +188,10 @@ class AnalisiTests(QuoteBase):
         self.assertEqual(len(pagina.context["settimane"]), 12)
         self.assertContains(pagina, "Mappa qualità")
         self.assertContains(pagina, f"da={cella['da']:%Y-%m-%d}")
-        self.assertEqual(pagina.context["quote_guardare"][0]["pn"], "PN-ALFA-1")
+        self.assertEqual(pagina.context["quote_guardare"][0].pn, "PN-ALFA-1")
+        self.assertIsNotNone(ArticoloPN.objects.get(pn="PN-ALFA-1").salute)
+        car = self.client.get(reverse("produzione:quote_cruscotto"), {"car": "d10"})
+        self.assertEqual([q.pn for q in car.context["caratteristiche"]], ["PN-ALFA-1"])   # stessa caratteristica fra P/N
         self.assertEqual(cmm._cella_mappa(0, 0, date.today())["livello"], "vuoto")
         self.assertEqual(cmm._cella_mappa(0, 5, date.today())["livello"], "zero")
         self.assertEqual(cmm._cella_mappa(1, 10, date.today())["livello"], "basso")
@@ -234,7 +237,9 @@ class AvvisiTests(QuoteBase):
         self.assertEqual(invia_avvisi("PN-ALFA-1")["fuori"], 1)
         n = Notifica.objects.get(legacy_user_id=681)
         self.assertIn("SN1", n.messaggio)
-        self.assertEqual(n.url_azione, reverse("produzione:report_cmm", args=[r.pk]))
+        # report nuovo con quote fuori e nessuna segnalazione aperta: il link apre l'anomalia già compilata
+        self.assertTrue(n.messaggio.startswith("Anomalia da aprire"))
+        self.assertIn(f"report_cmm={r.pk}", n.url_azione)
         self.assertEqual(invia_avvisi("PN-ALFA-1")["fuori"], 0)                   # già avvisato
 
     def test_report_vecchi_non_avvisano(self):
@@ -258,3 +263,37 @@ class AvvisiTests(QuoteBase):
         self.assertTrue(imp.avvisa_fuori)
         self.assertFalse(imp.avvisa_deriva)
         self.assertEqual(list(imp.destinatari.all()), [self.admin])
+
+
+class SaluteAnomalieTests(QuoteBase):
+    """Salute CMM, nome della caratteristica fra P/N, anomalie da aprire solo per i report nuovi."""
+
+    def test_caratteristica_e_salute(self):
+        from . import articoli
+
+        self.assertEqual(articoli.caratteristica("021,00 Ø40  h7"), "Ø40 H7")
+        self.assertEqual(articoli.caratteristica("Diametro_Cerchio5"), "DIAMETRO_CERCHIO5")
+        buona = [{"rischio": 0.0, "fuori_ultimo": False, "verdetto": "capace", "deriva": None}]
+        self.assertEqual(articoli.salute(buona), 100)
+        cattiva = [{"rischio": 0.6, "fuori_ultimo": True, "verdetto": "non capace", "deriva": {"verso": "sup"}}] * 3
+        self.assertEqual(articoli.salute(cattiva), 100 - 40 - 20 - 15 - 15)
+
+    def test_anomalie_da_aprire_solo_report_nuovi(self):
+        from . import report_cmm_pagine as pg
+
+        with connection.cursor() as cur:
+            cur.execute("ALTER TABLE anomalie ADD COLUMN seriale TEXT")
+            cur.execute("ALTER TABLE anomalie ADD COLUMN descrizione TEXT")
+        from core.legacy_utils import legacy_table_columns
+        legacy_table_columns.cache_clear()
+        self.report("SN-VECCHIO", [("D10", 10.03, 10.0, 0.02, -0.02)], giorni=0)       # marzo: vecchio
+        self.giorno = date.today()
+        nuovo = self.report("SN-NUOVO", [("D10", 10.03, 10.0, 0.02, -0.02)], giorni=0)
+        self.report("SN-OK", [("D10", 10.0, 10.0, 0.02, -0.02)], giorni=0)
+        elenco = pg.anomalie_da_aprire()
+        self.assertEqual([x["report"].pk for x in elenco], [nuovo.pk])
+        self.assertIn(f"report_cmm={nuovo.pk}", elenco[0]["url"])
+        with connection.cursor() as cur:
+            cur.execute("INSERT INTO anomalie (ex_op_nominativo, op_lookup_id, chiudere, seriale, descrizione) "
+                        "VALUES ('OP/2026/100', 41, 0, 'SN-NUOVO', 'già segnalato')")
+        self.assertEqual(pg.anomalie_da_aprire(), [])                                  # c'è già una segnalazione aperta

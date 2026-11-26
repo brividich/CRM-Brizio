@@ -163,8 +163,13 @@ class PagineTests(ArchivioBase):
         s = cmm.statistiche([(10.01, 9.9, 10.1), (10.03, 9.9, 10.1), (9.99, 9.9, 10.1), (10.02, 9.9, 10.1), (10.0, 9.9, 10.1)])
         self.assertAlmostEqual(s["media"], 10.01)
         self.assertAlmostEqual(s["sd"], 0.015811, places=5)
-        self.assertAlmostEqual(s["cp"], 0.2 / (6 * s["sd"]), places=6)
-        self.assertAlmostEqual(s["cpk"], (10.1 - 10.01) / (3 * s["sd"]), places=6)
+        sb = (0.02 + 0.04 + 0.03 + 0.02) / 4 / 1.128                      # σ di breve periodo: escursioni mobili / d2
+        self.assertAlmostEqual(s["sigma_breve"], sb, places=9)
+        self.assertAlmostEqual(s["cp"], 0.2 / (6 * sb), places=6)
+        self.assertAlmostEqual(s["cpk"], (10.1 - 10.01) / (3 * sb), places=6)      # capacità della macchina
+        self.assertAlmostEqual(s["ppk"], (10.1 - 10.01) / (3 * s["sd"]), places=6)  # quello che ha fatto il processo
+        self.assertEqual(s["indice"], min(s["cpk"], s["ppk"]))
+        self.assertEqual(s["verdetto"], "pochi dati")
         self.assertAlmostEqual(s["u"], 0.0)
         self.assertIsNone(cmm.statistiche([(1, 0, 2)])["cpk"])           # meno di 5 punti
         critiche = cmm.quote_critiche("PN-ALFA-1")
@@ -262,7 +267,9 @@ class UnilateraliTests(SimpleTestCase):
         punti = [(0.010, 0.0, 0.05), (0.012, 0.0, 0.05), (0.011, 0.0, 0.05), (0.009, 0.0, 0.05), (0.013, 0.0, 0.05)]
         s = cmm.statistiche(punti, 0.0)
         self.assertIsNone(s["cp"])
-        self.assertAlmostEqual(s["cpk"], (0.05 - 0.011) / (3 * s["sd"]), places=6)
+        self.assertEqual(s["metodo"], "percentili")                       # forma e posizione: non normali
+        from produzione import spc
+        self.assertAlmostEqual(s["ppk"], spc.capacita([p[0] for p in punti], 0.0, 0.05, 0.0)["ppk"], places=9)
 
 
 class GiroTests(ArchivioBase):

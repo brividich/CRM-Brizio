@@ -22,7 +22,7 @@ from core import ordini_produzione as op_db
 from tasks.identity import normalize_part_number
 
 from . import report_cmm_indice as cmm
-from .models import ArticoloPN, ReportCMM
+from .models import ArticoloPN, QuotaCapacita, ReportCMM
 
 logger = logging.getLogger(__name__)
 
@@ -190,13 +190,48 @@ def analizza(a: ArticoloPN) -> None:
     """Cpk peggiore, quote non capaci (Cpk < 1,33), quote in deriva e quote fuori nell'ultimo report del P/N, con le
     stesse regole di ``analisi_pn`` (Quote CMM, scheda P/N e catalogo leggono questi numeri)."""
     righe = cmm.analisi_pn(a.pn)
-    valori = [r["cpk"] for r in righe if r["cpk"] is not None]
+    valori = [r["indice"] for r in righe if r["indice"] is not None]      # il peggiore fra Cpk e Ppk
     a.cpk_peggiore = min(valori) if valori else None
     a.quote_non_capaci = sum(1 for v in valori if v < 1.33)
     a.quote_deriva = sum(1 for r in righe if r["deriva"])
     a.quote_fuori_ultimo = sum(1 for r in righe if r["fuori_ultimo"])
+    rischi = [r["rischio"] for r in righe if r.get("rischio") is not None]
+    a.rischio_max = max(rischi) if rischi else None
+    a.salute = salute(righe) if righe else None
     a.analisi_il = timezone.now()
-    a.save(update_fields=["cpk_peggiore", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "analisi_il"])
+    a.save(update_fields=["cpk_peggiore", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "rischio_max",
+                          "salute", "analisi_il"])
+    # una riga per quota (Quote CMM, confronto della stessa caratteristica fra P/N)
+    QuotaCapacita.objects.filter(pn=a.pn).delete()
+    QuotaCapacita.objects.bulk_create([QuotaCapacita(
+        pn=a.pn, prog=(r["prog"] or "")[:200], quota_id=r["quota"]["id"][:260], nome=(r["quota"]["nome"] or "")[:200],
+        caratteristica=caratteristica(r["quota"]["nome"]), nominale=r["quota"]["nominale"], lsl=r.get("lsl"), usl=r.get("usl"),
+        n=r["n"], cpk=r.get("cpk"), ppk=r.get("ppk"), indice=r.get("indice"), cpk_basso=r.get("cpk_basso"),
+        verdetto=r.get("verdetto") or "", metodo=r.get("metodo") or "", rischio=r.get("rischio"), deriva=bool(r["deriva"]),
+        fuori_ultimo=r["fuori_ultimo"], famiglia=r.get("famiglia")) for r in righe], batch_size=500)
+
+
+def caratteristica(nome: str) -> str:
+    """Il nome della quota senza la numerazione del programma («021,00 Ø40 H7» → «Ø40 H7»), maiuscolo e con gli
+    spazi normali: la stessa caratteristica su P/N diversi."""
+    import re
+
+    s = re.sub(r"^\s*\d+[.,]\d+\s*", "", str(nome or ""))
+    return re.sub(r"\s+", " ", s).strip().upper()[:120] or str(nome or "")[:120].upper()
+
+
+def salute(righe: list[dict]) -> int:
+    """Salute CMM del P/N da 0 a 100, solo dalle misure: si parte da 100 e si toglie per il rischio più alto che il
+    prossimo pezzo esca (fino a 40), le quote fuori nell'ultimo report (10 l'una, fino a 20), le quote non capaci
+    (5 l'una, fino a 25) o al limite (2 l'una, fino a 10) e quelle in deriva (5 l'una, fino a 15)."""
+    rischio = max((r.get("rischio") or 0) for r in righe)
+    punti = 100
+    punti -= min(40, round(rischio * 80))
+    punti -= min(20, 10 * sum(1 for r in righe if r["fuori_ultimo"]))
+    punti -= min(25, 5 * sum(1 for r in righe if r.get("verdetto") == "non capace"))
+    punti -= min(10, 2 * sum(1 for r in righe if r.get("verdetto") == "al limite"))
+    punti -= min(15, 5 * sum(1 for r in righe if r["deriva"]))
+    return max(0, int(punti))
 
 
 def aggiorna_cpk(secondi: float, pn: list[str] | None = None) -> int:
