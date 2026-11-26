@@ -8,8 +8,20 @@ Il disegno è un dizionario JSON::
          "titolo": "", "sotto": "",          # testo libero (o sostituisce quello calcolato)
          "padre": "n0" | None, "staff": False, # collegamento verso il riquadro superiore
          "gruppo": "g1" | None,                # gruppo che contiene il riquadro
-         "colore": "#0f2a5c", "stile": "pieno" | "bordo" | "tratteggio"},
-    ]}
+         "colore": "#0f2a5c", "stile": "pieno" | "bordo" | "tratteggio",
+         "reparto": "",                         # intestazione del riquadro (es. SALES DEPT)
+         "ruoli_extra": [4, 9],                 # altri ruoli del responsabile (es. MSM + BDO)
+         "tutti_titolari": False,               # responsabili = tutti i titolari del ruolo
+         "elenco_ruoli": [12],                  # collaboratori: titolari di questi ruoli, si aggiorna da solo
+         "elenco_righe": ["Testo – SIGLA"],     # righe scritte a mano in fondo all'elenco
+         "elenco_nascosti": [41],               # persone tolte dall'elenco automatico
+         "elenco_sigle": True,                  # sigla del ruolo accanto ai nomi dell'elenco
+         "icona": "" | "capo" | ...,            # una di ICONE
+         "lato": False,                         # linea che arriva di lato dal tronco del superiore
+         "tronco": "centro" | "sinistra" | "destra"},  # da dove scende la linea verso i sottoposti
+    ],
+     "foglio": {"stile": "hub" | "documento", "titolo": "", "sottotitolo": "", "intestazione": "",
+                "azienda": "", "piede": "", "logo": True, "ruoli_blu": True}}
 
 Niente di quello che c'è qui scrive su ruoli, «riporta a», assegnazioni o
 permessi: il disegno li *legge* per nomi, foto e avvisi.
@@ -28,6 +40,13 @@ from core import naming
 VERSIONE = 1
 MAX_NODI = 600
 STILI = ("pieno", "bordo", "tratteggio")
+TRONCHI = ("centro", "sinistra", "destra")
+STILI_FOGLIO = ("hub", "documento")
+#: Icone disponibili nei riquadri (i disegni stanno nel partial _org_uff_render.html).
+ICONE = ("capo", "medico", "rspp", "preposto", "antincendio", "primo_soccorso", "rls", "lavoratori",
+         "persona", "ufficio", "qualita", "ingranaggio")
+MAX_LISTA_RUOLI = 12
+MAX_RIGHE = 80
 COLORE_DEFAULT = "#0f2a5c"
 #: Colori proposti nella tela (il server accetta qualunque esadecimale).
 PALETTE = ("#0f2a5c", "#2563eb", "#4f46e5", "#0d9488", "#16a34a", "#f97316", "#be123c", "#64748b")
@@ -58,8 +77,36 @@ def _testo(v, lung: int) -> str:
     return " ".join(str(v or "").split())[:lung]
 
 
+def foglio_default() -> dict:
+    return {"stile": "hub", "titolo": "", "sottotitolo": "", "intestazione": "", "azienda": "",
+            "piede": "", "logo": True, "ruoli_blu": True}
+
+
 def vuoto() -> dict:
-    return {"v": VERSIONE, "nodi": []}
+    return {"v": VERSIONE, "nodi": [], "foglio": foglio_default()}
+
+
+def _lista_id(v, massimo: int) -> list[int]:
+    out: list[int] = []
+    for x in v if isinstance(v, list) else []:
+        i = _id_pos(x)
+        if i and i not in out:
+            out.append(i)
+        if len(out) >= massimo:
+            break
+    return out
+
+
+def normalizza_foglio(raw) -> dict:
+    """Impostazioni del foglio (stile, intestazione, piè di pagina) pulite."""
+    raw = raw if isinstance(raw, dict) else {}
+    f = foglio_default()
+    f["stile"] = raw.get("stile") if raw.get("stile") in STILI_FOGLIO else "hub"
+    for k, lung in (("titolo", 120), ("sottotitolo", 120), ("intestazione", 80), ("azienda", 80), ("piede", 160)):
+        f[k] = _testo(raw.get(k), lung)
+    f["logo"] = bool(raw.get("logo", True))
+    f["ruoli_blu"] = bool(raw.get("ruoli_blu", True))
+    return f
 
 
 def normalizza(raw) -> dict:
@@ -99,6 +146,18 @@ def normalizza(raw) -> dict:
             "gruppo": str(n.get("gruppo") or "") or None,
             "colore": colore if _RE_COLORE.match(colore) else COLORE_DEFAULT,
             "stile": n.get("stile") if n.get("stile") in STILI else "bordo",
+            "reparto": _testo(n.get("reparto"), 80) if tipo == "box" else "",
+            "ruoli_extra": _lista_id(n.get("ruoli_extra"), 6) if tipo == "box" else [],
+            "tutti_titolari": bool(n.get("tutti_titolari")) if tipo == "box" else False,
+            "elenco_ruoli": _lista_id(n.get("elenco_ruoli"), MAX_LISTA_RUOLI) if tipo == "box" else [],
+            "elenco_righe": [
+                _testo(r, 120) for r in (n.get("elenco_righe") if isinstance(n.get("elenco_righe"), list) else [])
+            ][:MAX_RIGHE] if tipo == "box" else [],
+            "elenco_nascosti": _lista_id(n.get("elenco_nascosti"), 300) if tipo == "box" else [],
+            "elenco_sigle": n.get("elenco_sigle") is not False,
+            "icona": n.get("icona") if tipo == "box" and n.get("icona") in ICONE else "",
+            "lato": bool(n.get("lato")),
+            "tronco": n.get("tronco") if n.get("tronco") in TRONCHI else "centro",
         })
     per_id = {n["id"]: n for n in nodi}
     for n in nodi:
@@ -108,18 +167,22 @@ def normalizza(raw) -> dict:
         if n["tipo"] == "gruppo" or g is None or g["tipo"] != "gruppo":
             n["gruppo"] = None
         if not n["padre"]:
-            n["staff"] = False
+            n["staff"] = n["lato"] = False
+        if n["staff"]:
+            n["lato"] = False
+        if n["ruolo"] in n["ruoli_extra"]:
+            n["ruoli_extra"].remove(n["ruolo"])
     # Cicli nei collegamenti: si spezza il collegamento che chiude il giro.
     for n in nodi:
         visitati = {n["id"]}
         cur = per_id.get(n["padre"] or "")
         while cur is not None:
             if cur["id"] in visitati:
-                n["padre"], n["staff"] = None, False
+                n["padre"], n["staff"], n["lato"] = None, False, False
                 break
             visitati.add(cur["id"])
             cur = per_id.get(cur["padre"] or "")
-    return {"v": VERSIONE, "nodi": nodi}
+    return {"v": VERSIONE, "nodi": nodi, "foglio": normalizza_foglio(raw.get("foglio"))}
 
 
 # ── nomi, foto e dati del portale letti dal disegno ────────────────────────
@@ -161,6 +224,8 @@ def contesto(*disegni: dict) -> dict:
         for n in (d or {}).get("nodi", []):
             if n.get("ruolo"):
                 ruoli_ids.add(n["ruolo"])
+            ruoli_ids.update(n.get("ruoli_extra") or [])
+            ruoli_ids.update(n.get("elenco_ruoli") or [])
             if n.get("persona"):
                 persone_ids.add(n["persona"])
             if n.get("mansione"):
@@ -246,6 +311,12 @@ def avvisi(dati: dict, ctx: dict, organigramma=None) -> list[dict]:
             out.append({"nodo": n["id"], "testo": f"Ruolo «{ruolo.nome}» disattivato nel catalogo"})
         elif ruolo is not None and pid and pid not in ctx["cessati"] and (rid, pid) not in ctx["titolari"]:
             out.append({"nodo": n["id"], "testo": f"{nome} non ha il ruolo «{ruolo.nome}» nella scheda"})
+        for altro in list(n.get("ruoli_extra") or []) + list(n.get("elenco_ruoli") or []):
+            r = ctx["ruoli"].get(altro)
+            if r is None:
+                out.append({"nodo": n["id"], "testo": f"Ruolo n. {altro} eliminato dal catalogo"})
+            elif not r.is_active:
+                out.append({"nodo": n["id"], "testo": f"Ruolo «{r.nome}» disattivato nel catalogo"})
         mansione = ctx["mansioni"].get(mid or 0)
         if mid and mansione is None:
             out.append({"nodo": n["id"], "testo": f"Mansione n. {mid} eliminata"})
@@ -264,7 +335,12 @@ def _ruoli_non_disegnati(dati: dict, ambito) -> list[dict]:
     from core.operational_roles import _assegnazioni_in_corso
     from .organigramma_albero import cessati_legacy_ids
 
-    disegnati = {n.get("ruolo") for n in dati.get("nodi", []) if n.get("ruolo")}
+    disegnati: set[int] = set()
+    for n in dati.get("nodi", []):
+        if n.get("ruolo"):
+            disegnati.add(n["ruolo"])
+        disegnati.update(n.get("ruoli_extra") or [])
+        disegnati.update(n.get("elenco_ruoli") or [])
     filtro = Q(ambito_id=ambito.pk) | Q(ambito_id=None) if ambito.alimenta_scheda else Q(ambito_id=ambito.pk)
     ruoli = {r.pk: r.nome for r in RuoloOperativo.objects.filter(filtro, is_active=True)}
     cessati = cessati_legacy_ids()
@@ -285,9 +361,12 @@ def _ruoli_non_disegnati(dati: dict, ambito) -> list[dict]:
 
 # ── riepilogo delle modifiche fra la revisione in vigore e la bozza ────────
 
-_CONTENUTO = ("ruolo", "persona", "mansione", "titolo", "sotto")
-_GRAFICA = ("x", "y", "w", "h")
-_ASPETTO = ("colore", "stile")
+_CONTENUTO = ("ruolo", "persona", "mansione", "titolo", "sotto", "reparto", "ruoli_extra", "tutti_titolari",
+              "elenco_ruoli", "elenco_righe", "elenco_nascosti", "elenco_sigle")
+_GRAFICA = ("x", "y", "w", "h", "lato", "tronco")
+_ASPETTO = ("colore", "stile", "icona")
+_NOMI_FOGLIO = {"stile": "stile", "titolo": "titolo", "sottotitolo": "sottotitolo", "intestazione": "intestazione",
+                "azienda": "azienda", "piede": "piè di pagina", "logo": "logo", "ruoli_blu": "colore dei ruoli"}
 
 
 def riepilogo(prima: dict | None, dopo: dict | None) -> list[dict]:
@@ -304,7 +383,8 @@ def riepilogo(prima: dict | None, dopo: dict | None) -> list[dict]:
         e = etichetta(nodo, ctx)
         if nodo["tipo"] == "gruppo":
             return f"gruppo «{e['titolo']}»"
-        return f"{e['titolo']} ({e['sotto']})" if e["sotto"] else e["titolo"]
+        testo = f"{e['titolo']} ({e['sotto']})" if e["sotto"] else e["titolo"]
+        return f"{nodo['reparto']}: {testo}" if nodo.get("reparto") else testo
 
     def dove(nodo: dict, tutti: dict) -> str:
         parti = []
@@ -359,50 +439,77 @@ def riepilogo(prima: dict | None, dopo: dict | None) -> list[dict]:
         if aspetto:
             parti.append(f"{aspetto} {'colore o stile cambiato' if aspetto == 1 else 'colori o stili cambiati'}")
         out.append({"tipo": "grafica", "titolo": ", ".join(parti), "dettaglio": "non cambia la struttura"})
+    fp, fd = normalizza_foglio(prima.get("foglio")), normalizza_foglio(dopo.get("foglio"))
+    cambiati = [k for k in fd if fp[k] != fd[k]]
+    if cambiati:
+        dett = ("stile " + ("Documento" if fd["stile"] == "documento" else "HUB")) if "stile" in cambiati else ""
+        out.append({"tipo": "grafica", "titolo": "Foglio: " + ", ".join(_NOMI_FOGLIO[k] for k in cambiati),
+                    "dettaglio": dett or "intestazione e piè di pagina"})
     ordine = {"aggiunto": 0, "spostato": 1, "rinominato": 2, "modificato": 3, "tolto": 4, "grafica": 5}
     out.sort(key=lambda r: ordine[r["tipo"]])
     return out
 
 
 # ── disegno pronto per la pagina pubblicata e per la stampa ────────────────
+#
+# Riquadri, elenchi e linee li disegna nel browser lo stesso script della tela
+# (partial _org_uff_render.html): qui si prepara solo il catalogo dei nomi.
 
-def _linea(padre: dict, figlio: dict) -> dict:
-    if figlio.get("staff"):
-        y = figlio["y"] + figlio["h"] / 2
-        destra = figlio["x"] + figlio["w"] / 2 >= padre["x"] + padre["w"] / 2
-        x2 = figlio["x"] if destra else figlio["x"] + figlio["w"]
-        if padre["y"] <= y <= padre["y"] + padre["h"]:
-            x1 = padre["x"] + padre["w"] if destra else padre["x"]
-            return {"d": f"M{x1:.0f} {y:.0f} H{x2:.0f}", "staff": True}
-        x1 = padre["x"] + padre["w"] / 2
-        y1 = padre["y"] + padre["h"] if y > padre["y"] else padre["y"]
-        return {"d": f"M{x1:.0f} {y1:.0f} V{y:.0f} H{x2:.0f}", "staff": True}
-    x1, y1 = padre["x"] + padre["w"] / 2, padre["y"] + padre["h"]
-    x2, y2 = figlio["x"] + figlio["w"] / 2, figlio["y"]
-    m = (y1 + y2) / 2 if y2 > y1 else y1 + 14
-    return {"d": f"M{x1:.0f} {y1:.0f} V{m:.0f} H{x2:.0f} V{y2:.0f}", "staff": False}
+def catalogo(*disegni: dict) -> dict:
+    """Nomi, sigle e titolari che servono per disegnare i riquadri dati, nel formato dello script."""
+    from anagrafica.models import Mansione, RuoloOperativo
+    from core.operational_roles import _assegnazioni_in_corso
+    from .organigramma_albero import cessati_legacy_ids
+
+    ruoli_ids, persone_ids, mansioni_ids, con_titolari = set(), set(), set(), set()
+    for d in disegni:
+        for n in (d or {}).get("nodi", []):
+            if n.get("ruolo"):
+                ruoli_ids.add(n["ruolo"])
+                con_titolari.add(n["ruolo"])
+            ruoli_ids.update(n.get("ruoli_extra") or [])
+            for r in (n.get("elenco_ruoli") or []):
+                ruoli_ids.add(r)
+                con_titolari.add(r)
+            if n.get("persona"):
+                persone_ids.add(n["persona"])
+            if n.get("mansione"):
+                mansioni_ids.add(n["mansione"])
+    titolari: dict[int, list[int]] = {}
+    if con_titolari:
+        cessati = cessati_legacy_ids()
+        for rid, lid in _assegnazioni_in_corso().filter(ruolo_id__in=sorted(con_titolari)).values_list(
+                "ruolo_id", "legacy_anagrafica_id"):
+            if not lid or int(lid) in cessati:
+                continue
+            elenco = titolari.setdefault(rid, [])
+            if int(lid) not in elenco:
+                elenco.append(int(lid))
+                persone_ids.add(int(lid))
+    ruoli = {
+        str(r.pk): {"nome": r.nome, "sigla": r.sigla or "", "attivo": r.is_active, "titolari": titolari.get(r.pk, [])}
+        for r in RuoloOperativo.objects.filter(pk__in=ruoli_ids)
+    } if ruoli_ids else {}
+    mansioni = {str(m.pk): m.nome for m in Mansione.objects.filter(pk__in=mansioni_ids)} if mansioni_ids else {}
+    return {
+        "ruoli": ruoli, "mansioni": mansioni,
+        "persone": {str(k): v for k, v in _persone_info(persone_ids).items()},
+    }
 
 
-def disegno(dati: dict | None, ctx: dict | None = None, margine: int = 24) -> dict:
-    """Riquadri con etichette e linee, spostati in modo che il disegno parta da (margine, margine)."""
-    dati = dati or vuoto()
-    nodi = [dict(n) for n in dati.get("nodi", [])]
-    if not nodi:
-        return {"nodi": [], "linee": [], "w": 0, "h": 0}
-    ctx = ctx if ctx is not None else contesto(dati)
-    minx = min(n["x"] for n in nodi)
-    miny = min(n["y"] for n in nodi)
-    for n in nodi:
-        n["x"] += margine - minx
-        n["y"] += margine - miny
-        n["e"] = etichetta(n, ctx)
-    per_id = {n["id"]: n for n in nodi}
-    linee = [_linea(per_id[n["padre"]], n) for n in nodi if n.get("padre") in per_id]
-    w = max(n["x"] + n["w"] for n in nodi) + margine
-    h = max(n["y"] + n["h"] for n in nodi) + margine
-    # I gruppi sotto, i riquadri sopra: l'ordine di disegno è quello della pagina.
-    nodi.sort(key=lambda n: 0 if n["tipo"] == "gruppo" else 1)
-    return {"nodi": nodi, "linee": linee, "w": w, "h": h}
+def pacchetto(dati: dict | None) -> dict:
+    """Quello che riceve lo script di disegno: disegno pulito più catalogo dei nomi."""
+    dati = normalizza(dati) if dati else vuoto()
+    return {"dati": dati, "cat": catalogo(dati)}
+
+
+def testo_piede(foglio: dict | None, rev_numero: int | None, nome: str) -> str:
+    """Piè di pagina della stampa: «{rev}» nel testo diventa «Rev.N» (o «Bozza»)."""
+    rev = f"Rev.{rev_numero}" if rev_numero else "Bozza"
+    piede = (foglio or {}).get("piede") or ""
+    if not piede:
+        return f"{nome} – {rev}"
+    return piede.replace("{rev}", rev) if "{rev}" in piede else f"{piede} – {rev}"
 
 
 # ── cataloghi per la barra della tela ──────────────────────────────────────
@@ -440,7 +547,7 @@ def cataloghi(ambito=None) -> dict:
         filtro = Q(ambito_id=ambito.pk) | Q(ambito_id=None) if ambito.alimenta_scheda else Q(ambito_id=ambito.pk)
         ambito_ids = set(qs.filter(filtro).values_list("pk", flat=True))
     ruoli = [
-        {"id": r.pk, "nome": r.nome, "ambito": r.pk in ambito_ids,
+        {"id": r.pk, "nome": r.nome, "sigla": r.sigla or "", "ambito": r.pk in ambito_ids,
          "titolari": [{"id": lid, "nome": nomi.get(lid, "")} for lid in titolari.get(r.pk, [])]}
         for r in qs.order_by("nome")
     ]

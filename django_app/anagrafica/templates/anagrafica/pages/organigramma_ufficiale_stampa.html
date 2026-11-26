@@ -1,53 +1,92 @@
-{% load l10n %}<!doctype html>
+<!doctype html>
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<title>{{ org.nome }}{% if rev %} Rev.{{ rev.numero }}{% else %} (bozza){% endif %}</title>
-{% include "anagrafica/partials/_org_uff_stile.html" %}
+<title>{% for p in pagine %}{{ p.org.nome }}{% if p.rev %} Rev.{{ p.rev.numero }}{% else %} (bozza){% endif %}{% if not forloop.last %} + {% endif %}{% endfor %}</title>
+{% include "anagrafica/partials/_org_uff_render.html" %}
 <style>
-@page { size:{{ formato }} landscape; margin:8mm; }
+@page { size:{{ formato.page }}; margin:8mm; }
 * { box-sizing:border-box; }
 body { margin:0; font-family:"Segoe UI", system-ui, sans-serif; color:#0f1f3a; background:#525659; }
-.barra { position:sticky; top:0; z-index:2; display:flex; gap:10px; align-items:center; justify-content:center;
+.barra { position:sticky; top:0; z-index:5; display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap;
   padding:10px; background:#1f2937; color:#e5e7eb; font-size:13px; }
 .barra a, .barra button { background:#fff; color:#0f1f3a; border:none; border-radius:8px; padding:7px 12px; font:inherit; font-weight:600; cursor:pointer; text-decoration:none; }
 .barra .on { background:#93c5fd; }
-.foglio { background:#fff; margin:24px auto; padding:18px 22px; position:relative; box-shadow:0 4px 20px rgba(0,0,0,.4);
-  width:{% if formato == "A4" %}1100px{% else %}1560px{% endif %}; height:{% if formato == "A4" %}760px{% else %}1090px{% endif %}; }
-.titolo { font-size:20px; font-weight:800; letter-spacing:.02em; text-transform:uppercase; }
-.bozza { color:#b45309; font-size:13px; font-weight:700; margin-left:8px; }
-.area { position:absolute; left:22px; top:58px; width:{{ area_w }}px; height:{{ area_h }}px; display:flex; align-items:flex-start; justify-content:center; }
-.scala { transform:scale({{ scala|unlocalize }}); transform-origin:top center; flex:none; }
-.cart { position:absolute; right:22px; bottom:18px; border:1.5px solid #0f1f3a; display:grid; grid-template-columns:110px 240px; font-size:11px; background:#fff; }
-.cart div { border:.5px solid #0f1f3a; padding:4px 8px; }
-.cart .h { background:#f1f5f9; font-weight:700; }
+.foglio { width:{{ formato.w }}mm; height:{{ formato.h }}mm; background:#fff; margin:24px auto; position:relative;
+  box-shadow:0 4px 20px rgba(0,0,0,.4); display:flex; flex-direction:column; overflow:hidden; }
+.area { flex:1; min-height:0; display:flex; justify-content:center; align-items:flex-start; padding:6px 0; }
+.bozza { color:#b45309; font-weight:800; font-size:12px; letter-spacing:.04em; }
+
+/* intestazione Documento */
+.tp-doc { display:grid; grid-template-columns:44mm 1fr 44mm; align-items:start; gap:6mm; padding:4mm 0 0; }
+.tp-doc .cart { border:1px solid #000; text-align:center; font:700 11px/1.7 Calibri, Carlito, Arial, sans-serif; padding:5px 4px; color:#000; }
+.tp-doc .cart img { display:block; margin:3px auto 0; max-width:34mm; max-height:10mm; }
+.tp-doc .tit { text-align:center; color:#4472c4; font:15px/1.55 Calibri, Carlito, Arial, sans-serif; padding-top:2px; }
+.tp-doc .dx { text-align:right; font:11px/1.4 Calibri, Carlito, Arial, sans-serif; color:#374151; padding-top:4px; }
+.pd-doc { display:flex; justify-content:space-between; gap:12px; padding:2mm 0 1mm; font:13px Calibri, Carlito, Arial, sans-serif; color:#000; }
+.pd-doc span:last-child { font-size:11px; color:#374151; }
+
+/* intestazione HUB */
+.tp-hub { background:#0f2a5c; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 20px; }
+.tp-hub .sx { display:flex; align-items:center; gap:12px; font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; opacity:.9; }
+.tp-hub .sx img { background:#fff; border-radius:6px; padding:4px 6px; height:30px; }
+.tp-hub .dx { text-align:right; font-size:17px; font-weight:700; line-height:1.3; }
+.tp-hub .dx small { display:block; font-size:11px; font-weight:500; opacity:.75; letter-spacing:.08em; text-transform:uppercase; }
+.tp-hub-rev { margin:10px 20px 0; align-self:flex-start; background:#f1f5f9; border:1px solid #d3dbe7; border-radius:999px; padding:3px 10px; font-size:11px; color:#475569; }
+.pd-hub { display:flex; justify-content:space-between; gap:12px; margin:0 20px; padding:7px 0 9px; border-top:1px solid #d3dbe7; font-size:11px; color:#64748b; }
+.foglio.st-hub { background:#f6f8fb; }
+.tp-hub, .tp-hub .sx img, .foglio.st-hub, .tp-hub-rev { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
 @media print {
   body { background:#fff; }
   .barra { display:none; }
-  .foglio { margin:0; box-shadow:none; padding:0; width:auto; height:auto; min-height:{% if formato == "A4" %}190mm{% else %}275mm{% endif %}; }
-  .area { left:0; top:40px; }
-  .cart { right:0; bottom:0; }
-  .cart .h { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .foglio { margin:0; box-shadow:none; break-after:page; }
+  .foglio:last-child { break-after:auto; }
 }
 </style>
 </head>
 <body>
 <div class="barra">
   <span>Formato:</span>
-  <a class="{% if formato == 'A3' %}on{% endif %}" href="?{% if rev %}rev={{ rev.numero }}&{% endif %}{% if bozza %}bozza=1&{% endif %}formato=A3">A3</a>
-  <a class="{% if formato == 'A4' %}on{% endif %}" href="?{% if rev %}rev={{ rev.numero }}&{% endif %}{% if bozza %}bozza=1&{% endif %}formato=A4">A4</a>
+  {% for k, nome in formati %}<a class="{% if k == chiave %}on{% endif %}" href="?{% if query %}{{ query }}&{% endif %}formato={{ k }}">{{ nome }}</a>{% endfor %}
   <button type="button" onclick="window.print()">🖨 Stampa / Salva PDF</button>
-  <span>Nella finestra di stampa scegli «Salva come PDF» e orientamento orizzontale.</span>
+  <span>Nella finestra di stampa scegli «Salva come PDF»{% if pagine|length > 1 %}: {{ pagine|length }} pagine in un file{% endif %}.</span>
 </div>
-<div class="foglio">
-  <div class="titolo">{{ org.nome }}{% if bozza %}<span class="bozza">BOZZA NON PUBBLICATA</span>{% endif %}</div>
-  <div class="area"><div class="scala">{% include "anagrafica/partials/_org_uff_disegno.html" with d=disegno only %}</div></div>
-  <div class="cart">
-    <div class="h">Documento</div><div>{{ org.nome }}</div>
-    <div class="h">Revisione</div><div>{% if rev %}Rev.{{ rev.numero }} del {{ rev.data_emissione|date:"d/m/Y" }}{% else %}Bozza del {{ oggi|date:"d/m/Y" }}{% endif %}</div>
-    <div class="h">Approvato da</div><div>{% if rev %}{{ rev.approvato_da|default:"—" }}{% else %}—{% endif %}</div>
-    {% if rev and rev.nota %}<div class="h">Note</div><div>{{ rev.nota|truncatechars:90 }}</div>{% endif %}
+
+{% for p in pagine %}
+<div class="foglio st-{% if p.foglio.stile == 'documento' %}doc{% else %}hub{% endif %}" style="{% if p.foglio.stile == 'documento' %}padding:0 6mm{% endif %}">
+  {% if p.foglio.stile == "documento" %}
+    <div class="tp-doc">
+      <div class="cart">{{ p.intestazione }}{% if p.foglio.azienda %}<br>{{ p.foglio.azienda }}{% endif %}{% if p.foglio.logo %}<img src="{{ logo_url }}" alt="">{% endif %}</div>
+      <div class="tit">{{ p.titolo }}{% if p.foglio.sottotitolo %}<br>{{ p.foglio.sottotitolo }}{% endif %}</div>
+      <div class="dx">{% if p.bozza %}<span class="bozza">BOZZA NON PUBBLICATA</span>{% endif %}</div>
+    </div>
+  {% else %}
+    <div class="tp-hub">
+      <div class="sx">{% if p.foglio.logo %}<img src="{{ logo_url }}" alt="">{% endif %}<span>{{ p.foglio.azienda|default:p.intestazione }}</span></div>
+      <div class="dx">{{ p.titolo }}{% if p.foglio.sottotitolo %}<small>{{ p.foglio.sottotitolo }}</small>{% endif %}</div>
+    </div>
+    <div class="tp-hub-rev">{% if p.rev %}Rev.{{ p.rev.numero }} · in vigore dal {{ p.rev.data_emissione|date:"d/m/Y" }}{% else %}<span class="bozza">BOZZA NON PUBBLICATA</span> · {{ oggi|date:"d/m/Y" }}{% endif %}</div>
+  {% endif %}
+  <div class="area" data-pagina="{{ forloop.counter0 }}">{{ p.pacchetto|json_script }}</div>
+  <div class="{% if p.foglio.stile == 'documento' %}pd-doc{% else %}pd-hub{% endif %}">
+    <span>{{ p.piede }}</span>
+    <span>{% if p.rev %}Emessa il {{ p.rev.data_emissione|date:"d/m/Y" }}{% if p.rev.approvato_da %} · Approvato da {{ p.rev.approvato_da }}{% endif %}{% else %}Bozza del {{ oggi|date:"d/m/Y" }}{% endif %}</span>
   </div>
 </div>
+{% endfor %}
+<script>
+(function () {
+  function disegna() {
+    document.querySelectorAll(".area").forEach(function (a) {
+      var js = a.querySelector('script[type="application/json"]'); if (!js) return;
+      var pk = JSON.parse(js.textContent), box = document.createElement("div");
+      a.appendChild(box);
+      window.OUF.render(box, pk, {fit: [a.clientWidth, a.clientHeight - 12], ingrandisci: true, margine: 8});
+    });
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(disegna); else window.addEventListener("load", disegna);
+})();
+</script>
 </body>
 </html>

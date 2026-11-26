@@ -370,9 +370,35 @@ GUIDA = {
                       "nella scheda non ha il ruolo del riquadro, ruolo o mansione eliminati o disattivati, e, se hai "
                       "scelto un ambito, i ruoli di quell'ambito con persone ma non disegnati. Gli avvisi non bloccano la "
                       "pubblicazione e non correggono niente."),
-                ("p", "«⬇ PDF A3» / «A4» apre la pagina di stampa col cartiglio (documento, revisione, approvato da, note): "
-                      "«Stampa / Salva PDF» e scegli «Salva come PDF» in orizzontale. Dalla tela, «Anteprima PDF» stampa "
-                      "la bozza con la scritta «BOZZA NON PUBBLICATA»."),
+                ("p", "Due stili, scelti nella barra della tela: «Stile HUB» (colori del portale, sigle in etichette, "
+                      "iniziali delle persone) e «Stile Documento» (bianco e nero con ruoli in blu, come l'allegato in "
+                      "Word). Il disegno è lo stesso: cambia solo l'aspetto, a video e in stampa."),
+                ("ul", [
+                    "«Reparto»: nome del reparto in testa al riquadro (es. SALES DEPT). Dalla scheda «Testo libero» "
+                    "c'è il riquadro «Reparto» già pronto.",
+                    "«＋ altro ruolo dello stesso responsabile»: più ruoli sullo stesso riquadro (es. MSM e BDO).",
+                    "«Responsabili: tutti i titolari del ruolo»: mostra tutte le persone che hanno il ruolo (es. capi reparto).",
+                    "«Elenco collaboratori» → «＋ elenca i titolari di un ruolo»: sotto il responsabile compaiono le "
+                    "persone con quei ruoli, nella forma «Cognome Nome – SIGLA», e l'elenco si aggiorna da solo quando "
+                    "cambiano le assegnazioni. «×» toglie una persona da quell'elenco, «↺» la rimette; «Sigla del ruolo "
+                    "accanto ai nomi» si può spegnere (Preposti, squadre). «Righe scritte a mano» aggiunge voci libere; "
+                    "una riga vuota fa spazio.",
+                    "«Icona»: datore di lavoro, medico, RSPP/ASPP, preposto, antincendio, primo soccorso, RLS, lavoratori e altre.",
+                    "Collegamento «Dall'alto», «Di lato» (la linea scende lungo il superiore ed entra dal fianco, per i "
+                    "sotto-reparti in colonna) o «Staff» (tratteggiata). «Linea verso i sottoposti» la fa partire da "
+                    "sinistra, dal centro o da destra del superiore.",
+                    "Se un riquadro si allunga (elenco più lungo, stile più alto) i riquadri sotto nella stessa colonna "
+                    "scendono da soli e non vengono coperti.",
+                ]),
+                ("p", "«📄 Foglio»: titolo e sottotitolo, intestazione del riquadro in alto, azienda, logo e piè di pagina "
+                      "della stampa. Nel piè di pagina «{rev}» diventa il numero di revisione (es. «Allegato C {rev} – "
+                      "Organigramma» → «Allegato C Rev.20 – Organigramma»). Il logo è quello caricato nelle impostazioni "
+                      "grafiche del portale. Anche il foglio va nella revisione pubblicata."),
+                ("p", "«⬇ Stampa / PDF» apre la pagina di stampa: formato A3, A4 orizzontale o A4 verticale (lo stile "
+                      "Documento parte in A4 verticale), poi «Stampa / Salva PDF» → «Salva come PDF». Dall'elenco, "
+                      "«⬇ Stampa insieme» mette più organigrammi pubblicati in un solo PDF, una pagina ciascuno "
+                      "(es. aziendale e sicurezza dell'Allegato C). Dalla tela, «Anteprima PDF» stampa la bozza con la "
+                      "scritta «BOZZA NON PUBBLICATA»."),
                 ("nota", "Vedere gli organigrammi ufficiali segue il permesso del Diagramma; disegnare e pubblicare spetta a "
                          "chi gestisce l'anagrafica (stesso permesso della modifica dei ruoli). «Scarta bozza» torna alla "
                          "revisione in vigore; «⚙ Dati» → «Archivia» toglie l'organigramma dall'elenco."),

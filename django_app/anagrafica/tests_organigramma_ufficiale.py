@@ -58,6 +58,36 @@ class NormalizzaTests(TestCase):
         with self.assertRaises(ValueError):
             svc.normalizza({"nodi": "no"})
 
+    def test_campi_reparto_elenco_icona_e_foglio(self):
+        d = svc.normalizza({
+            "nodi": [
+                _box("a", ruolo=3, ruoli_extra=[3, 4, "x", 4, 5], tutti_titolari=1, reparto="  Sales   dept ",
+                     elenco_ruoli=[7, 8, 7], elenco_righe=["Rossi  Mario – IN1", ""], elenco_nascosti=[9, "no"],
+                     icona="antincendio", tronco="sinistra"),
+                _box("b", padre="a", lato=True, icona="boh", tronco="obliquo"),
+                _box("c", padre="a", lato=True, staff=True),
+                _box("d", lato=True),
+            ],
+            "foglio": {"stile": "documento", "titolo": "Organigramma", "piede": "Allegato C {rev}", "logo": False,
+                       "ruoli_blu": False, "ignoto": 1},
+        })
+        a, b, c, e = d["nodi"]
+        self.assertEqual(a["ruoli_extra"], [4, 5])  # il ruolo principale non si ripete
+        self.assertEqual((a["reparto"], a["tutti_titolari"], a["icona"], a["tronco"]), ("Sales dept", True, "antincendio", "sinistra"))
+        self.assertEqual((a["elenco_ruoli"], a["elenco_righe"], a["elenco_nascosti"]), ([7, 8], ["Rossi Mario – IN1", ""], [9]))
+        self.assertEqual((b["lato"], b["icona"], b["tronco"]), (True, "", "centro"))
+        self.assertEqual((c["staff"], c["lato"]), (True, False))  # staff vince su «di lato»
+        self.assertFalse(e["lato"])  # senza superiore niente linea
+        self.assertEqual(d["foglio"], {"stile": "documento", "titolo": "Organigramma", "sottotitolo": "", "intestazione": "",
+                                       "azienda": "", "piede": "Allegato C {rev}", "logo": False, "ruoli_blu": False})
+        self.assertEqual(svc.normalizza({"nodi": []})["foglio"]["stile"], "hub")
+
+    def test_testo_piede(self):
+        f = {"piede": "Azienda – Allegato C {rev} – Organigramma"}
+        self.assertEqual(svc.testo_piede(f, 19, "X"), "Azienda – Allegato C Rev.19 – Organigramma")
+        self.assertEqual(svc.testo_piede({"piede": "Allegato C"}, 2, "X"), "Allegato C – Rev.2")
+        self.assertEqual(svc.testo_piede({}, None, "Org"), "Org – Bozza")
+
 
 class AvvisiRiepilogoTests(TestCase):
     def setUp(self):
@@ -85,6 +115,34 @@ class AvvisiRiepilogoTests(TestCase):
         testi = [a["testo"] for a in svc.avvisi(svc.vuoto(), svc.contesto(svc.vuoto()), org)]
         self.assertIn("«Resp Prod T» non è nel disegno (1 persona)", testi)
         self.assertFalse(any("Qualita T" in t for t in testi))  # nessuno lo ricopre
+
+    def test_catalogo_porta_sigle_e_titolari_degli_elenchi(self):
+        self.altro.sigla = "QT"
+        self.altro.save()
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=21, ruolo=self.altro)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=22, ruolo=self.altro)
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=22, data_cessazione=date(2026, 1, 31))
+        p = svc.pacchetto({"nodi": [_box("a", ruolo=self.ruolo.pk, persona=11, elenco_ruoli=[self.altro.pk])]})
+        r = p["cat"]["ruoli"][str(self.altro.pk)]
+        self.assertEqual((r["sigla"], r["titolari"]), ("QT", [21]))  # il cessato non compare
+        self.assertIn("21", p["cat"]["persone"])
+        self.assertEqual(p["dati"]["foglio"]["stile"], "hub")
+
+    def test_ruoli_negli_elenchi_contano_come_disegnati(self):
+        amb = AmbitoRuolo.objects.create(nome="Prod T2", alimenta_scheda=True)
+        org = OrganigrammaUfficiale.objects.create(nome="Org T2", ambito=amb)
+        dati = svc.normalizza({"nodi": [_box("a", elenco_ruoli=[self.ruolo.pk])]})
+        testi = [a["testo"] for a in svc.avvisi(dati, svc.contesto(dati), org)]
+        self.assertFalse(any("Resp Prod T" in t for t in testi))
+
+    def test_riepilogo_segnala_elenco_e_foglio(self):
+        prima = svc.normalizza({"nodi": [_box("a", titolo="Ufficio")]})
+        dopo = svc.normalizza({"nodi": [_box("a", titolo="Ufficio", elenco_ruoli=[self.ruolo.pk])],
+                               "foglio": {"stile": "documento"}})
+        righe = svc.riepilogo(prima, dopo)
+        self.assertEqual([r["tipo"] for r in righe], ["modificato", "grafica"])
+        self.assertEqual(righe[1]["titolo"], "Foglio: stile")
+        self.assertEqual(righe[1]["dettaglio"], "stile Documento")
 
     def test_etichetta_ruolo_senza_persona_conta_i_titolari(self):
         dati = svc.normalizza({"nodi": [_box("a", ruolo=self.ruolo.pk), _box("b", ruolo=self.altro.pk)]})
@@ -179,10 +237,37 @@ class VisteTests(TestCase):
         self.assertContains(r, "Storico revisioni")
         r = self.client.get(reverse("anagrafica:organigramma_ufficiale_stampa", args=[org.pk]) + "?formato=A4")
         self.assertContains(r, "size:A4 landscape")
-        self.assertContains(r, "Rev.1 del 26/11/2026")
+        self.assertContains(r, "Emessa il 26/11/2026")
+        self.assertContains(r, "Aziendale – Rev.1")
         r = self.client.get(reverse("anagrafica:organigramma_ufficiale"))
         self.assertContains(r, "Aziendale")
         self.assertContains(r, "📐 Ufficiale")
+
+    def test_stampa_piu_organigrammi_in_un_pdf(self):
+        a = OrganigrammaUfficiale.objects.create(nome="Aziendale T")
+        b = OrganigrammaUfficiale.objects.create(nome="Sicurezza T")
+        c = OrganigrammaUfficiale.objects.create(nome="Mai pubblicato T", bozza={"nodi": [_box("x", titolo="X")]})
+        for org, stile in ((a, "documento"), (b, "hub")):
+            OrganigrammaRevisione.objects.create(
+                organigramma=org, numero=1, data_emissione=date(2026, 11, 26),
+                dati=svc.normalizza({"nodi": [_box("x", titolo="Direzione")],
+                                     "foglio": {"stile": stile, "piede": "Allegato C {rev} – Organigramma"}}))
+        r = self.client.get(reverse("anagrafica:organigramma_ufficiale_stampa", args=[a.pk]) + f"?con={b.pk},{c.pk},abc")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'class="foglio', count=2)  # il mai pubblicato resta fuori
+        self.assertContains(r, "size:A4 portrait")  # stile Documento: A4 verticale di partenza
+        self.assertContains(r, "Allegato C Rev.1 – Organigramma", count=2)
+        self.assertContains(r, "tp-doc")
+        self.assertContains(r, "tp-hub")
+        r = self.client.get(reverse("anagrafica:organigramma_ufficiale"))
+        self.assertContains(r, "Stampa insieme")
+        self.assertContains(r, "ouf-mount")
+
+    def test_tela_ha_stili_foglio_e_pannello_elenco(self):
+        org = OrganigrammaUfficiale.objects.create(nome="T", bozza=svc.vuoto())
+        r = self.client.get(reverse("anagrafica:organigramma_ufficiale_disegna", args=[org.pk]))
+        for testo in ('data-act="stile-documento"', 'id="oudFoglio"', "pannelloElenco", "window.OUF"):
+            self.assertContains(r, testo)
 
     def test_bozza_rifiuta_json_sbagliato(self):
         org = OrganigrammaUfficiale.objects.create(nome="X")

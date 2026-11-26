@@ -4,7 +4,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-{% include "anagrafica/partials/_org_uff_stile.html" %}
+{% include "anagrafica/partials/_org_uff_render.html" %}
 <style>
 .content:has(> .oud-page) { width:100%; max-width:none; }
 .oud-page { display:flex; flex-direction:column; gap:12px; }
@@ -102,6 +102,24 @@ body.theme-dark .oud-seg button.on { background:#1e3a8a; color:#dbeafe; border-c
 body.theme-dark .oud-sw button.on { outline-color:#93c5fd; }
 body.theme-dark .oud-badge--bozza { background:#422006; color:#fde68a; }
 body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
+.oud-props textarea { width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:8px; padding:6px 8px; font:inherit;
+  font-size:12.5px; background:var(--surface); color:inherit; min-height:64px; resize:vertical; }
+.oud-tag { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:999px; padding:2px 4px 2px 9px;
+  font-size:11.5px; margin:0 4px 4px 0; background:var(--surface-alt, #f8fafc); }
+.oud-tag button { border:none; background:none; cursor:pointer; color:var(--text-light); font-size:13px; line-height:1; padding:0 3px; }
+.oud-mem { max-height:180px; overflow:auto; border:1px solid var(--border); border-radius:8px; padding:4px 6px; font-size:12px; }
+.oud-mem div { display:flex; justify-content:space-between; gap:6px; align-items:center; padding:1px 0; }
+.oud-mem button { border:none; background:none; cursor:pointer; color:var(--text-light); font-size:12px; }
+.oud-mem .is-fuori { opacity:.5; text-decoration:line-through; }
+.oud-ico { display:grid; grid-template-columns:repeat(6, 1fr); gap:4px; }
+.oud-ico button { border:1px solid var(--border); border-radius:8px; background:#fff; padding:3px; height:34px; cursor:pointer; font-size:11px; color:#64748b; }
+.oud-ico button svg { width:100%; height:100%; }
+.oud-ico button.on { outline:2px solid #2563eb; outline-offset:1px; }
+.oud-stilefoglio { display:inline-flex; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+.oud-stilefoglio button { border:none; background:var(--surface); color:inherit; font:inherit; font-size:12.5px; font-weight:600; padding:6px 10px; cursor:pointer; }
+.oud-stilefoglio button.on { background:var(--hr-navy, #0c2545); color:#fff; }
+.oud-dlg .riga2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.oud-dlg label.chk { flex-direction:row; align-items:center; gap:8px; font-weight:600; }
 @media (max-width:1100px) { .oud-grid { grid-template-columns:200px minmax(0,1fr); } .oud-props { grid-column:1 / -1; } }
 </style>
 {% endblock %}
@@ -145,6 +163,10 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     <button type="button" class="hr-btn hr-btn-outline is-on" data-act="aggancio" title="Allinea i riquadri alla griglia di 10 px">▦ Griglia</button>
     <button type="button" class="hr-btn hr-btn-outline" data-act="gruppo" title="Aggiunge un gruppo («team»): i riquadri trascinati dentro ne fanno parte">⬚ Nuovo gruppo</button>
     <button type="button" class="hr-btn hr-btn-outline" data-act="collega" title="Clicca il riquadro da collegare, poi quello superiore">🔗 Collega</button>
+    <span class="oud-stilefoglio" role="group" aria-label="Stile del disegno">
+      <button type="button" data-act="stile-hub">Stile HUB</button><button type="button" data-act="stile-documento">Stile Documento</button>
+    </span>
+    <button type="button" class="hr-btn hr-btn-outline" data-act="foglio" title="Titolo, intestazione, logo e piè di pagina della stampa">📄 Foglio</button>
     <span class="sp"></span>
     <span class="oud-stato" id="oudStato"></span>
     <button type="button" class="hr-btn hr-btn-outline oud-btn-avv" data-act="avvisi" id="oudBtnAvv" hidden></button>
@@ -227,6 +249,33 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
   </form>
 </dialog>
 
+<dialog class="oud-dlg" id="oudFoglio" style="width:min(560px,94vw)">
+  <form id="oudFoglioForm">
+    <header>Foglio di stampa<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      <label>Stile
+        <select name="stile" data-no-search><option value="hub">HUB (colori del portale)</option><option value="documento">Documento (come l'allegato in Word)</option></select>
+      </label>
+      <div class="riga2">
+        <label>Titolo<input name="titolo" maxlength="120" placeholder="{{ org.nome }}"></label>
+        <label>Sottotitolo<input name="sottotitolo" maxlength="120" placeholder="es. COMPANY ORGANIZATIONAL CHART"></label>
+      </div>
+      <div class="riga2">
+        <label>Intestazione del riquadro in alto<input name="intestazione" maxlength="80" placeholder="Organigramma"></label>
+        <label>Azienda<input name="azienda" maxlength="80" placeholder="es. Ragione sociale S.r.l."></label>
+      </div>
+      <label>Piè di pagina<input name="piede" maxlength="160" placeholder="es. Allegato C {rev} – Organigramma"></label>
+      <div class="oud-nota">Nel piè di pagina «{rev}» diventa il numero di revisione (es. Rev.20); se manca, la revisione va in fondo.</div>
+      <label class="chk"><input type="checkbox" name="logo"> Logo aziendale nell'intestazione</label>
+      <label class="chk"><input type="checkbox" name="ruoli_blu"> Stile Documento: ruoli e responsabili in blu</label>
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary">Applica</button>
+    </footer>
+  </form>
+</dialog>
+
 {# Archivia: form a parte, fuori dal <dialog>, così la conferma del portale non resta sotto la finestra. #}
 <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_modifica' org.pk %}" id="oudArchivia" hidden
       data-hub-confirm="Archiviare «{{ org.nome }}»? Non comparirà più nell'elenco.">
@@ -245,6 +294,16 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
   S.cataloghi.persone.forEach(function (p) { P.set(p.id, p); });
   S.cataloghi.mansioni.forEach(function (m) { M.set(m.id, m); });
   var NOMI = S.nomi || {persone: {}, ruoli: {}, mansioni: {}};
+  if (!D.foglio) D.foglio = {stile: "hub", titolo: "", sottotitolo: "", intestazione: "", azienda: "", piede: "", logo: true, ruoli_blu: true};
+  // Catalogo nel formato dello script di disegno (stesso disegno di pagina pubblicata e stampa).
+  var CAT = {ruoli: {}, persone: {}, mansioni: {}};
+  Object.keys(NOMI.ruoli || {}).forEach(function (k) { CAT.ruoli[k] = {nome: NOMI.ruoli[k], sigla: "", attivo: false, titolari: []}; });
+  Object.keys(NOMI.persone || {}).forEach(function (k) { CAT.persone[k] = NOMI.persone[k]; });
+  Object.keys(NOMI.mansioni || {}).forEach(function (k) { CAT.mansioni[k] = NOMI.mansioni[k]; });
+  S.cataloghi.ruoli.forEach(function (r) { CAT.ruoli[r.id] = {nome: r.nome, sigla: r.sigla || "", attivo: true, titolari: r.titolari.map(function (t) { return t.id; })}; });
+  S.cataloghi.persone.forEach(function (p) { CAT.persone[p.id] = {nome: p.nome, foto: p.foto || ""}; });
+  S.cataloghi.mansioni.forEach(function (m) { CAT.mansioni[m.id] = m.nome; });
+  function stileTela() { return D.foglio.stile === "documento" ? "doc" : "hub"; }
 
   var $ = function (s) { return document.querySelector(s); };
   var scene = $("#oudScene"), wrap = $("#oudZoomWrap"), canvas = $("#oudCanvas"), svg = $("#oudLinee");
@@ -279,19 +338,9 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
 
   // ── disegno ──────────────────────────────────────────────────────────
   function elNodo(n) {
-    var el = document.createElement("div");
-    el.dataset.id = n.id;
-    el.style.cssText = "left:" + n.x + "px;top:" + n.y + "px;width:" + n.w + "px;height:" + n.h + "px;--c:" + n.colore;
-    if (n.tipo === "gruppo") {
-      el.className = "ouf-g";
-      el.innerHTML = '<span class="ouf-gt">' + esc(n.titolo || "Gruppo") + "</span>";
-    } else {
-      var e = etichetta(n);
-      el.className = "ouf-b ouf-b--" + n.stile;
-      el.innerHTML = '<span class="ouf-av">' + (e.foto ? '<img src="' + esc(e.foto) + '" alt="" draggable="false">' : esc(e.iniziale)) + "</span>" +
-        '<span class="ouf-tx"><span class="ouf-t">' + esc(e.titolo) + "</span>" + (e.sotto ? '<span class="ouf-s">' + esc(e.sotto) + "</span>" : "") + "</span>" +
-        (avvisiDi(n.id).length ? '<span class="ouf-w" title="' + esc(avvisiDi(n.id).map(function (a) { return a.testo; }).join("\n")) + '">!</span>' : "");
-    }
+    var el = window.OUF.elemento(n, CAT, stileTela());
+    if (n.tipo !== "gruppo" && avvisiDi(n.id).length)
+      el.insertAdjacentHTML("beforeend", '<span class="ouf-w" title="' + esc(avvisiDi(n.id).map(function (a) { return a.testo; }).join("\n")) + '">!</span>');
     if (n.id === sel) { el.classList.add("is-sel"); el.insertAdjacentHTML("beforeend", '<span class="ouf-rs" title="Ridimensiona"></span>'); }
     if (n.id === collega) el.classList.add("is-figlio");
     return el;
@@ -303,32 +352,24 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     return {W: W, H: H};
   }
 
-  function linea(p, f) {
-    var x1, y1, x2, y2, m, y, destra;
-    if (f.staff) {
-      y = f.y + f.h / 2;
-      destra = f.x + f.w / 2 >= p.x + p.w / 2;
-      x2 = destra ? f.x : f.x + f.w;
-      if (y >= p.y && y <= p.y + p.h) { x1 = destra ? p.x + p.w : p.x; return "M" + x1 + " " + y + " H" + x2; }
-      x1 = p.x + p.w / 2; y1 = y > p.y ? p.y + p.h : p.y;
-      return "M" + x1 + " " + y1 + " V" + y + " H" + x2;
-    }
-    x1 = p.x + p.w / 2; y1 = p.y + p.h; x2 = f.x + f.w / 2; y2 = f.y;
-    m = y2 > y1 ? (y1 + y2) / 2 : y1 + 14;
-    return "M" + x1 + " " + y1 + " V" + m + " H" + x2 + " V" + y2;
+  function altezze() {
+    var H = {};
+    scene.querySelectorAll(".ouf-b").forEach(function (el) { H[el.dataset.id] = el.offsetHeight; });
+    return H;
   }
-
   function disegnaLinee() {
-    var out = "";
-    D.nodi.forEach(function (n) {
-      var p = n.padre ? byId(n.padre) : null;
-      if (p) out += '<path d="' + linea(p, n) + '"' + (n.staff ? ' class="is-staff"' : "") + "/>";
+    var m = misura(), H = altezze(), nn = window.OUF.assesta(D.nodi, H);
+    nn.forEach(function (n) { // stessa posizione di stampa e pagina pubblicata
+      if (n.tipo === "gruppo") return;
+      var el = scene.querySelector('.ouf-b[data-id="' + n.id + '"]');
+      if (el) el.style.top = n.y + "px";
     });
-    svg.innerHTML = out;
+    window.OUF.svgLinee(svg, window.OUF.percorsi(nn, H), m.W, m.H);
   }
 
   function disegna() {
     var m = misura();
+    scene.className = "oud-scene " + window.OUF.classeTela(D.foglio);
     scene.style.width = m.W + "px"; scene.style.height = m.H + "px"; scene.style.transform = "scale(" + zoom + ")";
     wrap.style.width = (m.W * zoom) + "px"; wrap.style.height = (m.H * zoom) + "px";
     svg.setAttribute("width", m.W); svg.setAttribute("height", m.H);
@@ -358,6 +399,8 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     document.querySelector('[data-act="redo"]').disabled = !redo.length;
     document.querySelector('[data-act="aggancio"]').classList.toggle("is-on", aggancio);
     document.querySelector('[data-act="collega"]').classList.toggle("is-on", !!collega);
+    document.querySelector('[data-act="stile-hub"]').classList.toggle("on", D.foglio.stile !== "documento");
+    document.querySelector('[data-act="stile-documento"]').classList.toggle("on", D.foglio.stile === "documento");
   }
 
   // ── modifiche, annulla/ripeti ────────────────────────────────────────
@@ -396,7 +439,9 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     var n = Object.assign({
       id: nuovoId(gruppo ? "g" : "n"), tipo: "box", x: 0, y: 0, w: gruppo ? 380 : 220, h: gruppo ? 220 : 60,
       ruolo: null, persona: null, mansione: null, titolo: "", sotto: "", padre: null, staff: false, gruppo: null,
-      colore: gruppo ? "#4f46e5" : "#0f2a5c", stile: "bordo"
+      colore: gruppo ? "#4f46e5" : "#0f2a5c", stile: "bordo",
+      reparto: "", ruoli_extra: [], tutti_titolari: false, elenco_ruoli: [], elenco_righe: [], elenco_nascosti: [],
+      icona: "", lato: false, tronco: "centro", elenco_sigle: true
     }, dati);
     n.x = Math.max(0, snap(x - n.w / 2)); n.y = Math.max(0, snap(y - n.h / 2));
     return n;
@@ -420,6 +465,8 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     if (k === "mansione") return {mansione: id};
     if (k === "esterno") return {titolo: "Funzione esterna", sotto: "Esterno", stile: "tratteggio", colore: "#64748b"};
     if (k === "gruppo") return {tipo: "gruppo", titolo: "Nuovo gruppo"};
+    if (k === "reparto") return {reparto: "Nuovo reparto", w: 260, elenco_righe: []};
+    if (k === "elenco") return {titolo: "Elenco", w: 220, icona: "persona"};
     return {titolo: "Nuovo riquadro"};
   }
 
@@ -479,7 +526,7 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
       n.w = Math.max(minW, snap(w0 + (ev.clientX - sx) / zoom));
       n.h = Math.max(minH, snap(h0 + (ev.clientY - sy) / zoom));
       var el = scene.querySelector('[data-id="' + n.id + '"]');
-      if (el) { el.style.width = n.w + "px"; el.style.height = n.h + "px"; }
+      if (el) { el.style.width = n.w + "px"; if (n.tipo === "gruppo") el.style.height = n.h + "px"; else el.style.minHeight = n.h + "px"; }
       disegnaLinee();
     }
     function fine() {
@@ -594,6 +641,8 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     } else {
       html += chip("testo", 0, "Riquadro di testo", "Un ufficio, una funzione, una nota", "testo", false);
       html += chip("esterno", 0, "Funzione esterna", "RSPP, medico competente, consulenti (tratteggiato)", "testo", false);
+      html += chip("reparto", 0, "Reparto", "Nome del reparto, responsabile e collaboratori", "testo", false);
+      html += chip("elenco", 0, "Elenco con icona", "Es. Preposti, Squadra antincendio: tutti i titolari di un ruolo", "testo", false);
       html += chip("gruppo", 0, "Gruppo («team»)", "Un riquadro grande che contiene altri riquadri", "gruppo", false);
     }
     if (n > MAX) html += '<div class="oud-nota">Altri ' + (n - MAX) + " elementi: affina la ricerca.</div>";
@@ -633,7 +682,8 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     return '<select data-f="' + campo + '">' + h + "</select>";
   }
   function disegnaProps() {
-    if (document.activeElement && props.contains(document.activeElement) && document.activeElement.tagName === "INPUT" && document.activeElement.type === "text") return;
+    var att = document.activeElement;
+    if (att && props.contains(att) && ((att.tagName === "INPUT" && att.type === "text") || att.tagName === "TEXTAREA")) return;
     var n = sel ? byId(sel) : null, h = "";
     if (!n) {
       var av = S.avvisi || [];
@@ -656,7 +706,12 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
       h += '<div class="oud-fl">Nome del gruppo</div><input type="text" data-f="titolo" maxlength="120" value="' + esc(n.titolo) + '" placeholder="Gruppo">';
     } else {
       h += "<h4>Riquadro selezionato</h4>";
-      h += '<div class="oud-fl">Ruolo</div>' + selectHtml("ruolo", S.cataloghi.ruoli.map(function (r) { return [r.id, r.nome]; }), n.ruolo || "", nomeRuolo(n.ruolo));
+      h += '<div class="oud-fl">Reparto (intestazione)</div><input type="text" data-f="reparto" maxlength="80" value="' + esc(n.reparto) + '" placeholder="es. Ufficio acquisti">';
+      h += '<div class="oud-fl">Ruolo</div>' + selectHtml("ruolo", S.cataloghi.ruoli.map(function (r) { return [r.id, r.nome + (r.sigla ? " – " + r.sigla : "")]; }), n.ruolo || "", nomeRuolo(n.ruolo));
+      if (n.ruolo) {
+        (n.ruoli_extra || []).forEach(function (rid) { h += '<span class="oud-tag">' + esc(nomeRuolo(rid)) + '<button type="button" data-togli-extra="' + rid + '" aria-label="Togli">×</button></span>'; });
+        h += selectHtml("ruoli_extra_add", S.cataloghi.ruoli.filter(function (r) { return r.id !== n.ruolo && (n.ruoli_extra || []).indexOf(r.id) < 0; }).map(function (r) { return [r.id, r.nome]; }), "", "").replace("— nessuno —", "＋ altro ruolo dello stesso responsabile");
+      }
       var conRuolo = n.ruolo && R.get(n.ruolo) ? R.get(n.ruolo).titolari.map(function (t) { return t.id; }) : [];
       var elencoP = S.cataloghi.persone.slice().sort(function (a, b) { return (conRuolo.indexOf(b.id) >= 0) - (conRuolo.indexOf(a.id) >= 0); })
         .map(function (p) { return [p.id, (conRuolo.indexOf(p.id) >= 0 ? "★ " : "") + p.nome]; });
@@ -666,10 +721,15 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
       } else if (conRuolo.length && !n.persona) {
         h += '<div class="oud-nota">★ = ha questo ruolo nella scheda</div>';
       }
+      if (n.ruolo) h += '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin-top:6px"><input type="checkbox" data-f="tutti_titolari"' + (n.tutti_titolari ? " checked" : "") + '> Responsabili: tutti i titolari del ruolo (' + contaTitolari(n.ruolo) + ")</label>";
       h += '<div class="oud-fl">Mansione</div>' + selectHtml("mansione", S.cataloghi.mansioni.map(function (m) { return [m.id, m.nome]; }), n.mansione || "", nomeMansione(n.mansione));
       h += '<div class="oud-fl">Testo mostrato</div><input type="text" data-f="titolo" maxlength="120" value="' + esc(n.titolo) + '" placeholder="' + esc(n.titolo ? "" : e.titolo) + '">';
       h += '<input type="text" data-f="sotto" maxlength="120" value="' + esc(n.sotto) + '" placeholder="' + esc(n.sotto ? "" : (e.sotto || "Sottotitolo")) + '" style="margin-top:5px">';
       h += '<div class="oud-nota">Vuoto = testo preso da persona, ruolo o mansione.</div>';
+      h += pannelloElenco(n);
+      h += '<div class="oud-fl">Icona</div><div class="oud-ico"><button type="button" data-icona=""' + (!n.icona ? ' class="on"' : "") + ">nessuna</button>";
+      Object.keys(window.OUF.ICONE).forEach(function (k) { h += '<button type="button" data-icona="' + k + '" title="' + esc(window.OUF.NOMI_ICONE[k]) + '"' + (n.icona === k ? ' class="on"' : "") + ">" + window.OUF.ICONE[k] + "</button>"; });
+      h += "</div>";
     }
     h += '<div class="oud-fl">Colore</div><div class="oud-sw">';
     S.palette.forEach(function (c) { h += '<button type="button" data-colore="' + c + '" style="background:' + c + '"' + (c.toLowerCase() === n.colore.toLowerCase() ? ' class="on"' : "") + ' aria-label="Colore ' + c + '"></button>'; });
@@ -679,7 +739,16 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
         return '<button type="button" data-stile="' + s + '"' + (n.stile === s ? ' class="on"' : "") + ">" + s.charAt(0).toUpperCase() + s.slice(1) + "</button>"; }).join("") + "</div>";
     }
     h += '<div class="oud-fl">Collegamento</div>' + selectHtml("padre", altri, n.padre || "", "").replace("— nessuno —", "Sotto: nessuno");
-    h += '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin-top:6px"><input type="checkbox" data-f="staff"' + (n.staff ? " checked" : "") + (n.padre ? "" : " disabled") + "> Linea di staff (tratteggiata, di fianco)</label>";
+    if (n.padre) {
+      var arr = n.staff ? "staff" : (n.lato ? "lato" : "alto");
+      h += '<div class="oud-seg" style="margin-top:6px">' + [["alto", "Dall'alto"], ["lato", "Di lato"], ["staff", "Staff"]].map(function (o) {
+        return '<button type="button" data-arrivo="' + o[0] + '"' + (arr === o[0] ? ' class="on"' : "") + ">" + o[1] + "</button>"; }).join("") + "</div>";
+      h += '<div class="oud-nota">Di lato: la linea scende dal superiore e entra dal fianco (sotto-reparti in colonna). Staff: tratteggiata.</div>';
+    }
+    if (D.nodi.some(function (m) { return m.padre === n.id; })) {
+      h += '<div class="oud-fl">Linea verso i sottoposti</div><div class="oud-seg">' + [["sinistra", "Da sinistra"], ["centro", "Dal centro"], ["destra", "Da destra"]].map(function (o) {
+        return '<button type="button" data-tronco="' + o[0] + '"' + ((n.tronco || "centro") === o[0] ? ' class="on"' : "") + ">" + o[1] + "</button>"; }).join("") + "</div>";
+    }
     if (n.tipo !== "gruppo") h += '<div class="oud-fl">Gruppo</div>' + selectHtml("gruppo", gruppi, n.gruppo || "", "");
     var av2 = avvisiDi(n.id);
     if (av2.length) { h += '<div class="oud-fl">Avvisi</div>'; av2.forEach(function (a) { h += '<button type="button" class="oud-avv" disabled>⚠ ' + esc(a.testo) + "</button>"; }); }
@@ -689,6 +758,28 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     props.innerHTML = h;
   }
 
+  function pannelloElenco(n) {
+    var h = '<div class="oud-fl">Elenco collaboratori</div>';
+    (n.elenco_ruoli || []).forEach(function (rid) { h += '<span class="oud-tag">' + esc(nomeRuolo(rid)) + " (" + contaTitolari(rid) + ')<button type="button" data-togli-elenco="' + rid + '" aria-label="Togli">×</button></span>'; });
+    h += selectHtml("elenco_add", S.cataloghi.ruoli.filter(function (r) { return (n.elenco_ruoli || []).indexOf(r.id) < 0; })
+      .map(function (r) { return [r.id, r.nome + (r.sigla ? " – " + r.sigla : "") + " (" + r.titolari.length + ")"]; }), "", "").replace("— nessuno —", "＋ elenca i titolari di un ruolo");
+    if ((n.elenco_ruoli || []).length) {
+      var c = window.OUF.contenuto(Object.assign({}, n, {elenco_nascosti: [], elenco_righe: []}), CAT), fuori = n.elenco_nascosti || [];
+      h += '<div class="oud-mem" style="margin-top:5px">';
+      c.membri.forEach(function (m) {
+        if (!m) return;
+        var via = fuori.indexOf(m.pid) >= 0;
+        h += '<div><span class="' + (via ? "is-fuori" : "") + '">' + esc(m.nome) + (m.sigla ? " – " + esc(m.sigla) : "") + "</span>" +
+          (via ? '<button type="button" data-mostra="' + m.pid + '" title="Rimetti nell\'elenco">↺</button>' : '<button type="button" data-nascondi="' + m.pid + '" title="Togli da questo elenco">×</button>') + "</div>";
+      });
+      if (!c.membri.length) h += "<div>Nessun titolare in forza.</div>";
+      h += '</div><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin-top:5px"><input type="checkbox" data-f="elenco_sigle"' + (n.elenco_sigle === false ? "" : " checked") + "> Sigla del ruolo accanto ai nomi</label>";
+      h += '<div class="oud-nota">Si aggiorna da solo quando cambiano i titolari dei ruoli nel portale.</div>';
+    }
+    h += '<div class="oud-fl">Righe scritte a mano</div><textarea data-f="elenco_righe" placeholder="Una riga per voce, es. Rossi Mario – IN1&#10;(riga vuota = spazio)">' + esc((n.elenco_righe || []).join("\n")) + "</textarea>";
+    return h;
+  }
+
   props.addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
     var n = sel ? byId(sel) : null;
@@ -696,28 +787,40 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     if (!n) return;
     if (b.dataset.colore) cambia(function () { n.colore = b.dataset.colore; });
     else if (b.dataset.stile) cambia(function () { n.stile = b.dataset.stile; });
+    else if (b.dataset.icona !== undefined) cambia(function () { n.icona = b.dataset.icona; });
+    else if (b.dataset.arrivo) cambia(function () { n.staff = b.dataset.arrivo === "staff"; n.lato = b.dataset.arrivo === "lato"; });
+    else if (b.dataset.tronco) cambia(function () { n.tronco = b.dataset.tronco; });
+    else if (b.dataset.togliExtra) cambia(function () { n.ruoli_extra = (n.ruoli_extra || []).filter(function (r) { return r !== +b.dataset.togliExtra; }); });
+    else if (b.dataset.togliElenco) cambia(function () { n.elenco_ruoli = (n.elenco_ruoli || []).filter(function (r) { return r !== +b.dataset.togliElenco; }); });
+    else if (b.dataset.nascondi) cambia(function () { n.elenco_nascosti = (n.elenco_nascosti || []).concat([+b.dataset.nascondi]); });
+    else if (b.dataset.mostra) cambia(function () { n.elenco_nascosti = (n.elenco_nascosti || []).filter(function (r) { return r !== +b.dataset.mostra; }); });
   });
   props.addEventListener("change", function (e) {
     var f = e.target.dataset.f, n = sel ? byId(sel) : null;
     if (!f || !n) return;
-    if (f === "titolo" || f === "sotto") {
+    if (f === "titolo" || f === "sotto" || f === "reparto" || f === "elenco_righe") {
       if (primaDelTesto) { memorizza(primaDelTesto); primaDelTesto = null; salvaPresto(); aggiornaBarra(); }
       return;
     }
     cambia(function () {
       var v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
-      if (f === "ruolo" || f === "persona" || f === "mansione") n[f] = v ? +v : null;
+      if (f === "ruolo" || f === "persona" || f === "mansione") { n[f] = v ? +v : null; if (f === "persona" && v) n.tutti_titolari = false; if (f === "ruolo") n.ruoli_extra = (n.ruoli_extra || []).filter(function (r) { return r !== n.ruolo; }); }
       else if (f === "padre") { n.padre = v || null; if (!n.padre) n.staff = false; }
       else if (f === "gruppo") n.gruppo = v || null;
       else if (f === "staff") n.staff = !!v;
+      else if (f === "elenco_sigle") n.elenco_sigle = !!v;
+      else if (f === "tutti_titolari") { n.tutti_titolari = !!v; if (v) n.persona = null; }
+      else if (f === "ruoli_extra_add") { if (v) n.ruoli_extra = (n.ruoli_extra || []).concat([+v]); }
+      else if (f === "elenco_add") { if (v) n.elenco_ruoli = (n.elenco_ruoli || []).concat([+v]); }
       else if (f === "colore") n.colore = v;
     });
   });
   props.addEventListener("input", function (e) {
     var f = e.target.dataset.f, n = sel ? byId(sel) : null;
-    if (!n || (f !== "titolo" && f !== "sotto")) return;
+    if (!n || (f !== "titolo" && f !== "sotto" && f !== "reparto" && f !== "elenco_righe")) return;
     if (!primaDelTesto) primaDelTesto = JSON.stringify(D);
-    n[f] = e.target.value.replace(/\s+/g, " ").slice(0, 120);
+    if (f === "elenco_righe") n.elenco_righe = e.target.value.split("\n").slice(0, 80).map(function (r) { return r.replace(/\s+/g, " ").trim().slice(0, 120); });
+    else n[f] = e.target.value.replace(/\s+/g, " ").slice(0, f === "reparto" ? 80 : 120);
     aggiornaNodo(n);
   });
 
@@ -733,6 +836,8 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     else if (a === "aggancio") { aggancio = !aggancio; aggiornaBarra(); }
     else if (a === "gruppo") { var c = centroVisibile(); aggiungi("gruppo", 0, c.x, c.y); }
     else if (a === "collega") avviaCollega();
+    else if (a === "stile-hub" || a === "stile-documento") { var st = a === "stile-hub" ? "hub" : "documento"; if (D.foglio.stile !== st) cambia(function () { D.foglio.stile = st; }); }
+    else if (a === "foglio") apriFoglio();
     else if (a === "avvisi") seleziona(null);
     else if (a === "riepilogo") apriRiepilogo();
     else if (a === "pubblica") apriPubblica();
@@ -795,6 +900,22 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     return inVolo;
   }
   window.addEventListener("beforeunload", function (e) { if (sporco || inVolo) { e.preventDefault(); e.returnValue = ""; } });
+
+  function apriFoglio() {
+    var f = $("#oudFoglioForm"), F = D.foglio;
+    ["stile", "titolo", "sottotitolo", "intestazione", "azienda", "piede"].forEach(function (k) { f.elements[k].value = F[k] || (k === "stile" ? "hub" : ""); });
+    f.elements.logo.checked = F.logo !== false; f.elements.ruoli_blu.checked = F.ruoli_blu !== false;
+    $("#oudFoglio").showModal();
+  }
+  $("#oudFoglioForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = this, t = function (k, l) { return (f.elements[k].value || "").replace(/\s+/g, " ").trim().slice(0, l); };
+    cambia(function () {
+      D.foglio = {stile: f.elements.stile.value === "documento" ? "documento" : "hub", titolo: t("titolo", 120), sottotitolo: t("sottotitolo", 120),
+        intestazione: t("intestazione", 80), azienda: t("azienda", 80), piede: t("piede", 160), logo: f.elements.logo.checked, ruoli_blu: f.elements.ruoli_blu.checked};
+    });
+    $("#oudFoglio").close();
+  });
 
   function apriRiepilogo() {
     salva().then(function (ok) {

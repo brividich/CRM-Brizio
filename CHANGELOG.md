@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Organigramma ufficiale: stile HUB e stile Documento (come l'Allegato C in Word)
+
+- Ogni organigramma ufficiale si disegna in due stili, scelti dalla barra della tela: **HUB** (colori del portale, sigle in etichette, iniziali delle persone) e **Documento** (bianco e nero, ruoli e responsabili in blu, come l'allegato in Word). Stesso disegno, cambia solo l'aspetto a video e in stampa.
+- Riquadri più ricchi: **reparto** in testa, più ruoli dello stesso responsabile, responsabili = tutti i titolari del ruolo, **elenco collaboratori automatico** («Cognome Nome – SIGLA», si aggiorna quando cambiano le assegnazioni; si può togliere una persona o spegnere le sigle) più righe scritte a mano, **icone** (datore di lavoro, medico, RSPP/ASPP, preposto, antincendio, primo soccorso, RLS, lavoratori…). Collegamento **di lato** per i sotto-reparti in colonna e partenza della linea da sinistra/centro/destra; i riquadri che si allungano spingono giù quelli sotto.
+- **📄 Foglio**: titolo, sottotitolo, intestazione, azienda, logo (dalle impostazioni grafiche) e piè di pagina con `{rev}` → «Rev.N»; entra nella revisione pubblicata.
+- Stampa in **A3, A4 orizzontale e A4 verticale** e **più organigrammi in un PDF** («⬇ Stampa insieme» nell'elenco, `?con=`).
+- Riquadri, elenchi e linee li disegna uno script unico per tela, pagina pubblicata, anteprime e stampa; i nomi tutti maiuscoli dell'anagrafica si vedono «Cognome Nome».
+- File: `anagrafica/services/organigramma_ufficiale.py` (`normalizza_foglio`, `catalogo`, `pacchetto`, `testo_piede`, campi nuovi, riepilogo e avvisi), `views_organigramma_ufficiale.py` (stampa multipla e formati), template `organigramma_ufficiale_{elenco,vedi,disegna,stampa}.html`, `partials/_org_uff_render.html` (nuovo, sostituisce `_org_uff_stile.html`), `partials/_org_uff_disegno.html`, guida in-app (`core/guide_moduli/contenuti/anagrafica.py`), `docs/moduli/anagrafica.md`. Test: `tests_organigramma_ufficiale.py`. Nessuna migrazione, nessun `collectstatic`.
+
 ### Quote CMM veloce: analisi delle quote precalcolata per P/N
 
 - `/produzione/quote/` ricalcolava all'apertura l'analisi (Cpk, deriva, fuori nell'ultimo report) di tutti i P/N con report: in produzione 748 P/N e 2.871 programmi, con la cache vuota dopo l'aggiornamento e svuotata di continuo dalla rilettura dei report vecchi. Ora i tre numeri stanno in `ArticoloPN` (`quote_deriva`, `quote_fuori_ultimo`, `analisi_il`, migrazione `produzione 0007`, accanto a `quote_non_capaci`) e la pagina li legge: le colonne della mappa restano letture SQL. Li calcola il giro orario (`articoli.analizza`, stesse regole di `analisi_pn`): prima i P/N letti nel giro, poi quelli con l'analisi mai fatta o più vecchia dell'ultimo report letto o escluso; escludere o riammettere un report ricalcola subito il suo P/N. Finché un P/N non è calcolato la riga dice «in calcolo». «Quote da guardare» guarda i primi 8 P/N più gravi.
