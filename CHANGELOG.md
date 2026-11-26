@@ -16,6 +16,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 - `admin_portale/views_ruoli.py`: la scheda «Registro» andava in errore 500 per le voci `permessi_matrice` scritte dalle impostazioni Timbri (con `ruolo` per cella invece di `modulo`); ora le legge entrambe.
 - Test: `core/test_acl_capability.py` (cache rinnovata), `core/tests_permessi_eccezioni.py` (registro con voce Timbri).
 
+### Gestione anomalie: chiusure automatiche riviste
+
+- Con «Aprire RDC» il numero RDC chiude l'anomalia anche se lo stato è «In attesa risposta cliente/terzista» (la risposta si segue nell'RDC); restano aperte con una richiesta di informazioni aperta o «In attesa di ulteriori informazioni». Prima la qualità doveva chiuderle a mano ogni volta.
+- Prima decisione «Azione di recupero» + «Chiudi l'anomalia» nello stesso salvataggio non chiude più senza l'azione effettuata (il controllo leggeva la prima decisione prima che fosse scritta: 8 anomalie chiuse con il recupero ancora da fare).
+- Stati di Configurazione: «Avanzamento + In attesa di risposta cliente» conta come attesa del cliente; «Accettato con riserva…» chiude come «Accetto lo stato».
+- Alla chiusura le richieste di informazioni ancora aperte si chiudono («Chiusa con l'anomalia») e lo stato «In attesa» riprende l'ultima decisione presa; la migrazione `anomalie 0035` applica lo stesso allo storico.
+- «Chiudi l'anomalia» con una nota chiede lo stato di avanzamento anche con RDC o segnalazioni spuntate (pagina e link mail).
+- File: `django_app/anomalie/views.py`, `chiusura_service.py` (nuovo), `segnalato_service.py`, `tempi_service.py`, `mail_action_views.py`, `qualita_views.py`, `regole_carico.py`, `migrations/0035_chiusure_stato_richieste.py`, `static/anomalie/js/src/gestione_anomalie.jsx` + bundle, `templates/anomalie/pages/mail_action_form.html`, `guida.py`, `core/guide_moduli/contenuti/anomalie.py`, `docs/moduli/anomalie.md`, test `tests_chiusure.py`, `tests_controllo.py`.
+
 ### Anagrafica: organigramma ufficiale disegnato a mano, con revisioni
 
 - Nuova vista «📐 Ufficiale» dell'organigramma (`/anagrafica/organigramma/ufficiale/`): organigrammi disegnati come in Word con riquadri presi da ruoli, persone, mansioni o testo libero, gruppi («team»), collegamenti e linee di staff, colori e stili. Bozza salvata da sola, «Riepilogo modifiche» rispetto alla revisione in vigore, «Pubblica» con nota, approvato da e data, storico revisioni con confronto, stampa A3/A4 con cartiglio. Avvisi dove il disegno non corrisponde più ai dati (persona cessata, ruolo non suo, ruoli dell'ambito non disegnati). Non tocca ruoli, «Riporta a», assegnazioni, capi né permessi.

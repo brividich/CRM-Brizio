@@ -132,7 +132,7 @@ def salva(regole: dict, nomi: dict) -> None:
 
 def _corrisponde(chiave: str, row: dict, info: dict) -> bool:
     from .controllo_service import riga_gestita
-    from .segnalato_service import AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_RISPOSTA_TERZISTA
+    from .segnalato_service import AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_RISPOSTA_TERZISTA, stato_canonico
     from .views import AVANZAMENTO_INFO_RICHIESTE
 
     av = _norm(row.get("avanzamento"))
@@ -140,10 +140,11 @@ def _corrisponde(chiave: str, row: dict, info: dict) -> bool:
         return not riga_gestita(row)
     if chiave == "fase:info_richieste":
         return av == _norm(AVANZAMENTO_INFO_RICHIESTE)
+    # Le varianti di Configurazione («Avanzamento + In attesa di risposta cliente») contano come l'attesa.
     if chiave == "fase:attesa_cliente":
-        return av == _norm(AVANZAMENTO_RISPOSTA_CLIENTE)
+        return stato_canonico(av) == _norm(AVANZAMENTO_RISPOSTA_CLIENTE)
     if chiave == "fase:attesa_terzista":
-        return av == _norm(AVANZAMENTO_RISPOSTA_TERZISTA)
+        return stato_canonico(av) == _norm(AVANZAMENTO_RISPOSTA_TERZISTA)
     if chiave.startswith("qualita:"):
         return bool(info.get("avanzamento_qualita")) and _norm(info.get("avanzamento_qualita")) == _norm(chiave[8:])
     if chiave == "flag:rdc":

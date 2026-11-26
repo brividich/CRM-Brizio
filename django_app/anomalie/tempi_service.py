@@ -154,7 +154,9 @@ def aggiorna_tempi(scheda, row: dict, *, adesso=None) -> list[str]:
         scheda.primo_avanzamento = avanz[:100]
         campi += ["prima_decisione_il", "primo_avanzamento"]
 
-    in_attesa_cliente = avanz.lower() == AVANZAMENTO_RISPOSTA_CLIENTE.lower()
+    from .segnalato_service import stato_canonico
+
+    in_attesa_cliente = stato_canonico(avanz) == AVANZAMENTO_RISPOSTA_CLIENTE.lower()
     if in_attesa_cliente and (scheda.attesa_cliente_dal is None or scheda.risposta_cliente_il is not None):
         # Primo invio al cliente, oppure nuova attesa dopo una risposta gia' arrivata.
         scheda.attesa_cliente_dal = adesso
@@ -177,18 +179,25 @@ def aggiorna_tempi(scheda, row: dict, *, adesso=None) -> list[str]:
     return campi
 
 
-def serve_azione_per_chiudere(anomalia_id: int) -> bool:
-    """True se la prima decisione e' stata «Azione di recupero» e manca l'azione effettuata."""
+def serve_azione_per_chiudere(anomalia_id: int, nuovo_avanzamento: str | None = None) -> bool:
+    """True se la prima decisione e' «Azione di recupero» e manca l'azione effettuata.
+
+    ``nuovo_avanzamento``: lo stato che si sta salvando. Se una prima decisione non
+    c'è ancora, è lui a diventarlo (``aggiorna_tempi`` la scrive dopo il salvataggio):
+    «Azione di recupero» + «Chiudi» nello stesso salvataggio non chiude senza l'azione.
+    """
     from .quality_models import AnomaliaSchedaQualita
 
     scheda = AnomaliaSchedaQualita.objects.filter(anomalia_id=anomalia_id).only(
-        "primo_avanzamento", "azione_effettuata_il",
+        "primo_avanzamento", "azione_effettuata_il", "prima_decisione_il",
     ).first()
-    return bool(
-        scheda
-        and scheda.primo_avanzamento.strip().lower() == AVANZAMENTO_RECUPERO.lower()
-        and scheda.azione_effettuata_il is None
-    )
+    if scheda is not None and scheda.azione_effettuata_il is not None:
+        return False
+    if scheda is not None and (scheda.prima_decisione_il is not None or scheda.primo_avanzamento.strip()):
+        primo = scheda.primo_avanzamento
+    else:
+        primo = nuovo_avanzamento or ""
+    return str(primo or "").strip().lower() == AVANZAMENTO_RECUPERO.lower()
 
 
 # ── Calcolo ────────────────────────────────────────────────────────────────
