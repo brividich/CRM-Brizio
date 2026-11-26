@@ -395,7 +395,7 @@ a.prod-dato:hover{border-color:var(--accent)}
 .prot-legenda i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .prot-legenda i.z{background:color-mix(in srgb,var(--success,#16a34a) 20%,transparent)}.prot-legenda i.a{background:color-mix(in srgb,var(--success,#16a34a) 34%,transparent)}
 .prot-legenda i.ok{background:var(--success,#16a34a)}.prot-legenda i.li{background:var(--warning,#d97706)}.prot-legenda i.fu{background:var(--danger,#dc2626)}
-@media (max-width:1380px){.prot-corpo{grid-template-columns:200px minmax(0,1fr)}.prot-det{grid-column:1/-1;position:static;border-left:0;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}}
+@media (max-width:1380px){.prot-corpo{grid-template-columns:200px minmax(0,1fr)}.prot-det{grid-column:1/-1;position:static;border-left:0;border-top:1px solid var(--border)}.prot-det .prot-kv,.prot-det .prot-indici,.prot-det .prot-carta{max-width:520px}}
 @media (max-width:900px){.prot-corpo{grid-template-columns:1fr}.prot-albero{display:none}.prot-campo{flex:1 1 40%}}
 /* Pagina del pezzo: multi-protocollo (matrice quote × report) */
 .prot-corpo-2{grid-template-columns:230px minmax(0,1fr)}

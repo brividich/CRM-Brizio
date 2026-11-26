@@ -85,7 +85,7 @@
       </div>
       <aside class="prot-det" data-prot-det aria-live="polite"><p class="prod-nota">Scegli una quota per vederne il dettaglio.</p></aside>
     </div>
-    <div class="prot-legenda"><span><i class="z"></i>tolleranza</span><span><i class="a"></i>fino all'80%</span><span><i class="ok"></i>dentro</span><span><i class="li"></i>al limite (oltre l'80%)</span><span><i class="fu"></i>fuori</span><span class="prot-spazio"></span><span>Clic su una quota: il dettaglio a destra · ↑ ↓ per scorrere</span></div>
+    <div class="prot-legenda"><span><i class="z"></i>tolleranza</span><span><i class="a"></i>fino all'80%</span><span><i class="ok"></i>dentro</span><span><i class="li"></i>al limite (oltre l'80%)</span><span><i class="fu"></i>fuori</span><span class="prot-spazio"></span><span>Clic su una quota: il suo dettaglio · ↑ ↓ per scorrere</span></div>
     {{ pannello|json_script:"prot-dati" }}
     {% else %}
     <p class="prod-vuoto">{% if filtro %}Nessuna quota con questo filtro.{% elif report.da_rileggere %}Report non ancora riletto con il lettore aggiornato: il giro dei report lo rilegge (oppure «Leggi i report» in Quote CMM).{% else %}Nessuna quota letta da questo report.{% endif %}</p>
