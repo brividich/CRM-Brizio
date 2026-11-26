@@ -400,6 +400,33 @@ class AnagraficaPNTest(ProduzioneBase):
         solo = ArticoloPN.objects.get(pn="PN-SOLO-SHARE")
         self.assertEqual((solo.origine, solo.cartella_collaudo, solo.stato_effettivo), ("collaudo", "C:/finto/PN-SOLO-SHARE", "archivio"))
 
+    def test_crea_mancanti_senza_ignore_conflicts(self):
+        """In produzione (SQL Server, mssql-django) ``bulk_create(ignore_conflicts=True)`` alza NotSupportedError e il
+        catalogo andava in errore 500: qui si simula quel backend."""
+        from unittest import mock
+
+        from django.db import NotSupportedError
+
+        from . import articoli
+        from .models import ArticoloPN
+
+        originale = ArticoloPN.objects.bulk_create
+
+        def come_sql_server(objs, *args, **kwargs):
+            if kwargs.get("ignore_conflicts") or kwargs.get("update_conflicts"):
+                raise NotSupportedError("This database backend does not support ignoring conflicts.")
+            return originale(objs, *args, **kwargs)
+
+        ArticoloPN.objects.create(pn="PN-GIA-1")
+        with mock.patch.object(ArticoloPN.objects, "bulk_create", side_effect=come_sql_server):
+            n = articoli._crea_mancanti({"PN-GIA-1": "op", "PN-NUOVO-1": "op", "PN-NUOVO-2": "collaudo", "": "op"})
+        self.assertEqual(n, 2)
+        self.assertEqual(sorted(ArticoloPN.objects.values_list("pn", flat=True)), ["PN-GIA-1", "PN-NUOVO-1", "PN-NUOVO-2"])
+        self.assertEqual(articoli._crea_mancanti({"PN-NUOVO-1": "op"}), 0)
+        with mock.patch.object(ArticoloPN.objects, "bulk_create", side_effect=come_sql_server):
+            r = self.client.get(reverse("produzione:pn_elenco"))
+        self.assertEqual(r.status_code, 200)
+
     def test_scheda_senza_op_e_anagrafica(self):
         from .models import ArticoloPN
 
