@@ -98,16 +98,34 @@ def _usa_corso(sessione) -> bool:
     return TrainingSessionOnline.objects.filter(sessione_id=sid, materiale_corso=True).exists()
 
 
-def slides(sessione) -> list:
+def slides(sessione, percorso: str = "") -> list:
+    """Slide della lezione; con il materiale del corso e video o slide a scelta, quelle del percorso."""
     if _usa_corso(sessione):
         from .elearning_fruizione import slides_percorso
         s = sessione if hasattr(sessione, "corso") else TrainingSession.objects.select_related("corso").get(pk=sessione)
-        return [SlideDelCorso(s.pk, x, i) for i, x in enumerate(slides_percorso(s.corso), start=1)]
+        return [SlideDelCorso(s.pk, x, i) for i, x in enumerate(slides_percorso(s.corso, percorso), start=1)]
     return list(TrainingSessionSlide.objects.filter(sessione=sessione).order_by("ordine", "pk"))
 
 
-def n_slide(sessione) -> int:
-    return len(slides(sessione)) if _usa_corso(sessione) else TrainingSessionSlide.objects.filter(sessione=sessione).count()
+def n_slide(sessione, percorso: str = "") -> int:
+    return len(slides(sessione, percorso)) if _usa_corso(sessione) \
+        else TrainingSessionSlide.objects.filter(sessione=sessione).count()
+
+
+def deve_scegliere_percorso(sessione, prog) -> bool:
+    """Materiale del corso con video o slide a scelta e nessuna scelta ancora fatta."""
+    if prog is None or prog.percorso in ("VIDEO", "SLIDE") or not _usa_corso(sessione):
+        return False
+    from .elearning_fruizione import percorsi_a_scelta
+    s = sessione if hasattr(sessione, "corso") else TrainingSession.objects.select_related("corso").get(pk=sessione)
+    return percorsi_a_scelta(s.corso)
+
+
+def n_slide_persona(sessione_id, prog, n_base: int) -> int:
+    """Slide che servono a questa persona: quelle del percorso scelto, se diverso dal predefinito."""
+    if prog is not None and getattr(prog, "percorso", "") == "VIDEO":
+        return n_slide(sessione_id, "VIDEO")
+    return n_base
 
 
 def domande(sessione) -> list:
@@ -461,7 +479,7 @@ def correggi(enrollment, cfg, scelte: dict[int, set[int]], *, user=None, iniziat
         raise LezioneOnlineError("Il test non ha domande.")
     with transaction.atomic():
         prog = avanzamento(enrollment, lock=True)
-        n_slide_tot = n_slide(enrollment.sessione_id)
+        n_slide_tot = n_slide(enrollment.sessione_id, prog.percorso)
         if motivo := motivo_test_chiuso(cfg, prog, n_slide_tot):
             raise LezioneOnlineError(motivo)
         dettaglio, giuste_n = [], 0
@@ -536,6 +554,7 @@ def _riporta_su_iscrizione(enrollment, cfg, prog, tentativo) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def stato_persona(enrollment, prog, cfg, n_slide: int) -> str:
+    n_slide = n_slide_persona(enrollment.sessione_id, prog, n_slide)
     if enrollment.stato == "COMPLETATO":
         return REGISTRATA
     if prog is None or (not prog.iniziata_il and not prog.n_tentativi):

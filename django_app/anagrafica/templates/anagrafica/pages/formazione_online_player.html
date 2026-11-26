@@ -26,7 +26,7 @@
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ corso.titolo }}</h1>
         {% if corso.descrizione %}<p class="fmd-ph-sub">{{ corso.descrizione }}</p>{% endif %}
       </div>
-      <div class="fmd-pagehead-actions"><a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_materiale' corso.pk %}"><svg class="fmd-ico"><use href="#i-book"/></svg>Consulta il materiale</a></div>
+      <div class="fmd-pagehead-actions">{% if a_scelta and percorso %}<span class="fmd-badge fmd-b-cyan" style="align-self:center;">Percorso {% if percorso == "VIDEO" %}video{% else %}slide{% endif %}</span>{% if puo_cambiare %}<a class="fmd-btn fmd-btn-ghost" href="?cambia=1">Cambia</a>{% endif %}{% endif %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_materiale' corso.pk %}"><svg class="fmd-ico"><use href="#i-book"/></svg>Consulta il materiale</a></div>
     </div>
 
     {% if anteprima %}

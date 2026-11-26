@@ -2354,6 +2354,8 @@ class TrainingElearningEnrollment(models.Model):
     stato                = models.CharField(max_length=15, choices=STATO_CHOICES, default="ISCRITTO")
     data_iscrizione      = models.DateTimeField(auto_now_add=True)
     ultima_slide_ordine  = models.PositiveSmallIntegerField(default=0, help_text="Avanzamento: ultima slide vista.")
+    percorso             = models.CharField(max_length=5, blank=True, default="",
+                                            help_text="VIDEO o SLIDE, se il corso li offre a scelta.")
     n_slide_totali       = models.PositiveSmallIntegerField(default=0)
     best_punteggio_pct   = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     n_tentativi          = models.PositiveSmallIntegerField(default=0)

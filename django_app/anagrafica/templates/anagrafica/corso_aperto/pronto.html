@@ -4,6 +4,11 @@
 .pb-codice { margin:4px 0 14px; padding:18px 16px; border:2px dashed var(--hub-arancio); border-radius:16px; text-align:center; background:var(--accent-soft); }
 .pb-codice small { display:block; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
 .pb-codice strong { display:block; margin-top:6px; font-family:Consolas,'Courier New',monospace; font-size:clamp(30px,9vw,44px); letter-spacing:.18em; color:var(--text); user-select:all; }
+.pb-scelte { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:8px; }
+.pb-scelta { display:flex; flex-direction:column; gap:6px; align-items:flex-start; text-align:left; font:inherit; color:var(--text); background:var(--card); border:2px solid var(--border); border-radius:14px; padding:16px; cursor:pointer; }
+.pb-scelta strong { font-size:18px; color:var(--accent); }
+.pb-scelta span { font-size:14px; color:var(--muted); }
+.pb-scelta:hover, .pb-scelta:focus-visible { border-color:var(--hub-arancio); }
 .pb-codice ul { margin:12px 0 0; padding:0; list-style:none; font-size:14px; line-height:1.55; color:var(--text); }
 </style>
 <h2>{% if ripresa %}Bentornato, {{ chi.nome }}{% else %}Ciao {{ chi.nome }}, prima di iniziare{% endif %}</h2>
@@ -19,6 +24,17 @@
   </ul>
 </div>
 {% endif %}
-<a class="pb-btn pb-btn-full" href="{% url 'corso_aperto:corso' link.token %}">{% if ripresa %}Riprendi dalla slide {{ da_slide }}{% else %}Ho preso nota, inizia il corso ({{ n_slide }} slide){% endif %}</a>
+{% if scegliere %}
+<h3 style="margin:18px 0 4px;font-size:17px;">Come preferisci seguire il corso?</h3>
+<p class="pb-help">Il quiz finale è lo stesso.</p>
+<form method="post" class="pb-scelte">
+  {% csrf_token %}
+  <button class="pb-scelta" type="submit" name="percorso" value="VIDEO"><strong>▶ Guarda il video</strong><span>{% if info.VIDEO.n_video == 1 %}Un video{% elif info.VIDEO.n_video %}{{ info.VIDEO.n_video }} video{% else %}{{ info.VIDEO.n }} passi{% endif %}{% if info.VIDEO.minuti %} · circa {{ info.VIDEO.minuti }} minuti{% endif %}</span></button>
+  <button class="pb-scelta" type="submit" name="percorso" value="SLIDE"><strong>▤ Segui le slide</strong><span>{{ info.SLIDE.n }} slide da leggere</span></button>
+</form>
+{% else %}
+<a class="pb-btn pb-btn-full" href="{% url 'corso_aperto:corso' link.token %}">{% if ripresa %}Riprendi dalla slide {{ da_slide }}{% else %}Ho preso nota, inizia il corso ({{ n_slide }} {% if percorso == "VIDEO" %}passi{% else %}slide{% endif %}){% endif %}</a>
+{% if percorso and puo_cambiare %}<p class="pb-help" style="margin-top:10px;text-align:center;">Percorso scelto: {% if percorso == "VIDEO" %}video{% else %}slide{% endif %} · <a href="?cambia=1">Cambia</a></p>{% endif %}
+{% endif %}
 <p class="pb-help" style="margin-top:12px;text-align:center;">Non sei {{ chi.nome }} {{ chi.cognome }}? <a href="{% url 'corso_aperto:registrati' link.token %}?cambia=1">Cambia persona</a></p>
 {% endblock %}
