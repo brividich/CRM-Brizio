@@ -9,7 +9,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 
-from anomalie.tests_report_cmm import _pdf_report_sintetico
+from anomalie.tests_report_cmm import _pdf_formato_vecchio, _pdf_report_sintetico
 
 from . import report_cmm_indice as cmm
 from .models import CartellaReportCMM, MisuraCMM, ReportCMM
@@ -31,6 +31,10 @@ class NomiTests(SimpleTestCase):
         self.assertEqual(cmm.programma_base("60_PN-PROVA-9_EG_ZPU_REV1"), "60_PN-PROVA-9_EG_ZPU")
         self.assertEqual(cmm.data_report("16/11/2026").isoformat(), "2026-11-16")
         self.assertIsNone(cmm.data_report("31/02/2026"))
+        self.assertEqual(cmm.data_report("13 settembre 2023").isoformat(), "2023-09-13")
+        self.assertEqual(cmm.data_report("21 Novembre 2014").isoformat(), "2014-11-21")
+        self.assertEqual(cmm.data_report("September 13, 2023").isoformat(), "2023-09-13")
+        self.assertIsNone(cmm.data_report("13 brumaio 2023"))
         self.assertEqual(cmm.pulisci_seriale("SN902_RILAVORA\ufffd"), "SN902_RILAVORA")
         self.assertEqual(cmm.chiave_quota(" 163,00 Dia F "), "163,00DIAF")
 
@@ -77,6 +81,21 @@ class LetturaTests(ArchivioBase):
         self.assertEqual((stat["letti"], stat["invariati"], stat["tolti"]), (0, 1, 1))
         self.assertFalse(MisuraCMM.objects.filter(report__seriale="SN001").exists())
         self.assertIsNotNone(CartellaReportCMM.objects.get(pn="PN-ALFA-1").letta_il)
+
+    def test_rilegge_i_report_vuoti_del_lettore_vecchio(self):
+        self.scrivi("101_OP-2014-23000_ZP_SN002.pdf", _pdf_formato_vecchio("SN002"))
+        cmm.leggi_pn("PN-ALFA-1")
+        r = ReportCMM.objects.get(seriale="SN002")
+        self.assertEqual((r.righe, r.fuori, r.lettore, r.data.isoformat()), (6, 3, cmm.LETTORE, "2014-11-21"))
+        # Come se l'avesse letto il lettore di prima (nessuna quota): si rilegge anche se il file è uguale.
+        ReportCMM.objects.filter(pk=r.pk).update(righe=0, fuori=0, lettore=1)
+        r.misure.all().delete()
+        self.assertTrue(ReportCMM.objects.get(pk=r.pk).da_rileggere)
+        self.assertEqual(cmm.leggi_pn("PN-ALFA-1")["letti"], 1)
+        r.refresh_from_db()
+        self.assertEqual((r.righe, r.lettore, r.misure.count()), (6, cmm.LETTORE, 6))
+        self.assertFalse(r.da_rileggere)
+        self.assertEqual(cmm.leggi_pn("PN-ALFA-1")["invariati"], 1)               # poi resta com'è
 
     def test_giro_e_cartella_mancante(self):
         self.scrivi("210_OP-2026-100_ZPN_SN001_A.pdf", _pdf_report_sintetico("SN001"))

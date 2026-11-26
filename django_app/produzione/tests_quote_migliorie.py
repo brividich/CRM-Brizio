@@ -8,6 +8,7 @@ from django.core.cache import cache
 from django.db import connection
 from django.test import SimpleTestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from . import report_cmm_indice as cmm
 from .models import AliasQuotaCMM, CartellaReportCMM, ImpostazioniQuoteCMM, MisuraCMM, NotaQuotaCMM, ReportCMM
@@ -187,12 +188,25 @@ class AvvisiTests(QuoteBase):
         imp = ImpostazioniQuoteCMM.attuali()
         imp.destinatari.set([self.admin])
         r = self.report("SN1", [("D10", 10.03, 10.0, 0.02, -0.02)])
-        ReportCMM.objects.filter(pk=r.pk).update(avvisato=False)
+        ReportCMM.objects.filter(pk=r.pk).update(avvisato=False, data=timezone.localdate())
         self.assertEqual(invia_avvisi("PN-ALFA-1")["fuori"], 1)
         n = Notifica.objects.get(legacy_user_id=681)
         self.assertIn("SN1", n.messaggio)
         self.assertEqual(n.url_azione, reverse("produzione:report_cmm", args=[r.pk]))
         self.assertEqual(invia_avvisi("PN-ALFA-1")["fuori"], 0)                   # già avvisato
+
+    def test_report_vecchi_non_avvisano(self):
+        from core.models import Notifica
+
+        from .avvisi_cmm import invia_avvisi
+
+        imp = ImpostazioniQuoteCMM.attuali()
+        imp.destinatari.set([self.admin])
+        r = self.report("SN2", [("D10", 10.03, 10.0, 0.02, -0.02)])
+        ReportCMM.objects.filter(pk=r.pk).update(avvisato=False, data=timezone.localdate() - timedelta(days=400))
+        self.assertEqual(invia_avvisi("PN-ALFA-1")["fuori"], 0)
+        self.assertFalse(Notifica.objects.filter(legacy_user_id=681).exists())
+        self.assertTrue(ReportCMM.objects.get(pk=r.pk).avvisato)                 # segnato comunque
 
     def test_impostazioni_salvano_i_destinatari(self):
         resp = self.client.post(reverse("produzione:impostazioni"), {"azione": "avvisi", "avvisa_fuori": "1",

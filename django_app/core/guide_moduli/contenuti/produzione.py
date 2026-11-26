@@ -119,7 +119,9 @@ GUIDA = {
                     ("Report CMM", "cartella PRODUZIONE_REPORT_CMM_ROOT (di default \\\\novisrv\\Area Controllo\\Collaudo), "
                      "letta ogni ora dal lavoro pianificato «produzione_report_cmm_giro» per al massimo "
                      "PRODUZIONE_REPORT_CMM_MINUTI minuti (15). L'utente del portale e quello di qcluster devono poter "
-                     "leggere la share. Primo caricamento lungo: «manage.py leggi_report_cmm --minuti 120»."),
+                     "leggere la share. Primo caricamento lungo: «manage.py leggi_report_cmm --minuti 120». Legge anche il "
+                     "formato vecchio (fino al 2024); i report già in elenco senza quote si rileggono da soli, prima le "
+                     "cartelle che ne hanno. Avvisi solo per i report degli ultimi 30 giorni."),
                     ("Elenco OP", "tabella ordini_produzione, la stessa di Gestione anomalie; gli OP nuovi si creano qui, "
                      "dalla scheda FAI o da Gestione anomalie, con la stessa funzione."),
                 ]),
@@ -130,7 +132,7 @@ GUIDA = {
         {
             "sintomo": "Gli avvisi delle quote CMM non arrivano",
             "perche": "nessun destinatario scelto, interruttori spenti, oppure il report era già stato letto prima (avvisa solo i "
-                      "report nuovi; una quota in deriva al massimo una volta al mese).",
+                      "report nuovi con data negli ultimi 30 giorni; una quota in deriva al massimo una volta al mese).",
             "fare": ["Ordini di produzione › Impostazioni › «Avvisi delle quote CMM»: scegli chi riceve gli avvisi."],
         },
         {

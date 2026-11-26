@@ -27,6 +27,13 @@ Ogni OP con i suoi documenti di produzione. Gli OP sono la tabella legacy `ordin
 
 Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KICK-OFF rispettano i permessi del modulo KICK-OFF.
 
+### Report CMM nel formato vecchio (26/11/2026)
+
+- `anomalie.report_cmm`: la riga d'intestazione «Name ID Aktual Nominal pos Tol neg Tol Diff <--|-->» (CALYPSO con novaPDF, 2014-2024) vale come quella nuova (`_SINONIMI_COLONNE`, `col["vecchio"]`). Nel formato vecchio «neg Tol» vuota = tolleranza unilaterale (0); con nominale 0 e «neg Tol» positiva è la tolleranza effettiva della posizione (bonus di massimo materiale): `tol_sup = max(pos, neg)`, `tol_inf = 0`. Nella colonna «<--|-->» la barretta grafica si ignora, il numero è l'eccedenza. Testata anche in italiano («Nome piano», «No. di disegno», «Ordine», «Numero pezzo incrementale», «Commento:», «Firma:»). Verificato su 325 report veri (25 per anno, 2012-2024, solo lettura): 22.560 quote, 4 da verificare, eccedenza stampata = fuori calcolato; 120 report del formato nuovo invariati.
+- `report_cmm_indice.data_report` legge anche «13 settembre 2023» / «September 13, 2023».
+- `ReportCMM.lettore` (migrazione `0006`) e `report_cmm_indice.LETTORE = 2`: un report senza quote letto da un lettore più vecchio si rilegge anche se il file non è cambiato (`ReportCMM.da_rileggere`); il giro passa prima le cartelle che ne hanno. Alzare `LETTORE` quando il lettore impara un formato nuovo.
+- `avvisi_cmm.invia_avvisi`: avvisa solo i report con data negli ultimi `GIORNI_AVVISO` (30) giorni; gli altri si segnano come avvisati.
+
 ### Pagina del pezzo (26/11/2026)
 
 - `/produzione/pezzo/?pn=<P/N>&sn=<S/N>`: report del pezzo (S/N confrontato su lettere e cifre), quote allineate come nel confronto (ultimi 12 report), filtri `solo=fuori|cambiate`, storia con anomalie del S/N (`core.ordini_produzione.anomalie_del_seriale`); `formato=pdf` scarica la scheda pezzo (`produzione/pdf_pezzo.py`, ultimi 6 report). Dati in `report_cmm_pagine.pezzo` e `report_del_pezzo`. Nessuna tabella nuova.
