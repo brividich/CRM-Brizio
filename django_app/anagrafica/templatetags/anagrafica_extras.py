@@ -167,9 +167,10 @@ GLOSSARIO_INFO = {
         "È un avviso tracciato, non un blocco operativo."
     ),
     "matrice_competenze": (
-        "Dipendenti × abilitazioni. Ogni cella: valido (verde) / in scadenza ≤60gg "
-        "(giallo) / scaduto (rosso) / mancante (—). Le colonne sono le qualifiche con "
-        "almeno un'assegnazione (competenze realmente in uso). Per audit ISO 45001."
+        "Dipendenti in forza × qualifiche. Ogni cella: valido (verde) / in scadenza ≤90gg "
+        "(giallo) / scaduto (rosso) / mancante (!, solo se la qualifica è richiesta) / "
+        "non richiesta (·). Le colonne sono le qualifiche richieste da ruolo, mansione o "
+        "processi MOD.128 più quelle possedute. Per audit ISO 45001."
     ),
     "livello_rischio": (
         "Livello di rischio della mansione (Accordo Stato-Regioni): A = alto (16h) · "
@@ -352,7 +353,26 @@ def _subnav_anagrafica_calcola(context):
                 acl_memo[path] = False
         return acl_memo[path]
 
+    condizioni_memo: dict[str, bool] = {}
+
+    def _voce_utile(link):
+        """«MOD.176 in officina» compare solo se esiste almeno un Technical Plan approvato."""
+        if link.url_value != "anagrafica:mpq_officina":
+            return True
+        if link.url_value not in condizioni_memo:
+            try:
+                from anagrafica.models_mpq import TechnicalPlanRevisione
+
+                condizioni_memo[link.url_value] = TechnicalPlanRevisione.objects.filter(
+                    stato=TechnicalPlanRevisione.STATO_APPROVATA).exists()
+            except Exception:
+                logger.exception("Subnav anagrafica: verifica Technical Plan fallita")
+                condizioni_memo[link.url_value] = True
+        return condizioni_memo[link.url_value]
+
     def _build_link_item(link):
+        if not _voce_utile(link):
+            return None
         resolved = _resolve_url(link)
         if resolved == "#" or not _can_open(resolved):
             return None
@@ -816,7 +836,7 @@ _SCHEDE_COPERTURA = (
     ("anagrafica:mansionario_lacune", "Lacune di mansione", "Competenze della mansione non ancora raggiunte"),
     ("anagrafica:mansionario_matrice_competenze", "Matrice competenze", "Persone × competenze della mansione"),
     ("anagrafica:skm_copertura", "Copertura macchine", "Skill matrix MOD.187: chi sa usare cosa"),
-    ("anagrafica:matrice_competenze", "Matrice sicurezza", "Qualifiche e abilitazioni per mansione"),
+    ("anagrafica:matrice_competenze", "Matrice qualifiche", "Qualifiche richieste e possedute per persona"),
 )
 
 

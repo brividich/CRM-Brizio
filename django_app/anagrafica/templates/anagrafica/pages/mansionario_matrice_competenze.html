@@ -44,6 +44,7 @@
         </form>
       </div>
       {% if righe and colonne %}
+      <p class="fmd-muted" style="font-size:12.5px;margin:6px 0 10px;">Livelli: {% for codice, nome in livelli_legenda %}<span class="mns-lv mns-lv-{{ codice }}"><b>{{ codice }}</b></span> {{ nome }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
       <div class="fmd-tablewrap">
         <table class="fmd-table mmat">
           <thead><tr><th>Persona</th>{% for c in colonne %}<th class="mmat-col" title="{{ c.nome }}"><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_competenza' c.pk %}">{{ c.nome|truncatechars:34 }}</a></th>{% endfor %}</tr></thead>

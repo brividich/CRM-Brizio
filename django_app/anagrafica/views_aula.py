@@ -267,9 +267,20 @@ def efficacia(request):
         return redirect(request.get_full_path())
     elenco = efficacie_da_valutare(mio, tutte=tutte)
     nomi = _helpers._build_nomi_map()
+    # Chi salva: chi gestisce la formazione, o il capo per le sue persone. Chi vede soltanto
+    # (permesso di sola lettura) non trova il modulo: il server lo rifiuterebbe comunque.
+    puo_tutte_salvare = _helpers._can_edit_formazione(request)
+    mie = set() if puo_tutte_salvare else {x.pk for x in efficacie_da_valutare(mio)}
+    reparti = _reparti_di({v.legacy_anagrafica_id for v in elenco})
     for v in elenco:
         v.nome = nomi.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
         v.dovuta = v.attesa_dal <= _oggi()
+        v.puo_salvare = puo_tutte_salvare or v.pk in mie
+        v.reparto = reparti.get(v.legacy_anagrafica_id, "")
+    elenco_reparti = sorted({v.reparto for v in elenco if v.reparto}, key=str.casefold)
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    if filtro_reparto:
+        elenco = [v for v in elenco if v.reparto.casefold() == filtro_reparto.casefold()]
     fatte = []
     if tutte:
         fatte = list(TrainingEfficacia.objects.filter(valutata_il__isnull=False).select_related("record", "record__corso")
@@ -279,7 +290,21 @@ def efficacia(request):
     return render(request, "anagrafica/pages/formazione_efficacia.html", {
         "elenco": elenco, "fatte": fatte, "tutte": tutte, "METODI": METODI_EFFICACIA,
         "ESITI": TrainingEfficacia.ESITO_CHOICES, "puo_tutte": _helpers._can_view_formazione(request),
+        "elenco_reparti": elenco_reparti, "filtro_reparto": filtro_reparto,
     })
+
+
+def _reparti_di(legacy_ids: set) -> dict[int, str]:
+    """{legacy_anagrafica_id: reparto} per il filtro della pagina Efficacia."""
+    if not legacy_ids:
+        return {}
+    try:
+        from core.legacy_models import AnagraficaDipendente
+        return {int(r["id"]): str(r["reparto"] or "").strip()
+                for r in AnagraficaDipendente.objects.filter(id__in=list(legacy_ids)).values("id", "reparto")}
+    except Exception:
+        logger.exception("Reparti per la pagina Efficacia non letti")
+        return {}
 
 
 def _helpers_legacy_id(request) -> int | None:

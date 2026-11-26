@@ -307,15 +307,23 @@ def scheda_persona(legacy_id: int) -> dict:
 
 
 def lacune() -> list[dict]:
-    """Tutte le persone in lista che non sono abilitate sulla loro mansione, con cosa manca."""
+    """Tutte le persone in lista che non sono abilitate sulla loro mansione, con cosa manca.
+
+    Gli ex dipendenti (rapporto cessato) restano in lista per lo storico ma non
+    sono lacune da colmare: sono esclusi.
+    """
     from core import naming
     from core.legacy_anagrafica import fetch_anagrafica_rows
 
+    from .organigramma_albero import cessati_legacy_ids
+
     config = SkillMatrixConfig.get_instance()
-    abil = list(
-        AbilitazioneMacchina.objects.filter(in_lista=True, competenza__isnull=False, competenza__attiva=True)
+    cessati = cessati_legacy_ids()
+    abil = [
+        a for a in AbilitazioneMacchina.objects.filter(in_lista=True, competenza__isnull=False, competenza__attiva=True)
         .select_related("competenza__asset", "competenza__reparto").prefetch_related("voci")
-    )
+        if a.legacy_anagrafica_id not in cessati
+    ]
     voci_per_mansione: dict[int, list] = {}
     for v in VoceMacchinaCatalogo.objects.filter(mansione_id__in={a.competenza_id for a in abil}, attiva=True) \
             .select_related("corso", "qualifica", "processo_mpq").order_by("ordine", "pk"):

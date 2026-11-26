@@ -312,6 +312,74 @@
       {% endif %}
     </section>
 
+    <!-- ── Qualifiche (solo la corrente per tipo) ─────────────── -->
+    <section class="pb-section" id="libretto-qualifiche">
+      <h2 class="pb-section-title">📜 Qualifiche{% if periodo_attivo %}
+        <span class="lb-periodo">stato di oggi, non filtrato</span>
+      {% endif %}</h2>
+      {% if qualifiche_libretto %}
+      <table class="lb-table">
+        <thead>
+          <tr>
+            <th>Qualifica</th>
+            <th>Conseguita</th>
+            <th>Scadenza</th>
+            <th>Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in qualifiche_libretto %}
+          <tr>
+            <td style="font-weight:600;">{{ q.tipo.nome }}<div class="lb-muted" style="font-size:10.5px;">{{ q.tipo.get_categoria_display }}{% if q.numero %} · n° {{ q.numero }}{% endif %}{% if q.ente %} · {{ q.ente }}{% endif %}</div></td>
+            <td class="mono">{% if q.data_conseguimento %}{{ q.data_conseguimento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+            <td class="mono">{% if q.data_scadenza %}{{ q.data_scadenza|date:"d-m-Y" }}{% else %}<span class="lb-muted">non scade</span>{% endif %}</td>
+            <td><span class="lb-pill lb-pill-{{ q.stato_libretto.0 }}">{{ q.stato_libretto.1 }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="lb-muted" style="margin:0;">Nessuna qualifica registrata.</p>
+      {% endif %}
+    </section>
+
+    <!-- ── Processi qualificati MOD.128 ───────────────────────── -->
+    <section class="pb-section" id="libretto-processi">
+      <h2 class="pb-section-title">🛠 Processi qualificati MOD.128{% if periodo_attivo %}
+        <span class="lb-periodo">stato di oggi, non filtrato</span>
+      {% endif %}</h2>
+      {% if processi_libretto %}
+      <table class="lb-table">
+        <thead>
+          <tr>
+            <th>Processo</th>
+            <th>Ruoli</th>
+            <th>Abilitazione</th>
+            <th>Scadenza</th>
+            <th>Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pr in processi_libretto %}
+          <tr>
+            <td style="font-weight:600;">{{ pr.processo.nome }}{% if pr.processo.cliente %}<div class="lb-muted" style="font-size:10.5px;">{{ pr.processo.cliente.nome }}</div>{% endif %}</td>
+            <td>{{ pr.ruoli|join:", "|default:"—" }}</td>
+            <td>{{ pr.abilitazione.get_stato_display }}</td>
+            <td class="mono">{% if pr.stato.scadenza %}{{ pr.stato.scadenza|date:"d-m-Y" }}{% else %}<span class="lb-muted">non scade</span>{% endif %}</td>
+            <td>
+              {% if pr.stato.esito == "ok" or pr.stato.esito == "nessuno" %}<span class="lb-pill lb-pill-ok">Qualificata</span>
+              {% elif pr.stato.esito == "warn" %}<span class="lb-pill lb-pill-warn">In scadenza</span>
+              {% else %}<span class="lb-pill lb-pill-expired">{{ pr.stato.label }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="lb-muted" style="margin:0;">Nessuna abilitazione a processi qualificati.</p>
+      {% endif %}
+    </section>
+
     <!-- ── Storico completamenti ─────────────────────────────── -->
     <section class="pb-section" id="libretto-storico">
       <h2 class="pb-section-title">🎓 Storico corsi completati{% if periodo_attivo %}

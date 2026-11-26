@@ -44,7 +44,7 @@
             <td>
               <form method="post" style="display:inline;">{% csrf_token %}
                 <input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="azione" value="online"><input type="hidden" name="q" value="{{ q }}">
-                <button class="fmd-btn fmd-btn-mini {% if c.is_elearning %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %}" type="submit" aria-pressed="{{ c.is_elearning|yesno:'true,false' }}">{% if c.is_elearning %}Sì{% else %}No{% endif %}</button>
+                <button class="fmd-btn fmd-btn-mini {% if c.is_elearning %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %}" type="submit" aria-pressed="{{ c.is_elearning|yesno:'true,false' }}"{% if c.is_elearning %} data-hub-confirm="Spegnere l'online? Il corso sparisce da «I miei corsi online» e il link aperto smette di funzionare; completamenti, sessioni e pubblicazione per l'aula restano." title="Spegni online"{% else %} title="Accendi online"{% endif %}>{% if c.is_elearning %}Sì{% else %}No{% endif %}</button>
               </form>
             </td>
             <td>

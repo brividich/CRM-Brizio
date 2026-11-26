@@ -66,7 +66,6 @@ def _check_skm_permission(request, code: str) -> bool:
 
 @login_required
 def qualifiche_list(request):
-    from datetime import timedelta
     from django.utils import timezone as tz
 
     legacy_user = get_legacy_user(request.user)
@@ -96,49 +95,6 @@ def qualifiche_list(request):
     )
 
     oggi = tz.localdate()
-    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
-
-    # Qualifiche in scadenza o scadute
-    scadenze_qs = list(
-        DipendenteQualifica.objects.filter(data_scadenza__isnull=False)
-        .filter(data_scadenza__lte=soglia)
-        .select_related("tipo")
-        .order_by("data_scadenza")
-    )
-
-    # Solo le qualifiche correnti (non quelle superate da un rinnovo), senza
-    # cessati: stessi numeri di cruscotto e scadenzario.
-    _conta = _qualifica_nel_perimetro(request)
-    scadenze_qs = [q for q in scadenze_qs if _conta(q)]
-
-    # Arricchisce con nome dipendente
-    legacy_ids = list({q.legacy_anagrafica_id for q in scadenze_qs})
-    nome_map: dict[int, str] = {}
-    if legacy_ids:
-        try:
-            rows = fetch_anagrafica_rows(ids=legacy_ids)
-            for r in rows:
-                rid = int(r.get("id") or 0)
-                if rid:
-                    nome_map[rid] = naming.nome_completo(r.get("nome"), r.get("cognome"))
-        except Exception:
-            pass
-
-    scadenze = []
-    for q in scadenze_qs:
-        scadenze.append({
-            "id": q.id,
-            "legacy_anagrafica_id": q.legacy_anagrafica_id,
-            "dipendente": nome_map.get(q.legacy_anagrafica_id, f"Dip. #{q.legacy_anagrafica_id}"),
-            "tipo_id": q.tipo_id,
-            "tipo_nome": q.tipo.nome,
-            "tipo_categoria": q.tipo.categoria,
-            "data_conseguimento": q.data_conseguimento,
-            "data_scadenza": q.data_scadenza,
-            "scaduta": q.data_scadenza < oggi,
-            "in_scadenza": oggi <= q.data_scadenza <= soglia,
-            "note": q.note,
-        })
 
     tipi_suggeriti = [
         ("Patentino carrellista", "PROFESSIONALE", 60),
@@ -167,10 +123,9 @@ def qualifiche_list(request):
         tabs.append((cat_code, cat_labels_q[cat_code],
                      sum(1 for t in tipi if t.categoria == cat_code)))
 
-    # Vista filtrata: restringe gruppi e scadenze alla categoria selezionata.
+    # Vista filtrata: restringe i gruppi alla categoria selezionata (le scadenze sono nello scadenzario).
     if cat_filter:
         tipi_grouped = [g for g in tipi_grouped if g[0] == cat_filter]
-        scadenze = [s for s in scadenze if s["tipo_categoria"] == cat_filter]
 
     # Processi qualificati MOD.128 (modulo additivo, fail-safe): mostrati nel
     # catalogo come famiglia a sé, così si vedono nella sezione Qualifiche.
@@ -202,7 +157,6 @@ def qualifiche_list(request):
         "processi_qualificati": processi_qualificati,
         "mostra_processi": mostra_processi,
         "solo_processi": solo_processi,
-        "scadenze": scadenze,
         "is_admin": is_admin,
         "oggi": oggi,
         "CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
@@ -224,11 +178,10 @@ def _classifica_scadenza_qualifica(data_scadenza, oggi, soglia_30, soglia_60):
     if data_scadenza <= soglia_30:
         return ("s30", "In scadenza ≤30gg")
     if data_scadenza <= soglia_60:
-        return ("s60", "In scadenza ≤60gg")
+        return ("s60", f"In scadenza ≤{GIORNI_PREAVVISO}gg")
     return ("valida", "Valida")
 
 
-@login_required
 def _qualifica_nel_perimetro(request):
     """Funzione che dice se una qualifica conta: stessa regola per cruscotto, scadenzario ed export.
 
@@ -250,6 +203,7 @@ def _qualifica_nel_perimetro(request):
     return conta
 
 
+@login_required
 def qualifiche_dashboard(request):
     """Cruscotto Qualifiche & Certificazioni — vista trasversale di sola lettura.
 
@@ -338,7 +292,7 @@ def qualifiche_dashboard(request):
         for c, _ in TipoQualifica.CATEGORIA_CHOICES if dist_cat[c]
     ]
 
-    # Top scadenze urgenti (scadute + ≤60gg)
+    # Top scadenze urgenti (scadute + ≤90gg)
     nomi = _helpers._build_nomi_map()
     urgenti = sorted(
         (q for q in quals if q.data_scadenza is not None and q.data_scadenza <= soglia_60),
@@ -409,13 +363,13 @@ def qualifiche_dashboard(request):
         ],
         etichetta_filtri="Filtra per categoria",
         ordini=[("gap", "Prima le più scoperte"), ("az", "A–Z")],
-        legenda=[("ok", "valide"), ("s90", "≤60gg"), ("s30", "≤30gg"), ("ko", "scadute")],
+        legenda=[("ok", "valide"), ("s90", f"≤{GIORNI_PREAVVISO}gg"), ("s30", f"≤{GIORNI_URGENTE}gg"), ("ko", "scadute")],
         vuoto_titolo="Nessuna qualifica registrata",
         vuoto_testo="Le schede compaiono quando si assegna una qualifica a un dipendente.",
     )
     aree = sezioni_c.aree_visibili(request, [
         sezioni_c.Area("anagrafica:qualifiche_list", "Catalogo qualifiche", "Tipi · categorie · validità", icona="i-cap"),
-        sezioni_c.Area("anagrafica:qualifiche_scadenzario", "Scadenzario qualifiche", "Scadute · ≤30gg · ≤60gg · export", icona="i-alarm"),
+        sezioni_c.Area("anagrafica:qualifiche_scadenzario", "Scadenzario qualifiche", f"Scadute · ≤{GIORNI_URGENTE}gg · ≤{GIORNI_PREAVVISO}gg · export", icona="i-alarm"),
         sezioni_c.Area("anagrafica:matrice_competenze", "Matrice qualifiche", "Dipendenti × abilitazioni (ISO 45001)", icona="i-grid"),
         sezioni_c.Area("anagrafica:qualifica_sessioni_list", "Sessioni di rinnovo", "Rilascio/rinnovo collettivo", icona="i-calendar"),
         sezioni_c.Area("anagrafica:mpq_cruscotto", "Processi qualificati (MOD.128)", "Processi speciali · abilitati per ruolo · doppia scadenza", icona="i-clipboard"),
@@ -530,7 +484,7 @@ def qualifiche_scadenzario(request):
         qs = qs.filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gt=soglia_60))
     elif filtro_stato == "tutte":
         pass
-    else:  # default: tutto ciò che richiede attenzione (scadute + ≤60gg)
+    else:  # default: tutto ciò che richiede attenzione (scadute + ≤90gg)
         qs = qs.filter(data_scadenza__isnull=False, data_scadenza__lte=soglia_60)
 
     qs = qs.order_by("data_scadenza", "tipo__nome")
@@ -693,9 +647,21 @@ def tipo_qualifica_detail(request, tipo_id: int):
             })
 
     from ..services.mpq_persone import processi_che_richiedono
+    from ..services.qualifica_mancanti import persone_senza_qualifica
+
+    # «Richiesta a, ma mancante»: in forza, richiesta da processo/mansione/ruolo, senza la
+    # qualifica o con la corrente scaduta. Stesso ambito del ruolo dei possessori.
+    mancanti = persone_senza_qualifica(tipo, oggi=oggi, nomi=nomi)
+    if _helpers._ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request)
+        if visibili is not None:
+            mancanti = [m for m in mancanti if m["legacy_id"] in visibili]
 
     return render(request, "anagrafica/pages/tipo_qualifica_detail.html", {
         "tipo": tipo,
+        "mancanti": mancanti,
         # Processi qualificati MOD.128 che la chiedono («Cosa serve a una persona»).
         "processi_mpq": processi_che_richiedono(tipo_qualifica=tipo),
         "is_admin": is_admin,
@@ -804,10 +770,10 @@ def tipo_qualifica_delete(request, tipo_id: int):
 
 def _build_candidati_qualifica(tipo, oggi) -> list[dict]:
     """Dipendenti (in forza) che detengono già la qualifica, con lo stato di
-    rinnovo: scaduta / in scadenza (≤90gg) / valida. I nuovi rilasci si
+    rinnovo: scaduta / in scadenza (≤GIORNI_PREAVVISO) / valida. I nuovi rilasci si
     aggiungono dal picker. Pre-seleziona scadute e in scadenza."""
     from datetime import timedelta
-    soglia = oggi + timedelta(days=90)
+    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
     ultima_per_id: dict[int, "DipendenteQualifica"] = {}
     for q in (DipendenteQualifica.objects.filter(tipo=tipo)
               .order_by("legacy_anagrafica_id", "-data_conseguimento", "-id")):
@@ -1946,13 +1912,45 @@ def skm_scadenzario(request):
 def skm_copertura(request):
     """Verifica **copertura minima** (AS/EN 9100): soglie configurate vs abilitati
     operativi disponibili, con evidenza dei gap. Riuso del resolver skill matrix
-    per gli asset e delle abilitazioni MPQ attive per i processi. Sola lettura;
-    le soglie si gestiscono da admin. Accesso: ``anagrafica.skillmatrix.view``.
+    per gli asset (contando solo chi soddisfa i requisiti formali del Mansionario)
+    e delle abilitazioni MPQ attive per i processi.
+
+    Lettura: ``anagrafica.skillmatrix.view``. Aggiungi / modifica / elimina soglia
+    (POST ``azione=salva|elimina``): ``anagrafica.skillmatrix.manage``.
     """
-    from ..acl_bootstrap import PERM_SKM_VIEW
+    from ..acl_bootstrap import PERM_SKM_MANAGE, PERM_SKM_VIEW
     if not _check_skm_permission(request, PERM_SKM_VIEW):
         messages.error(request, "Non hai i permessi per la Skill Matrix.")
         return redirect("anagrafica:index")
+
+    from ..forms import SogliaCoperturaForm
+    from ..models import SogliaCopertura
+
+    puo_gestire = _check_skm_permission(request, PERM_SKM_MANAGE)
+    form_soglia = None
+    if request.method == "POST":
+        if not puo_gestire:
+            messages.error(request, "Non hai i permessi per gestire le soglie di copertura.")
+            return redirect("anagrafica:skm_copertura")
+        azione = request.POST.get("azione")
+        soglia_id = (request.POST.get("soglia_id") or "").strip()
+        soglia = get_object_or_404(SogliaCopertura, pk=int(soglia_id)) if soglia_id.isdigit() else None
+        if azione == "elimina" and soglia is not None:
+            nome = soglia.nome
+            soglia.delete()
+            _helpers._audit_safe(request, "skm_soglia_eliminata", "anagrafica", {"soglia_id": int(soglia_id), "nome": nome})
+            messages.success(request, f"Soglia «{nome}» eliminata.")
+            return redirect("anagrafica:skm_copertura")
+        if azione == "salva":
+            form_soglia = SogliaCoperturaForm(request.POST, instance=soglia)
+            if form_soglia.is_valid():
+                nuova = form_soglia.instance.pk is None
+                obj = form_soglia.save()
+                _helpers._audit_safe(request, "skm_soglia_creata" if nuova else "skm_soglia_modificata", "anagrafica",
+                                     {"soglia_id": obj.pk, "nome": obj.nome, "minimo": obj.minimo_abilitati})
+                messages.success(request, f"Soglia «{obj.nome}» {'aggiunta' if nuova else 'aggiornata'}.")
+                return redirect("anagrafica:skm_copertura")
+            messages.error(request, "Controlla i campi: la soglia non è stata salvata.")
 
     from ..services import skillmatrix_copertura as cov
     righe = cov.valuta_copertura()
@@ -1973,6 +1971,9 @@ def skm_copertura(request):
         filtro_coperta, righe_elenco = "", righe
     return render(request, "anagrafica/pages/skm_copertura.html", {
         "righe": righe_elenco, "kpi": kpi, "filtro_coperta": filtro_coperta,
+        "puo_gestire": puo_gestire,
+        "form_soglia": form_soglia if form_soglia is not None else (SogliaCoperturaForm() if puo_gestire else None),
+        "soglia_in_modifica": (request.POST.get("soglia_id") or "") if form_soglia is not None else "",
     })
 
 

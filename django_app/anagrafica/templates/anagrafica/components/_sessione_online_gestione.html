@@ -88,7 +88,7 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
       <div class="so-kpi"><div class="so-kpi-l">Hanno iniziato</div><div class="so-kpi-v">{{ num.iniziati }}</div></div>
       <div class="so-kpi"><div class="so-kpi-l">Punteggio medio (migliore)</div><div class="so-kpi-v">{% if num.media_punteggio is not None %}{{ num.media_punteggio }}%{% else %}—{% endif %}</div></div>
       <div class="so-kpi"><div class="so-kpi-l">Superato al 1° tentativo</div><div class="so-kpi-v">{% if num.primo_tentativo_pct is not None %}{{ num.primo_tentativo_pct }}%{% else %}—{% endif %}</div></div>
-      <div class="so-kpi"><div class="so-kpi-l">Tempo medio sulle slide</div><div class="so-kpi-v">{% if num.media_minuti is not None %}{{ num.media_minuti }} min{% else %}—{% endif %}</div>{% if online.minuti_previsti %}<div class="so-muted">minimo previsto {{ online.minuti_previsti }} min</div>{% endif %}</div>
+      <div class="so-kpi"><div class="so-kpi-l">Tempo medio sulle slide</div><div class="so-kpi-v">{% if num.media_minuti is not None %}{{ num.media_minuti }} min{% else %}—{% endif %}</div></div>
       <div class="so-kpi"><div class="so-kpi-l">Da registrare a libretto</div><div class="so-kpi-v {% if num.da_registrare %}warn{% endif %}">{{ num.da_registrare }}</div></div>
       <div class="so-kpi"><div class="so-kpi-l">Non superato (tentativi finiti)</div><div class="so-kpi-v {% if num.conta.non_superata %}bad{% endif %}">{{ num.conta.non_superata }}</div></div>
     </div>

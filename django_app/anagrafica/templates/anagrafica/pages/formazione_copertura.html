@@ -29,10 +29,11 @@
       </div>
     </div>
 
-    <section class="fmd-kpi fmd-k4">
+    <section class="fmd-kpi fmd-kpi-auto">
       <a class="fmd-mtr fmd-t-amber kpi-link" href="{% url 'anagrafica:formazione_copertura' %}{% if lista_qs %}?{{ lista_qs }}{% endif %}#copertura-elenco" title="Apri l'elenco filtrato: dipendenti con almeno un gap (righe dipendente × corso)"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ n_dip }}</span></div><div class="fmd-mtr-lbl">Dipendenti con gap</div><div class="fmd-mtr-sub">Almeno un obbligo non soddisfatto</div></a>
       <a class="fmd-mtr fmd-t-orange kpi-link" href="{% url 'anagrafica:formazione_copertura' %}{% if lista_qs %}?{{ lista_qs }}{% endif %}#copertura-elenco" title="Apri l'elenco filtrato: tutti i gap dipendente × corso"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ n_gap }}</span></div><div class="fmd-mtr-lbl">Gap totali</div><div class="fmd-mtr-sub">Coppie dipendente × corso</div></a>
       <a class="fmd-mtr fmd-t-navy kpi-link" href="?stato=SCADUTO{% if filtri_qs %}&amp;{{ filtri_qs }}{% endif %}#copertura-elenco" title="Apri l'elenco filtrato: corsi scaduti"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div><div class="fmd-mtr-lbl">Scaduti</div><div class="fmd-mtr-sub">Da rinnovare con urgenza</div></a>
+      <a class="fmd-mtr fmd-t-yellow kpi-link" href="?stato=IN_SCADENZA_90{% if filtri_qs %}&amp;{{ filtri_qs }}{% endif %}#copertura-elenco" title="Apri l'elenco filtrato: corsi in scadenza entro 90 giorni (le scadenze entro 30 si filtrano dal menu Stato)"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div><div class="fmd-mtr-lbl">In scadenza</div><div class="fmd-mtr-sub">Entro 90 giorni (comprese le 30)</div></a>
       <a class="fmd-mtr fmd-t-cyan kpi-link" href="?stato=MAI_FREQUENTATO{% if filtri_qs %}&amp;{{ filtri_qs }}{% endif %}#copertura-elenco" title="Apri l'elenco filtrato: corsi mai frequentati"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ n_mai }}</span></div><div class="fmd-mtr-lbl">Mai frequentati</div><div class="fmd-mtr-sub">Primo rilascio da pianificare</div></a>
     </section>
 
@@ -111,11 +112,17 @@
         {% endif %}
       </div>
 
+      {% elif nessun_obbligo %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span>
+        <span class="fmd-et">Nessun obbligo configurato</span>
+        <span class="fmd-em">Nessuna mansione, regola d'obbligo, processo o corso «Obbligatorio per tutti» assegna corsi alle persone in forza: la copertura non si può misurare. Configura i corsi richiesti nel <a class="fmd-data-link" href="{% url 'anagrafica:mansionario' %}">Mansionario</a> (corsi della mansione) o nella scheda del corso (regole d'obbligo, spunta «Obbligatorio per tutti i dipendenti») dall'<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corsi_list' %}">elenco corsi</a>.</span>
+      </div>
       {% else %}
       <div class="fmd-empty">
         <span class="fmd-ebadge"><svg class="fmd-ico"><use href="#i-check"/></svg></span>
         <span class="fmd-et">Nessun gap formativo</span>
-        <span class="fmd-em">{% if not corsi %}Tutti in regola: nessun corso richiesto (mansione, rischi, regole, processi) è scaduto, in scadenza o mai fatto.{% else %}Nessun risultato con i filtri selezionati.{% endif %}</span>
+        <span class="fmd-em">{% if not corsi %}Tutti in regola: nessun corso richiesto (mansione, rischi, regole, processi, corsi obbligatori per tutti) è scaduto, in scadenza o mai fatto.{% else %}Nessun risultato con i filtri selezionati.{% endif %}</span>
       </div>
       {% endif %}
     </section>

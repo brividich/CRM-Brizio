@@ -118,7 +118,8 @@ class FormazioneDashboardScadenzarioTests(_Base):
         self.assertEqual(mai.context["totale"], resp.context["n_mai"])
 
     def test_filtro_dipendente(self):
-        resp = self._get("formazione_scadenzario", f"?dipendente={self.p2}")
+        # Stesso link della tessera della scheda: tutte le scadenze, non solo le obbligatorie.
+        resp = self._get("formazione_scadenzario", f"?dipendente={self.p2}&obbligatori=0")
         self.assertEqual(
             resp.context["totale"],
             TrainingDeadline.objects.filter(

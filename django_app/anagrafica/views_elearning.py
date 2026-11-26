@@ -699,10 +699,12 @@ def elearning_impostazioni_corsi(request):
         corso = get_object_or_404(TrainingCourse, pk=request.POST.get("corso_id") or 0)
         azione = request.POST.get("azione")
         if azione == "online":
-            corso.is_elearning = not corso.is_elearning
-            if not corso.is_elearning and corso.stato == "ATTIVO":
-                messages.info(request, "Il corso resta pubblicato per l'aula; non è più erogabile online.")
-            corso.save(update_fields=["is_elearning", "updated_at"])
+            from .services.elearning_fruizione import spegni_online
+            if corso.is_elearning:
+                messages.info(request, spegni_online(corso))
+            else:
+                corso.is_elearning = True
+                corso.save(update_fields=["is_elearning", "updated_at"])
         elif azione == "self_service":
             corso.elearning_self_service = not corso.elearning_self_service
             corso.save(update_fields=["elearning_self_service", "updated_at"])

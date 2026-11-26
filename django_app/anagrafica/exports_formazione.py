@@ -558,7 +558,7 @@ def _formazione_scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]
         from anagrafica.services.training_deadline_service import filtra_stato_scadenze
 
         qs = centro_filtro.leggi(request).applica(qs)
-        qs = filtra_stato_scadenze(qs, filtro_stato, request.GET.get("obbligatori") == "1")
+        qs = filtra_stato_scadenze(qs, filtro_stato, request.GET.get("obbligatori", "1") != "0")  # default come la pagina
         filtro_dipendente = (request.GET.get("dipendente") or "").strip()
         if filtro_dipendente.isdigit():
             qs = qs.filter(legacy_anagrafica_id=int(filtro_dipendente))
@@ -600,7 +600,7 @@ def _formazione_scadenzario_filters(request: HttpRequest) -> str:
         parts.append(f"Stato: {STATO_MANCANTE_LABEL}")
     else:
         parts.append("Scaduti + in scadenza + mai frequentati")
-    if request.GET.get("obbligatori") == "1":
+    if request.GET.get("obbligatori", "1") != "0":
         parts.append("Solo obbligatori")
     filtro_corso = (request.GET.get("corso") or "").strip()
     if filtro_corso:

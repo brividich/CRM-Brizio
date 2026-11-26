@@ -28,6 +28,7 @@ def _corsi_pubblicati():
 def copertura(*, reparto: str = "", corso_id: int | None = None) -> dict:
     """Percentuale di obblighi e-learning in regola, totale e per reparto/mansione."""
     from . import requisiti
+    from .training_deadline_service import STATI_DA_GESTIRE
 
     corsi = _corsi_pubblicati()
     if corso_id:
@@ -44,7 +45,8 @@ def copertura(*, reparto: str = "", corso_id: int | None = None) -> dict:
         for v in requisiti.formazione(ctx, persone):
             if v.corso.pk not in corsi or not v.obbligatorio:
                 continue
-            ok = v.stato not in ("MAI_FREQUENTATO", "SCADUTO")
+            # «In regola» come la dashboard: valido o una tantum; in scadenza non lo è.
+            ok = v.stato not in STATI_DA_GESTIRE
             p = persone[v.persona]
             for contatore in (totale, per_reparto[p.reparto or "—"], per_mansione[p.mansione or "—"]):
                 contatore["obblighi"] += 1
@@ -86,10 +88,18 @@ def andamento(mesi: int = 12, *, corso_id: int | None = None) -> dict:
     if corso_id:
         completamenti = completamenti.filter(enrollment__corso_id=corso_id)
         iscrizioni = iscrizioni.filter(corso_id=corso_id)
-    per_mese = list(
-        completamenti
-        .annotate(mese=TruncMonth("creato_il")).values("mese").annotate(n=Count("pk")).order_by("mese")
-    )
+    # Anche i completamenti dal link aperto (quiz superato e abbinato: nessuna iscrizione e-learning),
+    # come nel registro: la tessera conta le stesse righe.
+    da_link = _risposte_aperte_registrate(corso_id=corso_id, dal=dal)
+    conteggi: Counter = Counter()
+    for qs in (completamenti.annotate(mese=TruncMonth("creato_il")),
+               da_link.annotate(mese=TruncMonth("inviato_il"))):
+        for r in qs.values("mese").annotate(n=Count("pk")).order_by("mese"):
+            mese = r["mese"]
+            chiave = (mese.year, mese.month)
+            conteggi[chiave] += r["n"]
+    from datetime import date as _date
+    per_mese = [{"mese": _date(a, m, 1), "n": n} for (a, m), n in sorted(conteggi.items())]
     per_corso = list(
         iscrizioni.filter(stato="COMPLETATO")
         .values("corso_id", "corso__titolo")
@@ -121,8 +131,24 @@ def domande_piu_sbagliate(limite: int = 10, ultimi: int = 2000) -> list[dict]:
     return sorted(righe, key=lambda r: (-r["pct_errori"], -r["risposte"]))[:limite]
 
 
+def _risposte_aperte_registrate(*, corso_id: int | None = None, dal=None, al=None):
+    """Quiz dal link aperto superati e abbinati, con il completamento a libretto (non annullato)."""
+    from ..models_elearning import TrainingElearningRispostaAperta
+    qs = TrainingElearningRispostaAperta.objects.filter(
+        superato=True, record__isnull=False, record__annullato_il__isnull=True)
+    if corso_id:
+        qs = qs.filter(corso_id=corso_id)
+    if dal:
+        qs = qs.filter(inviato_il__date__gte=dal)
+    if al:
+        qs = qs.filter(inviato_il__date__lte=al)
+    return qs
+
+
 def registro(*, corso_id: int | None = None, dal=None, al=None) -> list[dict]:
-    """Registro dei completamenti, difendibile in audit (dati già fotografati)."""
+    """Registro dei completamenti, difendibile in audit (dati già fotografati).
+
+    Comprende i completamenti dal link aperto (quiz superato e abbinato alla persona)."""
     from ..models_elearning import TrainingElearningCompletamento
     from core import naming
     from core.legacy_anagrafica import fetch_anagrafica_rows
@@ -135,7 +161,10 @@ def registro(*, corso_id: int | None = None, dal=None, al=None) -> list[dict]:
     if al:
         qs = qs.filter(creato_il__date__lte=al)
     righe = list(qs[:5000])
-    ids = sorted({c.enrollment.legacy_anagrafica_id for c in righe})
+    aperte = list(_risposte_aperte_registrate(corso_id=corso_id, dal=dal, al=al)
+                  .select_related("corso", "record", "partecipazione").order_by("-inviato_il")[:5000])
+    ids = sorted({c.enrollment.legacy_anagrafica_id for c in righe} | {r.legacy_anagrafica_id for r in aperte
+                                                                       if r.legacy_anagrafica_id})
     nomi = {int(r["id"]): naming.nome_completo(r.get("nome"), r.get("cognome")) for r in fetch_anagrafica_rows(ids=ids)} if ids else {}
     out = []
     for c in righe:
@@ -150,5 +179,20 @@ def registro(*, corso_id: int | None = None, dal=None, al=None) -> list[dict]:
             "slide": f"{v.get('slide_completate', '')}/{v.get('slide_totali', '')}",
             "tentativi": v.get("tentativi", ""), "punteggio": quiz.get("punteggio_pct", ""),
             "protocollo": c.record.numero_protocollo or "", "impronta": c.sha256[:16],
+            "fonte": "E-learning",
         })
+    for r in aperte:
+        lid = r.legacy_anagrafica_id
+        pa = r.partecipazione
+        out.append({
+            "data": r.inviato_il, "dipendente": nomi.get(lid, f"#{lid}"),
+            "legacy_id": lid, "corso": r.corso.titolo, "codice": r.corso.codice, "ciclo": "",
+            "versione": r.versione_corso or r.record.course_version_snapshot or "",
+            "minuti_effettivi": round(((pa.secondi if pa else 0) or 0) / 60),
+            "slide": str(len(pa.slide_viste or {})) if pa else "",
+            "tentativi": "", "punteggio": r.punteggio_pct,
+            "protocollo": r.record.numero_protocollo or "", "impronta": "link aperto",
+            "fonte": "Link aperto",
+        })
+    out.sort(key=lambda x: x["data"], reverse=True)
     return out

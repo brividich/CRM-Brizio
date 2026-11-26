@@ -98,9 +98,9 @@ body.theme-dark .elg-chip[aria-pressed=true]{background:#93c5fd;border-color:#93
         <form method="post" action="{% url 'anagrafica:formazione_elearning_publish_toggle' corso.pk %}" style="display:inline;">
           {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
           {% if stato.visibile %}
-          <button type="submit" class="fmd-btn fmd-btn-ghost" data-hub-confirm="Ritirare il corso? Non sarà più visibile ai dipendenti e il link aperto smette di funzionare."><svg class="fmd-ico"><use href="#i-refresh"/></svg>Ritira</button>
+          <button type="submit" name="azione" value="spegni" class="fmd-btn fmd-btn-ghost" data-hub-confirm="Spegnere l'online? Il corso sparisce da «I miei corsi online» e il link aperto smette di funzionare; completamenti, sessioni e pubblicazione per l'aula restano."><svg class="fmd-ico"><use href="#i-refresh"/></svg>Spegni online</button>
           {% else %}
-          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Pubblica</button>
+          <button type="submit" name="azione" value="pubblica" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Pubblica</button>
           {% endif %}
         </form>
         {% endif %}
