@@ -510,6 +510,15 @@ def correggi(enrollment, cfg, scelte: dict[int, set[int]], *, user=None, iniziat
             campi.append("superata_il")
         prog.save(update_fields=campi)
         _riporta_su_iscrizione(enrollment, cfg, prog, tentativo)
+    if superato and not (enrollment.sessione.modalita != "ONLINE" and getattr(cfg, "test_in_aula", False)):
+        # Test superato nella lezione online: il completamento va a libretto subito, come per
+        # l'e-learning (prima serviva «Registra completamenti» e la scheda del corso mostrava
+        # «In corso»). Chi è bloccato dalle regole del corso resta «Superata» per l'HR.
+        try:
+            registra_completamenti(enrollment.sessione, user if getattr(user, "is_authenticated", False) else None,
+                                   enrollment_ids=[enrollment.pk])
+        except Exception:
+            logger.exception("Completamento non registrato dopo il test (iscrizione %s)", enrollment.pk)
     return tentativo
 
 
