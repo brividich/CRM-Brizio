@@ -28,7 +28,7 @@
       <a class="prot-filtro{% if filtro == 'guardare' %} is-on{% endif %}" href="?f=guardare">Da guardare <b>{{ n_guardare }}</b></a>
       <a class="prot-filtro{% if filtro != 'guardare' %} is-on{% endif %}" href="?f=tutti">Tutti <b>{{ n_tutti }}</b></a>
       <span class="prot-spazio"></span>
-      <span class="prot-conta">Report con quote fuori / report misurati, settimana per settimana (ultime 12)</span>
+      <span class="prot-conta">Report con quote fuori / report misurati, settimana per settimana (ultime 12){% if da_calcolare %} · Cpk e deriva di {{ da_calcolare }} P/N in calcolo nel giro orario{% endif %}</span>
     </div>
     {% if righe %}
     <div class="prot-tabella">
@@ -39,9 +39,11 @@
           <tr>
             <td class="l"><a class="prot-link" href="{% url 'produzione:pn' r.pn %}?sez=qualita"><b>{{ r.pn }}</b></a></td>
             {% for c in r.celle %}<td class="prot-cella">{% if c.n %}<a class="prot-liv is-{{ c.livello }}" href="{% url 'produzione:pn' r.pn %}?sez=report&amp;da={{ c.da|date:'Y-m-d' }}&amp;a={{ c.a|date:'Y-m-d' }}" title="Settimana dal {{ c.da|date:'d/m' }}: {{ c.fuori }} report con quote fuori su {{ c.n }}">{{ c.fuori }}/{{ c.n }}</a>{% else %}<span class="prot-liv is-vuoto" title="Nessun report">·</span>{% endif %}</td>{% endfor %}
+            {% if r.analisi_pronta %}
             <td>{% if r.fuori_ultimo %}<span class="prot-num-allerta">{{ r.fuori_ultimo }}</span>{% else %}0{% endif %}</td>
             <td>{% if r.cpk_bassi %}<span class="prot-num-allerta">{{ r.cpk_bassi }}</span>{% else %}0{% endif %}</td>
             <td>{% if r.deriva %}<span class="prot-deriva">{{ r.deriva }}</span>{% else %}0{% endif %}</td>
+            {% else %}<td colspan="3" class="prot-tenue" title="Il giro orario dei report calcola Cpk, deriva e fuori di questo P/N">in calcolo</td>{% endif %}
             <td class="l">{% if r.ultimo %}<a class="prot-link" href="{% url 'produzione:report_cmm' r.ultimo.2 %}">{{ r.ultimo.1|date:"d/m/Y" }} · {{ r.ultimo.0 }}</a>{% else %}—{% endif %}</td>
           </tr>
           {% endfor %}

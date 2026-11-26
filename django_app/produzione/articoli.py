@@ -174,24 +174,43 @@ def sincronizza(cartelle: list[tuple[str, str, float]] | None = None, con_cpk_se
     return {"creati": creati, "articoli": len(articoli), "cpk": cpk}
 
 
+def da_analizzare(pn: list[str] | None = None) -> list[ArticoloPN]:
+    """Gli articoli la cui analisi è da rifare: mai fatta o più vecchia dell'ultimo report letto (o escluso) del P/N. Con ``pn``
+    solo quelli; senza, tutti i P/N con report, dai mai analizzati e poi dai più vecchi."""
+    letti = {}
+    for pn_, l, e in ReportCMM.objects.filter(righe__gt=0).values("pn").annotate(l=Max("letto_il"), e=Max("escluso_il")).values_list("pn", "l", "e"):
+        letti[pn_] = max(x for x in (l, e) if x) if (l or e) else None
+    qs = ArticoloPN.objects.filter(pn__in=pn) if pn else ArticoloPN.objects.filter(pn__in=list(letti))
+    out = [a for a in qs if a.pn in letti and (a.analisi_il is None or (letti[a.pn] and letti[a.pn] > a.analisi_il))]
+    out.sort(key=lambda a: (a.analisi_il is not None, a.analisi_il or timezone.now()))
+    return out
+
+
+def analizza(a: ArticoloPN) -> None:
+    """Cpk peggiore, quote non capaci (Cpk < 1,33), quote in deriva e quote fuori nell'ultimo report del P/N, con le
+    stesse regole di ``analisi_pn`` (Quote CMM, scheda P/N e catalogo leggono questi numeri)."""
+    righe = cmm.analisi_pn(a.pn)
+    valori = [r["cpk"] for r in righe if r["cpk"] is not None]
+    a.cpk_peggiore = min(valori) if valori else None
+    a.quote_non_capaci = sum(1 for v in valori if v < 1.33)
+    a.quote_deriva = sum(1 for r in righe if r["deriva"])
+    a.quote_fuori_ultimo = sum(1 for r in righe if r["fuori_ultimo"])
+    a.analisi_il = timezone.now()
+    a.save(update_fields=["cpk_peggiore", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "analisi_il"])
+
+
 def aggiorna_cpk(secondi: float, pn: list[str] | None = None) -> int:
-    """Cpk peggiore e quote non capaci (Cpk < 1,33) dai report CMM: per i P/N indicati, oppure per quelli con
-    report negli ultimi 12 mesi dal riepilogo più vecchio, finché c'è tempo."""
+    """Rifà l'analisi (``analizza``) dei P/N da aggiornare (``da_analizzare``), finché c'è tempo."""
     scadenza = time.monotonic() + secondi
-    qs = ArticoloPN.objects.filter(pn__in=pn) if pn else ArticoloPN.objects.filter(n_report_12m__gt=0)
     fatti = 0
-    for a in qs.order_by("riepilogo_il"):
+    for a in da_analizzare(pn):
         if time.monotonic() > scadenza:
             break
         try:
-            righe = cmm.analisi_pn(a.pn)
+            analizza(a)
         except Exception:  # pragma: no cover - un P/N difettoso non ferma gli altri
-            logger.exception("riepilogo Cpk %s", a.pn)
+            logger.exception("analisi quote %s", a.pn)
             continue
-        valori = [r["cpk"] for r in righe if r["cpk"] is not None]
-        a.cpk_peggiore = min(valori) if valori else None
-        a.quote_non_capaci = sum(1 for v in valori if v < 1.33)
-        a.save(update_fields=["cpk_peggiore", "quote_non_capaci"])
         fatti += 1
     return fatti
 

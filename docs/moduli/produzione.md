@@ -76,6 +76,10 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 
 - `.prod-chip`, `.aq-chip`, `.aq-segmenti` come `.prot-filtro` (scelto = `var(--text)` pieno); `.prod-dati`/`.prod-dato`, `.aq-kpi`/`.aq-tiles`/`.aq-tile` come striscia unica (bordi interni con `box-shadow`); `.prod-cella` con la tavolozza di `.prot-liv`. Elenco OP e catalogo: `data-fm-hide-search="1"` (una sola ricerca). Solo CSS e template, nessuna migrazione.
 
+### Quote CMM con analisi precalcolata (26/11/2026)
+
+- `ArticoloPN.quote_deriva`, `quote_fuori_ultimo`, `analisi_il` (migrazione `produzione 0007`). `articoli.analizza(articolo)` li calcola con `cpk_peggiore` e `quote_non_capaci` da `analisi_pn`; `articoli.da_analizzare()` sceglie i P/N con analisi mai fatta o più vecchia dell'ultimo `letto_il`/`escluso_il`. Il giro chiama `aggiorna_cpk` sui P/N letti e poi sugli altri da aggiornare; `report_escludi` ricalcola il P/N. `cruscotto()` non chiama più `analisi_pn` (`analisi_pronta` falso = «in calcolo»).
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |
