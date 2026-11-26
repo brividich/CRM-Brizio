@@ -362,7 +362,8 @@ def scheda_pn(request, pn: str) -> dict | None:
     return dati
 
 
-SEZIONI_PN = (("", "Panoramica"), ("op", "OP"), ("report", "Report CMM"), ("programmi", "Programmi"), ("fai", "FAI"))
+SEZIONI_PN = (("", "Panoramica"), ("op", "OP"), ("report", "Report CMM"), ("qualita", "Qualità CMM"), ("programmi", "Programmi"),
+              ("fai", "FAI"))
 
 
 def da_fare_pn(dati: dict) -> list[dict]:

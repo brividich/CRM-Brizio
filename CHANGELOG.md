@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: pagine in stile protocollo CMM (report, pezzo, qualità del P/N, mappa)
+
+- Report CMM come il protocollo della CMM: timbro «Esito» (NOK / DA VERIFICARE / OK / ESCLUSO) con P/N, S/N, OP, programma, data e quote; quote per gruppo del report con icone ✓ ! ✕ ?; tabella con deviazione, grafico di deviazione (tolleranza, fascia all'80%, nominale, barra verde/gialla/rossa), «Fuori di» e «Usata»; dettaglio della quota a destra con l'andamento sugli ultimi 30 pezzi, Cpk, deriva, fuori, «Analisi quote» e «Apri anomalia»; frecce ↑ ↓, «Compatta», pezzo prima/dopo con lo stesso filtro.
+- Pagina del pezzo come multi-protocollo: «Stato pezzo» dall'ultimo report di ogni fase (la rimisura sostituisce la misura fuori), matrice quote × report colorata dalla tolleranza usata con viste % / deviazione / valore, clic sulla cella = report alla quota; report, anomalie e altri pezzi dello stesso OP. Tolta la lista «Storia» che ripeteva i report.
+- Scheda P/N, sezione nuova «Qualità CMM»: programmi e quote dalla peggiore per Cpk, carta di controllo dei singoli valori con distribuzione, Cpk/Cp/media/σ/fuori/deriva e una «Lettura» calcolata dai numeri; «Tabella Cpk». La sezione «Report CMM» non ripete più le quote critiche e mostra i report di una settimana (`?da=&a=`).
+- Quote CMM: «Mappa qualità» P/N × ultime 12 settimane (report con quote fuori / misurati, clic = report della settimana) e «Quote da guardare» di tutti i P/N.
+- Pagine di dettaglio (report, pezzo, P/N, OP, confronto, Analisi quote) senza le schede del modulo: percorso «Ordini di produzione › P/N › OP» e «? Guida»; stato e FAI non finiscono più nel nome del percorso in alto; il catalogo si intitola «Catalogo P/N». Corretta la barra «0 report scelti» che restava visibile senza righe spuntate.
+- File: `produzione/report_cmm_pagine.py` (`grafico`, `gruppi`, `pannello`, `_livello`, `qualita_pn`, `lettura_quota`), `report_cmm_indice.py` (`analisi_pn` con serie e statistiche, `cruscotto` con celle, `settimane_mappa`, `quote_da_guardare_tutte`), `views.py`, `services.py`, template `report_cmm`, `pezzo`, `pn_scheda`, `quote_cruscotto`, `scheda`, `report_confronta`, `quote`, `pn_elenco`, `static/produzione/css/produzione.css`, `static/produzione/js/protocollo.js` (nuovo), guida in-app, Centro guide, `docs/moduli/produzione.md`. Test: `tests_report_pagine.py`, `tests_quote_migliorie.py`. Nessuna migrazione; `collectstatic`.
 ### Formazione e competenze: le pagine dicono la stessa cosa (analisi pagina per pagina del 26/11, 20 interventi)
 
 **Stato della persona**
