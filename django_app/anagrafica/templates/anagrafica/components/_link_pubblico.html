@@ -12,7 +12,7 @@ body.theme-dark .lp-box{background:rgba(255,107,0,.08)}
   {% if link_pubblico.attivo %}
   <code id="lp-url">{{ link_pubblico.url }}</code>
   <button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('lp-url').textContent.trim());this.textContent='Copiato';">Copia</button>
-  <a class="hr-btn hr-btn-ghost hr-btn-sm" href="{{ link_pubblico.qr }}" target="_blank" rel="noopener">QR da stampare</a>
+  <a class="hr-btn hr-btn-ghost hr-btn-sm" href="{% if sessione.pk %}{% url 'anagrafica:formazione_sessione_locandina' sessione.pk %}{% else %}{% url 'anagrafica:formazione_corso_locandina' corso.pk %}{% endif %}">Locandina con QR</a>
   {% endif %}
   <a class="hr-btn hr-btn-ghost hr-btn-sm" href="{{ link_pubblico.gestione }}">{% if link_pubblico.attivo %}Gestisci{% else %}Attiva il link{% endif %}</a>
 </div>

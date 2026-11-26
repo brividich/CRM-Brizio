@@ -24,6 +24,7 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
       {% if cfg %}
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_player' sessione.pk %}?anteprima=1" target="_blank" rel="noopener">Prova come partecipante</a>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_export' sessione.pk %}">Avanzamento CSV</a>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_sessione_locandina' sessione.pk %}">Locandina con QR</a>
       {% endif %}
       {% if gestore and not sessione.is_approvata %}
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}">{% if cfg %}Modifica{% else %}Prepara la lezione{% endif %}</a>
@@ -41,6 +42,9 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
   <div class="so-body">
     {% if cfg and online.manca and not cfg.pubblicata %}
     <div class="so-banner"><strong>Per pubblicare manca:</strong> {{ online.manca|join:"; " }}.</div>
+    {% endif %}
+    {% if cfg and not cfg.materiale_corso and sessione.corso.is_elearning and online.slide_corso %}
+    <div class="so-banner"><strong>Due materiali diversi.</strong> Questa lezione usa slide e domande copiate nella sessione; il corso online e il link aperto usano quelle del corso ({{ online.slide_corso }} slide, {{ online.domande_corso }} domande). Chi completa da lì risulta comunque completato qui. Per avere un solo materiale: {% if gestore and not sessione.is_approvata %}<a href="{% url 'anagrafica:sessione_online_prepara' sessione.pk %}?passo=slide">Modifica → «Usa il materiale del corso»</a>{% else %}«Usa il materiale del corso» nella preparazione{% endif %}.</div>
     {% endif %}
 
     <div class="so-grid3">
@@ -128,13 +132,16 @@ Contesto: sessione, online (views_sessione_online.contesto_gestione), gestore, p
               <div class="so-muted">{{ r.reparto|default:"" }}{% if not r.ha_utente %} · <span class="so-ko">senza utente: avvisalo voi</span>{% endif %}</div></td>
             <td><div class="so-actions" style="flex-wrap:nowrap;"><div class="so-bar{% if r.slide_pct >= 100 %} ok{% endif %}" style="width:80px;"><span style="width:{{ r.slide_pct }}%"></span></div><span class="so-muted">{{ r.slide_viste }}/{{ online.n_slide }}</span></div></td>
             <td>{% if r.minuti %}{{ r.minuti }} min{% else %}<span class="so-muted">—</span>{% endif %}</td>
-            <td>{% if r.n_tentativi %}
+            <td>{% if r.fonte and not r.n_tentativi %}
+                {% if r.miglior_pct is not None %}<strong>{{ r.miglior_pct|floatformat:0 }}%</strong>{% else %}<span class="so-muted">superato</span>{% endif %}
+                <div class="so-muted">dal {{ r.fonte }}{% if r.fonte_quando %} · {{ r.fonte_quando|date:"d-m" }}{% endif %}</div>
+              {% elif r.n_tentativi %}
                 <strong>{{ r.miglior_pct|floatformat:0 }}%</strong>
                 <div class="so-muted">{{ r.n_tentativi }} tentativ{{ r.n_tentativi|pluralize:"o,i" }}{% if r.rimasti is not None %} · {{ r.rimasti }} rimast{{ r.rimasti|pluralize:"o,i" }}{% endif %}{% if r.ultimo %} · ultimo {{ r.ultimo.inviato_il|date:"d-m H:i" }}{% endif %}</div>
               {% else %}<span class="so-muted">—</span>{% endif %}</td>
             <td>{% if r.ultimo_accesso %}{{ r.ultimo_accesso|date:"d-m-Y H:i" }}{% if r.inattivo_gg and r.inattivo_gg >= 3 and r.da_sollecitare %}<div class="so-muted so-ko">fermo da {{ r.inattivo_gg }} giorni</div>{% endif %}{% else %}<span class="so-muted">mai</span>{% endif %}</td>
             <td>{% if r.link_inviato %}{{ r.link_inviato|date:"d-m" }}{% else %}<span class="so-muted">non inviato</span>{% endif %}{% if r.solleciti %}<div class="so-muted">{{ r.solleciti }} sollecit{{ r.solleciti|pluralize:"o,i" }}</div>{% endif %}</td>
-            <td><span class="so-pill {{ r.tono }}">{{ r.stato_label }}</span></td>
+            <td><span class="so-pill {{ r.tono }}">{{ r.stato_label }}</span>{% if r.fonte %}<div class="so-muted">con il {{ r.fonte }}</div>{% endif %}</td>
             {% if gestore %}
             <td><div class="so-rowbtns">
               {% if r.n_tentativi %}<a class="so-link" href="?risposte={{ r.enrollment.pk }}#lezione-online">Risposte</a>{% endif %}

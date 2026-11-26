@@ -525,6 +525,8 @@ GUIDA = {
                     "compresso in background.",
                     "«Da guardare fino in fondo»: serve almeno il 90% del video, contano i secondi guardati davvero.",
                     "«Consulta il materiale»: indice di presentazioni e video da leggere liberamente, con login o dal link aperto.",
+                    "Locandina con QR (A4, da stampare): dal link pubblico del corso o dell'edizione, dalla lezione online o "
+                    "dalle fasi della sessione in aula; QR del link aperto, della firma in aula o della lezione nel portale.",
                     "Video o slide a scelta: riquadro «Moduli», un modulo «Solo percorso video» e uno «Solo percorso slide»; "
                     "all'inizio il discente sceglie «Guarda il video» o «Segui le slide», stesso quiz.",
                     "Lezione online di sessione: «Usa il materiale del corso» usa slide, video e domande del corso senza copie.",

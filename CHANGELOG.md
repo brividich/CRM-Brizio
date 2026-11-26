@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: locandina con QR, tabella della lezione collegata agli altri canali
+
+- **Locandina** A4 da stampare per bacheche: edizioni (`formazione/sessioni/<id>/locandina/`) e corsi online (`formazione/corsi/<id>/locandina/`). Titolo, descrizione, quando/dove/docente (in aula) o «entro il» (online), durata e un QR grande: link aperto (online, se attivo), lezione nel portale, oppure QR d'aula per firmare; con più QR si sceglie in alto. Pulsanti «Locandina con QR» nel riquadro del link pubblico e nella lezione online, «Locandina» nelle fasi della sessione in aula. Migrazione anagrafica `0260` (permessi copiati da chi gestisce le presenze).
+- **Lezione online di sessione**: chi ha completato dal link aperto o dal corso online vede nella riga slide, tempo, punteggio, data e ultimo accesso di quel percorso, con «con il link aperto» sotto lo stato (prima 0/21 e trattini).
+- Avviso «Due materiali diversi» quando la lezione usa slide e domande copiate nella sessione mentre il corso online e il link aperto usano quelle del corso, con il collegamento a «Usa il materiale del corso».
+- File: `views_locandina.py` (nuovo), template `formazione_locandina.html` (nuovo), `urls.py`, `services/sessione_online.py` (`_dati_da_altri_canali`), `_sessione_online_gestione.html`, `_link_pubblico.html`, `_aula_fasi.html`, guida corsi online, Centro guide. Test: `tests_corso_aperto_ripresa.py`.
+
 ### Link aperto: il quiz si consegna una volta sola
 
 - Ogni quiz servito ha un gettone monouso (`cache.add` atomico): doppio clic, pagina ricaricata, seconda scheda, sessione rimessa com'era prima dell'invio o gettone inventato danno «Quiz già consegnato» (409) senza salvare nulla.

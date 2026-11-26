@@ -7,6 +7,7 @@ from unittest import mock
 
 from django.core import mail
 from django.test import Client
+from django.urls import reverse
 
 from .models_elearning import TrainingElearningPartecipazioneAperta as P
 from .models_formazione import TrainingEmployeeRecord, TrainingEnrollment, TrainingSession
@@ -249,3 +250,57 @@ class UnaSolaConsegnaTests(_Base):
         altro = Client()
         altro.post(self.url("registrati"), {"codice": p.codice, "cognome_ripresa": "rossi sintetico"})
         self.assertEqual(altro.get(self.url("quiz")).status_code, 409)
+
+
+class LocandinaTests(_Base):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        from core.models import UserOnboarding
+        self.admin = get_user_model().objects.create_superuser("hr.locandina", "hr@example.com", "pwd12345")
+        UserOnboarding.objects.get_or_create(user=self.admin, defaults={"completed": True})
+        self.hr = Client()
+        self.hr.force_login(self.admin)
+
+    def test_corso_online_qr_del_link_aperto(self):
+        r = self.hr.get(reverse("anagrafica:formazione_corso_locandina", args=[self.corso.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "<svg")
+        self.assertContains(r, self.link.token)
+        self.assertContains(r, "Corso officina")
+
+    def test_edizione_in_aula_qr_di_firma(self):
+        from datetime import time as t
+        from .models_formazione import TrainingLesson
+        s = TrainingSession.objects.create(corso=self.corso, codice_sessione="S-LOC-1", modalita="IN_SEDE",
+                                           data_inizio=date.today(), data_fine=date.today(), sede="Sala riunioni")
+        TrainingLesson.objects.create(sessione=s, numero=1, data=date.today(), ora_inizio=t(9), ora_fine=t(11))
+        r = self.hr.get(reverse("anagrafica:formazione_sessione_locandina", args=[s.pk]))
+        self.assertContains(r, "/corso-aperto/aula/")
+        self.assertContains(r, "Sala riunioni")
+        self.assertContains(r, "Il giorno del corso, inquadra per firmare")
+
+    def test_senza_permesso_niente_locandina(self):
+        from django.contrib.auth import get_user_model
+        u = get_user_model().objects.create_user("dip.semplice", "d@example.com", "pwd12345")
+        c = Client()
+        c.force_login(u)
+        r = c.get(reverse("anagrafica:formazione_corso_locandina", args=[self.corso.pk]))
+        self.assertNotEqual(r.status_code, 200)
+
+
+class RigheDaAltriCanaliTests(_Base):
+    def test_completato_dal_link_aperto_mostra_i_suoi_dati(self):
+        from .services import sessione_online as so
+        s = TrainingSession.objects.create(corso=self.corso, codice_sessione="S-ON-9", modalita="ONLINE",
+                                           data_inizio=date.today(), data_fine=date.today() + timedelta(days=9))
+        e = TrainingEnrollment.objects.create(sessione=s, legacy_anagrafica_id=self.dip.id, stato="ISCRITTO")
+        self.segui_corso()
+        self.consegna(self.giusta)
+        cfg = so.config(s, crea=True)
+        with mock.patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=[]):
+            riga = next(r for r in so.righe_gestione(s, cfg, 2) if r["enrollment"].pk == e.pk)
+        self.assertEqual(riga["stato"], so.REGISTRATA)
+        self.assertEqual((riga["fonte"], riga["slide_viste"], riga["slide_pct"]), ("link aperto", 2, 100))
+        self.assertEqual(int(riga["miglior_pct"]), 100)
+        self.assertIsNotNone(riga["ultimo_accesso"])

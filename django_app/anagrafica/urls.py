@@ -27,6 +27,7 @@ from . import views_retention
 from . import views_elearning
 from . import views_sessione_online
 from . import views_aula
+from . import views_locandina
 from . import views_formazione_tipi
 from . import views_sorveglianza
 from . import views_elenco
@@ -786,6 +787,10 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/tutti", views_aula.presenze_tutti, name="formazione_presenze_tutti"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/rapida", views_aula.presenza_rapida, name="formazione_presenza_rapida"),
     path("formazione/sessioni/<int:sessione_id>/aula/qr", views_aula.qr, name="formazione_aula_qr"),
+    path("formazione/sessioni/<int:sessione_id>/locandina/", views_locandina.sessione_locandina,
+         name="formazione_sessione_locandina"),
+    path("formazione/corsi/<int:corso_id>/locandina/", views_locandina.corso_locandina,
+         name="formazione_corso_locandina"),
     path("formazione/sessioni/<int:sessione_id>/aula/qr.png", views_aula.qr_png, name="formazione_aula_qr_png"),
     path("formazione/sessioni/<int:sessione_id>/aula/test", views_aula.test_aula, name="formazione_aula_test"),
     path("formazione/sessioni/<int:sessione_id>/chiudi", views_aula.chiudi, name="formazione_aula_chiudi"),
