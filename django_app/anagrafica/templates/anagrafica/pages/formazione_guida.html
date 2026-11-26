@@ -65,7 +65,7 @@
         <li>Le schede partono dal corso <strong>più scoperto</strong> (scaduti + mai frequentati + in scadenza entro 30 giorni); «A–Z» le mette in ordine di titolo e i pulsanti dei piani mostrano un piano solo. Un clic sulla scheda apre lo scadenzario di quel corso.</li>
         <li><strong>Scadenzario urgente</strong> e <strong>Aree del modulo</strong> sono in fondo: le aree sono le stesse di prima, in elenco.</li>
       </ol>
-      <p class="elg-nota">Numeri e schede vengono dallo scadenzario formazione, lo stesso dei KPI: si aggiorna quando si registra un completamento; se sembra fermo, un amministratore lo ricalcola con <code>refresh_training_deadlines --all</code>.</p>
+      <p class="elg-nota">Numeri e schede vengono dallo scadenzario formazione, lo stesso dei KPI: si aggiorna quando si registra un completamento; se sembra fermo (o dopo aver cambiato regole d'obbligo o validità) chi gestisce la formazione preme «Ricalcola scadenze» nello Scadenzario; di notte gira comunque da solo.</p>
     </section>
 
     <section class="fmd-panel elg-sec" id="scheda-corso">
@@ -170,6 +170,21 @@
         <li>La valutazione compare 15 giorni prima della scadenza in «Le mie attività» del capo della persona (regola capo e team) e nella pagina Formazione → Efficacia.</li>
         <li>Si sceglie «Efficace», «Parzialmente efficace» o «Non efficace», come è stata verificata (test teorico, prova pratica supervisionata, verifica sul campo) e, se l'esito non è pieno, cosa si fa: senza azione non si salva.</li>
         <li>Chi approva il MOD.040 vede in «Le mie attività» le edizioni chiuse da approvare e, 6 mesi dopo la fine, la «Verifica assenza NC».</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="remediation">
+      <h2><svg class="fmd-ico"><use href="#i-check"/></svg>Edizioni, rinnovi e numeri: come funzionano ora</h2>
+      <ul>
+        <li><strong>Stato dell'edizione</strong>: non si sceglie in «Modifica sessione». Nasce «Pianificata», diventa «In corso» da sola il giorno d'inizio, «Completata» con «Chiudi l'edizione» (registra gli esiti), «Annullata» con «Annulla»; «Riapri» con un motivo per tornare indietro.</li>
+        <li><strong>Annulla</strong>: chi era iscritto diventa «Ritirato» con la nota «edizione annullata». Non si annulla un'edizione con completamenti o con verifiche superate. L'edizione annullata non si chiude; riaprendola gli iscritti tornano «Iscritto».</li>
+        <li><strong>Chiudi l'edizione</strong> propone «Ritirato» per chi non è più in forza e per chi ha già il corso valido da un'altra strada («già completato il …»). La presenza si misura sulle sole giornate del turno della persona.</li>
+        <li><strong>Lezione online</strong>: non si apre più su edizioni completate, annullate o approvate, né a chi ha già un esito. Nelle edizioni con giornate d'aula o miste il test online vale solo come verifica.</li>
+        <li><strong>Rinnovi</strong>: un completamento chiude assegnazioni e iscrizioni solo se è valido; se scade entro 90 giorni non chiude il rinnovo aperto dopo. «Assegna» salta chi è già in regola. Il rinnovo automatico parte 90 giorni prima della scadenza (se non impostato diversamente).</li>
+        <li><strong>Link aperto</strong>: rispetta tentativi, attesa e tempo del quiz; un corso senza quiz si chiude con «Concludi il corso»; i quiz superati ma non abbinati compaiono in «Corsi online» («Quiz superati da abbinare») e nel riepilogo HR.</li>
+        <li><strong>Obbligatorio</strong>: in elenco, piano, Tipi ed export «Sì · per tutti» (spunta del corso) o «Sì · per mansione/ruolo/processo» (motore dei requisiti). Dopo aver cambiato regole d'obbligo o validità, «Ricalcola scadenze» nello Scadenzario aggiorna subito; di notte gira comunque da solo.</li>
+        <li><strong>Scheda corso</strong>: «Dipendenti del corso» comprende aula, sessioni, assegnazioni, corsi online e link aperto; gli ex dipendenti sono a parte. Report: «Elenco persone del corso» (CSV), «Attestati validi» (ZIP, l'ultimo per persona), «Fogli firme delle prossime lezioni». «Elimina corso» è bloccato se il corso ha uno storico: archivialo.</li>
+        <li><strong>Ex dipendenti</strong>: conta la cessazione già passata del rapporto in corso (il giorno di cessazione è l'ultimo lavorato); una riassunzione la annulla. <strong>Conformità</strong>: un corso obbligatorio mai fatto e una qualifica richiesta mancante sono un avviso «mancante»; contano solo le qualifiche richieste.</li>
       </ul>
     </section>
 

@@ -356,7 +356,12 @@ class GruppoEStampeTests(_Scenario):
                                               durata_ore_teorica=4)
         edizione = TrainingSession.objects.create(corso=corso, codice_sessione="ED-PROVA-1", data_inizio=date(2026, 10, 1),
                                                   data_fine=date(2026, 10, 2))
-        TrainingEnrollment.objects.create(sessione=edizione, legacy_anagrafica_id=self.rossi, stato="COMPLETATO", idoneo=True)
+        iscr = TrainingEnrollment.objects.create(sessione=edizione, legacy_anagrafica_id=self.rossi, stato="COMPLETATO",
+                                                 idoneo=True)
+        # «Attestato» solo con il completamento a libretto idoneo e non scaduto di questa edizione.
+        from .models_formazione import TrainingEmployeeRecord
+        TrainingEmployeeRecord.objects.create(corso=corso, legacy_anagrafica_id=self.rossi, sessione=edizione,
+                                              enrollment=iscr, data_completamento=date(2026, 10, 2), idoneo=True)
         self.assertEqual([e["id"] for e in svc.edizioni_persona(self.rossi)], [edizione.pk])
         s = self._aperta()
         riga = svc.valuta(self.capo, self._riga(s, self.v_disegno), modalita="C", livello="L", edizione_id=edizione.pk)

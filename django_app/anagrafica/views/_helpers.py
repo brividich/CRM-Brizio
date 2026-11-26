@@ -77,17 +77,14 @@ def _file_field_url(file_field) -> str:
 def _cessati_legacy_ids() -> set[int]:
     """Insieme dei ``legacy_anagrafica_id`` con rapporto cessato (ex dipendenti).
 
-    Un dipendente è considerato ex dipendente quando l'anagrafica aziendale ha
-    una ``data_cessazione`` valorizzata. Questi nominativi restano a sistema con
-    il fascicolo completo ma sono esclusi dalla lista dipendenti in forza.
+    Regola unica in ``services.in_forza.cessati_ids``: cessazione del rapporto
+    corrente (una riassunzione successiva la annulla) già passata. Questi
+    nominativi restano a sistema con il fascicolo completo ma sono esclusi dalla
+    lista dipendenti in forza.
     """
-    return {
-        int(lid)
-        for lid in DipendenteAnagraficaAziendale.objects
-        .filter(data_cessazione__isnull=False)
-        .values_list("legacy_anagrafica_id", flat=True)
-        if lid
-    }
+    from ..services.in_forza import cessati_ids
+
+    return cessati_ids()
 
 
 def _audit_safe(request, azione: str, modulo: str, dettaglio: dict | None = None) -> None:
@@ -655,7 +652,7 @@ def _impostazioni_admin_check(request, tab: str | None = None):
 # ---------------------------------------------------------------------------
 
 # Le visite mediche hanno regole proprie: finestra «in scadenza» a 60 giorni.
-GIORNI_PREAVVISO_VISITE = 60
+from ..scadenze_soglie import GIORNI_PREAVVISO_VISITE  # noqa: E402
 
 
 def _build_scadenzario_voci(
@@ -1047,30 +1044,24 @@ def _add_months(dt, months: int):
     return dt.replace(year=year, month=month, day=day)
 
 
-def _calcola_percentuale_presenza(enrollment: TrainingEnrollment) -> float | None:
-    """Calcola la percentuale di presenza sull'intero monte ore della sessione."""
-    lezioni = list(enrollment.sessione.lezioni.all())
-    if not lezioni:
-        return None
-    ore_totali = sum(lz.durata_ore for lz in lezioni)
-    if ore_totali <= 0:
-        return None
-    presenze = {
-        p.lezione_id: p
-        for p in TrainingLessonAttendance.objects.filter(
-            lezione__in=lezioni,
-            legacy_anagrafica_id=enrollment.legacy_anagrafica_id,
-        )
-    }
+def _presenza_su_lezioni(lezioni, presenza_di) -> tuple[float, float | None]:
+    """(ore frequentate, % di presenza) sulle ``lezioni`` attese per una persona.
+
+    ``presenza_di(lezione)`` restituisce la presenza registrata (o None)."""
+    ore_frequentate = 0.0
+    ore_totali = 0.0
     ore_effettive = 0.0
     for lz in lezioni:
         durata = lz.durata_ore
+        p = presenza_di(lz)
+        if p and p.stato_presenza in ("PRESENTE", "PARZIALE"):
+            ore_frequentate += float(p.ore_effettive) if p.ore_effettive else durata
         if durata <= 0:
             # Giornata senza durata (import storici 09:00-09:00): non entra nel
             # denominatore, quindi non può entrare nemmeno nel numeratore,
             # altrimenti la percentuale supera il 100%.
             continue
-        p = presenze.get(lz.pk)
+        ore_totali += durata
         if p and p.stato_presenza == "PRESENTE":
             ore = float(p.ore_effettive) if p.ore_effettive else durata
         elif p and p.stato_presenza == "PARZIALE":
@@ -1079,7 +1070,43 @@ def _calcola_percentuale_presenza(enrollment: TrainingEnrollment) -> float | Non
             continue
         # Mai più ore della giornata (dato storico fuori misura).
         ore_effettive += min(ore, durata)
-    return round(min(100.0, ore_effettive / ore_totali * 100), 2)
+    perc = round(min(100.0, ore_effettive / ore_totali * 100), 2) if lezioni and ore_totali > 0 else None
+    return round(ore_frequentate, 2), perc
+
+
+def _presenze_calcolate(sessione, iscrizioni) -> dict[int, tuple[float, float | None]]:
+    """``{enrollment_pk: (ore frequentate, % presenza)}`` per gli iscritti indicati, in tre query
+    (giornate, turni, presenze) qualunque sia il numero di iscritti e di giornate.
+
+    Con i turni assegnati ognuno è misurato solo sulle giornate del suo turno
+    (``training_turni``); chi non ha turni è atteso a tutte le giornate."""
+    from ..services.training_turni import mappa_turni_sessione
+
+    iscrizioni = list(iscrizioni)
+    if not iscrizioni:
+        return {}
+    lezioni = list(sessione.lezioni.all())
+    if not lezioni:
+        return {e.pk: (0.0, None) for e in iscrizioni}
+    turni = mappa_turni_sessione(sessione)
+    presenze = {
+        (p.legacy_anagrafica_id, p.lezione_id): p
+        for p in TrainingLessonAttendance.objects.filter(lezione__sessione=sessione)
+        .only("lezione_id", "legacy_anagrafica_id", "stato_presenza", "ore_effettive")
+    }
+    out = {}
+    for e in iscrizioni:
+        mie = turni.get(e.pk)
+        attese = [lz for lz in lezioni if not mie or lz.pk in mie]
+        lid = e.legacy_anagrafica_id
+        out[e.pk] = _presenza_su_lezioni(attese, lambda lz, lid=lid: presenze.get((lid, lz.pk)))
+    return out
+
+
+def _calcola_percentuale_presenza(enrollment: TrainingEnrollment) -> float | None:
+    """Percentuale di presenza sul monte ore delle giornate attese per l'iscritto
+    (tutte, oppure solo quelle del suo turno se ne ha uno)."""
+    return _presenze_calcolate(enrollment.sessione, [enrollment]).get(enrollment.pk, (0.0, None))[1]
 
 
 def _candidati_rinnovo_corso(corso, sessione=None) -> list[dict]:
@@ -1257,3 +1284,34 @@ def con_back(url: str, back: str) -> str:
     from urllib.parse import quote
 
     return f"{url}{'&' if '?' in url else '?'}back={quote(back, safe='')}"
+
+
+def _ambito_visibili(request) -> set[int] | None:
+    """Schede che il ruolo può vedere (id anagrafica), None = tutte.
+
+    Per le pagine globali (dashboard e scadenzario formazione, copertura, export):
+    stesso ambito propri/team/tutti dell'elenco dipendenti, solo con i ruoli attivi.
+    """
+    if not _ruoli_attivi():
+        return None
+    from .dipendenti import _schede_visibili
+
+    return _schede_visibili(request)
+
+
+def _filtra_ambito(qs, visibili: set[int] | None, campo: str = "legacy_anagrafica_id"):
+    """``qs`` ristretto alle schede ``visibili`` (None = nessun filtro).
+
+    Filtro a blocchi di 1000 id (limite parametri di SQL Server).
+    """
+    if visibili is None:
+        return qs
+    ids = sorted(visibili)
+    if not ids:
+        return qs.none()
+    from django.db.models import Q
+
+    cond = Q()
+    for i in range(0, len(ids), 1000):
+        cond |= Q(**{f"{campo}__in": ids[i:i + 1000]})
+    return qs.filter(cond)

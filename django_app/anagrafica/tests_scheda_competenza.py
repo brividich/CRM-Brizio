@@ -77,6 +77,11 @@ class SchedaCompetenzaTests(_DatiCompetenza):
     def test_corso_valido_toglie_il_requisito(self):
         TrainingDeadline.objects.create(legacy_anagrafica_id=self.senza.pk, corso=self.corso, is_required=True,
                                         data_scadenza=None, stato_scadenza="UNA_TANTUM")
+        from django.utils import timezone
+
+        from .models_formazione import TrainingEmployeeRecord
+        TrainingEmployeeRecord.objects.create(legacy_anagrafica_id=self.senza.pk, corso=self.corso, idoneo=True,
+                                              data_completamento=timezone.localdate())
         stati = {p["legacy_id"]: p["stato"] for p in cat_svc.scheda(self.cat)["persone"]}
         self.assertEqual(stati[self.senza.pk], cat_svc.STATO_OK)
 

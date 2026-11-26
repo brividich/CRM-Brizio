@@ -25,7 +25,7 @@
 </div>
 {% endif %}
 {% if completata_il %}
-<div class="pb-esito ok">Hai già completato questo corso il {{ completata_il|date:"d-m-Y" }}: il quiz non si ripete.</div>
+<div class="pb-esito ok">Risulta che questo corso è già completato: il quiz non si ripete.</div>
 <a class="pb-btn pb-btn-ghost pb-btn-full" href="{% url 'corso_aperto:materiale' link.token %}">Consulta il materiale</a>
 {% elif scegliere %}
 <h3 style="margin:18px 0 4px;font-size:17px;">Come preferisci seguire il corso?</h3>

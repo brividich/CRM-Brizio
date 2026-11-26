@@ -33,6 +33,7 @@ STATI_FINALI = ("COMPLETATO", "NON_IDONEO", "ASSENTE", "RITIRATO")
 MARGINE_MINUTI = 30          # il QR vale da mezz'ora prima a mezz'ora dopo la lezione
 USCITA_DOPO_MINUTI = 30      # una seconda firma prima di 30' dall'ingresso non è un'uscita
 SOGLIA_PRESENZA_PREDEFINITA = 90
+NOTA_EDIZIONE_ANNULLATA = "Ritirato: edizione annullata."
 
 
 class AulaError(Exception):
@@ -51,10 +52,17 @@ def token(sessione: TrainingSession) -> str:
 
 
 def sessione_da_token(tok: str) -> TrainingSession | None:
+    """La sessione del QR d'aula, solo se ancora aperta: chiusa, approvata o annullata il QR
+    non vale più (firme e test non si aggiungono all'evidenza di un'edizione chiusa)."""
     if not tok or len(tok) < 20:
         return None
-    return (TrainingSession.objects.select_related("corso").filter(token_aula=tok)
-            .exclude(stato="ANNULLATA").first())
+    return (TrainingSession.objects.select_related("corso").filter(token_aula=tok, approvata_il__isnull=True)
+            .exclude(stato__in=("ANNULLATA", "COMPLETATA")).first())
+
+
+def _verifica_aperta(sessione) -> None:
+    if sessione.stato in ("ANNULLATA", "COMPLETATA") or sessione.is_approvata:
+        raise AulaError("La sessione è chiusa: firme e test non si registrano più.")
 
 
 def _dt(data, ora) -> datetime:
@@ -131,6 +139,7 @@ def _ricalcola(enrollment) -> None:
 
 def firma_telefono(lezione, enrollment, adesso=None, ip: str = "") -> tuple[str, str]:
     """Firma d'ingresso o d'uscita dal telefono. Ritorna (cosa, "HH:MM")."""
+    _verifica_aperta(lezione.sessione)
     adesso = timezone.localtime(adesso or timezone.now())
     ora = adesso.time().replace(second=0, microsecond=0)
     with transaction.atomic():
@@ -173,15 +182,20 @@ def tutti_presenti(lezione, user) -> int:
     tutte = list(sessione.iscrizioni.exclude(stato="RITIRATO").order_by("legacy_anagrafica_id"))
     attesi = iscritti_attesi_lezione(sessione, lezione, tutte)
     gia = set(TrainingLessonAttendance.objects.filter(lezione=lezione).values_list("legacy_anagrafica_id", flat=True))
-    n = 0
-    for e in attesi:
-        if e.legacy_anagrafica_id in gia:
-            continue
-        TrainingLessonAttendance.objects.create(lezione=lezione, legacy_anagrafica_id=e.legacy_anagrafica_id,
-                                                enrollment=e, stato_presenza="PRESENTE", registrato_da=user)
-        _ricalcola(e)
-        n += 1
-    return n
+    nuovi = [e for e in attesi if e.legacy_anagrafica_id not in gia]
+    if not nuovi:
+        return 0
+    TrainingLessonAttendance.objects.bulk_create([
+        TrainingLessonAttendance(lezione=lezione, legacy_anagrafica_id=e.legacy_anagrafica_id,
+                                 enrollment=e, stato_presenza="PRESENTE", registrato_da=user)
+        for e in nuovi])
+    # Ore e percentuale di tutti in un colpo (non una query per giornata per iscritto).
+    from ..views.formazione import _ricalcola_presenze_iscrizioni
+    try:
+        _ricalcola_presenze_iscrizioni(sessione, nuovi)
+    except Exception:
+        logger.exception("Presenze della lezione %s non ricalcolate", lezione.pk)
+    return len(nuovi)
 
 
 def segna(lezione, enrollment, stato: str, user, ingresso=None, uscita=None) -> TrainingLessonAttendance:
@@ -270,8 +284,28 @@ def _soglie(sessione) -> tuple[int, bool, int]:
     return soglia_pres, esame, int(cfg.soglia_pct if cfg else 60)
 
 
+def _completamenti_altra_strada(sessione, legacy_ids) -> dict:
+    """{legacy_id: completamento valido} ottenuto fuori da questa edizione (altra edizione,
+    e-learning, link aperto, registrazione diretta): stessa regola di ``completamento_valido``."""
+    from django.db.models import Q
+
+    from ..models_formazione import TrainingEmployeeRecord
+
+    if not legacy_ids:
+        return {}
+    out = {}
+    for rec in (TrainingEmployeeRecord.objects
+                .filter(corso_id=sessione.corso_id, legacy_anagrafica_id__in=list(legacy_ids), idoneo=True)
+                .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=timezone.localdate()))
+                .exclude(sessione_id=sessione.pk)
+                .order_by("-data_completamento", "-pk")):
+        out.setdefault(rec.legacy_anagrafica_id, rec)
+    return out
+
+
 def proposta(sessione) -> list[RigaChiusura]:
     from ..views import _helpers
+    from .training_eligibility import _cessati_ids
 
     nomi = _helpers._build_nomi_map()
     soglia_pres, esame, _soglia_test = _soglie(sessione)
@@ -280,14 +314,33 @@ def proposta(sessione) -> list[RigaChiusura]:
     online_scaduta = sessione.modalita == "ONLINE" and not ha_lezioni and online_finita(sessione)
     con_presenze = set(TrainingLessonAttendance.objects.filter(lezione__sessione=sessione)
                        .values_list("legacy_anagrafica_id", flat=True))
+    iscrizioni = list(sessione.iscrizioni.order_by("legacy_anagrafica_id"))
+    aperte = [e for e in iscrizioni if e.stato not in STATI_FINALI]
+    # Presenza ricalcolata qui sulle giornate del turno di ciascuno (il dato salvato
+    # può essere di prima dell'assegnazione dei turni).
+    presenze = _helpers._presenze_calcolate(sessione, aperte) if ha_lezioni else {}
+    cessati = _cessati_ids()
+    altrove = _completamenti_altra_strada(sessione, {e.legacy_anagrafica_id for e in aperte})
     righe = []
-    for e in sessione.iscrizioni.order_by("legacy_anagrafica_id"):
-        pct = float(e.percentuale_presenza) if e.percentuale_presenza is not None else None
+    for e in iscrizioni:
+        ore_e, pct_e = presenze.get(e.pk, (None, None))
+        if pct_e is not None or ore_e is not None:
+            pct = pct_e
+            ore = float(ore_e or 0)
+        else:
+            pct = float(e.percentuale_presenza) if e.percentuale_presenza is not None else None
+            ore = float(e.ore_frequentate or 0)
         test_ok = e.verifica_superata
         r = RigaChiusura(e, nomi.get(e.legacy_anagrafica_id, f"#{e.legacy_anagrafica_id}"),
-                         float(e.ore_frequentate or 0), pct, e.punteggio, test_ok, "")
+                         ore, pct, e.punteggio, test_ok, "")
+        rec_altrove = altrove.get(e.legacy_anagrafica_id)
         if e.stato in STATI_FINALI:
             r.proposto, r.finale = e.stato, True
+        elif e.legacy_anagrafica_id in cessati:
+            r.proposto, r.motivo = "RITIRATO", "non più in forza"
+        elif rec_altrove is not None:
+            r.proposto = "RITIRATO"
+            r.motivo = f"già completato il {rec_altrove.data_completamento:%d/%m/%Y} (altra strada)"
         elif ha_lezioni and e.legacy_anagrafica_id not in con_presenze:
             r.motivo = "nessuna presenza registrata"
         elif ha_lezioni and pct is not None and pct < soglia_pres:
@@ -336,6 +389,8 @@ def chiudi(sessione, user, esiti: dict[int, str], carta: dict[int, str] | None =
 
     if sessione.is_approvata:
         raise AulaError("L'edizione è già approvata: per cambiarla va riaperta.")
+    if sessione.stato == "ANNULLATA":
+        raise AulaError("L'edizione è annullata: per chiuderla va prima riaperta indicando il motivo.")
     out = EsitoChiusura()
     if sessione.modalita == "ONLINE":
         # Chi ha superato il test va a libretto con la data del test, non con quella di chiusura.
@@ -388,11 +443,7 @@ def chiudi(sessione, user, esiti: dict[int, str], carta: dict[int, str] | None =
         sessione.chiusa_da_nome = nome_utente(user)[:160]
         sessione.save(update_fields=["stato", "chiusa_il", "chiusa_da_nome", "updated_at"])
         out.chiusa = True
-        from .sessione_online import config
-        cfg = config(sessione)
-        if cfg and cfg.test_in_aula:
-            cfg.test_in_aula = False
-            cfg.save(update_fields=["test_in_aula", "updated_at"])
+        _spegni_online(sessione)
     elif not out.aperti:
         out.chiusa = True
         if not sessione.chiusa_il:
@@ -404,16 +455,51 @@ def chiudi(sessione, user, esiti: dict[int, str], carta: dict[int, str] | None =
     return out
 
 
+def _spegni_online(sessione) -> None:
+    """Edizione chiusa o annullata: test d'aula chiuso e lezione online sospesa."""
+    from .sessione_online import config, sospendi
+    cfg = config(sessione)
+    if cfg is None:
+        return
+    if cfg.test_in_aula:
+        cfg.test_in_aula = False
+        cfg.save(update_fields=["test_in_aula", "updated_at"])
+    if cfg.pubblicata_il:
+        sospendi(cfg)
+
+
 def chiudi_con_proposta(sessione, user) -> EsitoChiusura:
     """Chiusura in blocco: applica solo gli esiti che il portale sa proporre."""
     return chiudi(sessione, user, {r.enrollment.pk: r.proposto for r in proposta(sessione) if r.proposto and not r.finale})
 
 
-def annulla(sessione) -> None:
+def annulla(sessione) -> int:
+    """Annulla l'edizione: chi era ancora iscritto o in corso diventa «Ritirato» con la nota
+    «edizione annullata», la lezione online si sospende. Ritorna quante iscrizioni ha ritirato.
+
+    Rifiuta se ci sono completamenti o verifiche superate non ancora registrate: lì l'edizione
+    si chiude, non si annulla."""
+    if sessione.is_approvata:
+        raise AulaError(f"{sessione.codice_sessione}: è approvata, non si annulla.")
+    if sessione.stato == "ANNULLATA":
+        raise AulaError(f"{sessione.codice_sessione}: è già annullata.")
     if sessione.iscrizioni.filter(stato="COMPLETATO").exists() or sessione.record_completamenti.exists():
         raise AulaError(f"{sessione.codice_sessione}: ha già dei completamenti, non si annulla.")
-    sessione.stato = "ANNULLATA"
-    sessione.save(update_fields=["stato", "updated_at"])
+    n_superati = sessione.iscrizioni.filter(verifica_superata=True).exclude(stato="RITIRATO").count()
+    if n_superati:
+        raise AulaError(f"{sessione.codice_sessione}: {n_superati} person{'a ha' if n_superati == 1 else 'e hanno'} "
+                        "superato la verifica senza completamento registrato: chiudi l'edizione invece di annullarla.")
+    with transaction.atomic():
+        n = 0
+        for e in sessione.iscrizioni.filter(stato__in=STATI_APERTI):
+            e.stato = "RITIRATO"
+            e.note = ((e.note + "\n") if e.note else "") + NOTA_EDIZIONE_ANNULLATA
+            e.save(update_fields=["stato", "note", "updated_at"])
+            n += 1
+        sessione.stato = "ANNULLATA"
+        sessione.save(update_fields=["stato", "updated_at"])
+        _spegni_online(sessione)
+    return n
 
 
 STATI_NON_CHIUSI = ("PIANIFICATA", "IN_CORSO")
@@ -463,15 +549,20 @@ def online_finita(sessione, oggi=None) -> bool:
 
 
 def cosa_manca_breve(sessione) -> tuple[str, str]:
-    """(testo, tono) per la colonna «Cosa manca» dell'elenco Da chiudere."""
+    """(testo, tono) per la colonna «Cosa manca» dell'elenco Da chiudere.
+
+    Contano gli iscritti non ritirati; tra gli esiti aperti non contano gli ex dipendenti
+    (la chiusura li propone «Ritirato»)."""
     n = getattr(sessione, "n_iscritti_tot", None)
     if n is None:
-        n = sessione.iscrizioni.count()
+        n = sessione.iscrizioni.exclude(stato="RITIRATO").count()
     if not n:
         return "nessun iscritto: da annullare?", "grey"
     aperti = getattr(sessione, "n_aperti", None)
     if aperti is None:
-        aperti = sessione.iscrizioni.filter(stato__in=STATI_APERTI).count()
+        from .training_eligibility import _cessati_ids
+        aperti = sessione.iscrizioni.filter(stato__in=STATI_APERTI).exclude(
+            legacy_anagrafica_id__in=_cessati_ids()).count()
     if not aperti:
         return "esiti tutti dati: solo da chiudere", "ok"
     return f"esito di {aperti} person{'a' if aperti == 1 else 'e'}", "warn"
@@ -482,8 +573,11 @@ def cosa_manca_breve(sessione) -> tuple[str, str]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def fase(sessione, oggi=None) -> str:
-    """prima · durante · dopo. Le online (slide + test) restano «durante» fino alla scadenza."""
+    """prima · durante · dopo (o «annullata»). Le online (slide + test) restano «durante» fino
+    alla scadenza."""
     oggi = oggi or timezone.localdate()
+    if sessione.stato == "ANNULLATA":
+        return "annullata"
     if sessione.is_chiusa:
         return "dopo"
     if sessione.modalita == "ONLINE":
@@ -560,12 +654,16 @@ def edizioni_da_approvare():
             .select_related("corso").order_by("-data_fine", "-id"))
 
 
-def verifiche_nc_dovute(oggi=None) -> list:
+def q_verifiche_nc_dovute(oggi=None):
+    """Edizioni approvate senza verifica «assenza NC» e finite da almeno 6 mesi. Unica regola per
+    le attività di MSM/MSO e per il controllo dell'Integrità dati (chiuse da qui o no)."""
+    from django.db.models import Q
+
     from .formazione_efficacia import aggiungi_mesi
     oggi = oggi or timezone.localdate()
-    out = []
-    for s in (TrainingSession.objects.filter(approvata_il__isnull=False, chiusa_il__isnull=False, verifica_nc_esito="")
-              .select_related("corso").order_by("data_fine")):
-        if s.data_fine and aggiungi_mesi(s.data_fine, TrainingSession.MESI_VERIFICA_NC) <= oggi:
-            out.append(s)
-    return out
+    limite = aggiungi_mesi(oggi, -TrainingSession.MESI_VERIFICA_NC)
+    return Q(approvata_il__isnull=False, verifica_nc_esito="", data_fine__lte=limite)
+
+
+def verifiche_nc_dovute(oggi=None) -> list:
+    return list(TrainingSession.objects.filter(q_verifiche_nc_dovute(oggi)).select_related("corso").order_by("data_fine"))

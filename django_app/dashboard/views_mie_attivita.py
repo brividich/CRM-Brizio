@@ -406,13 +406,15 @@ def _my_procedure(request_user) -> list[dict]:
 
 
 def _safety_scadenze(request) -> list[dict] | None:
-    """Qualifiche/abilitazioni scadute o in scadenza (≤60gg) da gestire.
+    """Qualifiche/abilitazioni scadute o in scadenza da gestire (prime 10).
 
     Vista **gestionale** (gated dal permesso formazione/HR): ritorna ``None`` se
-    l'utente non ha il permesso (la sezione non viene mostrata). Query leggera; i
-    nomi dipendente sono risolti solo per i pochi item mostrati. Le visite mediche
-    (dato sanitario) sono escluse di proposito; il conteggio idoneità "non idonei"
-    resta sul cruscotto Safety (calcolo batch più pesante).
+    l'utente non ha il permesso (la sezione non viene mostrata). Le voci vengono
+    dallo scadenzario unificato (``_build_scadenzario_voci`` con
+    ``filtro_tipo="qualifica"``): stessa finestra di preavviso, solo la qualifica
+    corrente per tipo, niente ex dipendenti e solo le persone nell'ambito del
+    ruolo. Prima le scadute più recenti, poi le prossime a scadere. Le visite
+    mediche (dato sanitario) sono escluse di proposito.
     """
     try:
         from anagrafica.views import _can_view_formazione
@@ -421,35 +423,20 @@ def _safety_scadenze(request) -> list[dict] | None:
     except Exception:
         return None
     try:
-        from datetime import timedelta
-        from django.utils import timezone
-        from anagrafica.models import DipendenteQualifica
-        from core.legacy_anagrafica import fetch_anagrafica_rows
+        from anagrafica.views._helpers import _build_scadenzario_voci
 
-        oggi = timezone.localdate()
-        soglia = oggi + timedelta(days=60)
-        qs = list(
-            DipendenteQualifica.objects.select_related("tipo")
-            .filter(data_scadenza__isnull=False, data_scadenza__lte=soglia)
-            .order_by("data_scadenza")[:10]
-        )
-        nomi: dict[int, str] = {}
-        ids = list({q.legacy_anagrafica_id for q in qs})
-        if ids:
-            for r in fetch_anagrafica_rows(ids=ids):
-                rid = int(r.get("id") or 0)
-                if rid:
-                    nomi[rid] = naming.nome_completo(r.get('nome'), r.get('cognome'))
+        voci = _build_scadenzario_voci(request, filtro_tipo="qualifica")
+        scadute = sorted((v for v in voci if v["giorni"] < 0), key=lambda v: -v["giorni"])
+        prossime = sorted((v for v in voci if v["giorni"] >= 0), key=lambda v: v["giorni"])
         url = _safe_url("anagrafica:scadenzario") + "?tipo=qualifica"
         out = []
-        for q in qs:
-            scaduta = q.data_scadenza < oggi
+        for v in (scadute + prossime)[:10]:
             out.append({
-                "code": f"Q-{q.id}",
-                "title": q.tipo.nome,
-                "meta": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
-                "status": "Scaduta" if scaduta else "In scadenza",
-                "due": q.data_scadenza,
+                "code": f"Q-{v['legacy_id']}-{v['tipo_id']}",
+                "title": v["tipo_nome"],
+                "meta": naming.nome_completo(v.get("nome"), v.get("cognome")) or f"#{v['legacy_id']}",
+                "status": "Scaduta" if v["scaduta"] else "In scadenza",
+                "due": v["data_scadenza"],
                 "url": url,
             })
         return out

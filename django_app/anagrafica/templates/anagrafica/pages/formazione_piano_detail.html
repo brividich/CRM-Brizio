@@ -69,7 +69,7 @@
                 data-col-sortable="1" data-col-filterable="1">Stato</th>
             <th class="num" data-col="durata" data-col-label="Durata (h)" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Durata (h)</th>
             <th class="num" data-col="validita" data-col-label="Validità (m)" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Validità (m)</th>
-            <th data-col="obbligatorio" data-col-label="Obbligatorio" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Obbligatorio</th>
+            <th data-col="obbligatorio" data-col-label="Obbligatorio" data-col-type="select" data-col-options='[["tutti","Sì · per tutti"],["mansione","Sì · per mansione/ruolo/processo"],["no","No"]]' data-col-sortable="1" data-col-filterable="1">Obbligatorio</th>
             <th class="num" data-col="sessioni" data-col-label="Sessioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Sessioni</th>
             <th class="nowrap">Azioni</th>
           </tr>
@@ -84,7 +84,7 @@
             <td><span class="fm-pill fm-pill-{{ c.stato|lower }}">{{ c.get_stato_display }}</span></td>
             <td class="num">{{ c.durata_ore_teorica }}</td>
             <td class="num">{% if c.validita_mesi %}{{ c.validita_mesi }}{% else %}<span class="muted" style="font-weight:400;">una tantum</span>{% endif %}</td>
-            <td>{% if c.obbligatorio %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td data-value="{% if c.obbligo == 'per tutti' %}tutti{% elif c.obbligo %}mansione{% else %}no{% endif %}">{% if c.obbligo %}<span class="fm-pill fm-pill-enrolled">Sì · {{ c.obbligo }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
             <td class="num">{{ c.n_sessioni }}</td>
             <td class="nowrap"><a href="{% url 'anagrafica:formazione_corso_detail' c.pk %}" class="hr-btn hr-btn-sm">Apri</a></td>
           </tr>

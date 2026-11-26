@@ -52,7 +52,7 @@ body.theme-dark .elc-bar { background:var(--surface-alt); }
 
     <div class="elc-kpi">
       <a class="fmd-panel kpi-link" href="#elc-copertura" title="Vai alla copertura per reparto: le righe sommano a questi obblighi"><span class="fmd-muted">Obblighi in regola</span><strong>{{ copertura.pct }}%</strong><span class="fmd-muted">{{ copertura.in_regola }} su {{ copertura.obblighi }}</span></a>
-      <div class="fmd-panel" title="Somma del tempo accreditato a tutte le iscrizioni{% if corso_id %} del corso scelto{% endif %}"><span class="fmd-muted">Ore di fruizione effettiva</span><strong>{{ andamento.ore_erogate }}</strong><span class="fmd-muted">misurate lato server{% if reparto %} · tutti i reparti{% endif %}</span></div>
+      <div class="fmd-panel" title="Tempo effettivo dei completamenti del registro dal {{ andamento.dal|date:'d/m/Y' }}{% if corso_id %} del corso scelto{% endif %}"><span class="fmd-muted">Ore di fruizione effettiva</span><strong>{{ andamento.ore_erogate }}</strong><span class="fmd-muted">misurate lato server{% if reparto %} · tutti i reparti{% endif %}</span></div>
       <a class="fmd-panel kpi-link" href="{% url 'anagrafica:elearning_registro' %}?dal={{ andamento.dal|date:'Y-m-d' }}{% if corso_id %}&amp;corso={{ corso_id }}{% endif %}" title="Apri il registro filtrato: completamenti dal {{ andamento.dal|date:'d/m/Y' }}"><span class="fmd-muted">Completamenti (12 mesi)</span><strong>{{ andamento.totale_periodo }}</strong><span class="fmd-muted">registrati nel registro{% if reparto %} · tutti i reparti{% endif %}</span></a>
     </div>
 

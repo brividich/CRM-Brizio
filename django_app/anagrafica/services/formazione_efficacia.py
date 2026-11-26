@@ -119,11 +119,17 @@ def valutazioni_da_fare(entro: date | None = None, legacy_anagrafica_id: int | N
 
     if entro is None:
         entro = (oggi or _tz.localdate()) + timedelta(days=anticipo_giorni or 0)
+    from .training_eligibility import _cessati_ids
+
+    # Completamenti annullati ed ex dipendenti: non c'è più nulla da valutare sul campo.
     qs = (
         TrainingEfficacia.objects
-        .filter(valutata_il__isnull=True, attesa_dal__lte=entro)
+        .filter(valutata_il__isnull=True, attesa_dal__lte=entro, record__annullato_il__isnull=True)
         .select_related("record", "record__corso")
     )
+    cessati = _cessati_ids()
+    if cessati:
+        qs = qs.exclude(legacy_anagrafica_id__in=cessati)
     if legacy_anagrafica_id is not None:
         qs = qs.filter(legacy_anagrafica_id=legacy_anagrafica_id)
     return qs.order_by("attesa_dal", "id")

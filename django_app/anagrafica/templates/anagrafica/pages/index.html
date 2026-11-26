@@ -139,7 +139,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
         <div class="hr-hero-stat-val">{% if cruscotto.copertura_totale.totale %}{{ cruscotto.copertura_totale.pct_in_regola }}%{% else %}—{% endif %}</div>
         <div class="hr-hero-stat-lbl">Obblighi in regola</div>
       </a>
-      <a class="hr-hero-stat" href="{% url 'anagrafica:conformita_report' %}?esito=ko" title="Le persone non conformi, una riga per persona, con l'area da sistemare">
+      <a class="hr-hero-stat" href="{% url 'anagrafica:conformita_report' %}?esito=scadute" title="Le persone con un corso obbligatorio o una visita scaduti, una riga per persona">
         <div class="hr-hero-stat-val">{{ cruscotto.persone_ko }}</div>
         <div class="hr-hero-stat-lbl">Persone con formazione o visite scadute</div>
       </a>

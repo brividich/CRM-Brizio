@@ -15,7 +15,7 @@ import unicodedata
 from collections import Counter
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count
 
 from ..models_formazione import (
     TrainingAssignment, TrainingCourse, TrainingCourseType, TrainingPlan, TrainingPlanNonDoppio,
@@ -33,10 +33,16 @@ def _norm(testo: str) -> str:
 
 
 def tipi_con_conteggi():
-    return list(TrainingCourseType.objects.annotate(
-        n_corsi=Count("corsi", distinct=True),
-        n_obbligatori=Count("corsi", filter=Q(corsi__obbligatorio=True), distinct=True),
-    ).order_by("ordine", "nome"))
+    """Tipi con il numero di corsi e di corsi obbligatori («obbligatorio» = regola unica del
+    catalogo, ``formazione_catalogo.q_obbligatori``: spunta per tutti, mansione, ruolo, processo)."""
+    from .formazione_catalogo import q_obbligatori
+
+    obbligatori = Counter(
+        TrainingCourse.objects.filter(q_obbligatori(), tipo__isnull=False).values_list("tipo_id", flat=True))
+    tipi = list(TrainingCourseType.objects.annotate(n_corsi=Count("corsi", distinct=True)).order_by("ordine", "nome"))
+    for t in tipi:
+        t.n_obbligatori = obbligatori.get(t.pk, 0)
+    return tipi
 
 
 def piani_con_conteggi() -> list[dict]:

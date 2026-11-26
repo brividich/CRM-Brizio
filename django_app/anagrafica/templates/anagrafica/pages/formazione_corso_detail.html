@@ -50,8 +50,8 @@
   {# ── KPI mini ────────────────────────────────────────────────────────────── #}
   <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
     <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ corso.durata_ore_teorica }}h</span></div><div class="fmd-mtr-lbl">Durata teorica</div><div class="fmd-mtr-sub">{% if corso.validita_mesi %}Rinnovo ogni {{ corso.validita_mesi }} mesi{% else %}Una tantum{% endif %}</div></div>
-    <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:formazione_sessioni_list' %}?corso={{ corso.pk }}" title="Apri l'elenco filtrato: tutte le sessioni del corso"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_sessioni }}</span></div><div class="fmd-mtr-lbl">Sessioni</div><div class="fmd-mtr-sub">{{ sessioni_sub }}</div></a>
-    <a class="fmd-mtr fmd-t-green kpi-link" href="#corso-dipendenti" title="Vai ai dipendenti del corso: la colonna dei completati somma a questo numero"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_completamenti }}</span></div><div class="fmd-mtr-lbl">Completamenti</div><div class="fmd-mtr-sub">Registrati, rinnovi compresi</div></a>
+    <a class="fmd-mtr fmd-t-navy kpi-link" href="{% url 'anagrafica:formazione_sessioni_list' %}?corso={{ corso.pk }}&amp;stato=NON_ANNULLATE" title="Apri l'elenco filtrato: le sessioni del corso, annullate escluse"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_sessioni }}</span></div><div class="fmd-mtr-lbl">Sessioni</div><div class="fmd-mtr-sub">{{ sessioni_sub }}</div></a>
+    <a class="fmd-mtr fmd-t-green kpi-link" href="#corso-dipendenti" title="Completamenti idonei registrati, rinnovi ed ex dipendenti compresi: vai alle persone del corso"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_completamenti }}</span></div><div class="fmd-mtr-lbl">Completamenti</div><div class="fmd-mtr-sub">Idonei, rinnovi compresi</div></a>
   </section>
 
   {# ── Come si fa questo corso: online sempre aperto e/o sessioni; slide e test unici ── #}
@@ -104,7 +104,7 @@
         {% endfor %}
         <div class="csf-act">
           {% if is_editor %}<a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ corso.pk }}">+ Nuova sessione</a>{% endif %}
-          {% if m.n_sessioni %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_sessioni_list' %}?corso={{ corso.pk }}">Tutte le sessioni</a>{% endif %}
+          {% if m.n_sessioni %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_sessioni_list' %}?corso={{ corso.pk }}&amp;stato=NON_ANNULLATE">Tutte le sessioni</a>{% endif %}
         </div>
       </div>
     </div>
@@ -124,10 +124,10 @@
       <div class="fmd-block-aside">Scarica al volo i documenti pronti</div>
     </div>
     <div style="display:flex;gap:9px;flex-wrap:wrap;">
-      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_corso_report_iscritti_csv' corso.pk %}" title="Elenco dipendenti con stato, % presenza, idoneità (CSV)"><svg class="fmd-ico"><use href="#i-doc"/></svg>Elenco iscritti/completati (CSV)</a>
-      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_corso_attestati_zip' corso.pk %}" title="ZIP con gli attestati PDF di tutti i completamenti"><svg class="fmd-ico"><use href="#i-award"/></svg>Attestati completati (ZIP)</a>
-      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_corso_registri_pdf' corso.pk %}" target="_blank" rel="noopener" title="Foglio firme di tutte le lezioni, pronto da firmare"><svg class="fmd-ico"><use href="#i-doc"/></svg>Fogli firme di tutte le lezioni (PDF)</a>
-      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_scadenzario' %}?corso={{ corso.pk }}" title="Chi è in regola / scaduto / mai frequentato per questo corso"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Report conformità</a>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_corso_report_iscritti_csv' corso.pk %}" title="Le persone del corso con lo stato della scheda, % presenza e completamenti idonei; ex dipendenti in fondo (CSV)"><svg class="fmd-ico"><use href="#i-doc"/></svg>Elenco persone del corso (CSV)</a>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_corso_attestati_zip' corso.pk %}" title="ZIP con l'attestato dell'ultimo completamento valido di ogni persona"><svg class="fmd-ico"><use href="#i-award"/></svg>Attestati validi (ZIP)</a>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_corso_registri_pdf' corso.pk %}" target="_blank" rel="noopener" title="Foglio firme delle lezioni da oggi in poi delle sessioni pianificate o in corso, pronto da firmare"><svg class="fmd-ico"><use href="#i-doc"/></svg>Fogli firme delle prossime lezioni (PDF)</a>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_scadenzario' %}?corso={{ corso.pk }}{% if not obbligo_catalogo %}&amp;obbligatori=0{% endif %}" title="Scaduti, in scadenza e mai frequentati"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Report conformità</a>
     </div>
   </section>
 
@@ -136,7 +136,7 @@
   {# ── Schede: la pagina era una colonna di dieci form. Ora: cosa serve ogni giorno in Panoramica, il resto per tema. #}
   <nav class="corso-tabs" aria-label="Sezioni del corso">
     <a href="#panoramica" data-corso-tab="panoramica" class="on">Panoramica</a>
-    <a href="#persone" data-corso-tab="persone" title="Persone tenute al corso, non ancora a posto e non assegnate">Da assegnare{% if is_editor %} <span class="fm-count">{{ candidati_assegnazione|length }}</span>{% endif %}</a>
+    {% if is_editor %}<a href="#persone" data-corso-tab="persone" title="Persone tenute al corso, non ancora a posto e non assegnate">Da assegnare <span class="fm-count">{{ candidati_assegnazione|length }}</span></a>{% endif %}
     <a href="#contenuti" data-corso-tab="contenuti">Contenuti</a>
     <a href="#superamento" data-corso-tab="superamento">Regola di superamento</a>
   </nav>
@@ -320,7 +320,7 @@
               data-col-options='[["IN_SEDE","In aula"],["ESTERNO","Ente esterno"],["REMOTO","Online in diretta"],["ONLINE","Slide + test"],["MISTO","Misto"]]'
               data-col-sortable="1" data-col-filterable="1">Modalità</th>
           <th data-col="stato" data-col-label="Stato" data-col-type="select"
-              data-col-options='[["PIANIFICATA","Pianificata"],["IN_CORSO","In corso"],["COMPLETATA","Completata"],["ANNULLATA","Annullata"]]'
+              data-col-options='[["PIANIFICATA","Pianificata"],["IN_CORSO","In corso"],["COMPLETATA","Completata"]]'
               data-col-sortable="1" data-col-filterable="1">Stato</th>
           <th data-col="docente" data-col-label="Docente / Ente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente / Ente</th>
           <th class="num" data-col="lezioni" data-col-label="Lezioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Lezioni</th>
@@ -367,9 +367,9 @@
 <div class="hr-card fm-section" id="corso-dipendenti">
   <div class="fm-section-head">
     <div class="fm-section-title">
-      👥 Dipendenti iscritti <span class="fm-count">{{ n_dipendenti_iscritti }}</span>
+      👥 Dipendenti del corso <span class="fm-count">{{ n_dipendenti_iscritti }}</span>
     </div>
-    <div class="muted" style="font-size:11px;">Aggregato su tutte le sessioni del corso</div>
+    <div class="muted" style="font-size:11px;">Persone con un'attività sul corso</div>
   </div>
   {% if dipendenti_iscritti %}
   <div class="fm-table-wrap">
@@ -381,7 +381,7 @@
               data-col-options='[["COMPLETATO","Completato"],["SCADUTO","Scaduto"],["DA_REGISTRARE","Da registrare"],["IN_CORSO","In corso"],["DA_FARE","Da fare"]]'
               data-col-sortable="1" data-col-filterable="1">Stato</th>
           <th class="num" data-col="sessioni" data-col-label="Sessioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Sessioni</th>
-          <th class="num" data-col="completati" data-col-label="Completati" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Completati</th>
+          <th class="num" data-col="completati" data-col-label="Completati" data-col-type="number" data-col-sortable="1" data-col-filterable="1" title="Completamenti idonei, rinnovi compresi">Completati</th>
           <th class="nowrap" data-col="ultimo" data-col-label="Ultimo completamento" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Ultimo completamento</th>
           <th data-col="idoneo" data-col-label="Idoneo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Idoneo</th>
           <th class="nowrap">Azioni</th>
@@ -411,8 +411,9 @@
     </table>
   </div>
   {% else %}
-  <div class="fm-empty">Nessun dipendente iscritto al corso.</div>
+  <div class="fm-empty">Nessun dipendente in forza con un'attività sul corso.</div>
   {% endif %}
+  {% if n_ex_dipendenti %}<div class="muted" style="font-size:12px;margin-top:8px;">Più {{ n_ex_dipendenti }} ex dipendent{{ n_ex_dipendenti|pluralize:"e,i" }} con un'attività sul corso, non contat{{ n_ex_dipendenti|pluralize:"o,i" }}: sono nel CSV «Elenco persone del corso».</div>{% endif %}
 </div>
 
 
@@ -845,10 +846,15 @@
         {% else %}
           {% if completion_rule %}
           <div style="padding:12px 14px;font-size:12.5px;">
+            {% if not completion_rule.is_active %}<div style="margin-bottom:6px;"><span class="fm-pill fm-pill-expired">Disattiva</span> <span class="muted">la regola non si applica</span></div>{% endif %}
             <div>Ore minime: <strong>{{ completion_rule.ore_minime_percentuale }}%</strong></div>
             <div>Presenze minime: <strong>{{ completion_rule.presenza_minima_percentuale }}%</strong></div>
             <div>Richiede esame finale: <strong>{% if completion_rule.richiede_esame_finale %}Sì{% else %}No{% endif %}</strong></div>
             <div>Richiede firma presenza: <strong>{% if completion_rule.richiede_firma_presenza %}Sì{% else %}No{% endif %}</strong></div>
+            <div>Richiede attestato: <strong>{% if completion_rule.richiede_attestato %}Sì{% else %}No{% endif %}</strong></div>
+            <div>Richiede validazione HR: <strong>{% if completion_rule.richiede_validazione_hr %}Sì{% else %}No{% endif %}</strong></div>
+            <div>Valida: <strong>{% if completion_rule.valid_from %}dal {{ completion_rule.valid_from|date:"d-m-Y" }}{% endif %}{% if completion_rule.valid_to %} al {{ completion_rule.valid_to|date:"d-m-Y" }}{% endif %}{% if not completion_rule.valid_from and not completion_rule.valid_to %}sempre{% endif %}</strong></div>
+            {% if completion_rule.note %}<div>Note: {{ completion_rule.note|linebreaksbr }}</div>{% endif %}
           </div>
           {% else %}
           <div class="fm-empty">Nessuna regola configurata.</div>

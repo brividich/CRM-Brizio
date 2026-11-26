@@ -67,8 +67,8 @@ def formazione_sessione_riapri(request, sessione_id: int):
     _audit_formazione(request, "edizione_riaperta", {
         "sessione_id": sessione.pk, "codice_sessione": sessione.codice_sessione, **traccia,
     })
-    messages.success(request, f"Edizione «{sessione.codice_sessione}» riaperta: ora è «In corso». "
-                              "Corretto il dato, riportala a «Completata».")
+    messages.success(request, f"Edizione «{sessione.codice_sessione}» riaperta: ora è «{sessione.get_stato_display()}». "
+                              "Corretto il dato, chiudila di nuovo con «Chiudi l'edizione».")
     return _al_dettaglio(sessione_id)
 
 

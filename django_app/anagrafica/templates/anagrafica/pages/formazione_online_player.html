@@ -29,7 +29,9 @@
       <div class="fmd-pagehead-actions">{% if a_scelta and percorso %}<span class="fmd-badge fmd-b-cyan" style="align-self:center;">Percorso {% if percorso == "VIDEO" %}video{% else %}slide{% endif %}</span>{% if puo_cambiare %}<a class="fmd-btn fmd-btn-ghost" href="?cambia=1">Cambia</a>{% endif %}{% endif %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_materiale' corso.pk %}"><svg class="fmd-ico"><use href="#i-book"/></svg>Consulta il materiale</a></div>
     </div>
 
-    {% if anteprima %}
+    {% if consultazione %}
+    <div class="fmd-panel" style="padding:12px 16px;margin-bottom:12px;border-left:4px solid #1f87cd;">Hai già completato questo corso: lo stai rivedendo, niente viene registrato.</div>
+    {% elif anteprima %}
     <div class="fmd-panel" style="padding:12px 16px;margin-bottom:12px;border-left:4px solid #1f87cd;">Anteprima editor: avanzamento e quiz non vengono registrati.</div>
     {% endif %}
     {% if no_anagrafica %}

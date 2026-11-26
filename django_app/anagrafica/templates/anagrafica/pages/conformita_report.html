@@ -88,6 +88,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
             <option value="warn" {% if filtro_esito == "warn" %}selected{% endif %}>Solo in scadenza</option>
             <option value="ok" {% if filtro_esito == "ok" %}selected{% endif %}>Solo in regola</option>
             <option value="na" {% if filtro_esito == "na" %}selected{% endif %}>Senza requisiti</option>
+            <option value="scadute" {% if filtro_esito == "scadute" %}selected{% endif %}>Formazione o visite scadute</option>
           </select>
         </div>
         <div class="cr-field">

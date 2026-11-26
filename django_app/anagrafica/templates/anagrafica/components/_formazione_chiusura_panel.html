@@ -7,11 +7,13 @@
         {% if sessione.is_approvata %}
           Approvato da <strong>{{ sessione.approvata_da_nome|upper|default:"—" }}</strong> il {{ sessione.approvata_il|date:"d/m/Y H:i" }}.
           L'edizione è chiusa: calendario, iscritti, esiti e presenze non si modificano.
+        {% elif sessione.stato == "ANNULLATA" %}
+          Edizione annullata: calendario, iscritti e presenze non si modificano. Per usarla di nuovo riaprila indicando il motivo.
         {% elif sessione.stato == "COMPLETATA" %}
           Edizione completata: calendario, iscritti e presenze sono bloccati; gli esiti degli iscritti si chiudono ancora.
           Manca l'approvazione formale di MSM/MSO.
         {% else %}
-          Quando l'edizione è finita portala a «Completata» da «Modifica sessione», chiudi gli esiti e chiedi l'approvazione a MSM/MSO.
+          Quando l'edizione è finita, «Chiudi l'edizione» registra gli esiti e la porta a «Completata»; poi chiedi l'approvazione a MSM/MSO.
         {% endif %}
       </p>
     </div>
@@ -23,7 +25,7 @@
   </div>
   <div class="fm-chiusura-body" style="padding:4px 16px 14px;">
 
-  {% if not sessione.is_approvata %}
+  {% if not sessione.is_approvata and sessione.stato != "ANNULLATA" %}
     {% if requisiti_approvazione.mancanti %}
     <div class="fm-cache-banner" style="display:block;margin:10px 0;">
       <strong>Prima dell'approvazione manca:</strong>
@@ -69,7 +71,7 @@
   </div>
   {% endif %}
 
-  {% if sessione.is_chiusa and can_reopen %}
+  {% if can_reopen %}{% if sessione.is_chiusa or sessione.stato == "ANNULLATA" %}
   <details style="margin-top:12px;">
     <summary style="cursor:pointer;font-size:13px;font-weight:600;">Riapri l'edizione per correggere un dato</summary>
     <form method="post" action="{% url 'anagrafica:formazione_sessione_riapri' sessione.pk %}" class="fm-inline-form" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;">
@@ -80,7 +82,8 @@
       <button type="submit" class="hr-btn hr-btn-danger">Riapri</button>
     </form>
     {% if sessione.is_approvata %}<p class="muted" style="font-size:12px;margin:6px 0 0;">Riaprire revoca l'approvazione: andrà approvata di nuovo.</p>{% endif %}
+    {% if sessione.stato == "ANNULLATA" %}<p class="muted" style="font-size:12px;margin:6px 0 0;">Chi era stato ritirato per l'annullamento torna «Iscritto».</p>{% endif %}
   </details>
-  {% endif %}
+  {% endif %}{% endif %}
 </div>
 </div>

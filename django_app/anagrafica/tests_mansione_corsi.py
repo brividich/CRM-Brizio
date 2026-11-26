@@ -4,6 +4,8 @@ Dati sintetici.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -12,7 +14,13 @@ from django.utils import timezone
 from core.legacy_models import AnagraficaDipendente
 
 from .models import AbilitazioneMacchina, CompetenzaSkm
-from .models_formazione import TrainingCourse, TrainingDeadline, TrainingPlan, TrainingRequirementRule
+from .models_formazione import (
+    TrainingCourse,
+    TrainingDeadline,
+    TrainingEmployeeRecord,
+    TrainingPlan,
+    TrainingRequirementRule,
+)
 from .tests import _ensure_anagrafica_table
 
 User = get_user_model()
@@ -74,6 +82,9 @@ class MansioneCorsiTests(TestCase):
         TrainingDeadline.objects.create(legacy_anagrafica_id=self.p1.pk, corso=self.corso, is_required=True,
                                         data_scadenza=timezone.localdate().replace(year=timezone.localdate().year + 2),
                                         stato_scadenza="VALIDO")
+        TrainingEmployeeRecord.objects.create(legacy_anagrafica_id=self.p1.pk, corso=self.corso, idoneo=True,
+                                              data_completamento=timezone.localdate() - timedelta(days=10),
+                                              data_scadenza=timezone.localdate() + timedelta(days=700))
         body = self.client.get(self.url).content.decode()
         self.assertIn('id="tab-formazione"', body)
         self.assertIn("obbligatorio", body)
@@ -220,6 +231,9 @@ class CosaMancaCorsiTests(MansioneCorsiTests):
         TrainingDeadline.objects.create(legacy_anagrafica_id=self.p1.pk, corso=self.corso, is_required=True,
                                         data_scadenza=timezone.localdate().replace(year=timezone.localdate().year + 2),
                                         stato_scadenza="VALIDO")
+        TrainingEmployeeRecord.objects.create(legacy_anagrafica_id=self.p1.pk, corso=self.corso, idoneo=True,
+                                              data_completamento=timezone.localdate() - timedelta(days=10),
+                                              data_scadenza=timezone.localdate() + timedelta(days=700))
         body = self.client.get(self.url).content.decode()
         self.assertIn('class="mns-corso-manca"', body)
         self.assertEqual(body.count('class="mns-corso-manca"'), 1)  # solo p2

@@ -50,7 +50,7 @@ body.theme-dark .tc-banner{background:rgba(214,158,46,.12);color:#fcd34d;border-
       <div class="tc-main">
         <section class="fmd-panel">
           <div class="fmd-toolbar"><span class="fmd-block-title">Tipi <span class="fmd-count">{{ tipi|length }}</span></span>
-            {% if n_senza_tipo %}<span class="fmd-badge fmd-b-amber">{{ n_senza_tipo }} corsi senza tipo</span>{% endif %}</div>
+            {% if n_senza_tipo %}<a class="fmd-badge fmd-b-amber" href="{% url 'anagrafica:formazione_corsi_list' %}?tipo=nessuno" title="Apri l'elenco corsi filtrato: senza tipo">{{ n_senza_tipo }} corsi senza tipo</a>{% endif %}</div>
           <div class="fmd-tablewrap" data-fm-table-skip="1">
             <table class="fmd-table">
               <thead><tr><th>Tipo</th><th class="fmd-r">Corsi</th><th class="fmd-r">Obbligatori</th><th class="fmd-r" title="MT CN 06 §9.5: dopo quanti mesi il responsabile di reparto valuta l'efficacia dei corsi in aula">Efficacia dopo</th>{% if is_editor %}<th></th>{% endif %}</tr></thead>
@@ -71,7 +71,7 @@ body.theme-dark .tc-banner{background:rgba(214,158,46,.12);color:#fcd34d;border-
                 <tr>
                   <td><span class="tc-dot" style="background:{{ t.colore }};"></span><strong>{{ t.nome }}</strong>{% if t.descrizione %}<div class="fmd-muted" style="font-size:12px;margin-left:19px;">{{ t.descrizione }}</div>{% endif %}</td>
                   <td class="fmd-r fmd-num"><a href="{% url 'anagrafica:formazione_corsi_list' %}?tipo={{ t.pk }}">{{ t.n_corsi }}</a></td>
-                  <td class="fmd-r fmd-num">{{ t.n_obbligatori }}</td>
+                  <td class="fmd-r fmd-num">{% if t.n_obbligatori %}<a href="{% url 'anagrafica:formazione_corsi_list' %}?tipo={{ t.pk }}&amp;obbligatorio=1" title="Obbligatori per tutti o per mansione, ruolo, processo">{{ t.n_obbligatori }}</a>{% else %}0{% endif %}</td>
                   <td class="fmd-r fmd-num">{% if t.efficacia_mesi %}{{ t.efficacia_mesi }} mesi{% else %}<span class="fmd-muted">non richiesta</span>{% endif %}</td>
                   {% if is_editor %}<td class="fmd-nowrap" style="text-align:right;">
                     <a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="?modifica={{ t.pk }}">Modifica</a>

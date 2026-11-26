@@ -141,7 +141,7 @@ class FormNuovaEdizioneTests(TestCase):
 
     def test_copia_allegati_dopo_il_salvataggio(self):
         form = TrainingSessionForm(data={
-            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "IN_SEDE",
+            "corso": self.corso.pk, "modalita": "IN_SEDE",
             "data_inizio": "2026-06-01",
             "allegati_dal_corso": [self.att.pk],
         })
@@ -152,7 +152,7 @@ class FormNuovaEdizioneTests(TestCase):
 
     def test_note_del_corso_riportate_solo_se_richiesto(self):
         form = TrainingSessionForm(data={
-            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "IN_SEDE",
+            "corso": self.corso.pk, "modalita": "IN_SEDE",
             "data_inizio": "2026-06-01", "note": "Aula 2.",
             "copia_note_corso": "on",
         })
@@ -163,7 +163,7 @@ class FormNuovaEdizioneTests(TestCase):
 
     def test_note_del_corso_non_riportate_di_default(self):
         form = TrainingSessionForm(data={
-            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "IN_SEDE",
+            "corso": self.corso.pk, "modalita": "IN_SEDE",
             "data_inizio": "2026-06-01", "note": "Aula 2.",
         })
         self.assertTrue(form.is_valid(), form.errors)

@@ -526,6 +526,22 @@ GUIDA = {
             ],
         },
         {
+            "id": "formazione-remediation",
+            "titolo": "Edizioni, rinnovi e numeri: come funzionano ora",
+            "blocchi": [
+                ("ul", [
+                    "Stato edizione non modificabile a mano: «Chiudi l'edizione», «Annulla», «Riapri» con motivo.",
+                    "Annulla: iscritti «Ritirato»; rifiutato con completamenti o verifiche superate.",
+                    "Chiusura: proposti «Ritirato» ex dipendenti e chi ha già il corso; presenza sul turno della persona.",
+                    "Un completamento chiude rinnovi solo se valido; «Assegna» salta chi è in regola; rinnovo a 90 giorni.",
+                    "Link aperto: tentativi e tempo del quiz rispettati; «Quiz superati da abbinare» in Corsi online.",
+                    "«Obbligatorio»: «Sì · per tutti» o «Sì · per mansione/ruolo/processo»; Scadenzario → «Ricalcola scadenze».",
+                    "Conformità: corso obbligatorio mai fatto e qualifica richiesta mancante = avviso; soglie 90/60.",
+                    "Libretto formativo e pagine per persona solo entro l'ambito del ruolo.",
+                ]),
+            ],
+        },
+        {
             "id": "formazione-una-regola",
             "titolo": "Stati, soglie e obblighi: una regola sola",
             "blocchi": [

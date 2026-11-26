@@ -2,7 +2,7 @@
 
 Un'abilitazione a livello ≥ L (INTERMEDIO) su una macchina è consentita solo se
 il dipendente ha il **corso qualificante** della macchina completato e valido
-(``TrainingDeadline``), dichiarato su ``CompetenzaSkm.corso_qualificante``.
+(completamento idoneo non scaduto, ``formazione_completamento``), dichiarato su ``CompetenzaSkm.corso_qualificante``.
 Allineato EN 4179 / Part 145: qualifica = training **verificato** con evidenza.
 
 Lo stato è *derivato+validato*: l'override resta possibile (responsabile) ma va
@@ -35,14 +35,12 @@ def corso_qualificante_asset(asset_id):
 
 
 def corso_valido(legacy_id, corso) -> bool:
-    """True se la persona ha il corso completato e valido (TrainingDeadline)."""
+    """True se la persona ha il corso completato e valido (completamento idoneo, non
+    annullato, non scaduto: regola unica di ``formazione_completamento``)."""
     if corso is None or not legacy_id:
         return False
-    from ..models import TrainingDeadline
-    d = (TrainingDeadline.objects
-         .filter(legacy_anagrafica_id=legacy_id, corso=corso)
-         .only("stato_scadenza").first())
-    return bool(d and d.stato_scadenza in _STATI_VALIDI)
+    from .formazione_completamento import ids_con_completamento_valido_multi
+    return bool(ids_con_completamento_valido_multi([corso.pk], [legacy_id]))
 
 
 def valida_livello(legacy_id, asset_id, livello, *, corso=None) -> dict:

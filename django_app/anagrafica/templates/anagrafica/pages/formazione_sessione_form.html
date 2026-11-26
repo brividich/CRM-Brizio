@@ -58,7 +58,7 @@
       {% if form.non_field_errors %}
       <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Corso e stato" icon="i-cap" desc="Quale corso viene erogato, con stato e modalità." fields=form|section_fields:"corso,stato" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Corso" icon="i-cap" desc="Quale corso viene erogato e con quale modalità." fields=form|section_fields:"corso" %}
       <div class="fmd-form-sec">
         <div class="fmd-form-sec-h"><svg class="fmd-ico"><use href="#i-calendar"/></svg><span class="fmd-form-sec-t">Come si svolge</span></div>
         <div class="sf-modi" role="radiogroup" aria-label="Modalità">

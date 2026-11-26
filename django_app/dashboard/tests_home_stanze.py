@@ -170,7 +170,9 @@ class SicurezzaHomeTests(TestCase):
     def test_ex_dipendente_non_compare(self):
         from anagrafica.models import DipendenteAnagraficaAziendale
 
-        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=503, data_cessazione=timezone.localdate())
+        # Cessato ieri: il giorno di cessazione è ancora in forza (regola unica services.in_forza).
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=503, data_cessazione=timezone.localdate() - timedelta(days=1))
         data = self._build()
         self.assertFalse(any("BIANCHI" in p["nome"].upper() for p in data["persone"]))
 

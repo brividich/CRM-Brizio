@@ -150,30 +150,41 @@ def _regola_riassegna(corso) -> bool:
 
 
 def _riassegna(corso) -> int:
-    """Nuovo ciclo per chi ha completato (ultimo ciclo) una versione precedente."""
-    from ..models_formazione import ElearningConfig, TrainingAssignment, TrainingElearningEnrollment
+    """Nuovo ciclo per chi ha come ultimo completamento valido (da qualunque strada: e-learning, link
+    aperto, aula, import) una versione precedente del corso. Un completamento senza versione
+    registrata non si confronta (versione ignota: nessuna riassegnazione)."""
+    from django.db.models import Q
+
+    from ..models_formazione import ElearningConfig, TrainingAssignment, TrainingEmployeeRecord
     from .elearning_assegnazioni import _notifica
-    from .elearning_fruizione import ciclo_corrente
+    from .elearning_fruizione import ciclo_per_nuova_assegnazione
     from .organigramma_albero import cessati_legacy_ids
 
-    entro = timezone.localdate() + timedelta(days=int(ElearningConfig.get_instance().giorni_entro_default or 30))
+    oggi = timezone.localdate()
+    entro = oggi + timedelta(days=int(ElearningConfig.get_instance().giorni_entro_default or 30))
     cessati = cessati_legacy_ids()
     ultimi = {}
-    for e in (TrainingElearningEnrollment.objects.filter(corso=corso, stato="COMPLETATO")
-              .select_related("record_completamento").order_by("ciclo")):
-        ultimi[e.legacy_anagrafica_id] = e
+    for r in (TrainingEmployeeRecord.objects
+              .filter(corso=corso, idoneo=True, data_completamento__lte=oggi)
+              .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=oggi))
+              .order_by("data_completamento", "pk")):
+        ultimi[r.legacy_anagrafica_id] = r
     n = 0
-    for lid, e in ultimi.items():
-        if lid in cessati or e.record_completamento is None:
+    for lid, r in ultimi.items():
+        if lid in cessati or not r.course_version_snapshot:
             continue
-        if e.record_completamento.course_version_snapshot == corso.versione:
+        if r.course_version_snapshot == corso.versione:
             continue
-        if ciclo_corrente(corso, lid) > e.ciclo:
-            continue  # c'è già un ciclo successivo aperto
+        if (TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id=lid)
+                .exclude(stato__in=("COMPLETATO", "ESONERATO")).exists()):
+            continue  # c'è già un ciclo aperto da fare
+        ciclo = ciclo_per_nuova_assegnazione(corso, lid)
+        if TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id=lid, ciclo=ciclo).exists():
+            continue
         try:
             with transaction.atomic():
                 _a, creata = TrainingAssignment.objects.get_or_create(
-                    corso=corso, legacy_anagrafica_id=lid, ciclo=e.ciclo + 1,
+                    corso=corso, legacy_anagrafica_id=lid, ciclo=ciclo,
                     defaults={"due_date": entro, "note": f"Nuova versione {corso.versione} del corso"})
         except IntegrityError:
             creata = False

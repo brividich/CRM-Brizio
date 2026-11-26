@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from django.db.models import Count
+from django.db.models import Count, Q
 
 from ..models_formazione import TrainingProvider, TrainingSession
 
@@ -34,7 +34,7 @@ def _sessioni_qs(dal: date | None = None, al: date | None = None):
     qs = (
         TrainingSession.objects
         .select_related("corso", "docente", "docente__azienda")
-        .annotate(n_iscritti=Count("iscrizioni", distinct=True))
+        .annotate(n_iscritti=Count("iscrizioni", filter=~Q(iscrizioni__stato="RITIRATO"), distinct=True))
         .prefetch_related("lezioni__docente__azienda")
     )
     if dal:

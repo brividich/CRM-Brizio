@@ -44,6 +44,31 @@ def _build_ics(sess) -> str:
     ])
 
 
+def _url_mie_attivita() -> str:
+    from django.urls import NoReverseMatch, reverse
+    try:
+        return reverse("mie_attivita")
+    except NoReverseMatch:
+        return "/mie-attivita"
+
+
+def testo_e_link(sess, quando: str) -> tuple[str, str]:
+    """(testo, link) del promemoria. Online (slide + test): il player della lezione e il
+    periodo in cui è disponibile; in aula: «Le mie attività» del partecipante (non la
+    pagina iscritti, che è di chi gestisce la formazione)."""
+    if sess.modalita == "ONLINE":
+        from anagrafica.services.formazione_aula import scadenza_online
+        from anagrafica.services.sessione_online import _url_lezione, config
+        cfg = config(sess)
+        dal = (cfg.disponibile_dal if cfg and cfg.disponibile_dal else None) or sess.data_inizio
+        entro = scadenza_online(sess)
+        testo = f"Lezione online «{sess.corso.titolo}»: disponibile dal {dal:%d-%m-%Y}"
+        if entro:
+            testo += f" entro il {entro:%d-%m-%Y}"
+        return testo + ".", _url_lezione(sess)
+    return f"Promemoria: corso «{sess.corso.titolo}» il {quando}.", _url_mie_attivita()
+
+
 class Command(BaseCommand):
     help = "Promemoria nel portale (nessuna email) per le sessioni formative imminenti."
 
@@ -85,6 +110,7 @@ class Command(BaseCommand):
             if not ids:
                 continue
             quando = f"{sess.data_inizio:%d-%m-%Y}" + (f" (tra {gg} giorni)" if gg else "")
+            testo, link = testo_e_link(sess, quando)
             # Solo notifica nel portale: ai partecipanti non partono email (25/11/2026,
             # la comunicazione via mail la manda l'azienda, una sola).
             for i in iscritti:
@@ -92,8 +118,7 @@ class Command(BaseCommand):
                     try:
                         invia_notifica(
                             utente_da_anagrafica(i.legacy_anagrafica_id), "formazione_promemoria",
-                            f"Promemoria: corso «{sess.corso.titolo}» il {quando}.",
-                            f"/anagrafica/formazione/sessioni/{sess.pk}/iscritti/",
+                            testo, link,
                         )
                     except Exception:
                         pass

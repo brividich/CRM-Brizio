@@ -52,7 +52,7 @@ class PassaggiTests(TestCase):
         self.assertContains(form, "1 dipendente da iscrivere")
         self.assertContains(form, 'href="/anagrafica/mansionario/lacune/"')  # Annulla torna all'origine
         resp = self.client.post(reverse("anagrafica:formazione_sessione_create"), {
-            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "IN_SEDE",
+            "corso": self.corso.pk, "modalita": "IN_SEDE",
             "data_inizio": date.today().isoformat(), "data_fine": date.today().isoformat(), "sede": "Aula"})
         self.assertEqual(resp.status_code, 302)
         self.assertIn("back=%2Fanagrafica%2Fmansionario%2Flacune%2F", resp["Location"])
