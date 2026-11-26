@@ -170,15 +170,30 @@ class Sezione:
     colonne_dinamiche: bool = False
     # Fuori da «Chiedi un report» (dati retributivi): solo nei modelli a blocchi.
     in_chat: bool = True
+    # Colonne con un permesso proprio (dati personali estesi): chiave -> gate.
+    # Chi non ha il permesso non le vede fra le scelte e non le riceve nel documento.
+    colonne_riservate: tuple[tuple[str, Callable], ...] = ()
 
     def consentita(self, request) -> bool:
         return self.permesso is None or bool(self.permesso(request))
 
-    def colonne_effettive(self, scelte: list[str] | None) -> list[str]:
+    def colonne_per(self, request) -> tuple[tuple[str, str], ...]:
+        """Colonne che ``request`` puo' vedere (fail-closed: senza request niente riservate)."""
+        negate = set()
+        for chiave, gate in self.colonne_riservate:
+            try:
+                if request is None or not gate(request):
+                    negate.add(chiave)
+            except Exception:  # noqa: BLE001 - in dubbio la colonna non c'e'
+                logger.warning("reportistica: permesso colonna %s non valutabile", chiave, exc_info=True)
+                negate.add(chiave)
+        return tuple((k, v) for k, v in self.colonne if k not in negate)
+
+    def colonne_effettive(self, scelte: list[str] | None, request=None) -> list[str]:
         """Colonne da stampare nell'ordine scelto; nessuna scelta = predefinite."""
-        validi = [k for k, _l in self.colonne]
+        validi = [k for k, _l in self.colonne_per(request)]
         scelte = [k for k in dict.fromkeys(scelte or []) if k in validi]
-        return scelte or list(self.predefinite) or validi
+        return scelte or [k for k in self.predefinite if k in validi] or validi
 
     def tutte_le_opzioni(self) -> tuple[Opzione, ...]:
         return self.opzioni + _opzioni_generali(() if self.colonne_dinamiche else self.colonne)
@@ -314,13 +329,41 @@ def _opz_qualifiche(preavviso: int = 60) -> tuple[Opzione, ...]:
 # Persone e competenze
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _vede_dati_riservati(request) -> bool:
+    """Stesso permesso della colonna «Codice fiscale» dell'elenco dipendenti (dati HR riservati)."""
+    if request is None or not getattr(getattr(request, "user", None), "is_authenticated", False):
+        return False
+    from anagrafica.views import _check_hr_permission
+
+    return bool(_check_hr_permission(request))
+
+
+def _codici_fiscali(ctx: Contesto, persone) -> dict[int, str]:
+    """{id persona: codice fiscale} dall'anagrafica civile, solo per chi ha il permesso HR."""
+    if not _vede_dati_riservati(ctx.request):
+        return {}
+    from anagrafica.models import DipendenteAnagraficaCivile
+
+    from .dati import filtra_in
+
+    per_lid = {
+        c.legacy_anagrafica_id: (c.codice_fiscale or "").strip().upper()
+        for c in filtra_in(DipendenteAnagraficaCivile.objects.only("legacy_anagrafica_id", "codice_fiscale"),
+                           "legacy_anagrafica_id", ctx.id_estesi(persone))
+    }
+    # Anagrafiche doppie fuse: vale il primo id della persona che ha il codice compilato.
+    return {p.id: next((per_lid[i] for i in p.tutti_gli_id if per_lid.get(i)), "") for p in persone}
+
+
 def _elenco_personale(ctx: Contesto, o: dict) -> Risultato:
     res = Risultato()
     persone = ctx.dipendenti()
+    codici = _codici_fiscali(ctx, persone)
     for p in persone:
         anni = anni_compiuti(p.data_assunzione, ctx.today)
         res.riga({
-            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "centro_costo": p.centro_costo, "area": p.area,
+            "nominativo": p.nominativo, "matricola": p.matricola, "codice_fiscale": codici.get(p.id, ""),
+            "reparto": p.reparto, "centro_costo": p.centro_costo, "area": p.area,
             "mansione": p.mansione, "ruolo": p.ruolo_aziendale, "contratto": p.contratto_label,
             "livello": p.livello, "assunzione": p.data_assunzione, "anzianita": anni,
             "titolo_studio": p.titolo_studio, "cessazione": p.cessazione_effettiva,
@@ -343,13 +386,15 @@ _registra(Sezione(
     builder=_elenco_personale,
     riferimenti=(f"{ISO_9001} §7.1.2", f"{EN_9100} §7.1.2"),
     colonne=(
-        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"),
+        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("codice_fiscale", "Codice fiscale"),
+        ("reparto", "Reparto"), ("centro_costo", "Centro di costo"),
         ("area", "Area aziendale"), ("mansione", "Mansione"), ("ruolo", "Ruolo aziendale"),
         ("contratto", "Contratto"), ("livello", "Livello"), ("assunzione", "Assunzione"),
         ("anzianita", "Anzianità (anni)"), ("titolo_studio", "Titolo di studio"),
         ("cessazione", "Cessazione"), ("stato", "Stato"),
     ),
     predefinite=("nominativo", "matricola", "reparto", "mansione", "assunzione"),
+    colonne_riservate=(("codice_fiscale", _vede_dati_riservati),),
 ))
 
 

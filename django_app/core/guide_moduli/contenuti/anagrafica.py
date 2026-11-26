@@ -1351,6 +1351,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "report-codice-fiscale",
+            "titolo": "Codice fiscale nell'«Elenco del personale»",
+            "blocchi": [
+                ("p", "La sezione «Elenco del personale» ha la colonna «Codice fiscale», letta dall'anagrafica "
+                      "civile della persona (per le anagrafiche doppie vale la scheda che ce l'ha). Si sceglie fra le "
+                      "colonne del blocco o si chiede a parole in «Chiedi un report» (es. «lista dipendenti con "
+                      "codice fiscale»)."),
+                ("nota", "Solo con il permesso sui dati HR riservati, lo stesso della colonna «Codice fiscale» "
+                         "dell'elenco dipendenti. Senza, la colonna non compare fra le scelte, non entra nel documento "
+                         "né nell'Excel anche se un modello salvato da altri la contiene, e «Chiedi un report» "
+                         "avvisa «Colonne … riservate ai dati HR»."),
+            ],
+        },
+        {
             "id": "struttura-organizzativa",
             "titolo": "Struttura organizzativa (struttura della Qualità)",
             "blocchi": [

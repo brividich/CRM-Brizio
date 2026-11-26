@@ -333,8 +333,8 @@ def _elemento_sezione(blocco, commento: str, ctx: Contesto, request, sost, model
 
     # Colonne: scelte dall'utente (sezioni statiche) o decise dai dati (matrici, report conformità).
     if sezione.colonne and not sezione.colonne_dinamiche:
-        etichette = dict(sezione.colonne)
-        chiavi = sezione.colonne_effettive(opzioni_salvate.get("colonne"))
+        etichette = dict(sezione.colonne_per(request))
+        chiavi = sezione.colonne_effettive(opzioni_salvate.get("colonne"), request)
     else:
         etichette = dict(risultato.colonne)
         chiavi = [k for k, _l in risultato.colonne]

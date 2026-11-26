@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Reportistica anagrafica: codice fiscale nell'«Elenco del personale»
+
+- Nuova colonna «Codice fiscale» nella sezione «Elenco del personale» (anche da «Chiedi un report»), letta dall'anagrafica civile; per le anagrafiche doppie vale la scheda che ce l'ha. Visibile solo con il permesso sui dati HR riservati, come nell'elenco dipendenti: senza permesso la colonna non compare, non viene caricata né stampata, e la chat avvisa che è riservata invece di dire «non disponibile».
+- Le sezioni del report possono dichiarare colonne con un permesso proprio (`Sezione.colonne_riservate`, `colonne_per(request)`, fail-closed senza request), rispettato da editor, chat e motore.
+- File: `anagrafica/reportistica/sezioni.py`, `conversazione.py`, `forms.py`, `motore.py`, `anagrafica/tests_reportistica_codice_fiscale.py`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`. Nessuna migrazione.
+
 ### Ordini di produzione: report CMM del formato vecchio (2014-2024)
 
 - Il lettore dei report CMM legge anche il formato vecchio (CALYPSO stampato con novaPDF: «Aktual», «pos Tol», «neg Tol», «<--|-->», testata anche in italiano): tolleranze di forma senza «neg Tol», posizioni con bonus di massimo materiale, eccedenza al posto della barretta, data scritta per esteso. Provato su 325 report veri dal 2012 al 2024 (22.560 quote, 4 da verificare) e su 120 del formato nuovo, invariati.

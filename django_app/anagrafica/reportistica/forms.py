@@ -242,7 +242,8 @@ class ReportBloccoForm(forms.ModelForm):
 
     def _colonne_correnti(self, sezione) -> list[str]:
         if self.is_bound:
-            return [c for c in self.data.getlist(self.nome_colonne(sezione.key)) if c in dict(sezione.colonne)]
+            permesse = dict(sezione.colonne_per(self._request))
+            return [c for c in self.data.getlist(self.nome_colonne(sezione.key)) if c in permesse]
         if self.instance.sezione == sezione.key:
             return list(self._opzioni_salvate.get("colonne") or [])
         return []
@@ -256,9 +257,10 @@ class ReportBloccoForm(forms.ModelForm):
             if s.key not in self._chiavi_visibili:
                 continue
             scelte_col = self._colonne_correnti(s)
-            effettive = s.colonne_effettive(scelte_col)
-            ordinate = effettive + [k for k, _l in s.colonne if k not in effettive]
-            etichette = dict(s.colonne)
+            colonne = s.colonne_per(self._request)
+            effettive = s.colonne_effettive(scelte_col, self._request)
+            ordinate = effettive + [k for k, _l in colonne if k not in effettive]
+            etichette = dict(colonne)
             valori = self._valori_correnti(s)
             opzioni = []
             for o in s.tutte_le_opzioni():

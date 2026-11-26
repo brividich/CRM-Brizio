@@ -95,8 +95,9 @@ def catalogo_per_ai(request, scelte_perimetro: dict, *, limite: int = 60, compat
             voce["descrizione"] = s.descrizione[:{0: 160, 1: 90}.get(int(compatto), 50)]
         if s.colonne and not s.colonne_dinamiche:
             # Con l'etichetta: «voce» o «codice» da sole non dicono all'AI che cosa contengono.
-            voce["colonne"] = ([k for k, _v in s.colonne] if compatto
-                               else _scelte_compatte(list(s.colonne), 100))
+            colonne = s.colonne_per(request)
+            voce["colonne"] = ([k for k, _v in colonne] if compatto
+                               else _scelte_compatte(list(colonne), 100))
         opzioni = {}
         for o in s.tutte_le_opzioni():
             if o.nome in _OPZIONI_SOLO_IMPAGINAZIONE:
@@ -239,18 +240,24 @@ def _opzioni_sezione(sezione, grezze, avvisi: list[str]) -> dict:
 _COLONNE_IDENTITA = ("voce", "nominativo")
 
 
-def _colonne(sezione, grezze, avvisi: list[str]) -> list[str]:
+def _colonne(sezione, grezze, avvisi: list[str], request=None) -> list[str]:
     """Colonne proposte -> chiavi valide (chiave, etichetta o «chiave=Etichetta»).
 
     Una tabella senza la colonna che identifica la riga e' illeggibile (righe di sole
     ore o di soli reparti): se manca, si aggiunge in testa.
     """
-    scelte = list(sezione.colonne)
+    scelte = list(sezione.colonne_per(request))
     scartate: list[str] = []
     out = _abbina(grezze, scelte, "Colonna", scartate)
     if scartate:
         nomi = [m.split("«", 1)[1].split("»", 1)[0] for m in scartate if "«" in m]
-        avvisi.append(f"Colonne non disponibili in «{sezione.titolo}»: {', '.join(nomi)}.")
+        riservate = {naming.chiave_testo(x) for k, lab in sezione.colonne
+                     if k not in dict(scelte) for x in (k, lab)}
+        if riservate and any(naming.chiave_testo(n) in riservate for n in nomi):
+            avvisi.append(f"Colonne di «{sezione.titolo}» riservate ai dati HR: {', '.join(nomi)}. "
+                          "Servono i permessi sui dati riservati dell'anagrafica.")
+        else:
+            avvisi.append(f"Colonne non disponibili in «{sezione.titolo}»: {', '.join(nomi)}.")
     validi = dict(scelte)
     if out and not any(c in out for c in _COLONNE_IDENTITA):
         identita = next((c for c in _COLONNE_IDENTITA if c in validi), None)
@@ -343,7 +350,7 @@ def normalizza_specifica(grezza, request, scelte_perimetro: dict, dipendenti) ->
             continue
         colonne = []
         if sezione.colonne and not sezione.colonne_dinamiche:
-            colonne = _colonne(sezione, voce.get("colonne"), avvisi)
+            colonne = _colonne(sezione, voce.get("colonne"), avvisi, request)
         spec["sezioni"].append({"sezione": chiave, "colonne": colonne,
                                 "opzioni": _opzioni_sezione(sezione, voce.get("opzioni"), avvisi)})
     if len(_lista(grezza.get("sezioni"))) > MAX_SEZIONI:
