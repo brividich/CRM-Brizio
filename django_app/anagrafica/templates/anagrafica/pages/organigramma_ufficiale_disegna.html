@@ -125,7 +125,7 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
       {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="hr-btn hr-btn-outline" href="{{ guida_url }}#organigramma-ufficiale">? Guida</a>
       <button type="button" class="hr-btn hr-btn-outline" data-apri="oudDati">⚙ Dati</button>
       {% if in_vigore %}
-      <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_scarta' org.pk %}" onsubmit="return confirm('Scartare la bozza? Resta in vigore la Rev.{{ in_vigore.numero }}.')">
+      <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_scarta' org.pk %}" data-hub-confirm="Scartare la bozza? Resta in vigore la Rev.{{ in_vigore.numero }}.">
         {% csrf_token %}<button type="submit" class="hr-btn hr-btn-ghost">Scarta bozza</button>
       </form>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma_ufficiale_vedi' org.pk %}">✕ Chiudi</a>
@@ -220,13 +220,18 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
       <div class="oud-nota">Con un ambito, la tela segnala i ruoli di quell'ambito che hanno persone ma non sono disegnati. Salvando, la pagina si ricarica: le modifiche al disegno sono già in bozza.</div>
     </div>
     <footer>
-      <button type="submit" name="azione" value="archivia" class="hr-btn hr-btn-danger" style="margin-right:auto"
-              onclick="return confirm('Archiviare «{{ org.nome|escapejs }}»? Non comparirà più nell\'elenco.')">Archivia</button>
+      <button type="button" class="hr-btn hr-btn-danger" style="margin-right:auto" id="oudArchiviaBtn">Archivia</button>
       <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
       <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
     </footer>
   </form>
 </dialog>
+
+{# Archivia: form a parte, fuori dal <dialog>, così la conferma del portale non resta sotto la finestra. #}
+<form method="post" action="{% url 'anagrafica:organigramma_ufficiale_modifica' org.pk %}" id="oudArchivia" hidden
+      data-hub-confirm="Archiviare «{{ org.nome }}»? Non comparirà più nell'elenco.">
+  {% csrf_token %}<input type="hidden" name="azione" value="archivia">
+</form>
 
 {{ stato|json_script:"oudStatoJson" }}
 <script>
@@ -737,6 +742,10 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     } else if (a === "togli" && n) cambia(function () { togli(n.id); });
   });
   document.querySelectorAll("[data-apri]").forEach(function (b) { b.addEventListener("click", function () { document.getElementById(b.dataset.apri).showModal(); }); });
+  $("#oudArchiviaBtn").addEventListener("click", function () {
+    $("#oudDati").close();
+    $("#oudArchivia").requestSubmit();
+  });
   document.querySelectorAll("dialog [data-chiudi]").forEach(function (b) { b.addEventListener("click", function () { b.closest("dialog").close(); }); });
 
   document.addEventListener("keydown", function (e) {
