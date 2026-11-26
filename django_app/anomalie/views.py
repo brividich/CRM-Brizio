@@ -3396,6 +3396,16 @@ def _ordini_payload(request, *, per_apertura: bool):
     except Exception:
         logger.warning("anomalie: capocommessa affidati agli OP non letti", exc_info=True)
         capi_affidati = {}
+    # OP che chi guarda modifica perché ne ha ricevuto il capocommessa (tutto l'OP o
+    # una sua anomalia aperta): stessa regola di _can_edit_anomalie_for_op, altrimenti
+    # la pagina lo mette in «Sola lettura» mentre il server gli darebbe ragione.
+    try:
+        from .incaricati import op_incaricato
+
+        op_affidati_a_me = op_incaricato(request, ruoli={"cc"})
+    except Exception:
+        logger.warning("anomalie: OP affidati a chi guarda non letti", exc_info=True)
+        op_affidati_a_me = set()
 
     result = []
     for r in rows:
@@ -3436,8 +3446,9 @@ def _ordini_payload(request, *, per_apertura: bool):
             "anomalie_rdc_cliente_count": rdc_cliente,
         }
         if ruoli_attivi:
-            item["can_edit"] = is_super or vede_rdc or _modifica_op_ruoli(request, capo, car, creatori)
-        elif vede_rdc:
+            item["can_edit"] = (is_super or vede_rdc or titolo_l in op_affidati_a_me
+                                or _modifica_op_ruoli(request, capo, car, creatori))
+        elif vede_rdc or titolo_l in op_affidati_a_me:
             item["can_edit"] = True
         if not per_apertura:
             item["can_modifica_op"] = str(r.get("item_id") or "").strip() in modificabili
