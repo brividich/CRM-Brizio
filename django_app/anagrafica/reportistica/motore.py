@@ -182,6 +182,7 @@ class Documento:
     excel_foglio_indicatori: bool = True
     excel_foglio_documento: bool = True
     elementi: list[Elemento] = field(default_factory=list)
+    n_persone: int = 0
 
     @property
     def contiene_dati_personali(self) -> bool:
@@ -202,6 +203,27 @@ class Documento:
     def intestazione(self) -> str:
         parti = [p for p in (self.codice, f"Rev. {self.revisione}" if self.revisione else "") if p]
         return " · ".join(parti)
+
+
+def riepilogo(documento: Documento) -> dict:
+    """Cosa si sta per consegnare, in una riga: persone, sezioni, colonne riservate, sezioni omesse."""
+    calcolate = documento.sezioni_calcolate
+    riservate: list[str] = []
+    for e in calcolate:
+        chiavi_riservate = dict(getattr(e.sezione, "colonne_riservate", ()) or ())
+        for k, etichetta in e.colonne:
+            if k in chiavi_riservate and etichetta not in riservate:
+                riservate.append(etichetta)
+    return {
+        "persone": documento.n_persone,
+        "sezioni": len(calcolate),
+        "righe": sum(e.n_righe for e in calcolate if e.mostra_tabella),
+        "omesse": [e.titolo for e in documento.elementi if e.tipo == "negata"],
+        "errori": [e.titolo for e in documento.elementi if e.tipo == "errore"],
+        "colonne_riservate": riservate,
+        "dati_personali": documento.contiene_dati_personali,
+        "destinatario": documento.destinatario,
+    }
 
 
 @dataclass
@@ -225,6 +247,38 @@ class Parametri:
             perimetro=Perimetro.from_dict(modello.filtri), titolo=modello.titolo_documento,
             sottotitolo=modello.sottotitolo, destinatario=modello.destinatario,
             testi={b.pk: b.testo for b in modello.blocchi.all() if b.tipo in ("TESTO", "SEZIONE")},
+        )
+
+    @classmethod
+    def da_archivio(cls, modello, salvati: dict) -> "Parametri":
+        """Parametri di un documento d'archivio («Rigenera»); testi e sottotitolo dal modello di oggi.
+
+        Un periodo relativo (anno corrente, mese precedente…) si ricalcola alla data di oggi;
+        le date personalizzate restano quelle del documento.
+        """
+        base = cls.dal_modello(modello)
+        salvati = salvati if isinstance(salvati, dict) else {}
+        validi = {k for k, _l in modello.PERIODO_CHOICES}
+        tipo = salvati.get("periodo_tipo") if salvati.get("periodo_tipo") in validi else base.periodo_tipo
+
+        def _d(raw):
+            try:
+                return date.fromisoformat(str(raw)[:10]) if raw else None
+            except ValueError:
+                return None
+
+        id_blocchi = {b.pk for b in modello.blocchi.all()}
+        return cls(
+            periodo_tipo=tipo,
+            data_da=_d(salvati.get("data_da")) if "data_da" in salvati else base.data_da,
+            data_a=_d(salvati.get("data_a")) if "data_a" in salvati else base.data_a,
+            perimetro=Perimetro.from_dict(salvati["perimetro"]) if isinstance(salvati.get("perimetro"), dict)
+            else base.perimetro,
+            titolo=str(salvati.get("titolo") or base.titolo), sottotitolo=base.sottotitolo,
+            destinatario=str(salvati.get("destinatario") if "destinatario" in salvati else base.destinatario),
+            testi=base.testi,
+            escludi_blocchi={int(x) for x in salvati.get("escludi_blocchi") or []
+                             if str(x).isdigit() and int(x) in id_blocchi},
         )
 
     def as_dict(self) -> dict:
@@ -294,6 +348,7 @@ def componi(modello, parametri: Parametri, request, *, blocchi=None) -> Document
         mostra_frontespizio=modello.mostra_frontespizio, mostra_indice=modello.mostra_indice,
         excel_foglio_indicatori=modello.excel_foglio_indicatori,
         excel_foglio_documento=modello.excel_foglio_documento,
+        n_persone=len(ctx.dipendenti()),
     )
 
     for blocco in (blocchi if blocchi is not None else modello.blocchi.all()):
@@ -333,8 +388,8 @@ def _elemento_sezione(blocco, commento: str, ctx: Contesto, request, sost, model
 
     # Colonne: scelte dall'utente (sezioni statiche) o decise dai dati (matrici, report conformità).
     if sezione.colonne and not sezione.colonne_dinamiche:
-        etichette = dict(sezione.colonne)
-        chiavi = sezione.colonne_effettive(opzioni_salvate.get("colonne"))
+        etichette = dict(sezione.colonne_per(request))
+        chiavi = sezione.colonne_effettive(opzioni_salvate.get("colonne"), request)
     else:
         etichette = dict(risultato.colonne)
         chiavi = [k for k, _l in risultato.colonne]

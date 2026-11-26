@@ -1,0 +1,25 @@
+{# Riquadro anteprima della generazione (26/11/2026): riepilogo di cosa si consegna + documento. Reso intero dalla pagina e da solo dall'anteprima dal vivo (HTMX, POST con HX-Request). #}
+{% if documento %}
+  {% if riepilogo %}
+  <div class="fmd-panel rp-riepilogo" aria-label="Riepilogo del documento">
+    <div class="rp-riepilogo-riga">
+      <span><b>{{ riepilogo.persone }}</b> person{{ riepilogo.persone|pluralize:"a,e" }}</span>
+      <span><b>{{ riepilogo.sezioni }}</b> sezion{{ riepilogo.sezioni|pluralize:"e,i" }} dati</span>
+      <span><b>{{ riepilogo.righe }}</b> righe in tabella</span>
+      <span>Destinatario: <b>{{ riepilogo.destinatario|default:"—" }}</b></span>
+    </div>
+    {% if riepilogo.colonne_riservate %}<div class="rp-riepilogo-nota rp-riepilogo-warn">Colonne riservate nel documento: <b>{{ riepilogo.colonne_riservate|join:", " }}</b>.</div>{% endif %}
+    {% if riepilogo.omesse %}<div class="rp-riepilogo-nota">Sezioni omesse per permessi: {{ riepilogo.omesse|join:", " }}.</div>{% endif %}
+    {% if riepilogo.errori %}<div class="rp-riepilogo-nota rp-riepilogo-warn">Sezioni non calcolabili: {{ riepilogo.errori|join:", " }}.</div>{% endif %}
+    {% if riepilogo.dati_personali %}
+    <div class="rp-avviso" style="margin-top:8px;">
+      Il documento contiene <b>dati personali nominativi</b>: invialo solo a chi ne ha titolo (contratto, capitolato,
+      richiesta dell'ente di certificazione) e con un canale protetto.
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% include "anagrafica/partials/_reportistica_documento.html" %}
+{% else %}
+  <div class="fmd-panel fmd-empty"><span class="fmd-et">{% if errori %}Completa i campi del documento (es. le due date del periodo personalizzato) per vedere l'anteprima{% else %}Correggi i campi per vedere l'anteprima{% endif %}</span></div>
+{% endif %}

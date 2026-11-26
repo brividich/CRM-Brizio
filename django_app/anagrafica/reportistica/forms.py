@@ -242,7 +242,8 @@ class ReportBloccoForm(forms.ModelForm):
 
     def _colonne_correnti(self, sezione) -> list[str]:
         if self.is_bound:
-            return [c for c in self.data.getlist(self.nome_colonne(sezione.key)) if c in dict(sezione.colonne)]
+            permesse = dict(sezione.colonne_per(self._request))
+            return [c for c in self.data.getlist(self.nome_colonne(sezione.key)) if c in permesse]
         if self.instance.sezione == sezione.key:
             return list(self._opzioni_salvate.get("colonne") or [])
         return []
@@ -256,9 +257,10 @@ class ReportBloccoForm(forms.ModelForm):
             if s.key not in self._chiavi_visibili:
                 continue
             scelte_col = self._colonne_correnti(s)
-            effettive = s.colonne_effettive(scelte_col)
-            ordinate = effettive + [k for k, _l in s.colonne if k not in effettive]
-            etichette = dict(s.colonne)
+            colonne = s.colonne_per(self._request)
+            effettive = s.colonne_effettive(scelte_col, self._request)
+            ordinate = effettive + [k for k, _l in colonne if k not in effettive]
+            etichette = dict(colonne)
             valori = self._valori_correnti(s)
             opzioni = []
             for o in s.tutte_le_opzioni():
@@ -366,7 +368,8 @@ class GeneraForm(PerimetroMixin, _PeriodoCleanMixin, forms.Form):
         help_text="Le prossime generazioni partiranno da queste scelte.",
     )
 
-    def __init__(self, *args, modello: ReportModello, scelte: dict | None = None, **kwargs):
+    def __init__(self, *args, modello: ReportModello, scelte: dict | None = None, iniziali=None, **kwargs):
+        """``iniziali``: ``motore.Parametri`` da cui partire (es. «Rigenera» dall'archivio)."""
         super().__init__(*args, **kwargs)
         self.modello = modello
         blocchi = list(modello.blocchi.all())
@@ -382,7 +385,14 @@ class GeneraForm(PerimetroMixin, _PeriodoCleanMixin, forms.Form):
                 "data_da": modello.data_da, "data_a": modello.data_a,
                 "includi_blocchi": [str(b.pk) for b in blocchi],
             })
-        self._add_perimetro_fields(scelte or {}, Perimetro.from_dict(modello.filtri))
+            if iniziali is not None:
+                self.initial.update({
+                    "titolo": iniziali.titolo, "destinatario": iniziali.destinatario,
+                    "periodo_tipo": iniziali.periodo_tipo, "data_da": iniziali.data_da, "data_a": iniziali.data_a,
+                    "includi_blocchi": [str(b.pk) for b in blocchi if b.pk not in iniziali.escludi_blocchi],
+                })
+        self._add_perimetro_fields(scelte or {}, iniziali.perimetro if iniziali is not None
+                                   else Perimetro.from_dict(modello.filtri))
         self.blocchi_testo = []
         for blocco in blocchi:
             if blocco.tipo not in (ReportBlocco.TIPO_TESTO, ReportBlocco.TIPO_SEZIONE):
