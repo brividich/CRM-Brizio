@@ -4699,6 +4699,33 @@ def formazione_sessione_fascicolo(request, sessione_id: int):
 
 
 @login_required
+@require_POST
+def formazione_scadenze_ricalcola(request):
+    """Ricalcola subito le scadenze di formazione e visite di tutto il personale (di notte gira da solo).
+
+    Serve dopo un cambio di regole (spunta «Obbligatorio per tutti», validità, regole d'obbligo) per non
+    aspettare il ricalcolo notturno. Solo chi modifica la formazione."""
+    if not _helpers._can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per ricalcolare le scadenze.")
+        return redirect("anagrafica:formazione_scadenzario")
+    from ..services import scadenze
+    try:
+        esito = scadenze.ricalcola_tutto()
+    except Exception:
+        logger.exception("Ricalcolo scadenze dal portale non riuscito")
+        messages.error(request, "Ricalcolo non riuscito: riprova tra qualche minuto (di notte gira comunque da solo).")
+        return redirect("anagrafica:formazione_scadenzario")
+    f = (esito or {}).get("formazione") or {}
+    _helpers._audit_safe(request, "formazione_scadenze_ricalcola", "formazione", {"formazione": f})
+    messages.success(request, "Scadenze ricalcolate: {} persone, {} nuove, {} aggiornate, {} tolte.".format(
+        f.get("persone", 0), f.get("create", 0), f.get("aggiornate", 0), f.get("cancellate", 0)))
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
+    return redirect("anagrafica:formazione_scadenzario")
+
+
+@login_required
 def formazione_scadenzario(request):
     """Scadenzario formazione: corsi scaduti, in scadenza e mai frequentati."""
     if not _helpers._can_view_formazione(request):

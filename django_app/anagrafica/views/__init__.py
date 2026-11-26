@@ -376,6 +376,7 @@ from .formazione import (
     formazione_rinnovo_da_scadenzario,
     formazione_rinnovo_in_sessione,
     formazione_scadenzario,
+    formazione_scadenze_ricalcola,
     formazione_scansione_scarica,
     formazione_scansioni_impostazioni,
     formazione_scansioni_log,
