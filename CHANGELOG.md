@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Link aperto: ripresa dal punto giusto, codice in vista e per email, un corso = un completamento
+
+Prova del 26/11/2026: chi ha completato il corso dal link aperto risultava ancora «Iscritto» nella sessione online dello stesso corso (il completamento c'era, ma separato) e chi riprendeva ripartiva dalla slide 1 o da una partecipazione nuova.
+
+- **Pagina del codice** dopo la registrazione (`/corso-aperto/<token>/pronto/`, sotto il prefisso già esente, PUBLIC_VIEWS aggiornati): codice in grande prima di iniziare; email con il codice alla persona abbinata che ha un indirizzo (in background).
+- **Ripresa**: il telefono ricorda la partecipazione per 30 giorni (cookie firmato con il solo id), anche dopo la scadenza della sessione del browser; il corso riparte dalla prima slide non vista e il video dal punto raggiunto; una nuova registrazione con la stessa matricola e lo stesso cognome riprende la partecipazione non finita.
+- **Un corso, un completamento**: il completamento e-learning (portale o link aperto) chiude anche le iscrizioni alle sessioni online dello stesso corso e si collega alla prima; migrazione anagrafica `0256` allinea i completamenti già fatti (nessun completamento nuovo). «I miei corsi online» mostra il corso una volta sola.
+- Data di scadenza in «I miei corsi online» della stessa grandezza del resto della riga.
+- File: `views_corso_aperto.py`, `urls_corso_aperto.py`, `services/elearning_link_aperto.py`, `services/sessione_online.py`, `views/_helpers.py`, `views_elearning.py`, template `corso_aperto/pronto.html` (nuovo), `slide.html`, `registrati.html`, `formazione_online_catalog.html`, guida corsi online, Centro guide. Test: `tests_corso_aperto_ripresa.py`, `core/test_security_audit_fase3.py`.
+
 ### Prestazioni: ricerca globale (Ctrl+K) più veloce
 
 - `core/views.py`: la decisione ACL per utente e modulo della ricerca globale resta in memoria `GLOBAL_SEARCH_ACL_CACHE_SECONDS` (120 s, legata alla versione dei permessi: una modifica a ruoli o matrice la azzera); i documenti SGI in vigore vengono da `documenti_in_vigore_memo()`.

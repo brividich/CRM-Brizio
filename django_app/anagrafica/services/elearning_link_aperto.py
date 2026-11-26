@@ -364,3 +364,85 @@ def registra(corso, *, nome: str, cognome: str, esito: dict, avviato_il, ip: str
         R.objects.filter(pk=risposta.pk).update(nota=nota[:300])
         risposta.nota = nota[:300]
     return risposta
+
+
+# ── Ripresa e codice ────────────────────────────────────────────────────────
+
+GIORNI_RIPRESA = 60
+
+
+def partecipazione_da_riprendere(corso, dati: dict):
+    """Partecipazione non finita della stessa persona (stessa matricola e stesso cognome) sullo
+    stesso corso: chi si registra di nuovo riprende da dove era rimasto invece di ripartire."""
+    from datetime import timedelta
+
+    from ..models_elearning import TrainingElearningPartecipazioneAperta as P
+
+    mat, ck = norm_matricola(dati.get("matricola", "")), chiave_testo(dati.get("cognome", ""))
+    if not mat or not ck:
+        return None
+    da = timezone.now() - timedelta(days=GIORNI_RIPRESA)
+    for p in P.objects.filter(corso=corso, completata_il__isnull=True, registrato_il__gte=da).order_by("-pk")[:200]:
+        if norm_matricola(p.matricola) == mat and chiave_testo(p.cognome) == ck:
+            return p
+    return None
+
+
+def email_persona(legacy_id: int | None) -> str:
+    """Indirizzo di notifica del dipendente abbinato ('' se non c'è)."""
+    if not legacy_id:
+        return ""
+    from core.legacy_anagrafica import fetch_anagrafica_rows, resolve_notification_email
+    try:
+        for r in fetch_anagrafica_rows(ids=[legacy_id]):
+            return resolve_notification_email(email=r.get("email") or "", email_notifica=r.get("email_notifica") or "")
+    except Exception:
+        logger.exception("Email del dipendente %s non leggibile", legacy_id)
+    return ""
+
+
+def email_mascherata(email: str) -> str:
+    """«m•••@dominio.it»: si mostra sul telefono senza rivelare l'indirizzo intero."""
+    if "@" not in (email or ""):
+        return ""
+    nome, dominio = email.split("@", 1)
+    return f"{nome[:1]}•••@{dominio}"
+
+
+def accoda_email_codice(partecipazione_id: int, url: str) -> None:
+    """Manda per email il codice di ripresa (in background, dopo il salvataggio)."""
+    def _accoda():
+        try:
+            from django_q.tasks import async_task
+            async_task("anagrafica.services.elearning_link_aperto.invia_email_codice", partecipazione_id, url,
+                       q_options={"timeout": 120})
+        except Exception:
+            logger.exception("Email del codice non accodata (partecipazione %s)", partecipazione_id)
+
+    transaction.on_commit(_accoda)
+
+
+def invia_email_codice(partecipazione_id: int, url: str) -> bool:
+    """Email alla persona abbinata con il codice per riprendere il corso dal link aperto."""
+    from core.email_utils import email_cta, email_facts_table, send_hub_mail, text_to_html
+
+    from ..models_elearning import TrainingElearningPartecipazioneAperta as P
+
+    p = P.objects.select_related("corso").filter(pk=partecipazione_id).first()
+    email = email_persona(p.legacy_anagrafica_id) if p else ""
+    if not email:
+        return False
+    titolo = p.corso.titolo
+    testo = (f"Hai iniziato il corso «{titolo}».\n\nCodice per riprendere: {p.codice}\n\n"
+             f"Per continuare da un altro telefono apri il link, scegli «Hai già iniziato?» e scrivi "
+             f"codice e cognome. Dallo stesso telefono il corso riprende da solo.\n\n{url}")
+    frammento = (text_to_html(f"Hai iniziato il corso «{titolo}». Tieni questo codice: ti serve per "
+                              "riprendere da un altro telefono.")
+                 + email_facts_table([("Codice per riprendere", p.codice), ("Corso", titolo)])
+                 + email_cta("Riprendi il corso", url,
+                             "Dallo stesso telefono il corso riprende da solo; da un altro scegli "
+                             "«Hai già iniziato?» e scrivi codice e cognome."))
+    send_hub_mail(subject=f"Codice per riprendere il corso — {p.codice}", body_text=testo, recipients=[email],
+                  title="Il tuo codice per riprendere", email_type="Formazione", section_label="Corso online",
+                  body_html_fragment=frammento)
+    return True

@@ -21,6 +21,7 @@ import random
 import time
 from datetime import datetime
 
+from django.conf import settings
 from django.core.cache import cache
 from django.http import Http404
 from django.shortcuts import redirect, render
@@ -52,11 +53,57 @@ def _chiave(link) -> str:
     return f"corso_aperto:{link.pk}:{link.token[:12]}"
 
 
+COOKIE_GIORNI = 30
+_SALE_COOKIE = "corso_aperto.ripresa"
+
+
+def _cookie_nome(link) -> str:
+    return f"pn_corso_{link.pk}"
+
+
+def _stato_da_partecipazione(p) -> dict:
+    """Stato del browser ricostruito dal server: slide viste, secondi di video, tempo dalla registrazione."""
+    return {"avvio": p.registrato_il.timestamp(), "viste": dict(p.slide_viste or {}),
+            "chi": {"nome": p.nome, "cognome": p.cognome, "matricola": p.matricola}, "pid": p.pk,
+            "video": {str(k): [int(v or 0), 0] for k, v in (p.video_visti or {}).items()}}
+
+
 def _stato(request, link) -> dict:
     stato = request.session.get(_chiave(link))
-    if not isinstance(stato, dict):
-        stato = {"avvio": time.time(), "viste": {}}
-    return stato
+    if isinstance(stato, dict):
+        return stato
+    # Sessione del browser scaduta (o chiusa): lo stesso telefono riprende dal cookie firmato.
+    from .models_elearning import TrainingElearningPartecipazioneAperta as P
+    try:
+        pid = int(request.get_signed_cookie(_cookie_nome(link), default="0", salt=_SALE_COOKIE,
+                                            max_age=COOKIE_GIORNI * 86400) or 0)
+    except (TypeError, ValueError):
+        pid = 0
+    p = P.objects.filter(pk=pid, corso=link.corso).first() if pid else None
+    if p is not None:
+        stato = _stato_da_partecipazione(p)
+        request.session[_chiave(link)] = stato
+        request.session.modified = True
+        return stato
+    return {"avvio": time.time(), "viste": {}}
+
+
+def _ricorda(response, link, stato):
+    """Il telefono ricorda la partecipazione per 30 giorni (cookie firmato, solo l'id)."""
+    if stato.get("pid"):
+        response.set_signed_cookie(_cookie_nome(link), str(stato["pid"]), salt=_SALE_COOKIE,
+                                   max_age=COOKIE_GIORNI * 86400, httponly=True, samesite="Lax", path="/corso-aperto/",
+                                   secure=settings.SESSION_COOKIE_SECURE)
+    return response
+
+
+def _punto_di_ripresa(stato, slides) -> int:
+    """Indice (da 0) della prima slide del percorso non ancora aperta; l'ultima se le ha viste tutte."""
+    viste = stato.get("viste") or {}
+    for i, s in enumerate(slides):
+        if str(s.ordine) not in viste:
+            return i
+    return len(slides) - 1
 
 
 CREDITO_MAX_SECONDI = 120  # oltre, la pagina è rimasta aperta senza nessuno davanti
@@ -158,10 +205,10 @@ def registrati(request, token: str):
             if p is None or chiave_testo(p.cognome) != chiave_testo(request.POST.get("cognome_ripresa")):
                 errori.append("Codice o cognome non corretti.")
             else:
-                _salva(request, link, {"avvio": p.registrato_il.timestamp(), "viste": dict(p.slide_viste or {}),
-                                       "chi": {"nome": p.nome, "cognome": p.cognome, "matricola": p.matricola},
-                                       "pid": p.pk})
-                return redirect("corso_aperto:corso", token=token)
+                stato = _stato_da_partecipazione(p)
+                stato["ripresa"] = True
+                _salva(request, link, stato)
+                return _ricorda(redirect("corso_aperto:pronto", token=token), link, stato)
         else:
             dati = {"nome": _testo(request.POST.get("nome"), 100), "cognome": _testo(request.POST.get("cognome"), 100),
                     "matricola": _testo(request.POST.get("matricola"), 40)}
@@ -174,13 +221,44 @@ def registrati(request, token: str):
                 if errore_pin:
                     errori.append(errore_pin)
             if not errori:
-                p = servizio.nuova_partecipazione(link, dati, reparto=reparto, ip=client_ip(request) or "")
-                _salva(request, link, {"avvio": time.time(), "viste": {}, "chi": dati, "pid": p.pk})
-                return redirect("corso_aperto:corso", token=token)
+                p = servizio.partecipazione_da_riprendere(corso_obj, dati)
+                if p is not None:
+                    # Stessa persona, corso non finito: riprende da dove era rimasta.
+                    stato = _stato_da_partecipazione(p)
+                    stato["ripresa"] = True
+                else:
+                    p = servizio.nuova_partecipazione(link, dati, reparto=reparto, ip=client_ip(request) or "")
+                    stato = {"avvio": time.time(), "viste": {}, "chi": dati, "pid": p.pk}
+                    email = servizio.email_persona(p.legacy_anagrafica_id)
+                    if email:
+                        servizio.accoda_email_codice(
+                            p.pk, request.build_absolute_uri(reverse("corso_aperto:registrati", args=[token])))
+                        stato["email"] = servizio.email_mascherata(email)
+                _salva(request, link, stato)
+                return _ricorda(redirect("corso_aperto:pronto", token=token), link, stato)
     return render(request, "anagrafica/corso_aperto/registrati.html",
                   {"link": link, "corso": corso_obj, "dati": dati, "errori": errori, "reparto": reparto,
                    "chiede_pin": servizio.chiede_pin(link),
                    "n_slide": len(_slides(corso_obj))}, status=400 if errori else 200)
+
+
+@require_GET
+@risposta_pubblica
+def pronto(request, token: str):
+    """Dopo la registrazione: il codice per riprendere, ben in vista, prima di iniziare."""
+    link = _link(token)
+    stato = _stato(request, link)
+    if not _registrato(stato):
+        return redirect("corso_aperto:registrati", token=token)
+    slides = _slides(link.corso)
+    p = _partecipazione(stato)
+    n_viste = sum(1 for s in slides if str(s.ordine) in (stato.get("viste") or {}))
+    return _ricorda(render(request, "anagrafica/corso_aperto/pronto.html", {
+        "link": link, "corso": link.corso, "chi": stato["chi"], "codice": getattr(p, "codice", ""),
+        "email": stato.get("email", ""), "ripresa": bool(stato.get("ripresa")) and n_viste > 0,
+        "n_viste": n_viste, "n_slide": len(slides),
+        "da_slide": _punto_di_ripresa(stato, slides) + 1 if slides else 1,
+    }), link, stato)
 
 
 @require_GET
@@ -237,7 +315,10 @@ def corso(request, token: str):
             "progress_pct": round((pos + 1) / len(slides) * 100), "chi": stato["chi"],
         })
     try:
-        pos = max(min(int(request.GET.get("s") or 1), len(slides)), 1) - 1
+        if request.GET.get("s"):
+            pos = max(min(int(request.GET.get("s")), len(slides)), 1) - 1
+        else:
+            pos = _punto_di_ripresa(stato, slides)  # riprende dalla prima slide non vista
     except ValueError:
         pos = 0
     if not _slide_ammessa(stato, slides, pos, regola):
@@ -249,7 +330,7 @@ def corso(request, token: str):
     stato["viste"].setdefault(str(slide.ordine), time.time())
     _salva(request, link, stato)
     ultima = pos == len(slides) - 1
-    return render(request, "anagrafica/corso_aperto/slide.html", {
+    return _ricorda(render(request, "anagrafica/corso_aperto/slide.html", {
         "link": link, "corso": corso_obj, "slide": slide, "indice": pos + 1, "n_slide": len(slides),
         "contenuto_html": render_markdown(slide.contenuto) if not slide.is_immagine and slide.tipo != "VIDEO" else "",
         "prec": pos if pos > 0 else None, "succ": pos + 2 if not ultima else None, "ultima": ultima,
@@ -258,7 +339,8 @@ def corso(request, token: str):
         "progress_pct": round((pos + 1) / len(slides) * 100),
         "ha_quiz": bool(quiz.domande_valide(corso_obj)), "chi": stato["chi"],
         "codice": getattr(_partecipazione(stato), "codice", ""),
-    })
+        "video_da": int(((stato.get("video") or {}).get(str(slide.pk)) or [0])[0] or 0),
+    }), link, stato)
 
 
 def _slide_vista(request, token: str, slide_id: int, tipo_ok) -> TrainingSlide:

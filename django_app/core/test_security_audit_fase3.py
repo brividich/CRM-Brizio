@@ -38,6 +38,7 @@ PUBLIC_VIEWS = frozenset({
     # media solo delle slide aperte, limiti di invio, campo trappola (anagrafica/views_corso_aperto.py).
     "anagrafica.views_corso_aperto.corso",
     "anagrafica.views_corso_aperto.registrati",
+    "anagrafica.views_corso_aperto.pronto",
     "anagrafica.views_corso_aperto.materiale",
     "anagrafica.views_corso_aperto.video_avanz",
     "anagrafica.views_aula_pubblica.firma",
