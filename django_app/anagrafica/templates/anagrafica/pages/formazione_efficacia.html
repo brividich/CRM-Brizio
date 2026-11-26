@@ -31,12 +31,24 @@ body.theme-dark .ef-f select,body.theme-dark .ef-f textarea,body.theme-dark .ef-
       {% if puo_tutte %}{% if tutte %}<a class="hr-btn hr-btn-outline" href="?mie=1">Solo le mie</a>{% else %}<a class="hr-btn hr-btn-outline" href="?">Tutte</a>{% endif %}{% endif %}
     </div>
   </div>
+  {% if elenco_reparti|length > 1 or filtro_reparto %}
+  <form method="get" style="display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap;">
+    {% if not tutte %}<input type="hidden" name="mie" value="1">{% endif %}
+    <label for="ef-reparto" class="ef-muted">Reparto</label>
+    <select id="ef-reparto" name="reparto" onchange="this.form.submit()" style="border:1px solid #d1d9e3;border-radius:8px;padding:6px 8px;font:inherit;font-size:13px;">
+      <option value="">Tutti i reparti</option>
+      {% for r in elenco_reparti %}<option value="{{ r }}"{% if r == filtro_reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
+    </select>
+    <noscript><button class="hr-btn hr-btn-ghost" type="submit">Filtra</button></noscript>
+  </form>
+  {% endif %}
   <div class="hr-card" style="padding:12px 18px;">
     {% for v in elenco %}
-    <form method="post" class="ef-row">{% csrf_token %}<input type="hidden" name="id" value="{{ v.pk }}">
-      <div><strong>{{ v.nome }}</strong><div class="ef-muted">{{ v.record.course_title_snapshot|default:v.record.corso.titolo }}</div></div>
+    {% if v.puo_salvare %}<form method="post" class="ef-row">{% csrf_token %}<input type="hidden" name="id" value="{{ v.pk }}">{% else %}<div class="ef-row">{% endif %}
+      <div><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#scheda-formazione" title="Apri la scheda della persona"><strong>{{ v.nome }}</strong></a><div class="ef-muted">{{ v.record.course_title_snapshot|default:v.record.corso.titolo }}{% if v.reparto %} · {{ v.reparto }}{% endif %}</div></div>
       <div class="ef-muted">Completato il {{ v.record.data_completamento|date:"d/m/Y" }}<br>{{ v.record.session_code_snapshot }}</div>
-      <div>{% if v.dovuta %}<span class="fm-pill fm-pill-expired">dal {{ v.attesa_dal|date:"d/m/Y" }}</span>{% else %}<span class="fm-pill fm-pill-warning">entro {{ v.attesa_dal|date:"d/m/Y" }}</span>{% endif %}</div>
+      <div>{% if v.dovuta %}<span class="fm-pill fm-pill-expired">scaduta dal {{ v.attesa_dal|date:"d/m/Y" }}</span>{% else %}<span class="fm-pill fm-pill-warning">entro {{ v.attesa_dal|date:"d/m/Y" }}</span>{% endif %}</div>
+      {% if v.puo_salvare %}
       <div class="ef-f">
         <div class="ef-esiti" role="radiogroup" aria-label="Esito per {{ v.nome }}">
           {% for val, lbl in ESITI %}<label><input type="radio" name="esito" value="{{ val }}" required> {{ lbl }}</label>{% endfor %}
@@ -46,6 +58,10 @@ body.theme-dark .ef-f select,body.theme-dark .ef-f textarea,body.theme-dark .ef-
         <div><button class="hr-btn hr-btn-primary" type="submit">Salva</button></div>
       </div>
     </form>
+      {% else %}
+      <div class="ef-muted">La compila il capo della persona o chi gestisce la formazione.</div>
+    </div>
+      {% endif %}
     {% empty %}
     <p style="color:#94a3b8;margin:10px 0;">Nessuna valutazione da fare adesso.</p>
     {% endfor %}

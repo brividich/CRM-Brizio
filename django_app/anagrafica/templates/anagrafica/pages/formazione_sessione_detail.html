@@ -179,6 +179,18 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
         <div class="hr-metric-sub">Dipendenti iscritti</div>
       </div>
     </a>
+    {% if solo_online %}
+    <div class="hr-metric">
+      <div class="hr-metric-ico green">🖥</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Lezione online</span>
+          <span class="hr-metric-val">{% if aula_scadenza_online %}entro il {{ aula_scadenza_online|date:"d-m-Y" }}{% else %}—{% endif %}</span>
+        </div>
+        <div class="hr-metric-sub">slide e test, senza giornate d'aula</div>
+      </div>
+    </div>
+    {% else %}
     <a class="hr-metric kpi-link" href="#sessione-lezioni" title="Vai alle lezioni: la somma delle loro durate (pause escluse) è questo numero">
       <div class="hr-metric-ico green">📖</div>
       <div class="hr-metric-body">
@@ -197,6 +209,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
         </div>
       </div>
     </a>
+    {% endif %}
     {% if sessione.docente_id %}{% url 'anagrafica:formazione_istruttore_detail' sessione.docente_id as erogatore_url %}{% elif sessione.docente_ente_id %}{% url 'anagrafica:formazione_azienda_detail' sessione.docente_ente_id as erogatore_url %}{% elif sessione.corso.ente_formativo_id %}{% url 'anagrafica:formazione_azienda_detail' sessione.corso.ente_formativo_id as erogatore_url %}{% endif %}
     {% if erogatore_url %}<a class="hr-metric kpi-link" href="{{ erogatore_url }}" title="Apri la scheda del docente o dell'ente che ha erogato la sessione">{% else %}<div class="hr-metric">{% endif %}
       <div class="hr-metric-ico amber">👤</div>
@@ -210,7 +223,8 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
     {% if erogatore_url %}</a>{% else %}</div>{% endif %}
   </div>
 
-  {# ── Lezioni ─────────────────────────────────────────────────────────────── #}
+  {# ── Lezioni (non per le online senza giornate: slide e test sono nel riquadro della lezione online) #}
+  {% if not solo_online %}
   <div class="hr-card fm-section" id="sessione-lezioni">
     <div class="fm-section-head">
       <div class="fm-section-title">📖 Lezioni <span class="fm-count">{{ lezioni|length }}</span></div>
@@ -497,6 +511,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
     </div>
     {% endif %}
   </div>
+  {% endif %}
 
   {# ── Ingressi del docente esterno dal chiosco della reception (GuestPortal) #}
   {% if guestportal_ok and sessione.modalita != "REMOTO" and sessione.docente.tipo != "INTERNO" or sessione.ingressi_esterni.exists %}

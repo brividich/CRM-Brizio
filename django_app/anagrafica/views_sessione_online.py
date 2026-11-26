@@ -113,7 +113,6 @@ def contesto_gestione(request, sessione, *, completo: bool = True) -> dict | Non
             "righe": righe,
             "numeri": so.numeri(righe, cfg),
             "difficili": so.domande_difficili(sessione),
-            "minuti_previsti": round(len(elenco_slide) * (cfg.secondi_minimi_slide or 0) / 60),
         })
     return ctx
 

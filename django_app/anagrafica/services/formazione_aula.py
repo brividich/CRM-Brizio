@@ -276,6 +276,8 @@ def proposta(sessione) -> list[RigaChiusura]:
     nomi = _helpers._build_nomi_map()
     soglia_pres, esame, _soglia_test = _soglie(sessione)
     ha_lezioni = sessione.lezioni.exists()
+    # Lezione online scaduta: chi non ha superato il test non ha più tempo per farlo.
+    online_scaduta = sessione.modalita == "ONLINE" and not ha_lezioni and online_finita(sessione)
     con_presenze = set(TrainingLessonAttendance.objects.filter(lezione__sessione=sessione)
                        .values_list("legacy_anagrafica_id", flat=True))
     righe = []
@@ -292,6 +294,8 @@ def proposta(sessione) -> list[RigaChiusura]:
             r.proposto, r.motivo = "ASSENTE", f"presenza {pct:.0f}% sotto il {soglia_pres}%"
         elif test_ok is False:
             r.proposto, r.motivo = "NON_IDONEO", "test non superato"
+        elif online_scaduta and test_ok is not True:
+            r.proposto, r.motivo = "ASSENTE", "test non fatto entro la scadenza della lezione"
         elif esame and test_ok is not True:
             r.motivo = "il corso chiede la verifica finale: manca il test"
         elif not ha_lezioni and test_ok is not True:
@@ -333,6 +337,15 @@ def chiudi(sessione, user, esiti: dict[int, str], carta: dict[int, str] | None =
     if sessione.is_approvata:
         raise AulaError("L'edizione è già approvata: per cambiarla va riaperta.")
     out = EsitoChiusura()
+    if sessione.modalita == "ONLINE":
+        # Chi ha superato il test va a libretto con la data del test, non con quella di chiusura.
+        from .sessione_online import registra_completamenti
+        try:
+            n_reg, bloccati = registra_completamenti(sessione, user)
+            out.completati += n_reg
+            out.bloccati += bloccati
+        except Exception:
+            logger.exception("Completamenti online non registrati alla chiusura (sessione %s)", sessione.pk)
     _soglia_pres, _esame, soglia_test = _soglie(sessione)
     oggi = timezone.localdate()
     data_c = min(sessione.data_fine or oggi, oggi)
@@ -382,6 +395,12 @@ def chiudi(sessione, user, esiti: dict[int, str], carta: dict[int, str] | None =
             cfg.save(update_fields=["test_in_aula", "updated_at"])
     elif not out.aperti:
         out.chiusa = True
+        if not sessione.chiusa_il:
+            # Già «Completata» (es. dalla modifica della sessione) ma mai chiusa da qui: la data
+            # di chiusura serve alla coda MOD.040 e al registro.
+            sessione.chiusa_il = timezone.now()
+            sessione.chiusa_da_nome = nome_utente(user)[:160]
+            sessione.save(update_fields=["chiusa_il", "chiusa_da_nome", "updated_at"])
     return out
 
 
@@ -397,10 +416,50 @@ def annulla(sessione) -> None:
     sessione.save(update_fields=["stato", "updated_at"])
 
 
+STATI_NON_CHIUSI = ("PIANIFICATA", "IN_CORSO")
+
+
+def q_finite(oggi):
+    """Edizioni finite: l'ultima giornata è passata; per le online (slide + test) conta la
+    scadenza della lezione, se c'è, al posto della data di fine."""
+    from django.db.models import Q
+    return (Q(data_fine__lt=oggi) & ~Q(modalita="ONLINE")
+            | Q(modalita="ONLINE", lezione_online__scadenza__lt=oggi)
+            | Q(modalita="ONLINE", lezione_online__scadenza__isnull=True, data_fine__lt=oggi))
+
+
 def da_chiudere(oggi=None):
+    """Edizioni finite e non ancora chiuse. Unica definizione: elenco «Da chiudere» e controllo
+    «Edizioni finite e non chiuse» dell'Integrità dati contano le stesse."""
     oggi = oggi or timezone.localdate()
-    return (TrainingSession.objects.filter(data_fine__lt=oggi, stato__in=["PIANIFICATA", "IN_CORSO"])
-            .exclude(modalita="ONLINE"))
+    return TrainingSession.objects.filter(q_finite(oggi), stato__in=STATI_NON_CHIUSI)
+
+
+def aggiorna_stati(oggi=None) -> int:
+    """Stato automatico: «Pianificata» diventa «In corso» il giorno in cui l'edizione inizia.
+
+    Chiamata all'apertura dell'elenco e della pagina sessione e dal promemoria quotidiano;
+    la fine non cambia lo stato: l'edizione finita compare in «Da chiudere» finché qualcuno
+    non registra gli esiti. Ritorna quante edizioni ha aggiornato."""
+    oggi = oggi or timezone.localdate()
+    try:
+        return TrainingSession.objects.filter(stato="PIANIFICATA", data_inizio__lte=oggi).update(stato="IN_CORSO")
+    except Exception:
+        logger.exception("Stato automatico delle edizioni non aggiornato")
+        return 0
+
+
+def scadenza_online(sessione):
+    """Ultimo giorno della lezione online: la scadenza impostata, altrimenti la data di fine."""
+    from .sessione_online import config
+    cfg = config(sessione)
+    return (cfg.scadenza if cfg and cfg.scadenza else None) or sessione.data_fine
+
+
+def online_finita(sessione, oggi=None) -> bool:
+    oggi = oggi or timezone.localdate()
+    fine = scadenza_online(sessione)
+    return bool(fine and fine < oggi)
 
 
 def cosa_manca_breve(sessione) -> tuple[str, str]:
@@ -423,9 +482,18 @@ def cosa_manca_breve(sessione) -> tuple[str, str]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def fase(sessione, oggi=None) -> str:
+    """prima · durante · dopo. Le online (slide + test) restano «durante» fino alla scadenza."""
     oggi = oggi or timezone.localdate()
     if sessione.is_chiusa:
         return "dopo"
+    if sessione.modalita == "ONLINE":
+        if online_finita(sessione, oggi):
+            return "dopo"
+        from .sessione_online import config
+        cfg = config(sessione)
+        if cfg and cfg.pubblicata_il and (not sessione.data_inizio or sessione.data_inizio <= oggi):
+            return "durante"
+        return "prima"
     if sessione.data_fine and sessione.data_fine < oggi:
         return "dopo"
     if sessione.data_inizio and sessione.data_inizio <= oggi:
@@ -441,13 +509,13 @@ ANTICIPO_GIORNI_EFFICACIA = 15
 
 
 def efficacie_da_valutare(capo_legacy_id: int | None = None, *, tutte: bool = False, oggi=None) -> list:
-    """Valutazioni attese entro 15 giorni: del capo indicato (le persone di cui è il capo) o tutte."""
+    """Valutazioni dovute o in arrivo entro 15 giorni: del capo indicato (le persone di cui è il
+    capo) o tutte. Stessa regola di ``formazione_efficacia.valutazioni_da_fare`` (fonte unica)."""
     from .capo_team import mappa_capi
+    from .formazione_efficacia import valutazioni_da_fare
 
     oggi = oggi or timezone.localdate()
-    qs = list(TrainingEfficacia.objects.filter(valutata_il__isnull=True,
-                                               attesa_dal__lte=oggi + timedelta(days=ANTICIPO_GIORNI_EFFICACIA))
-              .select_related("record", "record__corso").order_by("attesa_dal", "id"))
+    qs = list(valutazioni_da_fare(oggi=oggi, anticipo_giorni=ANTICIPO_GIORNI_EFFICACIA))
     if tutte or not qs:
         return qs
     if not capo_legacy_id:
@@ -481,9 +549,15 @@ def salva_efficacia(valutazione, esito: str, user, metodo: str = "", azione: str
     valutazione.save()
 
 
+def q_da_approvare():
+    """Coda MOD.040: edizioni «Completata» non ancora approvate, chiuse da qui o no."""
+    from django.db.models import Q
+    return Q(stato="COMPLETATA", approvata_il__isnull=True)
+
+
 def edizioni_da_approvare():
-    return (TrainingSession.objects.filter(stato="COMPLETATA", approvata_il__isnull=True, chiusa_il__isnull=False)
-            .select_related("corso").order_by("chiusa_il"))
+    return (TrainingSession.objects.filter(q_da_approvare())
+            .select_related("corso").order_by("-data_fine", "-id"))
 
 
 def verifiche_nc_dovute(oggi=None) -> list:

@@ -510,7 +510,7 @@ def correggi(enrollment, cfg, scelte: dict[int, set[int]], *, user=None, iniziat
             campi.append("superata_il")
         prog.save(update_fields=campi)
         _riporta_su_iscrizione(enrollment, cfg, prog, tentativo)
-    if superato and not (enrollment.sessione.modalita != "ONLINE" and getattr(cfg, "test_in_aula", False)):
+    if superato and not solo_verifica(enrollment.sessione, cfg):
         # Test superato nella lezione online: il completamento va a libretto subito, come per
         # l'e-learning (prima serviva «Registra completamenti» e la scheda del corso mostrava
         # «In corso»). Chi è bloccato dalle regole del corso resta «Superata» per l'HR.
@@ -522,6 +522,17 @@ def correggi(enrollment, cfg, scelte: dict[int, set[int]], *, user=None, iniziat
     return tentativo
 
 
+def solo_verifica(sessione, cfg=None) -> bool:
+    """Il test online vale solo come verifica: sessione non ONLINE con il test d'aula aperto o
+    con giornate d'aula. Lì presenza e ore vengono dal registro e il completamento dalla
+    chiusura dell'edizione, non dal test superato."""
+    if sessione.modalita == "ONLINE":
+        return False
+    if getattr(cfg, "test_in_aula", False):
+        return True
+    return sessione.lezioni.exists()
+
+
 def _riporta_su_iscrizione(enrollment, cfg, prog, tentativo) -> None:
     """Presenza e verifica sull'iscrizione alla sessione (non il completamento a libretto)."""
     if enrollment.stato == "COMPLETATO":
@@ -531,9 +542,9 @@ def _riporta_su_iscrizione(enrollment, cfg, prog, tentativo) -> None:
     enrollment.punteggio_minimo = cfg.soglia_pct
     enrollment.modalita_verifica = "TEST"
     enrollment.data_verifica = timezone.localdate()
-    in_aula = enrollment.sessione.modalita != "ONLINE" and getattr(cfg, "test_in_aula", False)
+    in_aula = solo_verifica(enrollment.sessione, cfg)
     if tentativo.superato and in_aula:
-        # In aula la presenza viene dal registro, non dal test.
+        # In aula (o sessione mista con giornate) la presenza viene dal registro, non dal test.
         enrollment.verifica_superata = True
         campi.append("verifica_superata")
     elif tentativo.superato:
@@ -897,10 +908,17 @@ def lezioni_della_persona(legacy_id: int) -> list[dict]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def iscrizioni_da_allineare(corso_id: int, legacy_id: int):
-    """Iscrizioni aperte della persona a sessioni online (slide + test) dello stesso corso."""
-    from django.db.models import Q
+    """Iscrizioni aperte della persona a sessioni online (slide + test) dello stesso corso.
+
+    Escluse le sessioni miste con giornate d'aula: lì la presenza viene dal registro e il
+    completamento dalla chiusura dell'edizione (vedi ``solo_verifica``)."""
+    from django.db.models import Exists, OuterRef, Q
+
+    from ..models_formazione import TrainingLesson
 
     return (TrainingEnrollment.objects
+            .alias(con_giornate=Exists(TrainingLesson.objects.filter(sessione_id=OuterRef("sessione_id"))))
+            .exclude(Q(con_giornate=True) & ~Q(sessione__modalita="ONLINE"))
             .filter(legacy_anagrafica_id=legacy_id, sessione__corso_id=corso_id, record_completamento__isnull=True)
             .exclude(stato__in=("COMPLETATO", "RITIRATO"))
             .exclude(sessione__stato="ANNULLATA")
