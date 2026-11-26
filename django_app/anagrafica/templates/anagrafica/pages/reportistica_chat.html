@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% include "core/components/_hub_formkit.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=5">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -54,6 +54,14 @@
             {% for m in stato.storico %}
               <div class="rp-msg {% if m.role == 'user' %}rp-msg-utente{% else %}rp-msg-ai{% endif %}">{{ m.content|linebreaksbr }}</div>
             {% endfor %}
+            {% if stato.domande %}
+            <form method="post" class="rp-esempi rp-risposte" aria-label="Risposte pronte">{% csrf_token %}
+              <input type="hidden" name="azione" value="messaggio">
+              {% for d in stato.domande %}{% for r in d.risposte %}
+              <button type="submit" name="messaggio" value="{{ r }}" class="rp-esempio" data-rp-invia title="{{ d.testo }}">{{ r }}</button>
+              {% endfor %}{% endfor %}
+            </form>
+            {% endif %}
           </div>
 
           {% if not stato.ai %}

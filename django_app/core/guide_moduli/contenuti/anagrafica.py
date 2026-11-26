@@ -1389,6 +1389,34 @@ GUIDA = {
             ],
         },
         {
+            "id": "report-archivio",
+            "titolo": "Reportistica: anteprima, archivio e «Rigenera»",
+            "blocchi": [
+                ("def", [
+                    ("Anteprima dal vivo", "in «Genera» l'anteprima si aggiorna da sola a ogni modifica di periodo, "
+                                           "filtri, blocchi o testi (non salva e non scarica niente). In cima, il "
+                                           "riepilogo: persone, sezioni dati, righe in tabella, destinatario, colonne "
+                                           "riservate presenti e sezioni omesse per permessi."),
+                    ("Archivio", "filtri rapidi «Tutti», «Generati negli ultimi 30 giorni», «Con dati personali», "
+                                 "«Generati da me»; filtri per testo, modello, formato, autore e date; 25 documenti per "
+                                 "pagina."),
+                    ("Chi vede cosa", "chi gestisce i modelli vede l'archivio di tutti; gli altri solo i documenti "
+                                      "che hanno generato. Un documento si riscarica solo se oggi si potrebbe "
+                                      "rigenerarlo (sezioni e colonne riservate ricontrollate): altrimenti «riservato»."),
+                    ("«Rigenera»", "rifà il documento con i dati di oggi e gli stessi parametri (titolo, destinatario, "
+                                   "filtri, blocchi); un periodo relativo si ricalcola a oggi, le date personalizzate "
+                                   "restano. I report da «Chiedi un report» si riaprono nella chat."),
+                    ("Conservazione", "i file con dati personali si cancellano dopo 12 mesi (impostazione "
+                                      "REPORTISTICA_ARCHIVIO_MESI, 0 = mai): resta la riga con chi, quando, per chi e "
+                                      "l'impronta, con la dicitura «file cancellato il …»; si usa «Rigenera»."),
+                    ("Sezioni dati disponibili", "in fondo alla pagina ogni sezione è cliccabile: apre «Chiedi un "
+                                                 "report» già impostato su quella sezione, da rifinire a parole."),
+                    ("Domande della chat", "se una persona, un reparto, una colonna o le date non tornano, la chat lo "
+                                           "chiede con risposte pronte da cliccare (es. «Reparto Produzione»)."),
+                ]),
+            ],
+        },
+        {
             "id": "report-codice-fiscale",
             "titolo": "Codice fiscale nell'«Elenco del personale»",
             "blocchi": [

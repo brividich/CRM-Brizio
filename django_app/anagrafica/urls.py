@@ -259,6 +259,7 @@ urlpatterns = [
     path("reportistica/predefiniti/", views_reportistica.reportistica_predefiniti, name="reportistica_predefiniti"),
     path("reportistica/archivio/<int:pk>/", views_reportistica.reportistica_archivio_download, name="reportistica_archivio_download"),
     path("reportistica/archivio/<int:pk>/elimina/", views_reportistica.reportistica_archivio_elimina, name="reportistica_archivio_elimina"),
+    path("reportistica/archivio/<int:pk>/rigenera/", views_reportistica.reportistica_archivio_rigenera, name="reportistica_archivio_rigenera"),
 
     # Mansioni catalogo
     path("mansioni/", views.mansioni_list, name="mansioni_list"),

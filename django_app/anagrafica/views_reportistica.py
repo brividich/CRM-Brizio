@@ -15,16 +15,19 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.http import Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
 from .models import ReportBlocco, ReportGenerato, ReportModello
+from .reportistica import archivio as archivio_svc
 from .reportistica import motore
 from .reportistica import sezioni as catalogo
 from .reportistica.forms import BlocchiFormSet, GeneraForm, ReportModelloForm, scelte_perimetro
@@ -48,7 +51,10 @@ def _nega(request, msg: str = "Non hai accesso alla reportistica."):
 def reportistica_index(request):
     if not can_view(request):
         return _nega(request)
-    q = (request.GET.get("q") or "").strip()
+    eliminati = archivio_svc.scadi_vecchi()
+    if eliminati:
+        log_action(request, "reportistica_archivio_scaduti", MODULE,
+                   {"file_eliminati": eliminati, "mesi": archivio_svc.mesi_conservazione()})
     trenta_giorni_fa = timezone.now() - timedelta(days=30)
     modelli = list(
         ReportModello.objects.filter(is_active=True)
@@ -56,26 +62,18 @@ def reportistica_index(request):
                   n_30=Count("generati", filter=Q(generati__generato_il__gte=trenta_giorni_fa), distinct=True))
         .order_by("nome")
     )
-    archivio = ReportGenerato.objects.defer("contenuto").select_related("generato_da")
-    # KPI dell'archivio e filtro ``?filtro=`` dell'elenco con la stessa condizione.
-    filtri_archivio = {
-        "30g": ("Generati negli ultimi 30 giorni", Q(generato_il__gte=trenta_giorni_fa)),
-        "dati_personali": ("Con dati personali", Q(contiene_dati_personali=True)),
-    }
+    visibili = archivio_svc.visibili(request)
+    # KPI e filtri rapidi con la stessa condizione (archivio_svc.filtra), sui soli documenti visibili.
     kpi = {
         "modelli": len(modelli),
-        "archivio": ReportGenerato.objects.count(),
-        "ultimi_30": ReportGenerato.objects.filter(filtri_archivio["30g"][1]).count(),
-        "dati_personali": ReportGenerato.objects.filter(filtri_archivio["dati_personali"][1]).count(),
+        "archivio": visibili.count(),
+        "ultimi_30": visibili.filter(generato_il__gte=trenta_giorni_fa).count(),
+        "dati_personali": visibili.filter(contiene_dati_personali=True).count(),
     }
-    filtro = request.GET.get("filtro") or ""
-    if filtro in filtri_archivio:
-        archivio = archivio.filter(filtri_archivio[filtro][1])
-    else:
-        filtro = ""
-    if q:
-        archivio = archivio.filter(Q(titolo__icontains=q) | Q(destinatario__icontains=q) | Q(modello_nome__icontains=q))
-    n_archivio = archivio.count()
+    archivio, filtri = archivio_svc.filtra(visibili, request.GET, request)
+    pagina = Paginator(archivio, archivio_svc.PER_PAGINA).get_page(request.GET.get("pagina"))
+    query_senza_pagina = request.GET.copy()
+    query_senza_pagina.pop("pagina", None)
 
     # Stile C: una scheda per modello, filtrabile per norma.
     from .services import sezioni_c
@@ -91,24 +89,39 @@ def reportistica_index(request):
         vuoto_testo="Ripristina i modelli predefiniti o creane uno nuovo.",
     )
     aree = sezioni_c.aree_visibili(request, [
-        sezioni_c.Area("anagrafica:reportistica_chat", "Chiedi un report", "Pagina completa della richiesta a parole", icona="i-doc"),
         sezioni_c.Area("anagrafica:dipendenti_report", "Report dipendenti", "Elenco filtrabile con export", icona="i-users"),
         sezioni_c.Area("report_conformita:index", "Report conformità", "Conformità ai requisiti delle norme", icona="i-shield"),
     ])
+    gestore = can_manage(request)
     return render(request, "anagrafica/pages/reportistica_index.html", {
         "page_title": "Reportistica",
         "griglia_modelli": griglia_modelli,
         "aree": aree,
         "modelli": modelli,
-        "archivio": list(archivio[:60]),
-        "n_archivio": n_archivio,
-        "filtro": filtro,
-        "filtro_label": filtri_archivio[filtro][0] if filtro else "",
+        "pagina": pagina,
+        "archivio": [_riga_archivio(request, d) for d in pagina.object_list],
+        "filtri": filtri,
+        "filtri_rapidi": archivio_svc.FILTRI_RAPIDI,
+        "scelte_filtri": archivio_svc.scelte_filtri(visibili),
+        "query_senza_pagina": query_senza_pagina.urlencode(),
+        "mesi_conservazione": archivio_svc.mesi_conservazione(),
+        "solo_miei": not gestore,
         "kpi": kpi,
-        "q": q,
-        "can_manage": can_manage(request),
+        "can_manage": gestore,
         "catalogo": catalogo.catalogo_per_gruppo(request),
+        "catalogo_in_chat": {s.key for s in catalogo.catalogo() if s.in_chat},
     })
+
+
+def _riga_archivio(request, doc) -> dict:
+    """Documento d'archivio con cosa si puo' farne oggi (riscaricare, rigenerare)."""
+    consentito = archivio_svc.consentito(request, doc)
+    parametri = doc.parametri or {}
+    rigenerabile = consentito and (
+        (doc.modello_id and doc.modello and doc.modello.is_active) or isinstance(parametri.get("specifica"), dict)
+    )
+    return {"doc": doc, "scaricabile": consentito and doc.file_disponibile, "consentito": consentito,
+            "rigenerabile": bool(rigenerabile)}
 
 
 # ── Modelli ──────────────────────────────────────────────────────────────────
@@ -236,9 +249,15 @@ def reportistica_genera(request, pk: int):
     scelte = scelte_perimetro()
     azione = (request.POST.get("azione") or "anteprima").strip().lower()
 
+    # Anteprima dal vivo: a ogni modifica del form HTMX chiede solo il riquadro dell'anteprima.
+    # Mai salvataggi o download da questa strada.
+    dal_vivo = request.method == "POST" and request.headers.get("HX-Request") == "true"
     if request.method == "POST":
         form = GeneraForm(request.POST, modello=modello, scelte=scelte)
         if not form.is_valid():
+            if dal_vivo:
+                return render(request, "anagrafica/partials/_reportistica_anteprima.html",
+                              {"documento": None, "errori": True})
             messages.error(request, "Controlla i campi evidenziati.")
             return _render_genera(request, modello, form, None)
         parametri = motore.Parametri(
@@ -248,6 +267,10 @@ def reportistica_genera(request, pk: int):
             destinatario=form.cleaned_data.get("destinatario") or "", testi=form.testi(),
             escludi_blocchi=form.escludi_blocchi(),
         )
+        if dal_vivo:
+            documento = motore.componi(modello, parametri, request)
+            return render(request, "anagrafica/partials/_reportistica_anteprima.html",
+                          {"documento": documento, "riepilogo": motore.riepilogo(documento)})
         if form.cleaned_data.get("salva_nel_modello"):
             if can_manage(request):
                 _salva_scelte(request, modello, form, parametri)
@@ -255,8 +278,18 @@ def reportistica_genera(request, pk: int):
             else:
                 messages.warning(request, "Scelte non salvate: serve il permesso di gestione dei modelli.")
     else:
-        form = GeneraForm(modello=modello, scelte=scelte)
-        parametri = motore.Parametri.dal_modello(modello)
+        # «Rigenera» dall'archivio: si riparte dai parametri del documento, se visibile e consentito.
+        da = request.GET.get("da") or ""
+        archiviato = (archivio_svc.visibili(request).filter(pk=int(da), modello=modello).first()
+                      if da.isdigit() else None)
+        if archiviato is not None and archivio_svc.consentito(request, archiviato):
+            parametri = motore.Parametri.da_archivio(modello, archiviato.parametri)
+            form = GeneraForm(modello=modello, scelte=scelte, iniziali=parametri)
+            messages.info(request, f"Parametri ripresi dal documento del {timezone.localtime(archiviato.generato_il):%d/%m/%Y}, "
+                                   "dati aggiornati a oggi: controlla l'anteprima e scarica.")
+        else:
+            form = GeneraForm(modello=modello, scelte=scelte)
+            parametri = motore.Parametri.dal_modello(modello)
 
     documento = motore.componi(modello, parametri, request)
     if request.method == "POST" and azione in (ReportGenerato.FORMATO_PDF, ReportGenerato.FORMATO_XLSX):
@@ -271,6 +304,7 @@ def _render_genera(request, modello, form, documento):
         "modello": modello,
         "form": form,
         "documento": documento,
+        "riepilogo": motore.riepilogo(documento) if documento is not None else None,
         "can_manage": can_manage(request),
         "segnaposto": motore.SEGNAPOSTO,
     })
@@ -334,26 +368,21 @@ def _scarica_nuovo(request, modello, documento: motore.Documento, parametri, for
 
 def _archivio_consentito(request, doc: ReportGenerato) -> bool:
     """Un documento archiviato si riscarica solo se oggi si potrebbe rigenerarlo."""
-    parametri = doc.parametri or {}
-    for chiave in parametri.get("sezioni") or []:
-        sezione = catalogo.get(chiave)
-        if sezione is not None and not sezione.consentita(request):
-            return False
-    for voce in parametri.get("colonne_riservate") or []:
-        chiave, _sep, colonna = str(voce).partition(":")
-        sezione = catalogo.get(chiave)
-        if sezione is None or colonna not in dict(sezione.colonne_per(request)):
-            return False  # fail-closed: sezione sparita o colonna non piu' permessa
-    return True
+    return archivio_svc.consentito(request, doc)
 
 
 @login_required
 def reportistica_archivio_download(request, pk: int):
     if not can_view(request):
         return _nega(request)
-    doc = get_object_or_404(ReportGenerato, pk=pk)
+    # Fuori dai documenti visibili (di altri, per chi non gestisce i modelli) = inesistente.
+    doc = get_object_or_404(archivio_svc.visibili(request).defer(None), pk=pk)
     if not _archivio_consentito(request, doc):
-        messages.error(request, "Il documento contiene sezioni per cui non hai i permessi.")
+        messages.error(request, "Il documento contiene dati per cui non hai i permessi.")
+        return redirect("anagrafica:reportistica_index")
+    if not doc.file_disponibile:
+        messages.warning(request, f"Il file è stato cancellato il {timezone.localtime(doc.contenuto_eliminato_il):%d/%m/%Y} "
+                                  "per la conservazione dei dati personali: usa «Rigenera».")
         return redirect("anagrafica:reportistica_index")
     log_action(request, "reportistica_download", MODULE, {"archivio": doc.pk, "file": doc.nome_file},
                oggetto_tipo="report_generato", oggetto_id=str(doc.pk))
@@ -376,4 +405,27 @@ def reportistica_archivio_elimina(request, pk: int):
                oggetto_tipo="report_generato", oggetto_id=str(doc.pk))
     doc.delete()
     messages.success(request, "Documento eliminato dall'archivio.")
+    return redirect("anagrafica:reportistica_index")
+
+
+@login_required
+def reportistica_archivio_rigenera(request, pk: int):
+    """Rifà un documento d'archivio con i dati di oggi: stessi parametri, anteprima prima di scaricare."""
+    if not can_view(request):
+        return _nega(request)
+    doc = get_object_or_404(archivio_svc.visibili(request), pk=pk)
+    if not _archivio_consentito(request, doc):
+        messages.error(request, "Il documento contiene dati per cui non hai i permessi.")
+        return redirect("anagrafica:reportistica_index")
+    parametri = doc.parametri or {}
+    log_action(request, "reportistica_rigenera", MODULE, {"archivio": doc.pk},
+               oggetto_tipo="report_generato", oggetto_id=str(doc.pk))
+    if doc.modello_id and doc.modello and doc.modello.is_active:
+        return redirect(f"{reverse('anagrafica:reportistica_genera', args=[doc.modello_id])}?da={doc.pk}")
+    if isinstance(parametri.get("specifica"), dict):
+        from .views_reportistica_chat import riapri_specifica
+
+        riapri_specifica(request, parametri["specifica"])
+        return redirect("anagrafica:reportistica_chat")
+    messages.error(request, "Il modello di questo documento non esiste più: non si può rigenerare.")
     return redirect("anagrafica:reportistica_index")

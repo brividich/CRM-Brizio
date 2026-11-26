@@ -62,6 +62,17 @@ def _rinormalizza(request, stato: dict, grezza: dict) -> None:
     spec, avvisi = conversazione.normalizza_specifica(grezza, request, scelte_perimetro(dipendenti), dipendenti)
     stato["specifica"] = spec
     stato["avvisi"] = avvisi
+    stato["domande"] = []  # le domande valgono solo per l'ultima risposta dell'assistente
+
+
+def riapri_specifica(request, specifica: dict) -> None:
+    """«Rigenera» di un report a conversazione: nuova conversazione con la specifica archiviata,
+    ripassata dalla validazione con i permessi di oggi."""
+    stato = _nuova()
+    _rinormalizza(request, stato, specifica)
+    stato["storico"] = [{"role": "assistant",
+                         "content": "Ho ripreso il report dall'archivio con i dati di oggi: correggi a parole o scarica."}]
+    _salva(request, stato)
 
 
 def _riepilogo(specifica: dict) -> list[dict]:
@@ -100,7 +111,10 @@ def _messaggio(request, stato: dict, testo: str) -> None:
         scelte_perimetro=scelte_perimetro(dipendenti), dipendenti=dipendenti,
     )
     stato["specifica"] = esito.specifica
-    stato["avvisi"] = esito.avvisi
+    # Gli avvisi diventati domande non si ripetono anche nell'elenco «non applicate».
+    chiesti = {d.get("avviso") for d in esito.domande}
+    stato["avvisi"] = [a for a in esito.avvisi if a not in chiesti]
+    stato["domande"] = [{"testo": d["testo"], "risposte": d["risposte"]} for d in esito.domande]
     stato["ai"] = esito.ai
     stato["storico"] = list(stato.get("storico") or []) + [
         {"role": "user", "content": testo},
@@ -169,6 +183,19 @@ def reportistica_chat(request):
             _rinormalizza(request, stato, spec)
         elif azione == "imposta":
             _imposta(request, stato)
+        elif azione == "sezione":
+            # Dal catalogo della pagina Reportistica: report con quella sola sezione, da rifinire a parole.
+            sezione = catalogo.get((request.POST.get("sezione") or "").strip())
+            if sezione is not None and sezione.in_chat:
+                spec = dict(stato["specifica"])
+                spec["sezioni"] = [{"sezione": sezione.key}]
+                spec["titolo"] = spec.get("titolo") or sezione.titolo
+                _rinormalizza(request, stato, spec)
+                stato["storico"] = list(stato.get("storico") or []) + [{
+                    "role": "assistant",
+                    "content": f"Ecco «{sezione.titolo}» con le colonne di serie. Dimmi a parole cosa cambiare: "
+                               "reparti, periodo, colonne, solo le righe critiche…",
+                }]
         _salva(request, stato)
         # PRG: un ricaricamento della pagina non rimanda la richiesta all'AI.
         return redirect("anagrafica:reportistica_chat")

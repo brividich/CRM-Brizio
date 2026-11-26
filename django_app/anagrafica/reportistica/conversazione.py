@@ -64,6 +64,8 @@ class Esito:
     risposta: str
     avvisi: list[str] = field(default_factory=list)
     ai: bool = True
+    # Domande di chiarimento con risposte pronte (pulsanti nella chat).
+    domande: list[dict] = field(default_factory=list)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -364,6 +366,80 @@ def normalizza_specifica(grezza, request, scelte_perimetro: dict, dipendenti) ->
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Domande di chiarimento
+# ═══════════════════════════════════════════════════════════════════════════
+# Quando la validazione scarta qualcosa (persona o reparto non trovati, persona ambigua,
+# periodo senza date, colonna inesistente) la chat lo chiede con risposte pronte invece di
+# lasciare solo un avviso in fondo. Le domande nascono dagli avvisi di ``normalizza_specifica``:
+# i formati dei messaggi sono definiti in questo modulo.
+
+MAX_DOMANDE = 3
+MAX_RISPOSTE = 4
+_CAMPO_DA_ETICHETTA = {"REPARTO": "reparti", "AREA": "aree", "CENTRO DI COSTO": "centri_costo",
+                       "MANSIONE": "mansioni", "CONTRATTO": "contratti", "LIVELLO": "livelli", "QUALIFICA": "qualifiche"}
+
+
+def _simili(valore: str, scelte: list[str], n: int = MAX_RISPOSTE) -> list[str]:
+    """Le scelte piu' vicine a ``valore`` (contiene la parola, poi somiglianza), senza doppioni."""
+    import difflib
+
+    chiave = naming.chiave_testo(valore)
+    per_chiave = {naming.chiave_testo(s): s for s in scelte if s}
+    contenute = [s for k, s in per_chiave.items() if chiave and (chiave in k or k in chiave)]
+    vicine = [per_chiave[k] for k in difflib.get_close_matches(chiave, list(per_chiave), n=n, cutoff=0.6)]
+    return list(dict.fromkeys(contenute + vicine))[:n]
+
+
+def domande_di_chiarimento(avvisi: list[str], scelte_perimetro: dict, dipendenti, specifica: dict,
+                           request=None) -> list[dict]:
+    """Avvisi della validazione -> ``[{"testo": domanda, "risposte": [frasi da rimandare]}]``."""
+    nominativi = [d.nominativo for d in dipendenti]
+    domande: list[dict] = []
+    for avviso in avvisi:
+        if len(domande) >= MAX_DOMANDE:
+            break
+        m = re.match(r"Persona «(.+)» non trovata in anagrafica", avviso)
+        if m:
+            simili = _simili(m.group(1), nominativi)
+            domande.append({"avviso": avviso, "testo": f"Non trovo «{m.group(1)}» in anagrafica: chi intendevi?",
+                            "risposte": [f"La persona è {n}" for n in simili]})
+            continue
+        m = re.match(r"«(.+)» corrisponde a (\d+) persone", avviso)
+        if m:
+            parole = naming.chiave_testo(m.group(1)).split()
+            omonimi = [n for n in nominativi if parole and all(p in naming.chiave_testo(n).split() for p in parole)]
+            domande.append({"avviso": avviso, "testo": f"Ci sono {m.group(2)} persone «{m.group(1)}»: quale?",
+                            "risposte": [f"La persona è {n}" for n in omonimi[:MAX_RISPOSTE]]})
+            continue
+        m = re.match(r"(Reparto|Area|Centro di costo|Mansione|Contratto|Livello|Qualifica) «(.+)» non trovato", avviso)
+        if m:
+            campo = _CAMPO_DA_ETICHETTA[naming.chiave_testo(m.group(1))]
+            simili = _simili(m.group(2), [lab for _k, lab in scelte_perimetro.get(campo, [])])
+            cosa = m.group(1).lower()
+            articolo = "l'" if cosa == "area" else "la " if cosa in ("mansione", "qualifica") else "il "
+            domande.append({"avviso": avviso, "testo": f"Non trovo {articolo}{cosa} «{m.group(2)}»: "
+                                     + ("intendevi uno di questi?" if simili else "come si chiama esattamente?"),
+                            "risposte": [f"{m.group(1)} {s}" for s in simili]})
+            continue
+        if avviso.startswith("Per le date personalizzate servono inizio e fine"):
+            domande.append({"avviso": avviso, "testo": "Per quale periodo? Dimmi le due date (es. «dal 1/1/2026 al 30/6/2026») oppure:",
+                            "risposte": ["Anno in corso", "Anno scorso", "Ultimi 12 mesi"]})
+            continue
+        m = re.match(r"Colonne non disponibili in «(.+)»: (.+)\.$", avviso)
+        if m:
+            sezione = next((catalogo.get(s["sezione"]) for s in specifica.get("sezioni") or []
+                            if catalogo.get(s["sezione"]) and catalogo.get(s["sezione"]).titolo == m.group(1)), None)
+            etichette = [lab for _k, lab in sezione.colonne_per(request)] if sezione else []
+            simili = []
+            for nome in m.group(2).split(", "):
+                simili += [s for s in _simili(nome, etichette, 2) if s not in simili]
+            domande.append({"avviso": avviso, "testo": f"In «{m.group(1)}» non c'è la colonna «{m.group(2)}». "
+                                     + ("Ti va bene una di queste?" if simili else "Vuoi un'altra sezione?"),
+                            "risposte": [f"Aggiungi la colonna {s}" for s in simili[:MAX_RISPOSTE]]})
+    return domande
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Interpretazione: AI, con ripiego a parole chiave
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -451,7 +527,10 @@ def interpreta(messaggio: str, *, request, specifica: dict, storico: list[dict],
     spec, avvisi = normalizza_specifica(grezza, request, scelte_perimetro, dipendenti)
     if not spec["sezioni"] and not risposta:
         risposta = "Non ho capito quali dati ti servono: prova a dire, per esempio, «matrice formazione del reparto Produzione»."
-    return Esito(specifica=spec, risposta=risposta, avvisi=avvisi, ai=ai)
+    domande = domande_di_chiarimento(avvisi, scelte_perimetro, dipendenti, spec, request)
+    if domande:
+        risposta = (risposta + " " if risposta else "") + " ".join(d["testo"] for d in domande)
+    return Esito(specifica=spec, risposta=risposta, avvisi=avvisi, ai=ai, domande=domande)
 
 
 # Parole chiave -> sezione. Ordine = priorità (le espressioni piu' specifiche prima).

@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% include "core/components/_hub_formkit.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=5">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -26,14 +26,11 @@
         <div>
           <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Reportistica</div>
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-doc"/></svg>Report pronti per clienti e audit</h1>
-          <p class="fmd-sub">Modelli salvati per ISO 9001, EN 9100, ISO 45001, ISO 27001 e UNI/PdR 125: scegli il modello, aggiorna periodo, persone e testi, scarica PDF o Excel. Ogni documento consegnato resta in archivio.</p>
         </div>
         <div class="fmd-hero-actions">
           {% if can_manage %}
           <a href="{% url 'anagrafica:reportistica_modello_create' %}" class="fmd-btn-template"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo modello</a>
           {% endif %}
-          <a href="{% url 'anagrafica:dipendenti_report' %}" class="fmd-btn-template"><svg class="fmd-ico"><use href="#i-users"/></svg>Elenco dipendenti filtrabile</a>
-          <a href="{% url 'report_conformita:index' %}" class="fmd-btn-template"><svg class="fmd-ico"><use href="#i-shield"/></svg>Report conformità</a>
         </div>
       </div>
     </section>
@@ -44,7 +41,11 @@
     {% url 'anagrafica:reportistica_index' as u_rep %}
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Report in sintesi">
       {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-clipboard" valore=kpi.modelli label="Modelli" sub="pronti da generare" url=u_rep|add:"#fmd-modelli" title="Vai alle schede dei modelli attivi" %}
+      {% if solo_miei %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-doc" valore=kpi.archivio label="In archivio" sub="generati da te" url=u_rep|add:"#archivio" title="Apri l'archivio dei documenti che hai generato" %}
+      {% else %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-doc" valore=kpi.archivio label="In archivio" sub="documenti consegnati" url=u_rep|add:"#archivio" title="Apri l'archivio dei documenti generati" %}
+      {% endif %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-cal-clock" valore=kpi.ultimi_30 label="Ultimi 30 giorni" sub="report generati" url=u_rep|add:"?filtro=30g#archivio" title="Apri l'archivio filtrato: generati negli ultimi 30 giorni" %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-shield" valore=kpi.dati_personali label="Con dati personali" sub="da trattare come riservati" url=u_rep|add:"?filtro=dati_personali#archivio" title="Apri l'archivio filtrato: documenti con dati personali" %}
     </section>
@@ -63,41 +64,85 @@
     <section class="fmd-panel fmd-block fmd-low-main" id="archivio">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Archivio dei documenti generati</div>
-        <span class="fmd-block-aside">{% if n_archivio > archivio|length %}i più recenti {{ archivio|length }} di {{ n_archivio }}{% else %}{{ n_archivio }} document{{ n_archivio|pluralize:"o,i" }}{% endif %} · chi, quando, per chi</span>
+        <span class="fmd-block-aside">{{ pagina.paginator.count }} document{{ pagina.paginator.count|pluralize:"o,i" }}{% if solo_miei %} generati da te{% endif %}{% if mesi_conservazione %} · file con dati personali conservati {{ mesi_conservazione }} mesi{% endif %}</span>
       </div>
-      {% if filtro %}<p class="fmd-muted" style="margin:0 0 8px;font-size:13px;">Solo: <strong>{{ filtro_label }}</strong> · <a class="fmd-data-link" href="{{ u_rep }}#archivio">mostra tutto</a></p>{% endif %}
-      <form method="get" class="fmd-filterbar" style="margin-bottom:10px;">
-        {% if filtro %}<input type="hidden" name="filtro" value="{{ filtro }}">{% endif %}
+      <div class="rp-chips" role="group" aria-label="Filtri rapidi">
+        <a href="{{ u_rep }}#archivio" class="rp-chip{% if not filtri.filtro %} is-on{% endif %}">Tutti</a>
+        {% for chiave, etichetta in filtri_rapidi.items %}{% if chiave != "miei" or not solo_miei %}
+        <a href="{{ u_rep }}?filtro={{ chiave }}#archivio" class="rp-chip{% if filtri.filtro == chiave %} is-on{% endif %}">{{ etichetta }}</a>
+        {% endif %}{% endfor %}
+      </div>
+      <form method="get" action="{{ u_rep }}#archivio" class="fmd-filterbar rp-archivio-filtri">
+        {% if filtri.filtro %}<input type="hidden" name="filtro" value="{{ filtri.filtro }}">{% endif %}
         <div class="fmd-filtf">
           <label for="rp-q">Cerca</label>
-          <input type="text" id="rp-q" name="q" value="{{ q }}" placeholder="Titolo, destinatario, modello…">
+          <input type="text" id="rp-q" name="q" value="{{ filtri.q }}" placeholder="Titolo, destinatario, nota…">
+        </div>
+        <div class="fmd-filtf">
+          <label for="rp-mod">Modello</label>
+          <select id="rp-mod" name="modello">
+            <option value="">Tutti</option>
+            {% for m in scelte_filtri.modelli %}<option value="{{ m }}"{% if filtri.modello == m %} selected{% endif %}>{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="fmd-filtf">
+          <label for="rp-fmt">Formato</label>
+          <select id="rp-fmt" name="formato">
+            <option value="">Tutti</option>
+            <option value="pdf"{% if filtri.formato == "pdf" %} selected{% endif %}>PDF</option>
+            <option value="xlsx"{% if filtri.formato == "xlsx" %} selected{% endif %}>Excel</option>
+          </select>
+        </div>
+        {% if not solo_miei %}
+        <div class="fmd-filtf">
+          <label for="rp-aut">Generato da</label>
+          <select id="rp-aut" name="autore">
+            <option value="">Chiunque</option>
+            {% for uid, nome in scelte_filtri.autori %}<option value="{{ uid }}"{% if filtri.autore == uid|stringformat:"s" %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div class="fmd-filtf">
+          <label for="rp-dal">Dal</label>
+          <input type="date" id="rp-dal" name="dal" value="{{ filtri.dal|date:'Y-m-d' }}">
+        </div>
+        <div class="fmd-filtf">
+          <label for="rp-al">Al</label>
+          <input type="date" id="rp-al" name="al" value="{{ filtri.al|date:'Y-m-d' }}">
         </div>
         <div class="fmd-filtf fmd-go">
-          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-search"/></svg>Cerca</button>
-          {% if q %}<a href="{% url 'anagrafica:reportistica_index' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>{% endif %}
+          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-search"/></svg>Filtra</button>
+          {% if filtri.attivi %}<a href="{{ u_rep }}#archivio" class="fmd-btn fmd-btn-ghost">Azzera</a>{% endif %}
         </div>
       </form>
       {% if archivio %}
       <div class="fmd-tablewrap">
         <table class="fmd-table">
           <thead><tr>
-            <th>Generato</th><th>Documento</th><th>Destinatario</th><th>Periodo</th><th>Formato</th><th>Da</th><th>Nota</th><th></th>
+            <th>Generato</th><th>Documento</th><th>Destinatario</th><th>Periodo</th><th>Formato</th>{% if not solo_miei %}<th>Da</th>{% endif %}<th>Nota</th><th></th>
           </tr></thead>
           <tbody>
-          {% for d in archivio %}
+          {% for r in archivio %}{% with d=r.doc %}
             <tr>
               <td class="fmd-nowrap">{{ d.generato_il|date:"d/m/Y H:i" }}</td>
               <td>
                 <div class="fmd-cell-main">{{ d.titolo }}</div>
-                <div class="fmd-cell-sub">{{ d.modello_nome }}{% if d.contiene_dati_personali %} · <span title="Contiene dati personali nominativi">dati personali</span>{% endif %}</div>
+                <div class="fmd-cell-sub">{{ d.modello_nome }}{% if d.contiene_dati_personali %} · <span title="Contiene dati personali nominativi">dati personali</span>{% endif %}{% if not d.file_disponibile %} · <span title="Cancellato per la conservazione dei dati personali: resta la registrazione">file cancellato il {{ d.contenuto_eliminato_il|date:"d/m/Y" }}</span>{% endif %}</div>
               </td>
               <td>{{ d.destinatario|default:"—" }}</td>
               <td class="fmd-nowrap">{{ d.data_da|date:"d/m/Y" }} – {{ d.data_a|date:"d/m/Y" }}</td>
               <td>{{ d.get_formato_display }}</td>
-              <td>{% firstof d.generato_da.get_full_name d.generato_da.username "—" %}</td>
+              {% if not solo_miei %}<td>{% firstof d.generato_da.get_full_name d.generato_da.username "—" %}</td>{% endif %}
               <td>{{ d.note|default:"" }}</td>
               <td class="fmd-nowrap">
+                {% if r.scaricabile %}
                 <a href="{% url 'anagrafica:reportistica_archivio_download' d.pk %}" class="fmd-btn fmd-btn-ghost fmd-btn-mini" title="Scarica la copia archiviata (identica a quella consegnata)"><svg class="fmd-ico"><use href="#i-download"/></svg></a>
+                {% elif not r.consentito %}
+                <span class="fmd-muted" title="Contiene dati per cui oggi non hai i permessi">riservato</span>
+                {% endif %}
+                {% if r.rigenerabile %}
+                <a href="{% url 'anagrafica:reportistica_archivio_rigenera' d.pk %}" class="fmd-btn fmd-btn-ghost fmd-btn-mini" title="Rifai lo stesso documento con i dati di oggi: anteprima prima di scaricare"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Rigenera</a>
+                {% endif %}
                 {% if can_manage %}
                 <form method="post" action="{% url 'anagrafica:reportistica_archivio_elimina' d.pk %}" style="display:inline;" data-hub-confirm="Eliminare il documento dall'archivio?">{% csrf_token %}
                   <button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini" title="Elimina dall'archivio">✕</button>
@@ -105,12 +150,19 @@
                 {% endif %}
               </td>
             </tr>
-          {% endfor %}
+          {% endwith %}{% endfor %}
           </tbody>
         </table>
       </div>
+      {% if pagina.has_other_pages %}
+      <nav class="rp-pagine" aria-label="Pagine dell'archivio">
+        {% if pagina.has_previous %}<a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="?{% if query_senza_pagina %}{{ query_senza_pagina }}&amp;{% endif %}pagina={{ pagina.previous_page_number }}#archivio">‹ Precedenti</a>{% endif %}
+        <span class="fmd-muted">Pagina {{ pagina.number }} di {{ pagina.paginator.num_pages }}</span>
+        {% if pagina.has_next %}<a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="?{% if query_senza_pagina %}{{ query_senza_pagina }}&amp;{% endif %}pagina={{ pagina.next_page_number }}#archivio">Successivi ›</a>{% endif %}
+      </nav>
+      {% endif %}
       {% else %}
-      <div class="fmd-empty"><span class="fmd-et">{% if q %}Nessun documento trovato{% else %}Nessun documento generato{% endif %}</span></div>
+      <div class="fmd-empty"><span class="fmd-et">{% if filtri.attivi %}Nessun documento con questi filtri{% else %}Nessun documento generato{% endif %}</span></div>
       {% endif %}
     </section>
 
@@ -135,16 +187,17 @@
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-book"/></svg>Sezioni dati disponibili</div>
-        <span class="fmd-block-aside">da combinare nei modelli</span>
+        <span class="fmd-block-aside">clic per un report con quella sezione</span>
       </div>
-      <div class="rp-catalogo">
+      <form method="post" action="{% url 'anagrafica:reportistica_chat' %}" class="rp-catalogo">{% csrf_token %}
+        <input type="hidden" name="azione" value="sezione"><input type="hidden" name="nuova" value="1">
         {% for gruppo, voci in catalogo %}
         <div>
           <h4>{{ gruppo }}</h4>
-          <ul>{% for s in voci %}<li title="{{ s.descrizione }}">{{ s.titolo }}</li>{% endfor %}</ul>
+          <ul>{% for s in voci %}<li>{% if s.key in catalogo_in_chat %}<button type="submit" name="sezione" value="{{ s.key }}" class="rp-cat-voce" title="{{ s.descrizione }}">{{ s.titolo }}</button>{% else %}<span title="{{ s.descrizione }} · solo nei modelli">{{ s.titolo }}</span>{% endif %}</li>{% endfor %}</ul>
         </div>
         {% endfor %}
-      </div>
+      </form>
     </section>
 
   </div>

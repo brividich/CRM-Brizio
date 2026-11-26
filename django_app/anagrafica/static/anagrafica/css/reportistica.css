@@ -280,3 +280,25 @@ body.theme-dark .rp-capito-det,
 body.theme-dark .rp-chat-hint { color: var(--text-light); }
 body.theme-dark .rp-capito-check { color: var(--text-mid); }
 body.theme-dark .rp-salva { border-color: var(--border); }
+
+/* Archivio: filtri rapidi, filtri, pagine (26/11/2026) */
+.rp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.rp-chip { padding: 4px 11px; border-radius: 999px; border: 1px solid var(--hub-line); background: var(--hub-surface); color: var(--hub-slate); font-size: 12px; font-weight: 700; text-decoration: none; }
+.rp-chip:hover { border-color: var(--hub-cyan); color: var(--hub-navy); }
+.rp-chip.is-on { background: var(--hub-navy); border-color: var(--hub-navy); color: #fff; }
+.rp-archivio-filtri { margin-bottom: 10px; }
+.rp-archivio-filtri select, .rp-archivio-filtri input[type="date"] { min-width: 0; }
+.rp-pagine { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px; font-size: 12.5px; }
+
+/* Catalogo: ogni sezione apre «Chiedi un report» con quella sezione */
+.rp-cat-voce { all: unset; cursor: pointer; color: var(--hub-blue-fg, #1d5f8f); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 2px; }
+.rp-cat-voce:hover, .rp-cat-voce:focus-visible { text-decoration-color: currentColor; }
+.rp-cat-voce:focus-visible { outline: 2px solid var(--hub-cyan); outline-offset: 2px; border-radius: 3px; }
+/* Generazione: riepilogo di cosa si consegna + anteprima dal vivo */
+.rp-riepilogo { margin-bottom: 12px; padding: 12px 14px; }
+.rp-riepilogo-riga { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--hub-slate); }
+.rp-riepilogo-riga b { color: var(--hub-navy); }
+.rp-riepilogo-nota { margin-top: 6px; font-size: 12.5px; color: var(--hub-muted); }
+.rp-riepilogo-warn { color: var(--hub-orange); }
+.rp-anteprima { transition: opacity .15s; }
+.rp-anteprima.htmx-request { opacity: .55; }
