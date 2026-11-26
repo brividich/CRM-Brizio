@@ -884,12 +884,14 @@ class DipendenteQualifica(models.Model):
 
     @property
     def in_scadenza(self) -> bool:
-        """Scade entro 60 giorni e non è ancora scaduta."""
+        """Scade entro la soglia «in scadenza» (scadenze_soglie, 90 giorni) e non è ancora scaduta."""
         if self.data_scadenza is None:
             return False
         from datetime import timedelta
+
+        from .scadenze_soglie import GIORNI_PREAVVISO
         oggi = timezone.localdate()
-        return oggi <= self.data_scadenza <= oggi + timedelta(days=60)
+        return oggi <= self.data_scadenza <= oggi + timedelta(days=GIORNI_PREAVVISO)
 
 
 class QualificaSessione(models.Model):

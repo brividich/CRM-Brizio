@@ -201,8 +201,8 @@
       {% else %}
       <div class="fmd-empty">
         <span class="fmd-ebadge"><svg class="fmd-ico"><use href="#i-check"/></svg></span>
-        <span class="fmd-et">Nessun corso obbligatorio da mostrare</span>
-        <span class="fmd-em">{% if deadline_cache_empty %}Lo scadenzario non è ancora stato calcolato.{% else %}Nessuna regola assegna corsi obbligatori alle persone.{% endif %}</span>
+        <span class="fmd-et">{% if nessun_obbligo %}Nessun obbligo configurato{% else %}Nessun corso obbligatorio da mostrare{% endif %}</span>
+        <span class="fmd-em">{% if deadline_cache_empty %}Lo scadenzario non è ancora stato calcolato.{% elif nessun_obbligo %}Nessuna mansione, regola d'obbligo, processo o corso «Obbligatorio per tutti» assegna corsi alle persone: configurali nel <a class="fmd-data-link" href="{% url 'anagrafica:mansionario' %}">Mansionario</a> o nella scheda del corso (<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corsi_list' %}">elenco corsi</a>).{% else %}Nessuna regola assegna corsi obbligatori alle persone.{% endif %}</span>
       </div>
       {% endif %}
     </section>
@@ -215,7 +215,7 @@
           <svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenzario urgente
           {% if scadenze_urgenti %}<span class="fmd-count">{{ scadenze_urgenti|length }}</span>{% endif %}
         </div>
-        <div class="fmd-block-aside">Top 20 ordinati per urgenza</div>
+        <div class="fmd-block-aside">Corsi obbligatori · top 20 ordinati per urgenza</div>
       </div>
 
       {% if scadenze_urgenti %}
@@ -292,6 +292,9 @@
         {% if deadline_cache_empty %}
           <span class="fmd-et">Nessun dato disponibile</span>
           <span class="fmd-em">Lo scadenzario non è ancora stato calcolato.</span>
+        {% elif nessun_obbligo %}
+          <span class="fmd-et">Nessun obbligo configurato</span>
+          <span class="fmd-em">Nessun corso è richiesto alle persone: non c'è niente da misurare. Vedi la <a class="fmd-data-link" href="{% url 'anagrafica:formazione_copertura' %}">Copertura</a> per dove si configurano.</span>
         {% else %}
           <span class="fmd-et">Nessuna scadenza urgente</span>
           <span class="fmd-em">Tutti i corsi obbligatori risultano in regola.</span>

@@ -24,6 +24,23 @@
 .sc-num { text-align:center; font-weight:700; }
 .sc-empty { text-align:center; padding:40px 16px; color:#475569; }
 .sc-cert { font-size:11px; color:#64748b; }
+.sc-act { display:flex; gap:6px; align-items:center; }
+.sc-act form { margin:0; }
+.sc-act button { border:1px solid #e2e8f0; background:#fff; border-radius:6px; padding:3px 8px; font-size:12px; cursor:pointer; color:#0c2545; }
+.sc-act button.danger { color:#991b1b; }
+.sc-dialog { border:0; border-radius:12px; padding:0; width:min(560px, calc(100vw - 32px)); box-shadow:0 20px 50px rgba(15,23,42,.3); }
+.sc-dialog::backdrop { background:rgba(15,23,42,.45); }
+.sc-dialog form { padding:18px 20px; display:grid; gap:10px; }
+.sc-dialog h3 { margin:0 0 4px; font-size:16px; color:#0c2545; }
+.sc-dialog label { font-size:11.5px; font-weight:700; color:#64748b; display:block; margin-bottom:3px; }
+.sc-dialog .fm-input { width:100%; box-sizing:border-box; }
+.sc-dialog .sc-row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.sc-dialog .sc-err { color:#991b1b; font-size:12px; }
+.sc-dialog .sc-foot { display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+@media (max-width:520px){ .sc-dialog .sc-row2 { grid-template-columns:1fr; } }
+body.theme-dark .sc-dialog { background:var(--surface); color:var(--text); }
+body.theme-dark .sc-dialog h3 { color:var(--text); }
+body.theme-dark .sc-act button { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .sc-chip{border-color:var(--border);color:var(--text-mid);background:var(--surface)}
@@ -50,7 +67,10 @@ body.theme-dark .sc-cert{color:var(--text-light)}
       <h2 class="hr-pagehead-title">🛡️ Verifica copertura minima (AS/EN 9100)</h2>
       <p class="hr-pagehead-desc">Soglie configurabili di personale qualificato (min. N abilitati ≥ livello X) per asset/processo/ambito critico, confrontate con gli abilitati operativi. Le soglie non sono imposte da uno standard fisso: le definisce l'organizzazione o il flow-down cliente.</p>
     </div>
-    <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if puo_gestire %}<button type="button" class="hr-btn hr-btn-primary" data-sc-nuova>＋ Aggiungi soglia</button>{% endif %}
+      <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
+    </div>
   </div>
 
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Copertura in sintesi">
@@ -64,7 +84,7 @@ body.theme-dark .sc-cert{color:var(--text-light)}
   {% if righe %}
   <table class="sc-table"{% if not filtro_coperta %} id="skm-soglie"{% endif %}>
     <thead>
-      <tr><th>Soglia</th><th>Ambito</th><th>Certificazione</th><th>Liv. min.</th><th>Richiesti</th><th>Disponibili</th><th>Gap</th><th>Stato</th></tr>
+      <tr><th>Soglia</th><th>Ambito</th><th>Certificazione</th><th>Liv. min.</th><th>Richiesti</th><th>Disponibili</th><th>Gap</th><th>Stato</th>{% if puo_gestire %}<th></th>{% endif %}</tr>
     </thead>
     <tbody>
       {% for r in righe %}
@@ -81,6 +101,14 @@ body.theme-dark .sc-cert{color:var(--text-light)}
           {% elif r.coperta %}<span class="sc-badge ok">Coperta</span>
           {% else %}<span class="sc-badge gap">Scoperta −{{ r.gap }}</span>{% endif %}
         </td>
+        {% if puo_gestire %}<td><div class="sc-act">
+          <button type="button" data-sc-modifica
+                  data-id="{{ r.soglia.pk }}" data-nome="{{ r.soglia.nome }}" data-asset="{{ r.soglia.asset_id|default_if_none:'' }}"
+                  data-processo="{{ r.soglia.processo_id|default_if_none:'' }}" data-ambito="{{ r.soglia.descrizione_ambito }}"
+                  data-livello="{{ r.soglia.livello_minimo }}" data-minimo="{{ r.soglia.minimo_abilitati }}"
+                  data-cert="{{ r.soglia.certificazione }}" data-rif="{{ r.soglia.rif_normativo }}" data-note="{{ r.soglia.note }}">Modifica</button>
+          <form method="post" data-sc-elimina="{{ r.soglia.nome }}">{% csrf_token %}<input type="hidden" name="azione" value="elimina"><input type="hidden" name="soglia_id" value="{{ r.soglia.pk }}"><button type="submit" class="danger">Elimina</button></form>
+        </div></td>{% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -88,8 +116,64 @@ body.theme-dark .sc-cert{color:var(--text-light)}
   {% else %}
   <div class="sc-empty">
     Nessuna soglia di copertura configurata.<br>
-    Le soglie si definiscono da <b>Amministrazione → Anagrafica → Soglie copertura minima</b> (per asset, processo qualificato o ambito, con certificazione e livello minimo).
+    {% if puo_gestire %}Aggiungila con <b>＋ Aggiungi soglia</b>: per macchina, processo qualificato o ambito libero, con certificazione e livello minimo.{% else %}Le soglie le definisce chi gestisce la Skill Matrix.{% endif %}
   </div>
+  {% endif %}
+
+  {% if puo_gestire and form_soglia %}
+  <dialog class="sc-dialog" id="sc-dialog"{% if form_soglia.is_bound %} data-sc-apri{% endif %}>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="salva">
+      <input type="hidden" name="soglia_id" value="{{ soglia_in_modifica }}">
+      <h3 id="sc-titolo">{% if soglia_in_modifica %}Modifica soglia{% else %}Nuova soglia{% endif %}</h3>
+      {% if form_soglia.non_field_errors %}<div class="sc-err">{{ form_soglia.non_field_errors|join:" " }}</div>{% endif %}
+      <div><label for="{{ form_soglia.nome.id_for_label }}">{{ form_soglia.nome.label }}</label>{{ form_soglia.nome }}{% if form_soglia.nome.errors %}<div class="sc-err">{{ form_soglia.nome.errors|join:" " }}</div>{% endif %}</div>
+      <div class="sc-row2">
+        <div><label for="{{ form_soglia.asset.id_for_label }}">{{ form_soglia.asset.label }}</label>{{ form_soglia.asset }}</div>
+        <div><label for="{{ form_soglia.processo.id_for_label }}">{{ form_soglia.processo.label }}</label>{{ form_soglia.processo }}</div>
+      </div>
+      <div><label for="{{ form_soglia.descrizione_ambito.id_for_label }}">{{ form_soglia.descrizione_ambito.label }}</label>{{ form_soglia.descrizione_ambito }}</div>
+      <div class="sc-row2">
+        <div><label for="{{ form_soglia.livello_minimo.id_for_label }}">{{ form_soglia.livello_minimo.label }}</label>{{ form_soglia.livello_minimo }}</div>
+        <div><label for="{{ form_soglia.minimo_abilitati.id_for_label }}">{{ form_soglia.minimo_abilitati.label }}</label>{{ form_soglia.minimo_abilitati }}{% if form_soglia.minimo_abilitati.errors %}<div class="sc-err">{{ form_soglia.minimo_abilitati.errors|join:" " }}</div>{% endif %}</div>
+      </div>
+      <div class="sc-row2">
+        <div><label for="{{ form_soglia.certificazione.id_for_label }}">{{ form_soglia.certificazione.label }}</label>{{ form_soglia.certificazione }}</div>
+        <div><label for="{{ form_soglia.rif_normativo.id_for_label }}">{{ form_soglia.rif_normativo.label }}</label>{{ form_soglia.rif_normativo }}</div>
+      </div>
+      <div><label for="{{ form_soglia.note.id_for_label }}">{{ form_soglia.note.label }}</label>{{ form_soglia.note }}</div>
+      <div class="sc-foot">
+        <button type="button" class="hr-btn hr-btn-outline" data-sc-chiudi>Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Salva soglia</button>
+      </div>
+    </form>
+  </dialog>
+  <script>
+  (function(){
+    var dlg = document.getElementById("sc-dialog"); if (!dlg || !dlg.showModal) return;
+    var f = dlg.querySelector("form");
+    function set(name, val){ var el = f.elements[name]; if (el) el.value = (val == null ? "" : val); }
+    function apri(d){
+      document.getElementById("sc-titolo").textContent = d.id ? "Modifica soglia" : "Nuova soglia";
+      set("soglia_id", d.id); set("nome", d.nome); set("asset", d.asset); set("processo", d.processo);
+      set("descrizione_ambito", d.ambito); set("livello_minimo", d.livello || "U"); set("minimo_abilitati", d.minimo || "2");
+      set("certificazione", d.cert); set("rif_normativo", d.rif); set("note", d.note);
+      dlg.querySelectorAll(".sc-err").forEach(function(e){ e.remove(); });
+      dlg.showModal();
+    }
+    document.addEventListener("click", function(e){
+      if (e.target.closest("[data-sc-nuova]")) apri({});
+      var b = e.target.closest("[data-sc-modifica]"); if (b) apri(b.dataset);
+      if (e.target.closest("[data-sc-chiudi]")) dlg.close();
+    });
+    document.addEventListener("submit", function(e){
+      var fe = e.target.closest("[data-sc-elimina]");
+      if (fe && !window.confirm("Eliminare la soglia «" + fe.dataset.scElimina + "»?")) e.preventDefault();
+    });
+    if (dlg.hasAttribute("data-sc-apri")) dlg.showModal();
+  })();
+  </script>
   {% endif %}
 
 </div>

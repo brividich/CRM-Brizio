@@ -167,9 +167,10 @@ GLOSSARIO_INFO = {
         "È un avviso tracciato, non un blocco operativo."
     ),
     "matrice_competenze": (
-        "Dipendenti × abilitazioni. Ogni cella: valido (verde) / in scadenza ≤60gg "
-        "(giallo) / scaduto (rosso) / mancante (—). Le colonne sono le qualifiche con "
-        "almeno un'assegnazione (competenze realmente in uso). Per audit ISO 45001."
+        "Dipendenti in forza × qualifiche. Ogni cella: valido (verde) / in scadenza ≤90gg "
+        "(giallo) / scaduto (rosso) / mancante (!, solo se la qualifica è richiesta) / "
+        "non richiesta (·). Le colonne sono le qualifiche richieste da ruolo, mansione o "
+        "processi MOD.128 più quelle possedute. Per audit ISO 45001."
     ),
     "livello_rischio": (
         "Livello di rischio della mansione (Accordo Stato-Regioni): A = alto (16h) · "
@@ -816,7 +817,7 @@ _SCHEDE_COPERTURA = (
     ("anagrafica:mansionario_lacune", "Lacune di mansione", "Competenze della mansione non ancora raggiunte"),
     ("anagrafica:mansionario_matrice_competenze", "Matrice competenze", "Persone × competenze della mansione"),
     ("anagrafica:skm_copertura", "Copertura macchine", "Skill matrix MOD.187: chi sa usare cosa"),
-    ("anagrafica:matrice_competenze", "Matrice sicurezza", "Qualifiche e abilitazioni per mansione"),
+    ("anagrafica:matrice_competenze", "Matrice qualifiche", "Qualifiche richieste e possedute per persona"),
 )
 
 

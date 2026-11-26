@@ -2168,19 +2168,26 @@ def sicurezza_wizard(request):
 
 @login_required
 def matrice_competenze(request):
-    """Matrice **dipendenti × competenze/abilitazioni** (qualifiche) per audit ISO 45001.
+    """Matrice **dipendenti × qualifiche/abilitazioni** per audit ISO 45001.
 
-    Celle: valido / in scadenza (≤60gg) / scaduto / mancante. Colonne = i
-    ``TipoQualifica`` con almeno un'assegnazione (competenze realmente in uso,
-    incl. quelle importate dall'ASR). Filtro reparto + export CSV.
+    Colonne = qualifiche *richieste* (ruolo operativo, mansione del Mansionario,
+    processi MOD.128: ``requisiti.qualifiche_richieste``) più quelle possedute.
+    Celle: valido / in scadenza (soglia unica, 90 giorni) / scaduto; «mancante»
+    solo se la qualifica è richiesta alla persona, altrimenti «non richiesta».
+    Persone: in forza (senza ex dipendenti), nell'ambito del ruolo come il
+    cruscotto qualifiche. Filtro reparto + export CSV.
     Accesso: ``_check_hr_permission`` (vista trasversale sul personale).
     """
     if not _helpers._check_hr_permission(request):
-        messages.error(request, "Non hai i permessi per la matrice competenze.")
+        messages.error(request, "Non hai i permessi per la matrice qualifiche.")
         return redirect("anagrafica:index")
 
     from datetime import timedelta
     from django.utils import timezone
+
+    from ..scadenze_soglie import GIORNI_PREAVVISO
+    from ..services.requisiti import id_qualifiche_correnti, qualifiche_richieste
+
     ensure_anagrafica_schema()
     filtro_reparto = (request.GET.get("reparto") or "").strip()
     export_csv = request.GET.get("format") == "csv"
@@ -2189,40 +2196,47 @@ def matrice_competenze(request):
     if cat_filter not in valid_cats:
         cat_filter = ""
     oggi = timezone.localdate()
-    soglia = oggi + timedelta(days=60)
+    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
 
-    dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
-    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+    # Persone in forza (non cessate), nell'ambito del ruolo (come il cruscotto qualifiche).
+    cessati = _helpers._cessati_legacy_ids()
+    visibili = None
+    if _helpers._ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request)
+    dip_map = {
+        int(r["id"]): r for r in fetch_anagrafica_rows(deduplicate=True)
+        if r.get("id") and int(r["id"]) not in cessati
+        and (visibili is None or int(r["id"]) in visibili)
+    }
     legacy_ids = list(dip_map.keys())
 
-    # Colonne = TipoQualifica con almeno un'assegnazione; tab per categoria.
+    # Qualifiche richieste per persona e qualifiche possedute (solo la corrente
+    # per persona e tipo: senza, la cella poteva mostrare il record scaduto).
+    richieste = qualifiche_richieste(legacy_ids, oggi)
+    correnti_q = id_qualifiche_correnti()
+    q_map: dict[tuple[int, int], DipendenteQualifica] = {}
+    from ..reportistica.dati import filtra_in
+
+    for q in filtra_in(DipendenteQualifica.objects.all(), "legacy_anagrafica_id", legacy_ids):
+        if q.pk in correnti_q:
+            q_map[(q.legacy_anagrafica_id, q.tipo_id)] = q
+
+    # Colonne = richieste a qualcuno + possedute da qualcuno; tab per categoria.
     cat_labels = dict(TipoQualifica.CATEGORIA_CHOICES)
-    tipi_all = list(
-        TipoQualifica.objects.annotate(_n=Count("assegnazioni"))
-        .filter(_n__gt=0).order_by("categoria", "nome")
-    )
+    id_colonne = {tid for per in richieste.values() for tid in per} | {tid for _lid, tid in q_map}
+    tipi_all = list(TipoQualifica.objects.filter(pk__in=sorted(id_colonne)).order_by("categoria", "nome"))         if id_colonne else []
     tabs = [("", "Tutte", len(tipi_all))]
     for cat_code, cat_lbl in TipoQualifica.CATEGORIA_CHOICES:
         n = sum(1 for t in tipi_all if t.categoria == cat_code)
         if n:
             tabs.append((cat_code, cat_lbl, n))
     tipi = [t for t in tipi_all if not cat_filter or t.categoria == cat_filter]
-    tipo_ids = [t.id for t in tipi]
-    # Solo la qualifica corrente per persona e tipo: senza, la cella poteva
-    # mostrare il record scaduto invece del rinnovo.
-    from ..services.requisiti import id_qualifiche_correnti
 
-    correnti_q = id_qualifiche_correnti()
-    q_map: dict[tuple[int, int], DipendenteQualifica] = {}
-    for q in DipendenteQualifica.objects.filter(
-        legacy_anagrafica_id__in=legacy_ids, tipo_id__in=tipo_ids
-    ):
-        if q.pk in correnti_q:
-            q_map[(q.legacy_anagrafica_id, q.tipo_id)] = q
-
-    def _stato(q):
+    def _stato(q, richiesta: bool):
         if q is None:
-            return "mancante"
+            return "mancante" if richiesta else "non_richiesta"
         if q.data_scadenza is None:
             return "valido"
         if q.data_scadenza < oggi:
@@ -2236,10 +2250,13 @@ def matrice_competenze(request):
         reparto = str(dip.get("reparto") or "").strip()
         if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
             continue
+        richieste_persona = richieste.get(lid, {})
         celle = []
         for t in tipi:
             q = q_map.get((lid, t.id))
-            celle.append({"stato": _stato(q), "data": q.data_scadenza if q else None, "tipo_id": t.id})
+            origini = richieste_persona.get(t.id) or []
+            celle.append({"stato": _stato(q, bool(origini)), "data": q.data_scadenza if q else None,
+                          "tipo_id": t.id, "richiesta": bool(origini), "perche": ", ".join(origini[:3])})
         righe.append({
             "legacy_id": lid,
             "cognome": str(dip.get("cognome") or f"ID {lid}").strip(),
@@ -2248,12 +2265,13 @@ def matrice_competenze(request):
             "celle": celle,
         })
     righe.sort(key=lambda r: (r["cognome"].casefold(), r["nome"].casefold()))
-    reparti = sorted({r["reparto"] for r in righe if r["reparto"]})
+    reparti = sorted({str(d.get("reparto") or "").strip() for d in dip_map.values() if str(d.get("reparto") or "").strip()})
 
     if export_csv:
-        _LAB = {"valido": "OK", "in_scadenza": "In scadenza", "scaduto": "SCADUTO", "mancante": "—"}
+        _LAB = {"valido": "OK", "in_scadenza": "In scadenza", "scaduto": "SCADUTO", "mancante": "MANCANTE",
+                "non_richiesta": ""}
         resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
-        resp["Content-Disposition"] = 'attachment; filename="matrice_competenze.csv"'
+        resp["Content-Disposition"] = 'attachment; filename="matrice_qualifiche.csv"'
         resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
         writer.writerow(["Dipendente", "Reparto"] + [t.nome for t in tipi])
@@ -2276,6 +2294,7 @@ def matrice_competenze(request):
         "tabs": tabs,
         "active_categoria": cat_filter,
         "active_categoria_label": cat_labels.get(cat_filter, ""),
+        "giorni_preavviso": GIORNI_PREAVVISO,
     })
 
 

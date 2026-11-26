@@ -11,6 +11,7 @@ from .models import (
     DipendenteAnagraficaCivile,
     FiglioACarico,
     SkillMatrixConfig,
+    SogliaCopertura,
     TipoVisitaMedica,
     VisitaMedica,
 )
@@ -497,6 +498,13 @@ class TrainingCourseForm(forms.ModelForm):
         # Etichette in italiano dove il modello le lascia in inglese.
         self.fields["is_elearning"].label = "Corso e-learning"
         self.fields["is_active"].label = "Corso attivo"
+        # La spunta è una fonte di obbligo del motore dei requisiti: vale per tutti.
+        self.fields["obbligatorio"].label = "Obbligatorio per tutti i dipendenti"
+        self.fields["obbligatorio"].help_text = (
+            "Il corso diventa richiesto a ogni persona in forza (origine «Corso obbligatorio per tutti»): "
+            "compare in copertura, scadenzario e cruscotto. Per chiederlo solo ad alcune mansioni, "
+            "reparti o ruoli lascia la spunta vuota e usa le regole d'obbligo o il Mansionario."
+        )
         # Origine dell'obbligo: mai bloccante, i corsi storici non la compilano.
         self.fields["fonte_obbligo"].required = False
         self.fields["fonte_obbligo"].widget.choices = (
@@ -1932,3 +1940,54 @@ class AliasEsitoIdoneitaForm(forms.ModelForm):
 
     def clean_testo(self):
         return (self.cleaned_data.get("testo") or "").strip()
+
+
+class SogliaCoperturaForm(forms.ModelForm):
+    """Soglia di copertura minima (Skill Matrix, AS/EN 9100) gestita dal portale.
+
+    Target: una macchina della skill matrix, un processo qualificato o un ambito
+    libero (``SogliaCopertura.clean`` ne esige uno). Gated in view da
+    ``anagrafica.skillmatrix.manage``.
+    """
+
+    class Meta:
+        model = SogliaCopertura
+        fields = [
+            "nome", "asset", "processo", "descrizione_ambito", "livello_minimo",
+            "minimo_abilitati", "certificazione", "rif_normativo", "note",
+        ]
+        widgets = {
+            "nome": forms.TextInput(attrs={"class": "fm-input"}),
+            "asset": forms.Select(attrs={"class": "fm-input fm-select"}),
+            "processo": forms.Select(attrs={"class": "fm-input fm-select"}),
+            "descrizione_ambito": forms.TextInput(attrs={"class": "fm-input"}),
+            "livello_minimo": forms.Select(attrs={"class": "fm-input fm-select"}),
+            "minimo_abilitati": forms.NumberInput(attrs={"class": "fm-input", "min": "1", "step": "1"}),
+            "certificazione": forms.TextInput(attrs={"class": "fm-input", "placeholder": "es. AS/EN 9100"}),
+            "rif_normativo": forms.TextInput(attrs={"class": "fm-input"}),
+            "note": forms.Textarea(attrs={"class": "fm-input", "rows": 2}),
+        }
+        labels = {
+            "nome": "Nome della soglia",
+            "asset": "Macchina",
+            "processo": "Processo qualificato",
+            "descrizione_ambito": "Oppure ambito libero",
+            "livello_minimo": "Livello minimo (solo macchine)",
+            "minimo_abilitati": "Persone abilitate richieste",
+            "certificazione": "Certificazione",
+            "rif_normativo": "Riferimento normativo",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models import CompetenzaSkm, ProcessoQualificato
+
+        # Solo le macchine della skill matrix: le altre non hanno abilitati da contare.
+        asset_ids = CompetenzaSkm.objects.filter(asset__isnull=False).values_list("asset_id", flat=True)
+        asset_field = self.fields["asset"]
+        asset_field.queryset = asset_field.queryset.filter(pk__in=asset_ids).order_by("pk")
+        asset_field.required = False
+        asset_field.empty_label = "— Nessuna —"
+        self.fields["processo"].queryset = ProcessoQualificato.objects.order_by("nome")
+        self.fields["processo"].required = False
+        self.fields["processo"].empty_label = "— Nessuno —"

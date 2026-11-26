@@ -24,6 +24,7 @@ from .models import (
     AbilitazioneMacchinaVoce,
     CompetenzaCatalogo,
     CompetenzaSkm,
+    LivelloSkm,
     Mansione,
     Reparto,
     RuoloOperativo,
@@ -288,7 +289,7 @@ def mansionario(request):
             "url_vista_completa": f"{url_pagina}?vista={mansioni_semplice.COMPLETA}",
         })
     aree = sezioni_c.aree_visibili(request, [
-        sezioni_c.Area("anagrafica:mansionario_lacune", "Lacune di competenza", "Chi non è abilitato e cosa manca", icona="i-alert-cir"),
+        sezioni_c.Area("anagrafica:mansionario_lacune", "Lacune di mansione", "Chi non è abilitato e cosa manca", icona="i-alert-cir"),
         sezioni_c.Area("anagrafica:skill_matrix_macchina", "Skill matrix", "Persone × macchine, livelli I/L/U/O", icona="i-grid"),
         sezioni_c.Area("anagrafica:skm_refresh", "Refresh abilitazioni", "Rivalutazione dei livelli per reparto", icona="i-refresh"),
         sezioni_c.Area("anagrafica:mansioni_list", "Mansioni di rischio", "DPI, visite e schede di sicurezza", icona="i-alert-tri"),
@@ -1011,8 +1012,9 @@ def mansionario_lacune(request):
     from .views import _helpers as _h
 
     return render(request, "anagrafica/pages/mansionario_lacune.html", {
-        "page_title": "Lacune di competenza",
+        "page_title": "Lacune di mansione",
         "lacune": lacune, "esito": esito, "esiti": comp_svc.ESITI_LABEL,
+        "livelli_legenda": list(LivelloSkm.choices),
         "puo_valutare": _puo_valutare(request),
         "puo_iscrivere": _h._can_edit_formazione(request),
     })
@@ -1121,5 +1123,6 @@ def mansionario_matrice_competenze(request):
     return render(request, "anagrafica/pages/mansionario_matrice_competenze.html", {
         "page_title": "Matrice delle competenze",
         **dati, "reparto": reparto,
+        "livelli_legenda": list(LivelloSkm.choices),
         "reparti": list(Reparto.objects.filter(is_active=True).order_by("nome")),
     })
