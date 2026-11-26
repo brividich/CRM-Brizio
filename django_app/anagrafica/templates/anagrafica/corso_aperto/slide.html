@@ -37,7 +37,18 @@
 </div>
 {% endif %}
 {% endblock %}
-{% block script %}{% if secondi_mancanti and not consulta and not video_fino %}
+{% block script %}{% if video_da and not consulta %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  /* Ripresa: il video riparte dal punto in cui ci si era fermati. */
+  var v = document.querySelector(".pb-video"), da = {{ video_da }};
+  if (!v) return;
+  v.addEventListener("loadedmetadata", function () {
+    if (v.duration && da < v.duration - 3) v.currentTime = da;
+  }, { once: true });
+})();
+</script>
+{% endif %}{% if secondi_mancanti and not consulta and not video_fino %}
 <script nonce="{{ csp_nonce }}">
 (function () {
   var n = {{ secondi_mancanti }}, el = document.getElementById("pb-secondi"), btn = document.querySelector(".js-avanti");
@@ -62,7 +73,7 @@
   function tracciaVideo(video, url, campiExtra, quandoFatto) {
     if (!video || !url || video.dataset.tracciato) return;
     video.dataset.tracciato = "1";
-    var guardati = 0, ultimo = null, inviato = 0;
+    var guardati = {{ video_da|default:0 }}, ultimo = null, inviato = guardati;
     video.addEventListener("timeupdate", function () {
       var t = video.currentTime;
       if (ultimo !== null && !video.paused && t > ultimo && t - ultimo < 2.5) guardati += t - ultimo;

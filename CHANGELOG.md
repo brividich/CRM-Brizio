@@ -29,6 +29,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 - Nuova vista «📐 Ufficiale» dell'organigramma (`/anagrafica/organigramma/ufficiale/`): organigrammi disegnati come in Word con riquadri presi da ruoli, persone, mansioni o testo libero, gruppi («team»), collegamenti e linee di staff, colori e stili. Bozza salvata da sola, «Riepilogo modifiche» rispetto alla revisione in vigore, «Pubblica» con nota, approvato da e data, storico revisioni con confronto, stampa A3/A4 con cartiglio. Avvisi dove il disegno non corrisponde più ai dati (persona cessata, ruolo non suo, ruoli dell'ambito non disegnati). Non tocca ruoli, «Riporta a», assegnazioni, capi né permessi.
 - File: `django_app/anagrafica/models_organigramma.py` (nuovo), `models.py`, `migrations/0256_organigramma_ufficiale.py` (tabelle, binding ACL copiati da diagramma e modifica ruoli, voce di menu), `services/organigramma_ufficiale.py` (nuovo), `views_organigramma_ufficiale.py` (nuovo), `urls.py`, template `pages/organigramma_ufficiale_{elenco,vedi,disegna,stampa}.html` e `partials/_org_uff_{stile,disegno}.html` (nuovi), `components/organigramma_viste.html`, `core/guide_moduli/contenuti/anagrafica.py` (sezione «organigramma-ufficiale»), `hub_tools/schema_db.py`, `docs/moduli/anagrafica.md`, test `tests_organigramma_ufficiale.py`.
+### Link aperto: ripresa dal punto giusto, codice in vista e per email, un corso = un completamento
+
+Prova del 26/11/2026: chi ha completato il corso dal link aperto risultava ancora «Iscritto» nella sessione online dello stesso corso (il completamento c'era, ma separato) e chi riprendeva ripartiva dalla slide 1 o da una partecipazione nuova.
+
+- **Pagina del codice** dopo la registrazione (`/corso-aperto/<token>/pronto/`, sotto il prefisso già esente, PUBLIC_VIEWS aggiornati): codice in grande prima di iniziare; email con il codice alla persona abbinata che ha un indirizzo (in background).
+- **Ripresa**: il telefono ricorda la partecipazione per 30 giorni (cookie firmato con il solo id), anche dopo la scadenza della sessione del browser; il corso riparte dalla prima slide non vista e il video dal punto raggiunto; una nuova registrazione con la stessa matricola e lo stesso cognome riprende la partecipazione non finita.
+- **Un corso, un completamento**: il completamento e-learning (portale o link aperto) chiude anche le iscrizioni alle sessioni online dello stesso corso e si collega alla prima; migrazione anagrafica `0257` allinea i completamenti già fatti (nessun completamento nuovo). «I miei corsi online» mostra il corso una volta sola.
+- Data di scadenza in «I miei corsi online» della stessa grandezza del resto della riga.
+- File: `views_corso_aperto.py`, `urls_corso_aperto.py`, `services/elearning_link_aperto.py`, `services/sessione_online.py`, `views/_helpers.py`, `views_elearning.py`, template `corso_aperto/pronto.html` (nuovo), `slide.html`, `registrati.html`, `formazione_online_catalog.html`, guida corsi online, Centro guide. Test: `tests_corso_aperto_ripresa.py`, `core/test_security_audit_fase3.py`.
 
 ### Prestazioni: ricerca globale (Ctrl+K) più veloce
 

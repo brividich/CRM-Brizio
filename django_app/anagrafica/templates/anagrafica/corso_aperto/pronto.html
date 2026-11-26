@@ -1,0 +1,24 @@
+{% extends "anagrafica/corso_aperto/_base.html" %}
+{% block corpo %}
+<style nonce="{{ csp_nonce }}">
+.pb-codice { margin:4px 0 14px; padding:18px 16px; border:2px dashed var(--hub-arancio); border-radius:16px; text-align:center; background:var(--accent-soft); }
+.pb-codice small { display:block; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+.pb-codice strong { display:block; margin-top:6px; font-family:Consolas,'Courier New',monospace; font-size:clamp(30px,9vw,44px); letter-spacing:.18em; color:var(--text); user-select:all; }
+.pb-codice ul { margin:12px 0 0; padding:0; list-style:none; font-size:14px; line-height:1.55; color:var(--text); }
+</style>
+<h2>{% if ripresa %}Bentornato, {{ chi.nome }}{% else %}Ciao {{ chi.nome }}, prima di iniziare{% endif %}</h2>
+{% if ripresa %}<p class="pb-help">Hai già visto {{ n_viste }} slide su {{ n_slide }}: riprendi dalla slide {{ da_slide }}.</p>{% endif %}
+{% if codice %}
+<div class="pb-codice">
+  <small>Il tuo codice per riprendere</small>
+  <strong>{{ codice }}</strong>
+  <ul>
+    <li>Scrivilo o fai una foto a questa schermata.</li>
+    {% if email %}<li>Te l'abbiamo mandato anche per email a <strong style="display:inline;font-size:inherit;letter-spacing:0;font-family:inherit;">{{ email }}</strong>.</li>{% endif %}
+    <li>Da questo telefono il corso riprende da solo per 30 giorni; da un altro telefono scegli «Hai già iniziato?» e scrivi codice e cognome.</li>
+  </ul>
+</div>
+{% endif %}
+<a class="pb-btn pb-btn-full" href="{% url 'corso_aperto:corso' link.token %}">{% if ripresa %}Riprendi dalla slide {{ da_slide }}{% else %}Ho preso nota, inizia il corso ({{ n_slide }} slide){% endif %}</a>
+<p class="pb-help" style="margin-top:12px;text-align:center;">Non sei {{ chi.nome }} {{ chi.cognome }}? <a href="{% url 'corso_aperto:registrati' link.token %}?cambia=1">Cambia persona</a></p>
+{% endblock %}

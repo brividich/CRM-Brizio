@@ -1,7 +1,7 @@
 {% extends "anagrafica/corso_aperto/_base.html" %}
 {% block corpo %}
 <h2>Prima di iniziare</h2>
-<p class="pb-help">Scrivi i tuoi dati come sul badge: servono a registrare il corso sulla tua scheda. Il tempo del corso parte da adesso. Dopo la registrazione ricevi un <strong>codice</strong> per riprendere anche da un altro telefono.</p>
+<p class="pb-help">Scrivi i tuoi dati come sul badge: servono a registrare il corso sulla tua scheda. Il tempo del corso parte da adesso. Dopo la registrazione ricevi un <strong>codice</strong> per riprendere anche da un altro telefono. Se avevi già iniziato, con la stessa matricola riprendi da dove eri rimasto.</p>
 {% if reparto %}<p class="pb-help">Reparto: <strong>{{ reparto }}</strong></p>{% endif %}
 {% if errori %}<div class="pb-errori" role="alert"><ul>{% for e in errori %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
 <form method="post" novalidate>
