@@ -410,7 +410,7 @@ def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
         voci_kind = [v for v in voci if v["kind"] == kind]
         n_scadute = sum(1 for v in voci_kind if v["scaduta"])
         # Le voci non scadute che _build_scadenzario_voci restituisce senza filtro
-        # stato sono già solo quelle entro 60 giorni.
+        # stato sono già solo quelle in scadenza (90 giorni; visite 60).
         n_prossime = len(voci_kind) - n_scadute
         if n_scadute:
             scadute.append({
@@ -423,10 +423,10 @@ def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
         if n_prossime:
             in_scadenza.append({
                 "icona": icona,
-                "titolo": f"{label} in scadenza (60 giorni)",
+                "titolo": f"{label} in scadenza ({60 if kind == 'visita' else 90} giorni)",
                 "count": n_prossime,
                 "urgente": False,
-                "url": f"{base}?tipo={kind}&stato=60",
+                "url": f"{base}?tipo={kind}&stato=90",
             })
     return _righe_richieste(request) + scadute + in_scadenza
 
@@ -492,11 +492,12 @@ def index(request):
     n_reparti_catalog = Reparto.objects.filter(is_active=True).count()
     n_qualifiche = TipoQualifica.objects.filter(is_active=True).count()
 
-    # Qualifiche scadute e in scadenza (prossimi 60 giorni)
+    # Qualifiche scadute e in scadenza (soglia unica «in scadenza», 90 giorni)
     from datetime import timedelta
     from django.utils import timezone as tz
+    from ..scadenze_soglie import GIORNI_PREAVVISO
     oggi = tz.localdate()
-    soglia = oggi + timedelta(days=60)
+    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
     n_qualifiche_scadute = DipendenteQualifica.objects.filter(
         data_scadenza__isnull=False, data_scadenza__lt=oggi
     ).count()
@@ -1872,6 +1873,39 @@ def _costo_orario_storico(legacy_id: int, civile) -> list:
     return storico(legacy_id, tax_code=(civile.codice_fiscale or "") if civile else "")
 
 
+def _qualifiche_correnti_per_tipo(qualifiche: list) -> list:
+    """Solo la qualifica corrente per tipo (conseguita per ultima, come ``id_qualifiche_correnti``).
+
+    Le registrazioni superate restano in ``q.precedenti`` (dalla più recente), per lo storico
+    richiudibile. L'ordine dell'elenco di partenza è conservato.
+    """
+    per_tipo: dict[int, list] = {}
+    for q in qualifiche:
+        per_tipo.setdefault(q.tipo_id, []).append(q)
+    correnti = set()
+    for gruppo in per_tipo.values():
+        gruppo.sort(key=lambda x: (x.data_conseguimento or date.min, x.pk), reverse=True)
+        gruppo[0].precedenti = gruppo[1:]
+        correnti.add(gruppo[0].pk)
+    return [q for q in qualifiche if q.pk in correnti]
+
+
+def _stato_qualifica_libretto(data_scadenza, oggi) -> tuple[str, str]:
+    """(classe, etichetta) della qualifica sul libretto, con le soglie uniche di ``scadenze_soglie``."""
+    from ..scadenze_soglie import GIORNI_PREAVVISO, GIORNI_URGENTE
+
+    if data_scadenza is None:
+        return "info", "Non scade"
+    giorni = (data_scadenza - oggi).days
+    if giorni < 0:
+        return "expired", "Scaduta"
+    if giorni <= GIORNI_URGENTE:
+        return "warn", f"In scadenza ≤{GIORNI_URGENTE}gg"
+    if giorni <= GIORNI_PREAVVISO:
+        return "warn", f"In scadenza ≤{GIORNI_PREAVVISO}gg"
+    return "ok", "Valida"
+
+
 @login_required
 def dipendente_detail(request, legacy_id: int):
     ensure_anagrafica_schema()
@@ -2025,6 +2059,9 @@ def dipendente_detail(request, legacy_id: int):
         .prefetch_related("storico", "tipo__corsi")
         .order_by("data_scadenza", "tipo__nome")
     )
+    # Una riga per tipo: la registrazione corrente; quelle superate da un rinnovo
+    # restano richiudibili sotto la corrente (``q.precedenti``).
+    qualifiche_dip = _qualifiche_correnti_per_tipo(qualifiche_dip)
     tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
     # Processi qualificati MOD.128 della persona, con la sua scadenza (non quella del processo).
     try:
@@ -2452,7 +2489,9 @@ def dipendente_detail(request, legacy_id: int):
             _fm_scad_qs = filtra_stato_scadenze(
                 TrainingDeadline.objects.filter(legacy_anagrafica_id=legacy_id)
             )
-            fm_n_scadenze_urgenti = _fm_scad_qs.count()
+            # Tessera «Scadenze urgenti»: solo corsi obbligatori, scaduti, entro 90 giorni o mai
+            # frequentati (= scadenzario ?dipendente=…&obbligatori=1).
+            fm_n_scadenze_urgenti = _fm_scad_qs.filter(is_required=True).count()
             fm_scadenze_urgenti = list(
                 _fm_scad_qs.select_related("corso", "corso__piano").order_by("data_scadenza")[:20]
             )
@@ -2849,6 +2888,21 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         .order_by("data_scadenza")
     )
 
+    # Da ispezione: qualifiche (solo la corrente per tipo) e processi qualificati MOD.128.
+    qualifiche_libretto = _qualifiche_correnti_per_tipo(list(
+        DipendenteQualifica.objects.filter(legacy_anagrafica_id=legacy_id)
+        .select_related("tipo").order_by("tipo__categoria", "tipo__nome")
+    ))
+    for q in qualifiche_libretto:
+        q.stato_libretto = _stato_qualifica_libretto(q.data_scadenza, oggi)
+    try:
+        from ..services.mpq_persone import processi_della_persona
+
+        processi_libretto = processi_della_persona(legacy_id, oggi=oggi)
+    except Exception:
+        logger.exception("Errore processi MOD.128 per libretto %s", legacy_id)
+        processi_libretto = []
+
     try:
         TrainingExportLog.objects.create(
             tipo="STORICO_DIP",
@@ -2876,6 +2930,8 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         "record_storici": record_storici,
         "ore_totali": ore_totali,
         "obblighi": obblighi,
+        "qualifiche_libretto": qualifiche_libretto,
+        "processi_libretto": processi_libretto,
         "oggi": oggi,
         "dal": dal,
         "al": al,

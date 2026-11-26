@@ -16,6 +16,8 @@ from dataclasses import dataclass
 
 from django.urls import NoReverseMatch, reverse
 
+from ..scadenze_soglie import GIORNI_PREAVVISO, GIORNI_URGENTE
+
 # Colori dei segmenti (classi CSS ``fmd-k-<chiave>`` in formazione_design.css).
 # Stati: ok · s90 · s30 · ko · mai. Categorie (contratti, fasi): nv · cy · vi.
 PALETTE_CATEGORIE = ("nv", "cy", "vi", "s90", "s30")
@@ -128,7 +130,7 @@ def _ordina_per_indice(schede: list[dict], chiave: str) -> None:
 # ── Qualifiche ───────────────────────────────────────────────────────────────
 
 def schede_qualifiche(quals, *, oggi, soglia_30, soglia_60, prossime_per_tipo: dict, suffisso: str = "") -> list[dict]:
-    """Una scheda per tipo di qualifica assegnato: valide, ≤60gg, ≤30gg, scadute.
+    """Una scheda per tipo di qualifica assegnato: valide, ≤90gg, ≤30gg, scadute (soglie uniche).
 
     Stessa classificazione dei numeri del cruscotto (``qualifiche_dashboard``):
     senza scadenza = valida. «Da verificare» è un'etichetta a parte (evidenza
@@ -165,8 +167,8 @@ def schede_qualifiche(quals, *, oggi, soglia_30, soglia_60, prossime_per_tipo: d
             principale=str(tot), principale_label="abilitat" + ("o" if tot == 1 else "i"),
             pillole=[
                 pillola("fmd-c-ko", f"{r['ko']} scadut{'a' if r['ko'] == 1 else 'e'}") if r["ko"] else None,
-                pillola("fmd-c-s30", f"{r['s30']} ≤30gg") if r["s30"] else None,
-                pillola("fmd-c-s90", f"{r['s90']} ≤60gg") if r["s90"] else None,
+                pillola("fmd-c-s30", f"{r['s30']} ≤{GIORNI_URGENTE}gg") if r["s30"] else None,
+                pillola("fmd-c-s90", f"{r['s90']} ≤{GIORNI_PREAVVISO}gg") if r["s90"] else None,
                 pillola("fmd-c-mai", f"{r['verifica']} da verificare") if r["verifica"] else None,
             ],
             piede=(f"Rinnovo: sessione del {sessione.data_conseguimento:%d-%m-%Y}" if sessione

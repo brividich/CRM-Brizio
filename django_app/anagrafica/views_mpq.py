@@ -28,6 +28,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from .scadenze_soglie import GIORNI_PREAVVISO, GIORNI_URGENTE
 from .models_mpq import (
     AbilitazioneProcesso,
     CertificazioneIndividuale,
@@ -112,7 +113,7 @@ def _classifica_scadenza(data_scadenza, oggi, s30, s60):
     if data_scadenza <= s30:
         return ("s30", "In scadenza ≤30gg")
     if data_scadenza <= s60:
-        return ("s60", "In scadenza ≤60gg")
+        return ("s60", f"In scadenza ≤{GIORNI_PREAVVISO}gg")
     return ("valida", "Valida")
 
 
@@ -187,7 +188,7 @@ def mpq_cruscotto(request):
 
     KPI (processi per stato, scadenze RAG a livello processo, abilitazioni,
     persone coinvolte), distribuzione per regime, timeline scadenze 12 mesi,
-    scadenze urgenti (processo ≤60gg o scaduto) ed elenco processi con link al
+    scadenze urgenti (processo ≤90gg o scaduto) ed elenco processi con link al
     dettaglio. Aggrega senza duplicare: qualsiasi modifica fatta in admin/detail
     si riflette qui.
     """
@@ -195,8 +196,8 @@ def mpq_cruscotto(request):
         return _mpq_denied(request)
 
     oggi = timezone.localdate()
-    s30 = oggi + timedelta(days=30)
-    s60 = oggi + timedelta(days=60)
+    s30 = oggi + timedelta(days=GIORNI_URGENTE)
+    s60 = oggi + timedelta(days=GIORNI_PREAVVISO)
 
     processi = list(
         ProcessoQualificato.objects
@@ -348,8 +349,8 @@ def mpq_processo_detail(request, processo_id: int):
         pk=processo_id,
     )
     oggi = timezone.localdate()
-    s30 = oggi + timedelta(days=30)
-    s60 = oggi + timedelta(days=60)
+    s30 = oggi + timedelta(days=GIORNI_URGENTE)
+    s60 = oggi + timedelta(days=GIORNI_PREAVVISO)
 
     abilitazioni = list(
         processo.abilitazioni

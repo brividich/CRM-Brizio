@@ -273,14 +273,14 @@ class PagineTests(_Scenario):
             if accanto is not None:
                 self.assertIn((accanto.categoria_id, accanto.gruppo), posti)
         self.assertTrue(voci.exists())
-        # In Organizzazione «Sessioni formative»; in Formazione «Formazione su mansioni», accanto a «Sessioni» dei corsi.
+        # In Organizzazione «Sessioni formative»; in Formazione «Richieste di formazione», accanto a «Sessioni» dei corsi.
         etichette = {(v.categoria_id, v.gruppo): v.etichetta for v in voci}
         richieste = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:richieste").first()
         corsi = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:formazione_sessioni_list").first()
         if richieste is not None:
             self.assertEqual(etichette[(richieste.categoria_id, richieste.gruppo)], "Sessioni formative")
         if corsi is not None:
-            self.assertEqual(etichette[(corsi.categoria_id, corsi.gruppo)], "Formazione su mansioni")
+            self.assertEqual(etichette[(corsi.categoria_id, corsi.gruppo)], "Richieste di formazione")
 
 
     def test_da_fare_e_dashboard_mostrano_le_sessioni(self):

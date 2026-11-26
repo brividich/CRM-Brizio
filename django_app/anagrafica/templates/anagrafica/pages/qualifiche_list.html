@@ -74,6 +74,7 @@ body.theme-dark .ql-scad-date-orange{color:#fdba74}
       <div class="fmd-pagehead-actions">
         {% include "anagrafica/partials/_export_buttons.html" with export_key="qualifiche" %}
         {% if n_da_allineare %}<form method="post" action="{% url 'anagrafica:qualifiche_allinea' %}" style="display:inline;" data-hub-confirm="Riportare sulle schede {{ n_da_allineare }} qualifiche dai corsi già completati? Si usa la data del completamento; le qualifiche più recenti non cambiano.">{% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-primary" title="Completamenti su corsi collegati a una qualifica che la scheda non riporta ancora"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Allinea dai corsi fatti ({{ n_da_allineare }})</button></form>{% endif %}
+        <a href="{% url 'anagrafica:qualifiche_scadenzario' %}" class="fmd-btn fmd-btn-ghost" title="Qualifiche scadute o in scadenza, persona per persona"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenzario qualifiche</a>
         {% if is_admin and not solo_processi %}<a href="#nuovo-tipo" class="fmd-btn fmd-btn-primary" data-apri-nuovo><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo tipo</a>{% endif %}
       </div>
     </div>
@@ -85,50 +86,6 @@ body.theme-dark .ql-scad-date-orange{color:#fdba74}
            class="fmd-chip {% if active_categoria == code %}fmd-on{% endif %}">{{ label }} <span class="fmd-code" style="background:none;padding:0;">{{ count }}</span></a>
       {% endfor %}
     </nav>
-
-    {# ── Scadenze ───────────────────────────────────────────────────────── #}
-    {% if scadenze %}
-    <section class="fmd-panel fmd-block ql-panel-warn">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title ql-scad-hd"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenze in arrivo o già scadute <span class="fmd-count">{{ scadenze|length }}</span></div>
-      </div>
-      <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
-        <table class="fmd-table" data-table-id="anagrafica.qualifiche.list">
-          <thead>
-            <tr>
-              <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
-              <th data-col="qualifica" data-col-label="Qualifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Qualifica</th>
-              <th data-col="categoria" data-col-label="Categoria" data-col-type="select"
-                  data-col-options='[["SICUREZZA","Sicurezza"],["PROFESSIONALE","Professionale"],["GESTIONALE","Gestionale"],["ALTRO","Altro"]]'
-                  data-col-sortable="1" data-col-filterable="1">Categoria</th>
-              <th data-col="conseguita" data-col-label="Conseguita" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Conseguita</th>
-              <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
-              <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
-              <th class="fmd-act-cell" data-col-nosort="1">Azione</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for s in scadenze %}
-            <tr class="{% if s.scaduta %}fmd-scad-red{% elif s.in_scadenza %}fmd-scad-orange{% endif %}">
-              <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}">{{ s.dipendente }}</a></td>
-              <td class="fmd-cell-main">{{ s.tipo_nome }}</td>
-              <td>
-                {% if s.tipo_categoria == "SICUREZZA" %}<span class="fmd-badge fmd-b-red">Sicurezza</span>
-                {% elif s.tipo_categoria == "PROFESSIONALE" %}<span class="fmd-badge fmd-b-cyan">Professionale</span>
-                {% elif s.tipo_categoria == "GESTIONALE" %}<span class="fmd-badge fmd-b-violet">Gestionale</span>
-                {% else %}<span class="fmd-badge fmd-b-grey">Altro</span>{% endif %}
-              </td>
-              <td class="fmd-muted" data-sort-value="{{ s.data_conseguimento|date:'Y-m-d' }}">{% if s.data_conseguimento %}{{ s.data_conseguimento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
-              <td data-sort-value="{{ s.data_scadenza|date:'Y-m-d' }}" class="ql-scad-date{% if s.scaduta %} ql-scad-date-red{% elif s.in_scadenza %} ql-scad-date-orange{% endif %}">{{ s.data_scadenza|date:"d-m-Y" }}</td>
-              <td>{% if s.scaduta %}<span class="fmd-badge fmd-b-red">Scaduta</span>{% else %}<span class="fmd-badge fmd-b-orange">In scadenza</span>{% endif %}</td>
-              <td class="fmd-act-cell"><a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}?rinnova={{ s.tipo_id }}" title="Apri la scheda con il rinnovo di «{{ s.tipo_nome }}» precompilato">↻ Rinnova</a></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-    {% endif %}
 
     {# ── Catalogo per categoria (nascosto in vista solo-Processi) ────────── #}
     {% if not solo_processi %}

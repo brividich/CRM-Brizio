@@ -98,14 +98,21 @@ def righe_risultati(corso) -> list[dict]:
     from ..models_elearning import TrainingElearningRispostaAperta
     from ..models_formazione import TrainingEmployeeRecord
 
-    assegnazioni = {a.legacy_anagrafica_id: a for a in TrainingAssignment.objects.filter(corso=corso)}
+    from .formazione_completamento import COMPLETATO as P_COMPLETATO
+    from .formazione_completamento import DA_REGISTRARE as P_DA_REGISTRARE
+    from .formazione_completamento import SCADUTO as P_SCADUTO
+    from .formazione_completamento import stati_persona_corso
+
+    assegnazioni = {}
+    for a in TrainingAssignment.objects.filter(corso=corso).order_by("ciclo", "pk"):
+        assegnazioni[a.legacy_anagrafica_id] = a  # vince l'ultimo ciclo
     iscrizioni = {}
     for e in TrainingElearningEnrollment.objects.filter(corso=corso).order_by("ciclo"):
         iscrizioni[e.legacy_anagrafica_id] = e  # vince l'ultimo ciclo
-    # Completamenti validi da qualunque strada (anche link aperto, senza iscrizione).
-    record_validi = {}
-    for r in TrainingEmployeeRecord.objects.filter(corso=corso).order_by("data_completamento", "pk"):
-        record_validi[r.legacy_anagrafica_id] = r
+    # Chi ha un completamento (anche link aperto o aula, senza iscrizione): compare fra le righe;
+    # conta come completato solo se idoneo e non scaduto (regola unica stato persona × corso).
+    record_validi = set(TrainingEmployeeRecord.objects.filter(corso=corso)
+                        .values_list("legacy_anagrafica_id", flat=True))
     da_link = set(TrainingElearningRispostaAperta.objects.filter(corso=corso, record__isnull=False)
                   .values_list("legacy_anagrafica_id", flat=True))
     from ..models_elearning import TrainingElearningPartecipazioneAperta
@@ -117,27 +124,38 @@ def righe_risultati(corso) -> list[dict]:
     anag, azi = _anagrafica(ids), _aziendale(ids)
     regola = regola_corso(corso)
     oggi = timezone.localdate()
+    stati_p = stati_persona_corso(corso, ids, oggi=oggi)
     righe = []
     for lid in ids:
         a, e = assegnazioni.get(lid), iscrizioni.get(lid)
-        rec = record_validi.get(lid)
+        sp = stati_p.get(lid)
+        rec = sp.record if sp is not None and sp.codice == P_COMPLETATO else None
         aperta = a is not None and a.stato not in ("COMPLETATO", "ESONERATO")
+        # L'iscrizione e-learning conta solo se è del ciclo dell'assegnazione (o più recente).
+        if e is not None and a is not None and e.ciclo < a.ciclo:
+            e_ciclo = None
+        else:
+            e_ciclo = e
+        etichetta = ""
         if a is not None and a.stato == "ESONERATO":
             stato = ESONERATO
-        elif rec is not None and not aperta and not (e and e.stato == "COMPLETATO"):
+        elif rec is not None and not aperta:
             stato = COMPLETATO
-        elif e is None and lid in aperte and not aperte[lid].completata_il:
+        elif e_ciclo is not None and e_ciclo.stato == "COMPLETATO" and rec is not None:
+            stato = COMPLETATO
+        elif sp is not None and sp.codice == P_DA_REGISTRARE:
+            stato, etichetta = IN_CORSO, "Da registrare"
+        elif e_ciclo is None and lid in aperte and not aperte[lid].completata_il:
             stato = IN_CORSO
-        elif e is None:
-            stato = COMPLETATO if (a is not None and a.stato == "COMPLETATO") else DA_INIZIARE
-        elif e.stato == "COMPLETATO":
-            stato = COMPLETATO
-        elif e.stato == "NON_SUPERATO":
+        elif e_ciclo is not None and e_ciclo.stato == "NON_SUPERATO":
             stato = NON_SUPERATO
-        elif e.stato == "IN_CORSO" or e.ultima_slide_ordine:
+        elif e_ciclo is not None and e_ciclo.stato != "COMPLETATO" and (
+                e_ciclo.stato == "IN_CORSO" or e_ciclo.ultima_slide_ordine):
             stato = IN_CORSO
         else:
             stato = DA_INIZIARE
+            if sp is not None and sp.codice == P_SCADUTO and not aperta:
+                etichetta = "Scaduto"
         r = anag.get(lid, {})
         tot = (e.n_slide_totali if e else 0) or 0
         viste = (e.ultima_slide_ordine if e else 0) or 0
@@ -154,15 +172,14 @@ def righe_risultati(corso) -> list[dict]:
             "assegnazione": a,
             "scadenza": scadenza,
             "in_ritardo": bool(scadenza and scadenza < oggi and stato not in (COMPLETATO, ESONERATO)),
-            "stato": stato, "etichetta": ETICHETTE[stato], "tono": TONI[stato],
+            "stato": stato, "etichetta": etichetta or ETICHETTE[stato], "tono": TONI[stato],
             "enrollment": e,
             "slide": f"{viste}/{tot}" if tot else "—",
             "slide_pct": min(100, round(100 * viste / tot)) if tot else (100 if stato == COMPLETATO else 0),
             "best": e.best_punteggio_pct if e else None,
             "tentativi": e.n_tentativi if e else 0,
             "minuti": round((e.secondi_accreditati or 0) / 60) if e else (round((pa.secondi or 0) / 60) if pa else 0),
-            "completato_il": (e.data_completamento if e and e.data_completamento else
-                              (rec.data_completamento if rec is not None else None)),
+            "completato_il": (rec.data_completamento if rec is not None else None) if stato == COMPLETATO else None,
             "da_link_aperto": lid in da_link or lid in aperte,
             "esauriti": bool(e and e.stato != "COMPLETATO" and tentativi_rimasti(e, regola) == 0),
             "ha_utente": bool(r.get("utente_id")),

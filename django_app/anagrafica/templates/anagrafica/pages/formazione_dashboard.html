@@ -201,8 +201,8 @@
       {% else %}
       <div class="fmd-empty">
         <span class="fmd-ebadge"><svg class="fmd-ico"><use href="#i-check"/></svg></span>
-        <span class="fmd-et">Nessun corso obbligatorio da mostrare</span>
-        <span class="fmd-em">{% if deadline_cache_empty %}Lo scadenzario non è ancora stato calcolato.{% else %}Nessuna regola assegna corsi obbligatori alle persone.{% endif %}</span>
+        <span class="fmd-et">{% if nessun_obbligo %}Nessun obbligo configurato{% else %}Nessun corso obbligatorio da mostrare{% endif %}</span>
+        <span class="fmd-em">{% if deadline_cache_empty %}Lo scadenzario non è ancora stato calcolato.{% elif nessun_obbligo %}Nessuna mansione, regola d'obbligo, processo o corso «Obbligatorio per tutti» assegna corsi alle persone: configurali nel <a class="fmd-data-link" href="{% url 'anagrafica:mansionario' %}">Mansionario</a> o nella scheda del corso (<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corsi_list' %}">elenco corsi</a>).{% else %}Nessuna regola assegna corsi obbligatori alle persone.{% endif %}</span>
       </div>
       {% endif %}
     </section>
@@ -215,7 +215,7 @@
           <svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenzario urgente
           {% if scadenze_urgenti %}<span class="fmd-count">{{ scadenze_urgenti|length }}</span>{% endif %}
         </div>
-        <div class="fmd-block-aside">Top 20 ordinati per urgenza</div>
+        <div class="fmd-block-aside">Corsi obbligatori · top 20 ordinati per urgenza</div>
       </div>
 
       {% if scadenze_urgenti %}
@@ -292,6 +292,9 @@
         {% if deadline_cache_empty %}
           <span class="fmd-et">Nessun dato disponibile</span>
           <span class="fmd-em">Lo scadenzario non è ancora stato calcolato.</span>
+        {% elif nessun_obbligo %}
+          <span class="fmd-et">Nessun obbligo configurato</span>
+          <span class="fmd-em">Nessun corso è richiesto alle persone: non c'è niente da misurare. Vedi la <a class="fmd-data-link" href="{% url 'anagrafica:formazione_copertura' %}">Copertura</a> per dove si configurano.</span>
         {% else %}
           <span class="fmd-et">Nessuna scadenza urgente</span>
           <span class="fmd-em">Tutti i corsi obbligatori risultano in regola.</span>
@@ -300,58 +303,26 @@
       {% endif %}
     </section>
 
-    {# ── Aree del modulo: le stesse voci di prima, in elenco ───────────── #}
+    {# ── Edizioni dei corsi: in corso e da chiudere (le altre pagine sono nel menu) ── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Aree del modulo</div>
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Edizioni dei corsi</div>
       </div>
       <div class="fmd-arealist">
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_piani_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Piani formativi</span><span class="fmd-area-desc">Catalogo piani · regole obbligatorietà</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_corsi_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Corsi</span><span class="fmd-area-desc">Catalogo corsi · versioni · prerequisiti</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_sessioni_list' %}">
+        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_sessioni_list' %}?stato=IN_CORSO">
           <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Sessioni</span><span class="fmd-area-desc">Edizioni · lezioni · iscritti · presenze</span></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">In corso: {{ edizioni_in_corso }}</span><span class="fmd-area-desc">Sessioni con stato «In corso»</span></span>
         </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_istruttori_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-mic"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Docenti / Formatori</span><span class="fmd-area-desc">Catalogo interni ed esterni</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:qualifiche_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Qualifiche / Abilitazioni</span><span class="fmd-area-desc">Catalogo unico · sicurezza · professionali · gestionali</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_scadenzario' %}">
+        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_sessioni_list' %}?da_chiudere=1">
           <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-alarm"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Scadenzario formazione</span><span class="fmd-area-desc">Scaduti · ≤30gg · ≤90gg · mai frequentati</span></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">Da chiudere: {{ edizioni_da_chiudere }}</span><span class="fmd-area-desc">Finite ma ancora pianificate o in corso: esiti, presenze e firme da completare</span></span>
         </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_ccnl_dashboard' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Monte ore CCNL</span><span class="fmd-area-desc">Diritto alla formazione · 24h/3 anni per dipendente</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_plan' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Plan</span><span class="fmd-area-desc">Calendario corsi · scadenze · (DPI/assenze)</span></span>
-        </a>
-        {% if can_edit_formazione %}
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:formazione_scansioni_log' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Registro letture scansioni</span><span class="fmd-area-desc">Fogli firme caricati · esito · dov'è archiviato il file</span></span>
-        </a>
-        {% endif %}
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:sicurezza_hub' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-shield"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Salute e Sicurezza</span><span class="fmd-area-desc">Fattori di rischio, esposizioni, mansioni di rischio, idoneità (cruscotto + guida)</span></span>
-        </a>
-        <a class="fmd-arealist-i" href="{% url 'anagrafica:scadenzario' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Scadenzario HR generale</span><span class="fmd-area-desc">Qualifiche · visite mediche · formazione</span></span>
-        </a>
+      </div>
+      {# Pagine del modulo che non hanno una voce nel menu: restano raggiungibili da qui. #}
+      <div class="fmd-muted" style="font-size:12.5px;margin-top:10px;">Anche:
+        <a class="fmd-data-link" href="{% url 'anagrafica:formazione_ccnl_dashboard' %}">Monte ore CCNL</a> ·
+        <a class="fmd-data-link" href="{% url 'anagrafica:formazione_plan' %}">Plan</a>{% if can_edit_formazione %} ·
+        <a class="fmd-data-link" href="{% url 'anagrafica:formazione_scansioni_log' %}">Registro letture scansioni</a>{% endif %}
       </div>
     </section>
     </div>{# .fmd-low #}

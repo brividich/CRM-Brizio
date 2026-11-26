@@ -68,6 +68,27 @@
       {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessun dipendente possiede questa qualifica.</div>{% endif %}
     </section>
 
+    {# ── Richiesta a, ma mancante o scaduta ───────────────────────────────── #}
+    <section class="fmd-panel fmd-block" id="tq-mancanti">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Richiesta a, ma mancante <span class="fmd-count">{{ mancanti|length }}</span></div><span class="fmd-block-aside">Persone in forza a cui la chiedono un processo qualificato, la mansione o il ruolo</span></div>
+      {% if mancanti %}
+      <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
+        <table class="fmd-table">
+          <thead><tr><th>Dipendente</th><th>Richiesta da</th><th>Stato</th></tr></thead>
+          <tbody>
+            {% for m in mancanti %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' m.legacy_id %}">{{ m.nome }}</a></td>
+              <td class="fmd-muted">{{ m.motivi|join:" · " }}</td>
+              <td>{% if m.stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta il {{ m.scadenza|date:"d-m-Y" }}</span>{% else %}<span class="fmd-badge fmd-b-grey">Mancante</span>{% endif %}{% if is_admin %} <a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' m.legacy_id %}?rinnova={{ tipo.id }}" title="Apri la scheda con «{{ tipo.nome }}» precompilata">+ Registra</a>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessuno: chi deve averla ce l'ha valida.</div>{% endif %}
+    </section>
+
     {% if processi_mpq %}
     {# ── Processi qualificati che la chiedono (MOD.128) ───────────────────── #}
     <section class="fmd-panel fmd-block">

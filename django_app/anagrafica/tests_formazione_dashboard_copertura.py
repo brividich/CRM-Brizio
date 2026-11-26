@@ -121,6 +121,6 @@ class DashboardFormazioneCoperturaPaginaTests(TestCase):
         r = self.client.get(reverse("anagrafica:formazione_dashboard"))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Lo scadenzario non è ancora stato calcolato.")
-        # Le aree del modulo restano tutte raggiungibili
+        # Le pagine senza voce di menu restano raggiungibili dalla dashboard
         self.assertContains(r, reverse("anagrafica:formazione_ccnl_dashboard"))
         self.assertContains(r, reverse("anagrafica:formazione_plan"))

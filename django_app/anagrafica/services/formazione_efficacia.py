@@ -102,19 +102,26 @@ def pianifica_valutazione_efficacia(record) -> object | None:
     )
 
 
-def valutazioni_da_fare(entro: date | None = None, legacy_anagrafica_id: int | None = None):
+def valutazioni_da_fare(entro: date | None = None, legacy_anagrafica_id: int | None = None, *,
+                        oggi: date | None = None, anticipo_giorni: int = 0):
     """Valutazioni dovute e non ancora compilate, le più vecchie per prime.
 
-    ``entro`` di default è oggi: si mostra ciò che è già dovuto, non ciò che lo
-    sarà. Un elenco che anticipa le scadenze future si ignora in fretta.
+    Unica regola per «dovute» (pagina Efficacia, «Le mie attività», report): non compilate e
+    attese entro ``entro`` (di default oggi + ``anticipo_giorni``). Senza anticipo si mostra
+    ciò che è già dovuto; la pagina Efficacia e «Le mie attività» anticipano di 15 giorni
+    (``formazione_aula.ANTICIPO_GIORNI_EFFICACIA``) e segnano «scaduta» ciò che è già dovuto.
     """
+    from datetime import timedelta
+
     from django.utils import timezone as _tz
 
     from ..models_formazione import TrainingEfficacia
 
+    if entro is None:
+        entro = (oggi or _tz.localdate()) + timedelta(days=anticipo_giorni or 0)
     qs = (
         TrainingEfficacia.objects
-        .filter(valutata_il__isnull=True, attesa_dal__lte=entro or _tz.localdate())
+        .filter(valutata_il__isnull=True, attesa_dal__lte=entro)
         .select_related("record", "record__corso")
     )
     if legacy_anagrafica_id is not None:

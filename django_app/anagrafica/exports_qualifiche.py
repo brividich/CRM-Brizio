@@ -20,6 +20,7 @@ from __future__ import annotations
 from django.http import HttpRequest
 
 from anagrafica.exports import ExportSpec, acl_gate, register  # noqa: F401
+from anagrafica.scadenze_soglie import GIORNI_PREAVVISO, GIORNI_URGENTE
 
 from core import naming
 
@@ -98,7 +99,7 @@ register(ExportSpec(
 # ── Scadenzario qualifiche ───────────────────────────────────────────────────
 # Rispecchia `views.qualifiche_scadenzario`: filtri `stato` (""|scaduta|30|60|
 # valide|tutte), `categoria`, `tipo` (id), `reparto`. Il default (`stato` vuoto)
-# NON è "tutto": è «da gestire» = scadute + in scadenza ≤60gg. Con `scope=full`
+# NON è "tutto": è «da gestire» = scadute + in scadenza ≤90gg. Con `scope=full`
 # si esportano invece tutte le assegnazioni. Colonne = quelle dell'export CSV già
 # presente nella pagina (stesso set di campi, tutti a schermo o già esportabili).
 
@@ -111,8 +112,8 @@ def _scadenzario_qs(request: HttpRequest, scope: str):
     from anagrafica.models import DipendenteQualifica, TipoQualifica
 
     oggi = _tz.localdate()
-    soglia_30 = oggi + timedelta(days=30)
-    soglia_60 = oggi + timedelta(days=60)
+    soglia_30 = oggi + timedelta(days=GIORNI_URGENTE)
+    soglia_60 = oggi + timedelta(days=GIORNI_PREAVVISO)
 
     filtro_stato = (request.GET.get("stato") or "").strip()
     filtro_cat = (request.GET.get("categoria") or "").strip().upper()
@@ -137,7 +138,7 @@ def _scadenzario_qs(request: HttpRequest, scope: str):
             qs = qs.filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gt=soglia_60))
         elif filtro_stato == "tutte":
             pass
-        else:  # default della pagina: scadute + ≤60gg
+        else:  # default della pagina: scadute + ≤90gg
             qs = qs.filter(data_scadenza__isnull=False, data_scadenza__lte=soglia_60)
     return qs.order_by("data_scadenza", "tipo__nome"), oggi, soglia_30, soglia_60
 
@@ -201,10 +202,10 @@ def _scadenzario_filters(request: HttpRequest) -> str:
     from anagrafica.models import TipoQualifica
 
     stato_labels = {
-        "": "Da gestire (scadute + ≤60gg)",
+        "": "Da gestire (scadute + ≤90gg)",
         "scaduta": "Solo scadute",
         "30": "In scadenza ≤30gg",
-        "60": "In scadenza ≤60gg",
+        "60": "In scadenza ≤90gg",
         "valide": "Solo valide",
         "tutte": "Tutte",
     }
@@ -333,7 +334,7 @@ register(ExportSpec(
 # SCELTA DI APPIATTIMENTO (documentata): `ExportSpec.columns` è statico, mentre le
 # colonne della matrice sono dinamiche (decine di competenze) e renderebbero il PDF
 # illeggibile. L'export è quindi una tabella piatta con **una riga per dipendente**
-# e le colonne principali: conteggi per stato (valide / in scadenza ≤60gg / scadute
+# e le colonne principali: conteggi per stato (valide / in scadenza ≤90gg / scadute
 # / non possedute) + l'elenco nominale delle competenze per i tre stati che contano
 # per l'audit ISO 45001 (valide, in scadenza, scadute; con la data di scadenza dove
 # presente). Le "non possedute" restano come conteggio: elencarle significherebbe
@@ -360,7 +361,7 @@ def _matrice_rows(request: HttpRequest, scope: str) -> list[dict]:
     filtered = scope == "filtered"
 
     oggi = _tz.localdate()
-    soglia = oggi + timedelta(days=60)
+    soglia = oggi + timedelta(days=GIORNI_PREAVVISO)
 
     dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
     dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
@@ -448,7 +449,7 @@ register(ExportSpec(
         ("Dipendente", "dipendente"),
         ("Reparto", "reparto"),
         ("Valide", "n_valide"),
-        ("In scadenza ≤60gg", "n_in_scadenza"),
+        ("In scadenza ≤90gg", "n_in_scadenza"),
         ("Scadute", "n_scadute"),
         ("Non possedute", "n_mancanti"),
         ("Competenze valide", "valide"),

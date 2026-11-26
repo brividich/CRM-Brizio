@@ -654,6 +654,10 @@ def _impostazioni_admin_check(request, tab: str | None = None):
 # Scadenzario unificato qualifiche + visite mediche
 # ---------------------------------------------------------------------------
 
+# Le visite mediche hanno regole proprie: finestra «in scadenza» a 60 giorni.
+GIORNI_PREAVVISO_VISITE = 60
+
+
 def _build_scadenzario_voci(
     request,
     *,
@@ -667,7 +671,7 @@ def _build_scadenzario_voci(
     """Voci dello scadenzario unificato, ordinate per urgenza.
 
     ``periodo`` = ``(dal, al)``: solo le scadenze in quell'intervallo (inclusi),
-    al posto della finestra di stato (scadute / 30 / 60 giorni).
+    al posto della finestra di stato (scadute / 30 / 90 giorni; visite 60).
 
     Fonte unica per la pagina scadenzario e per il blocco «Cose da gestire» della
     dashboard: se i due contassero per conto proprio, il numero sulla dashboard e
@@ -680,8 +684,14 @@ def _build_scadenzario_voci(
     """
     from django.utils import timezone as tz
     oggi = tz.localdate()
-    soglia_30 = oggi + _timedelta(days=30)
-    soglia_60 = oggi + _timedelta(days=60)
+    # Soglie uniche (scadenze_soglie): urgente 30, «in scadenza» 90. Le visite
+    # mediche hanno una regola propria (60 giorni) e restano separate.
+    from ..scadenze_soglie import GIORNI_PREAVVISO, GIORNI_URGENTE
+    soglia_30 = oggi + _timedelta(days=GIORNI_URGENTE)
+    soglia_60 = oggi + _timedelta(days=GIORNI_PREAVVISO)
+    soglia_visite = oggi + _timedelta(days=GIORNI_PREAVVISO_VISITE)
+    if filtro_stato == "90":
+        filtro_stato = "60"  # «60» resta la chiave storica dei link: vale «in scadenza»
 
     # Gli ex dipendenti (rapporto cessato) non devono comparire nello scadenzario
     # in NESSUNA sorgente: il filtro va applicato a monte, non solo ai contratti.
@@ -755,9 +765,9 @@ def _build_scadenzario_voci(
         elif filtro_stato == "30":
             qs_v = qs_v.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_30)
         elif filtro_stato == "60":
-            qs_v = qs_v.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_60)
+            qs_v = qs_v.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_visite)
         else:
-            qs_v = qs_v.filter(data_scadenza__lte=soglia_60)
+            qs_v = qs_v.filter(data_scadenza__lte=soglia_visite)
 
         for v in qs_v:
             dip = dip_map.get(v.legacy_anagrafica_id, {})
