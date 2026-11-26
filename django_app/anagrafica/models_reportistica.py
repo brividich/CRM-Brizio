@@ -163,6 +163,13 @@ class ReportGenerato(models.Model):
     generato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
     )
+    # Conservazione: il file con dati personali si cancella dopo i mesi previsti
+    # (``REPORTISTICA_ARCHIVIO_MESI``); restano la riga, l'impronta e chi/quando/per chi.
+    contenuto_eliminato_il = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def file_disponibile(self) -> bool:
+        return self.contenuto_eliminato_il is None
 
     class Meta:
         ordering = ["-generato_il", "-id"]

@@ -257,6 +257,7 @@ _REP_ROUTE_BINDINGS = {
     "anagrafica:reportistica_index": PERM_REP_VIEW,
     "anagrafica:reportistica_genera": PERM_REP_VIEW,
     "anagrafica:reportistica_archivio_download": PERM_REP_VIEW,
+    "anagrafica:reportistica_archivio_rigenera": PERM_REP_VIEW,
     "anagrafica:reportistica_chat": PERM_REP_VIEW,
     "anagrafica:reportistica_chat_scarica": PERM_REP_VIEW,
     "anagrafica:reportistica_chat_salva": PERM_REP_MANAGE,

@@ -9,6 +9,21 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Reportistica anagrafica: anteprima dal vivo, archivio, «Rigenera», chat che chiede
+
+- **Pagina principale**: tolti l'introduzione e i pulsanti ripetuti in testata (restano nel riquadro «Aree»); le «Sezioni dati disponibili» sono cliccabili e aprono «Chiedi un report» già impostato su quella sezione.
+- **Archivio**: filtri rapidi (ultimi 30 giorni, con dati personali, generati da me), filtri per testo, modello, formato, autore e date, 25 per pagina; pulsante «Rigenera» (stessi parametri, dati di oggi, anteprima prima di scaricare; i report a conversazione si riaprono nella chat).
+- **Privacy**: chi non gestisce i modelli vede e riscarica solo i documenti che ha generato (anche nella ricerca della sezione); i file con dati personali si cancellano dopo `REPORTISTICA_ARCHIVIO_MESI` mesi (di serie 12, 0 = mai), resta la riga con impronta e «file cancellato il …».
+- **Generazione**: anteprima che si aggiorna da sola (HTMX, mai salvataggi o download da quella strada) e riepilogo di cosa si consegna (persone, sezioni, righe, destinatario, colonne riservate, sezioni omesse); tolto «Aggiorna anteprima».
+- **Chiedi un report**: persona, reparto, colonna o date che non tornano diventano domande con risposte pronte da cliccare invece di un avviso in fondo.
+- File: `anagrafica/reportistica/archivio.py` (nuovo), `motore.py`, `forms.py`, `conversazione.py`, `views_reportistica.py`, `views_reportistica_chat.py`, `urls.py`, `acl_bootstrap.py`, `models_reportistica.py`, `services/ricerca_sezioni.py`, template `reportistica_index/genera/chat.html`, `partials/_reportistica_anteprima.html` (nuovo), `static/anagrafica/css/reportistica.css`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`, test `tests_reportistica_migliorie.py`. Migrazione `anagrafica 0257` (campo + binding ACL della route «Rigenera»), collectstatic.
+
+### Reportistica anagrafica: codice fiscale nell'«Elenco del personale»
+
+- Nuova colonna «Codice fiscale» nella sezione «Elenco del personale» (anche da «Chiedi un report»), letta dall'anagrafica civile; per le anagrafiche doppie vale la scheda che ce l'ha. Visibile solo con il permesso sui dati HR riservati, come nell'elenco dipendenti: senza permesso la colonna non compare, non viene caricata né stampata, e la chat avvisa che è riservata invece di dire «non disponibile». Un documento in archivio che contiene la colonna si riscarica solo con lo stesso permesso (parametri.colonne_riservate).
+- Le sezioni del report possono dichiarare colonne con un permesso proprio (`Sezione.colonne_riservate`, `colonne_per(request)`, fail-closed senza request), rispettato da editor, chat e motore.
+- File: `anagrafica/reportistica/sezioni.py`, `conversazione.py`, `forms.py`, `motore.py`, `anagrafica/tests_reportistica_codice_fiscale.py`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`. Nessuna migrazione.
+
 ### Prestazioni: «Ruoli e permessi» non si blocca più sulla matrice
 
 - `core/acl_capability.py`: `capability_index()` tiene in cache (impronta del catalogo, indice); l'impronta (totale, attivi e ultimo `updated_at` di permessi e binding) rinnova l'indice appena cambia il catalogo, senza attendere i 300 s. Chiave `acl_capability_index_v3`.
