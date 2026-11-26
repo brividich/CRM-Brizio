@@ -188,7 +188,10 @@ class AnalisiTests(QuoteBase):
         self.assertEqual(len(pagina.context["settimane"]), 12)
         self.assertContains(pagina, "Mappa qualità")
         self.assertContains(pagina, f"da={cella['da']:%Y-%m-%d}")
-        self.assertEqual(pagina.context["quote_guardare"][0]["pn"], "PN-ALFA-1")
+        self.assertEqual(pagina.context["quote_guardare"][0].pn, "PN-ALFA-1")
+        self.assertIsNotNone(ArticoloPN.objects.get(pn="PN-ALFA-1").salute)
+        car = self.client.get(reverse("produzione:quote_cruscotto"), {"car": "d10"})
+        self.assertEqual([q.pn for q in car.context["caratteristiche"]], ["PN-ALFA-1"])   # stessa caratteristica fra P/N
         self.assertEqual(cmm._cella_mappa(0, 0, date.today())["livello"], "vuoto")
         self.assertEqual(cmm._cella_mappa(0, 5, date.today())["livello"], "zero")
         self.assertEqual(cmm._cella_mappa(1, 10, date.today())["livello"], "basso")
@@ -234,7 +237,9 @@ class AvvisiTests(QuoteBase):
         self.assertEqual(invia_avvisi("PN-ALFA-1")["fuori"], 1)
         n = Notifica.objects.get(legacy_user_id=681)
         self.assertIn("SN1", n.messaggio)
-        self.assertEqual(n.url_azione, reverse("produzione:report_cmm", args=[r.pk]))
+        # report nuovo con quote fuori e nessuna segnalazione aperta: il link apre l'anomalia già compilata
+        self.assertTrue(n.messaggio.startswith("Anomalia da aprire"))
+        self.assertIn(f"report_cmm={r.pk}", n.url_azione)
         self.assertEqual(invia_avvisi("PN-ALFA-1")["fuori"], 0)                   # già avvisato
 
     def test_report_vecchi_non_avvisano(self):

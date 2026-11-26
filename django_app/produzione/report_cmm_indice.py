@@ -787,16 +787,15 @@ def settimane_mappa(settimane: int = 12) -> list[dict]:
     return [{"da": inizio + timedelta(days=7 * k), "n": (inizio + timedelta(days=7 * k)).isocalendar()[1]} for k in range(settimane)]
 
 
-def quote_da_guardare_tutte(pns: list[str], quante: int = 12, max_pn: int = 8) -> list[dict]:
-    """Le quote da guardare (come ``quote_critiche``: fuori nell'ultimo report, in deriva, Cpk sotto 1,33) dei primi
-    ``max_pn`` P/N, già ordinati dal più grave: la loro analisi è in cache dal giro, la pagina resta veloce."""
-    righe = []
-    for pn in pns[:max_pn]:
-        for a in analisi_pn(pn):
-            if a["fuori_ultimo"] or a["deriva"] or (a["indice"] is not None and a["indice"] < spc.CAPACE):
-                righe.append(dict(a, pn=pn))
-    righe.sort(key=lambda r: (not r["fuori_ultimo"], -(r["rischio"] or 0), r["indice"] if r["indice"] is not None else 9))
-    return righe[:quante]
+def quote_da_guardare_tutte(pns: list[str], quante: int = 15) -> list:
+    """Le quote da guardare di questi P/N, dalla tabella precalcolata ``QuotaCapacita``: fuori nell'ultimo report,
+    in deriva o non capaci (Cpk o Ppk sotto 1,33), dal rischio più alto."""
+    from django.db.models import Q
+
+    from .models import QuotaCapacita
+
+    return list(QuotaCapacita.objects.filter(pn__in=pns).filter(Q(fuori_ultimo=True) | Q(deriva=True) | Q(indice__lt=spc.CAPACE))
+                .order_by("-fuori_ultimo", "-rischio", "indice")[:quante])
 
 
 def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
@@ -834,7 +833,7 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
     from .models import ArticoloPN
 
     calcolati = {a["pn"]: a for a in ArticoloPN.objects.filter(pn__in=list(righe)).values(
-        "pn", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "analisi_il")}
+        "pn", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "analisi_il", "rischio_max", "salute")}
     out = []
     for pn, r in righe.items():
         a = calcolati.get(pn) or {}
@@ -847,6 +846,7 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
             "cpk_bassi": a.get("quote_non_capaci", 0) if pronto else 0,
             "deriva": a.get("quote_deriva", 0) if pronto else 0,
             "fuori_ultimo": a.get("quote_fuori_ultimo", 0) if pronto else 0,
+            "rischio": a.get("rischio_max") if pronto else None, "salute": a.get("salute") if pronto else None,
             "ultimo": ultimi.get(pn),
         })
     for r in out:
@@ -855,7 +855,7 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
                       for k, v in enumerate(r["settimane"])]
         for b in r["barre"]:
             b["y"] = 22 - b["h"]
-    out.sort(key=lambda r: (-r["fuori_ultimo"], -r["fuori_rec"], -r["deriva"], -r["cpk_bassi"], r["pn"]))
+    out.sort(key=lambda r: (r["salute"] if r["salute"] is not None else 101, -r["fuori_ultimo"], -r["fuori_rec"], r["pn"]))
     return out
 
 

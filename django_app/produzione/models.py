@@ -236,6 +236,8 @@ class ArticoloPN(models.Model):
     quote_deriva = models.PositiveIntegerField(default=0, help_text="Quote in deriva verso un limite.")
     quote_fuori_ultimo = models.PositiveIntegerField(default=0, help_text="Quote fuori nell'ultimo report di ogni programma.")
     analisi_il = models.DateTimeField(null=True, blank=True, help_text="Quando Cpk, deriva e fuori sono stati calcolati.")
+    rischio_max = models.FloatField(null=True, blank=True, help_text="Rischio più alto che il prossimo pezzo esca (0-1).")
+    salute = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Salute CMM 0-100 (articoli.salute).")
     andamento = models.CharField(max_length=200, blank=True, default="",
                                  help_text="Report per mese degli ultimi 12 mesi, separati da virgola.")
     riepilogo_il = models.DateTimeField(null=True, blank=True)
@@ -256,3 +258,38 @@ class ArticoloPN(models.Model):
         if self.n_report_12m or self.op_aperti:
             return "attivo"
         return "fermo" if (self.n_report or self.n_op) else "archivio"
+
+
+class QuotaCapacita(models.Model):
+    """Una quota di un programma di un P/N con la sua capacità e il rischio, ricalcolata con l'analisi del P/N
+    (``articoli.analizza``). Serve a Quote CMM e al confronto della stessa caratteristica fra P/N diversi."""
+
+    pn = models.CharField(max_length=100, db_index=True, verbose_name="P/N")
+    prog = models.CharField(max_length=200, blank=True, default="", verbose_name="Programma")
+    quota_id = models.CharField(max_length=260)
+    nome = models.CharField(max_length=200)
+    caratteristica = models.CharField(max_length=120, db_index=True,
+                                      help_text="Nome senza numerazione, maiuscolo (es. «Ø40 H7»): unisce i P/N.")
+    nominale = models.FloatField()
+    lsl = models.FloatField(null=True, blank=True)
+    usl = models.FloatField(null=True, blank=True)
+    n = models.PositiveIntegerField(default=0)
+    cpk = models.FloatField(null=True, blank=True)
+    ppk = models.FloatField(null=True, blank=True)
+    indice = models.FloatField(null=True, blank=True, help_text="Il peggiore fra Cpk e Ppk.")
+    cpk_basso = models.FloatField(null=True, blank=True)
+    verdetto = models.CharField(max_length=20, blank=True, default="")
+    metodo = models.CharField(max_length=12, blank=True, default="")
+    rischio = models.FloatField(null=True, blank=True)
+    deriva = models.BooleanField(default=False)
+    fuori_ultimo = models.BooleanField(default=False)
+    famiglia = models.PositiveSmallIntegerField(null=True, blank=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Capacità di una quota"
+        verbose_name_plural = "Capacità delle quote"
+        constraints = [models.UniqueConstraint(fields=["pn", "prog", "quota_id"], name="prod_qcap_unica")]
+
+    def __str__(self) -> str:
+        return f"{self.pn} {self.prog} {self.nome}"

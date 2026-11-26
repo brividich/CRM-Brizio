@@ -84,28 +84,22 @@
     const banda = usl - lsl;
     return banda > 0 ? (x - (usl + lsl) / 2) / (banda / 2) : null;
   }
+  /* Statistiche della quota: le formule sono in spc.js (le stesse di produzione/spc.py). */
   function statistiche(pts) {
     const n = pts.length;
     if (!n) return { n: 0 };
     const xs = pts.map(p => p.x);
-    const media = xs.reduce((a, b) => a + b, 0) / n;
-    const sd = n > 1 ? Math.sqrt(xs.reduce((a, x) => a + (x - media) ** 2, 0) / (n - 1)) : 0;
     const ult = pts[n - 1];
-    const banda = ult.usl - ult.lsl;
-    const s = { n, media, sd, min: Math.min(...xs), max: Math.max(...xs), ultimo: ult, cp: null, cpk: null,
-      nFuori: pts.filter(p => p.f).length, nVer: pts.filter(p => p.dv).length };
-    if (n >= 5 && sd > 0 && banda > 0) {
-      if (ult.uni) {
-        s.cpk = (ult.usl - media) / (3 * sd);   // solo limite superiore: Cpk = CPU, Cp non si calcola
-      } else {
-        s.cp = banda / (6 * sd);
-        s.cpk = Math.min(ult.usl - media, media - ult.lsl) / (3 * sd);
-      }
-    }
-    return s;
+    const nom = ult.uni ? 0 : NaN;          // NaN = non unilaterale
+    const c = SPC.capacita(xs, ult.lsl, ult.usl, nom);
+    return Object.assign(c, { min: Math.min(...xs), max: Math.max(...xs), ultimo: ult,
+      nFuori: pts.filter(p => p.f).length, nVer: pts.filter(p => p.dv).length,
+      rischio: SPC.rischio_prossimo(xs, ult.lsl, ult.usl, nom), controllo: SPC.limiti_controllo(xs) });
   }
-  const statoCpk = cpk => cpk === null || cpk === undefined ? null
-    : cpk >= 1.33 ? { c: 'ok', t: 'Capace' } : cpk >= 1 ? { c: 'warn', t: 'Al limite' } : { c: 'crit', t: 'Non capace' };
+  /* Stato dal verdetto (limite basso dell'intervallo del peggiore fra Cpk e Ppk; «pochi dati» sotto 25 pezzi). */
+  const statoCpk = s => !s || s.indice === null || s.indice === undefined ? null
+    : s.verdetto === 'capace' ? { c: 'ok', t: 'Capace' } : s.verdetto === 'al limite' ? { c: 'warn', t: 'Al limite' }
+    : s.verdetto === 'non capace' ? { c: 'crit', t: 'Non capace' } : { c: 'muto', t: 'Pochi dati' };
   const vicina = s => s.n && !s.ultimo.f && s.ultimo.u !== null && Math.abs(s.ultimo.u) >= 0.8;
 
   /* ── stato nell'indirizzo (link condivisibili) ───────────────────────── */
@@ -214,31 +208,10 @@
     if (pezzi > 50) return null;
     return { pendenza: b, pezzi, verso: b > 0 ? 'sup' : 'inf', n, my, mx };
   }
-  /* Regole di controllo: oltre 3σ, 9 di fila dallo stesso lato della media, 6 di fila in salita o discesa. */
-  function segnali(xs) {
-    const n = xs.length, out = [];
-    if (n < 9) return out;
-    const m = xs.reduce((a, b) => a + b, 0) / n;
-    const sd = Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / (n - 1));
-    if (sd > 0) xs.forEach((x, i) => { if (Math.abs(x - m) > 3 * sd) out.push({ regola: '3sigma', da: i, a: i }); });
-    for (let i = 0; i < n;) {
-      const lato = xs[i] > m; let j = i;
-      while (j + 1 < n && (xs[j + 1] > m) === lato && xs[j + 1] !== m) j++;
-      if (j - i + 1 >= 9) out.push({ regola: 'lato', da: i, a: j, sopra: lato });
-      i = j + 1;
-    }
-    for (let i = 0; i < n - 1;) {
-      const su = xs[i + 1] > xs[i]; let j = i;
-      while (j + 1 < n && (su ? xs[j + 1] > xs[j] : xs[j + 1] < xs[j])) j++;
-      if (j - i + 1 >= 6) out.push({ regola: 'trend', da: i, a: j, su });
-      i = Math.max(j, i + 1);
-    }
-    return out;
-  }
-  const testoSegnale = g => g.regola === '3sigma' ? 'Oltre 3σ' : g.regola === 'lato' ? `${g.a - g.da + 1} punti ${g.sopra ? 'sopra' : 'sotto'} la media`
-    : `${g.a - g.da + 1} punti di fila in ${g.su ? 'salita' : 'discesa'}`;
-  const spiegaSegnale = g => g.regola === '3sigma' ? 'misura anomala anche se in tolleranza: verificare il pezzo'
-    : g.regola === 'lato' ? 'il processo si è spostato: controllare utensile o azzeramento' : 'tendenza costante: usura o deriva termica';
+  /* Regole di controllo: Nelson 1-8 ed EWMA, da spc.js. */
+  const segnali = xs => SPC.segnali(xs);
+  const testoSegnale = g => (SPC.testi[String(g.regola)] || [String(g.regola)])[0];
+  const spiegaSegnale = g => (SPC.testi[String(g.regola)] || ['', ''])[1];
 
   /* ── filtri globali ──────────────────────────────────────────────────── */
   function disegnaFiltri() {
@@ -333,7 +306,7 @@
     const sn = new Set(rv.map(r => r[1]));
     let mis = 0, fuori = 0;
     info.forEach(x => { mis += x.pts.length; fuori += x.s.nFuori || 0; });
-    const nonCap = info.filter(x => x.s.cpk !== null && x.s.cpk !== undefined && x.s.cpk < 1.33).length;
+    const nonCap = info.filter(x => x.s.indice !== null && x.s.indice !== undefined && x.s.indice < 1.33).length;
     const conFuori = info.filter(x => x.s.nFuori).length;
     const ult = rv[rv.length - 1];
     const tile = (et, val, sub, opts = {}) => el(opts.onclick ? 'button' : 'div', { class: `aq-tile${opts.allerta ? ' is-allerta' : ''}`, type: opts.onclick ? 'button' : null, onclick: opts.onclick, title: opts.title },
@@ -343,7 +316,7 @@
       tile('Quote', `${info.filter(x => x.pts.length).length}`, `${mis} misure`),
       tile('Misure fuori', mis ? pct(fuori / mis) : '—', `${fuori} su ${mis}`, { allerta: fuori > 0 }),
       tile('Andate fuori', `${conFuori}`, 'quote, almeno una volta', { allerta: conFuori > 0, onclick: () => scegliFiltro('fuori'), title: 'Mostra solo queste' }),
-      tile('Cpk < 1,33', `${nonCap}`, 'quote non capaci o al limite', { allerta: nonCap > 0, onclick: () => scegliFiltro('cpk'), title: 'Mostra solo queste' }),
+      tile('Cpk o Ppk < 1,33', `${nonCap}`, 'quote non capaci o al limite', { allerta: nonCap > 0, onclick: () => scegliFiltro('cpk'), title: 'Mostra solo queste' }),
       tile('In deriva', `${info.filter(x => x.deriva).length}`, 'quote verso un limite', { allerta: info.some(x => x.deriva), onclick: () => scegliFiltro('deriva'), title: 'Mostra solo queste' }),
       tile('Ultimo report', ult ? dataIt(ult[3]) : '—', ult ? ult[1] : '', { title: ult ? `${ult[1]} · ${ult[2] || ''}` : null }),
     );
@@ -357,7 +330,7 @@
   const FILTRI = [
     ['tutte', 'Tutte', () => true],
     ['fuori', 'Andate fuori', x => x.s.nFuori > 0],
-    ['cpk', 'Cpk < 1,33', x => x.s.cpk !== null && x.s.cpk !== undefined && x.s.cpk < 1.33],
+    ['cpk', 'Cpk o Ppk < 1,33', x => x.s.indice !== null && x.s.indice !== undefined && x.s.indice < 1.33],
     ['limite', 'Vicine al limite', x => vicina(x.s)],
     ['deriva', 'In deriva', x => !!x.deriva],
     ['segnali', 'Con segnali', x => x.segnali.length > 0],
@@ -370,7 +343,7 @@
     if (S.cerca) l = l.filter(x => `${x.q.nome} ${x.q.sezione}`.toLowerCase().includes(S.cerca));
     const per = {
       fuori: (a, b) => b.s.nFuori - a.s.nFuori,
-      cpk: (a, b) => (a.s.cpk ?? 99) - (b.s.cpk ?? 99),
+      cpk: (a, b) => (a.s.indice ?? 99) - (b.s.indice ?? 99),
       limite: (a, b) => Math.abs(b.s.ultimo.u ?? 0) - Math.abs(a.s.ultimo.u ?? 0),
       nome: (a, b) => a.q.nome.localeCompare(b.q.nome, 'it', { numeric: true }),
     }[S.ord];
@@ -390,8 +363,8 @@
   }
   function badge(x) {
     if (x.s.nFuori) return el('span', { class: 'aq-badge is-crit', title: `${x.s.nFuori} volte fuori su ${x.s.n}` }, `${x.s.nFuori} fuori`);
-    const st = statoCpk(x.s.cpk);
-    if (st) return el('span', { class: `aq-badge is-${st.c}`, title: `Cpk ${num(x.s.cpk, 2)}: ${st.t}` }, `Cpk ${num(x.s.cpk, 2)}`);
+    const st = statoCpk(x.s);
+    if (st) return el('span', { class: `aq-badge is-${st.c}`, title: `Cpk ${num(x.s.cpk, 2)} · Ppk ${num(x.s.ppk, 2)}: ${st.t}` }, `Cpk ${num(x.s.indice, 2)}`);
     return el('span', { class: 'aq-badge' }, `${x.s.n}`);
   }
   function disegnaLista() {
@@ -467,7 +440,7 @@
       const v = val(p); if (v === null || !isFinite(v)) return;
       lo = Math.min(lo, v, pc ? infPc(p) : p.lsl); hi = Math.max(hi, v, pc ? 100 : p.usl);
     });
-    if (S.sigma && s.sd > 0 && !pc) { lo = Math.min(lo, s.media - 3 * s.sd); hi = Math.max(hi, s.media + 3 * s.sd); }
+    if (S.sigma && s.controllo && !pc) { lo = Math.min(lo, s.controllo.lci); hi = Math.max(hi, s.controllo.lcs); }
     if (!isFinite(lo)) { lo = -1; hi = 1; }
     if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
     const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
@@ -494,7 +467,7 @@
       const uNom = p => (usata(x.q.nominale, x.q.nominale, p.lsl, p.usl) ?? 0) * 100;
       svg.append(sv('polyline', { class: 'g-nominale', points: linea(p => pc ? uNom(p) : x.q.nominale) }));
       if (S.media && s.n && !pc) svg.append(sv('line', { class: 'g-media', x1: L, x2: W - R, y1: Y(s.media), y2: Y(s.media) }));
-      if (S.sigma && s.sd > 0 && !pc) [-3, 3].forEach(k => svg.append(sv('line', { class: 'g-sigma', x1: L, x2: W - R, y1: Y(s.media + k * s.sd), y2: Y(s.media + k * s.sd) })));
+      if (S.sigma && s.controllo && !pc) [s.controllo.lci, s.controllo.lcs].forEach(v => svg.append(sv('line', { class: 'g-sigma', x1: L, x2: W - R, y1: Y(v), y2: Y(v) })));
       const colori = coloriOp();
       svg.append(sv('polyline', { class: 'g-linea', points: pts.map((p, i) => `${X(i)},${Y(val(p))}`).join(' '), stroke: S.perOp ? 'var(--aq-altro)' : 'var(--aq-serie)', 'stroke-opacity': S.perOp ? 0.6 : 1 }));
       const r = n > 150 ? 2.5 : n > 60 ? 3.2 : 4;
@@ -531,7 +504,7 @@
         if (!nelZoom(x.pts[g.da].ri) && !nelZoom(x.pts[g.a].ri)) return;
         const k0 = pts.indexOf(x.pts[g.da]), k1 = pts.indexOf(x.pts[g.a]);
         if (k0 < 0 || k1 < 0) return;
-        if (g.regola === '3sigma') {
+        if (String(g.regola) === '1') {
           svg.append(sv('circle', { class: 'g-segnale-punto', cx: X(k0), cy: Y(val(pts[k0])), r: 8 }));
         } else {
           const passo = n > 1 ? (X(1) - X(0)) / 2 : 6;
@@ -714,7 +687,7 @@
         el('button', { type: 'button', class: 'aq-toggle', 'aria-pressed': S.scala === 'pct' ? 'true' : 'false', title: 'Mostra quanta tolleranza usa ogni misura: 0 = centro, ±100% = limite',
           onclick: () => { S.scala = S.scala === 'pct' ? 'valore' : 'pct'; disegnaVista(); } }, '% tolleranza'),
         toggle('Media', 'media', 'Linea della media'),
-        toggle('±3σ', 'sigma', 'Media ± 3 deviazioni standard'),
+        toggle('Limiti di controllo', 'sigma', 'LCS e LCI: media ± 3σ di breve periodo (carta I-MR)'),
         toggle('Colori per OP', 'perOp', 'Colora i punti dei 3 OP più recenti'),
         toggle('Segnali', 'segnali', 'Evidenzia i segnali di controllo statistico'),
         S.zoom ? el('button', { type: 'button', class: 'aq-toggle', onclick: () => { S.zoom = null; disegnaVista(); } }, 'Reimposta zoom') : null,
@@ -740,23 +713,24 @@
     pane.replaceChildren(card);
     const { s, colori, dominio } = graficoQuota(gbox, x);
     if (dominio) istogramma(hbox, x, dominio);
-    const st = statoCpk(s.cpk);
+    const st = statoCpk(s);
     const t = (et, v, sub, cls) => el('div', { class: `aq-tile${cls ? ' ' + cls : ''}` }, el('span', { text: et }), el('b', { text: v }), sub || null);
+    const ic = s.cpk_basso !== null && s.cpk_basso !== undefined ? `${num(s.cpk_basso, 2)} – ${num(s.cpk_alto, 2)} (95%)` : 'servono 5 misure';
     tiles.append(
       t('Misure', `${s.n || 0}`, S.zoom ? el('small', { text: 'nello zoom' }) : null),
       t('Fuori', `${s.nFuori || 0}`, el('small', { text: s.n ? pct(s.nFuori / s.n) : '' }), s.nFuori ? 'is-allerta' : ''),
       t('Media', num(s.media), el('small', { text: s.n ? `scarto dal nom. ${segno(s.media - x.q.nominale)}` : '' })),
-      t('Dev. std σ', num(s.sd)),
-      t('Cp', num(s.cp, 2), el('small', { text: s.cp !== null ? 'larghezza' : (s.n >= 5 && s.ultimo.uni ? 'solo limite superiore' : 'servono 5 misure') })),
-      t('Cpk', num(s.cpk, 2), st ? el('span', { class: `aq-stato is-${st.c}`, text: st.t }) : el('small', { text: 'servono 5 misure' })),
-      t('Min ÷ max', s.n ? `${num(s.min, 3)} ÷ ${num(s.max, 3)}` : '—'),
+      t('σ breve', num(s.sigma_breve), el('small', { text: `σ totale ${num(s.sd)}`, title: 'σ di breve periodo (escursioni mobili / 1,128) e di tutti i pezzi' })),
+      t('Cpk', num(s.cpk, 2), el('small', { text: ic, title: 'Capacità della macchina (σ di breve periodo); intervallo sul peggiore fra Cpk e Ppk' })),
+      t('Ppk', num(s.ppk, 2), st ? el('span', { class: `aq-stato is-${st.c}`, text: st.t + (s.metodo === 'percentili' ? ' · percentili' : '') }) : el('small', { text: 'servono 5 misure' })),
+      t('Rischio', s.rischio === null || s.rischio === undefined ? '—' : `${Math.round(s.rischio * 100)}%`, el('small', { text: 'prossimo pezzo fuori' }), s.rischio >= 0.1 ? 'is-allerta' : ''),
       t('Ultima', s.n ? num(s.ultimo.x) : '—', s.n ? el('small', { text: `${D.report[s.ultimo.ri][1]} · ${s.ultimo.u === null ? '—' : pct(Math.abs(s.ultimo.u))} toll.`, title: 'S/N · tolleranza usata' }) : null, s.n && s.ultimo.f ? 'is-allerta' : ''),
     );
     legenda.append(el('span', {}, el('i'), 'Rilevato'), el('span', {}, el('i', { class: 'is-punto' }), 'Fuori tolleranza'),
       el('span', {}, el('i', { class: 'is-banda' }), 'Zona di tolleranza'), el('span', {}, el('i', { class: 'is-limite' }), 'Limiti'),
       el('span', {}, el('i', { class: 'is-nominale' }), 'Nominale'));
     if (S.media && S.scala !== 'pct') legenda.append(el('span', {}, el('i', { class: 'is-media' }), 'Media'));
-    if (S.sigma && S.scala !== 'pct') legenda.append(el('span', {}, el('i', { class: 'is-sigma' }), '±3σ'));
+    if (S.sigma && S.scala !== 'pct') legenda.append(el('span', {}, el('i', { class: 'is-sigma' }), 'Limiti di controllo'));
     if (colori) colori.m.forEach((c, op) => legenda.append(el('span', {}, el('i', { style: `border-top-color:${c};border-top-width:8px;width:8px;border-radius:50%` }), op)));
     if (x.deriva && !S.zoom) legenda.append(el('span', {}, el('i', { class: 'is-deriva' }), 'Tendenza'));
     if (S.segnali && x.segnali.length && S.scala !== 'pct') legenda.append(el('span', {}, el('i', { class: 'is-segnale' }), 'Segnale di controllo'));
@@ -764,7 +738,7 @@
     legenda.append(el('span', { text: 'Trascina sul grafico per ingrandire.' }));
     if (S.segnali && x.segnali.length) {
       const tb = el('tbody');
-      x.segnali.forEach(g => tb.append(el('tr', {}, el('td', {}, el('span', { class: `aq-badge ${g.regola === '3sigma' ? 'is-crit' : 'is-warn'}`, text: testoSegnale(g) })),
+      x.segnali.forEach(g => tb.append(el('tr', {}, el('td', {}, el('span', { class: `aq-badge ${String(g.regola) === '1' ? 'is-crit' : 'is-warn'}`, text: testoSegnale(g) })),
         el('td', { text: g.da === g.a ? D.report[x.pts[g.da].ri][1] : `${D.report[x.pts[g.da].ri][1]} → ${D.report[x.pts[g.a].ri][1]}` }),
         el('td', { text: spiegaSegnale(g) }))));
       card.append(el('table', { class: 'aq-tab aq-segnali' }, el('thead', {}, el('tr', {}, el('th', { text: 'Segnale' }), el('th', { text: 'Dove' }), el('th', { text: 'Cosa vuol dire' }))), tb));
@@ -937,7 +911,7 @@
   function vistaConfronto(pane) {
     const card = el('div', { class: 'aq-card' });
     const scelte = S.cmp.map(id => info.find(x => x.q.id === id)).filter(Boolean);
-    const critiche = () => info.filter(x => x.pts.length).sort((a, b) => (b.s.nFuori - a.s.nFuori) || ((a.s.cpk ?? 99) - (b.s.cpk ?? 99))).slice(0, 4);
+    const critiche = () => info.filter(x => x.pts.length).sort((a, b) => (b.s.nFuori - a.s.nFuori) || ((a.s.indice ?? 99) - (b.s.indice ?? 99))).slice(0, 4);
     card.append(el('div', { class: 'aq-card-head' },
       el('h2', {}, 'Confronto fra quote', el('small', { text: 'Ogni quota in % della sua tolleranza: 0 = centro, ±100% = limite. Spunta fino a 6 quote nell\'elenco.' })),
       el('div', { class: 'aq-opzioni' },

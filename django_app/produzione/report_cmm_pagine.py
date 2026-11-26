@@ -156,6 +156,54 @@ def _banda(m) -> float:
     return (m.tol_sup - m.tol_inf) or 0.0
 
 
+# --- Anomalie da aprire (solo report nuovi) ---------------------------------------------------------------
+
+GIORNI_NUOVI = 30
+
+
+def anomalia_aperta_per(report: ReportCMM) -> bool:
+    """C'è già una segnalazione aperta per lo stesso S/N (e, se si sa, lo stesso OP)?"""
+    from core import ordini_produzione as op_db
+
+    if not report.seriale or not op_db.disponibile():
+        return False
+    for a in op_db.anomalie_del_seriale(report.seriale):
+        if a["aperta"] and (not report.op or not a["op"] or a["op"].replace("-", "/").upper() == report.op.upper()):
+            return True
+    return False
+
+
+def anomalie_da_aprire(quante: int = 15, pns: list[str] | None = None) -> list[dict]:
+    """Report nuovi (data negli ultimi ``GIORNI_NUOVI`` giorni, mai i vecchi riletti) con quote fuori, non esclusi e
+    senza una segnalazione aperta per lo stesso S/N: per ognuno il link per aprirla già compilata."""
+    from datetime import timedelta
+
+    from django.urls import reverse
+    from django.utils import timezone
+    from urllib.parse import urlencode
+
+    from core import ordini_produzione as op_db
+
+    da = timezone.localdate() - timedelta(days=GIORNI_NUOVI)
+    qs = ReportCMM.objects.filter(righe__gt=0, fuori__gt=0, escluso=False, data__gte=da)
+    if pns is not None:
+        qs = qs.filter(pn__in=pns)
+    out, op_cache = [], {}
+    for r in qs.order_by("-data", "-id")[: quante * 3]:
+        if anomalia_aperta_per(r):
+            continue
+        op = None
+        if r.op and op_db.disponibile():
+            op = op_cache.setdefault(r.op, op_db.per_titolo(r.op))
+        url = (f"{reverse('apertura_segnalazione')}?{urlencode({'op_id': op['id'], 'report_cmm': r.pk})}" if op
+               else reverse("produzione:report_cmm", args=[r.pk]))
+        out.append({"report": r, "url": url, "con_op": bool(op),
+                    "quote": list(r.misure.filter(fuori=True).values_list("nome", flat=True)[:3])})
+        if len(out) >= quante:
+            break
+    return out
+
+
 # --- Scheda P/N: Qualità CMM -----------------------------------------------------------------------------
 
 def _stato_quota(a: dict) -> str:
@@ -233,7 +281,14 @@ def qualita_pn(pn: str, scelta: str = "") -> dict:
     grafico = None
     if scelta_a:
         grafico = {"nome": scelta_a["quota"]["nome"], "lsl": scelta_a["lsl"], "usl": scelta_a["usl"],
-                   "serie": scelta_a.get("serie") or [], "media": scelta_a.get("media")}
+                   "serie": scelta_a.get("serie") or [], "media": scelta_a.get("media"),
+                   "controllo": scelta_a.get("controllo"), "cambi": scelta_a.get("cambi") or [],
+                   "segnali": [{"regola": str(g["regola"]), "da": g["da"], "a": g["a"]} for g in scelta_a.get("segnali") or []]}
+        from . import spc
+
+        scelta_a = dict(scelta_a, segnali_testo=[
+            {"titolo": spc.TESTI_REGOLE[g["regola"]][0], "spiega": spc.TESTI_REGOLE[g["regola"]][1],
+             "da": g["da"] + 1, "a": g["a"] + 1} for g in scelta_a.get("segnali") or []])
     tabella = sorted(tutte, key=lambda a: (-(a["rischio"] or 0), a["indice"] if a["indice"] is not None else 99, a["prog"], a["quota"]["nome"]))
     return {"programmi": elenco, "scelta": scelta_a, "grafico": grafico, "tabella": tabella,
             "lettura": lettura_quota(scelta_a) if scelta_a else "",
