@@ -45,9 +45,9 @@
 .prod-nota{margin:0;font-size:12.5px;color:var(--text-mid)}
 .prod-pagine{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;font-size:12.5px;color:var(--text-mid)}
 /* Scheda */
-.prod-dati{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
-.prod-dato{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
-.prod-dato span{font-size:11.5px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em}
+.prod-dati{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px}
+.prod-dato{background:transparent;border:0;border-radius:0;box-shadow:-1px -1px 0 var(--border);padding:9px 16px;display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}
+.prod-dato span{font-size:10.5px;font-weight:800;color:var(--text-mid);text-transform:uppercase;letter-spacing:.06em}
 .prod-dato b{font-size:15px;font-weight:800;overflow-wrap:anywhere}
 .prod-dato a{font-size:15px;font-weight:800}
 .prod-dato.is-allerta b{color:var(--danger)}
@@ -92,11 +92,11 @@
 /* Filo conduttore: percorso dell'OP, prossimo passo, «Da sistemare» */
 .prod-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:12px}
 .prod-chips-etichetta{font-size:12.5px;font-weight:700;color:var(--text-mid);margin-right:2px}
-.prod-chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:700;text-decoration:none}
+.prod-chip{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:700;text-decoration:none}
 .prod-chip b{color:var(--text-mid)}
 .prod-chip:hover{border-color:var(--accent)}
-.prod-chip.is-on{border-color:var(--accent);background:var(--accent);color:#fff}
-.prod-chip.is-on b{color:#fff}
+.prod-chip.is-on{border-color:var(--text);background:var(--text);color:var(--surface)}
+.prod-chip.is-on b{color:var(--surface)}
 .prod-chip.is-allerta:not(.is-on) b{color:var(--danger)}
 .prod-manca{display:inline-block;padding:1px 9px;border-radius:999px;border:1px dashed var(--border);color:var(--text-mid);font-size:11.5px;font-weight:700;text-decoration:none;white-space:nowrap}
 .prod-manca:hover{border-color:var(--accent);color:var(--text)}
@@ -249,12 +249,12 @@ body.theme-dark .prod-cmp-giu{color:#93c5fd}
 .prod-matrice thead th{font-size:11px;font-weight:700;color:var(--text-mid);padding:2px 6px;text-align:center;white-space:nowrap}
 .prod-matrice .prod-matrice-sn{text-align:left;font-weight:800;padding-right:12px;white-space:nowrap}
 .prod-matrice td{padding:0}
-.prod-cella{display:flex;align-items:center;justify-content:center;gap:4px;min-width:92px;height:28px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;box-sizing:border-box}
+.prod-cella{display:flex;align-items:center;justify-content:center;gap:4px;min-width:92px;height:28px;padding:0 8px;border-radius:5px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;box-sizing:border-box}
 .prod-cella i{font-style:normal;opacity:.8}
-.prod-cella.is-ok{background:color-mix(in srgb,var(--success,#16a34a) 18%,transparent);color:color-mix(in srgb,var(--success,#16a34a) 75%,var(--text))}
-.prod-cella.is-limite{background:color-mix(in srgb,var(--warning,#f59e0b) 25%,transparent);color:color-mix(in srgb,var(--warning,#f59e0b) 55%,var(--text))}
-.prod-cella.is-fuori{background:color-mix(in srgb,var(--danger) 20%,transparent);color:var(--danger)}
-.prod-cella.is-vuota{background:var(--surface-alt,var(--thead-bg));color:var(--text-mid);font-weight:500}
+.prod-cella.is-ok{background:color-mix(in srgb,var(--success,#16a34a) 14%,var(--surface));color:var(--text)}
+.prod-cella.is-limite{background:color-mix(in srgb,var(--warning,#d97706) 32%,var(--surface));color:var(--text)}
+.prod-cella.is-fuori{background:var(--danger,#dc2626);color:#fff}
+.prod-cella.is-vuota{background:var(--thead-bg);color:var(--text-light,#94a3b8);font-weight:500}
 a.prod-cella:hover{outline:2px solid var(--accent);outline-offset:1px}
 .prod-legenda-celle{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text-mid)}
 .prod-legenda-celle .prod-cella{min-width:0;height:22px}
@@ -272,7 +272,7 @@ a.prod-cella:hover{outline:2px solid var(--accent);outline-offset:1px}
 /* Catalogo P/N */
 .prod-dati-5{grid-template-columns:repeat(5,minmax(0,1fr))}
 a.prod-dato{text-decoration:none;color:var(--text)}
-a.prod-dato:hover{border-color:var(--accent)}
+a.prod-dato:hover{background:var(--tbody-hover)}
 .prod-cerca-largo{flex:1;min-width:260px}
 .prod-catalogo td{white-space:nowrap}
 .prod-catalogo td:first-child{white-space:normal;min-width:180px}

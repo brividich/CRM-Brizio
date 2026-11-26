@@ -72,6 +72,10 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 - Quote CMM: `cruscotto()` restituisce `celle` (report fuori / misurati per settimana, `_cella_mappa`), `settimane_mappa()` e `quote_da_guardare_tutte()`.
 - Pagine di dettaglio senza `_nav.html`: percorso nell'eyebrow e `<template data-hub-percorso-gerarchia>`, badge con `prod-badge` (fuori dal nome nel percorso in alto), «? Guida» fra i pulsanti. Il catalogo si intitola «Catalogo P/N». Nessuna migrazione; serve `collectstatic` (`produzione.css`, `protocollo.js`).
 
+### Stile unico del modulo (26/11/2026)
+
+- `.prod-chip`, `.aq-chip`, `.aq-segmenti` come `.prot-filtro` (scelto = `var(--text)` pieno); `.prod-dati`/`.prod-dato`, `.aq-kpi`/`.aq-tiles`/`.aq-tile` come striscia unica (bordi interni con `box-shadow`); `.prod-cella` con la tavolozza di `.prot-liv`. Elenco OP e catalogo: `data-fm-hide-search="1"` (una sola ricerca). Solo CSS e template, nessuna migrazione.
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |
