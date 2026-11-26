@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: ritocchi dopo gli screenshot della remediation
+
+- Edizione annullata: l'avviso compare una volta sola (riquadro «Edizione annullata» + «Riapri»), senza lucchetto ripetuto, pannello MOD.040 e scostamento ore in rosso.
+- Sessione finita: un solo pulsante MOD.040 (nel pannello Chiusura e approvazione), testo del pannello senza ripetere «Chiudi l'edizione».
+- Corsi online: «Iscritti» comprende chi è iscritto alle edizioni online del corso (prima 1 iscritto e 2 completati).
+- Scheda corso: «1 assegnato» al singolare.
+- File: `formazione_sessione_detail.html`, `_formazione_chiusura_panel.html`, `_aula_fasi.html`, `formazione_elearning_hub.html`, `formazione_corso_detail.html`, `views/formazione.py`.
+
 ### Formazione: remediation dell'intero modulo (analisi del 26/11 sera, 18 interventi)
 
 **Sicurezza**

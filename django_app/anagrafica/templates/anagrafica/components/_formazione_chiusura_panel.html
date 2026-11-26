@@ -1,5 +1,6 @@
 {# Chiusura e approvazione dell'edizione: MOD.040 Registro Corsi (MT CN 06 §9.2-9.3). #}
 <div class="hr-card fm-section" id="chiusura-edizione" style="margin-bottom:16px;">
+  {% if sessione.stato != "ANNULLATA" %}
   <div class="fm-section-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
     <div>
       <h3 class="fm-section-title" style="margin:0;">Chiusura e approvazione (MOD.040)</h3>
@@ -7,13 +8,11 @@
         {% if sessione.is_approvata %}
           Approvato da <strong>{{ sessione.approvata_da_nome|upper|default:"—" }}</strong> il {{ sessione.approvata_il|date:"d/m/Y H:i" }}.
           L'edizione è chiusa: calendario, iscritti, esiti e presenze non si modificano.
-        {% elif sessione.stato == "ANNULLATA" %}
-          Edizione annullata: calendario, iscritti e presenze non si modificano. Per usarla di nuovo riaprila indicando il motivo.
         {% elif sessione.stato == "COMPLETATA" %}
           Edizione completata: calendario, iscritti e presenze sono bloccati; gli esiti degli iscritti si chiudono ancora.
           Manca l'approvazione formale di MSM/MSO.
         {% else %}
-          Quando l'edizione è finita, «Chiudi l'edizione» registra gli esiti e la porta a «Completata»; poi chiedi l'approvazione a MSM/MSO.
+          Dopo «Chiudi l'edizione» serve l'approvazione formale di MSM/MSO.
         {% endif %}
       </p>
     </div>
@@ -23,6 +22,7 @@
       {% include "anagrafica/partials/_formazione_guida_link.html" with ancora="chiusura" %}
     </div>
   </div>
+  {% endif %}
   <div class="fm-chiusura-body" style="padding:4px 16px 14px;">
 
   {% if not sessione.is_approvata and sessione.stato != "ANNULLATA" %}
