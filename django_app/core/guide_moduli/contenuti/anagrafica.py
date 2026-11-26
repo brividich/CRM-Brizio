@@ -20,7 +20,7 @@ GUIDA = {
                       "manda email: l'eventuale mail arriva dall'azienda). La trovi anche in «Le mie attività» e in "
                       "Formazione → I miei corsi online."),
                 ("ul", [
-                    "Le slide si guardano in ordine: «Avanti» si accende dopo il tempo minimo indicato sulla slide.",
+                    "Le slide si guardano in ordine; «Avanti» vale subito, senza tempo minimo sulla slide.",
                     "Puoi interrompere quando vuoi: riaprendo il link riparti dalla slide a cui eri arrivato.",
                     "Dopo l'ultima slide si apre il test: rispondi a tutte le domande e premi «Consegna il test». "
                     "Quando una domanda ha più risposte giuste lo dice sotto il testo: vanno scelte tutte.",
@@ -638,7 +638,7 @@ GUIDA = {
                       "qualsiasi sessione con il pulsante «Lezione online»."),
                 ("def", [
                     ("1 · Slide", "carica un PowerPoint o un PDF (ogni pagina diventa una slide) o «Copia le slide del "
-                                  "corso»; riordina con le frecce. «Tempo minimo su ogni slide»: 20 secondi proposti, 0 = nessuno."),
+                                  "corso»; riordina con le frecce. Nessun tempo minimo sulla slide."),
                     ("2 · Test finale", "scrivi le domande con le risposte e spunta «Giusta»; più giuste = vanno scelte "
                                         "tutte. «Aggiungi più domande insieme»: dal corso, incollate da Word (riga vuota "
                                         "tra le domande, * davanti alla giusta) o da Excel. Soglia proposta: il punteggio "

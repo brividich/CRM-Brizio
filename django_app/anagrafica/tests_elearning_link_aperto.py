@@ -103,15 +103,16 @@ class AccessoPubblicoTests(_Base):
         self.segui_corso()
         self.assertEqual(self.anonimo.get(self.url("quiz")).status_code, 200)
 
-    def test_secondi_minimi_per_slide(self):
+    def test_nessun_tempo_minimo_per_slide(self):
+        """Dal 26/11/2026 la permanenza minima per slide non si applica: si passa subito alla successiva."""
         regola = TrainingCompletionRule.objects.get(corso=self.corso)
         regola.el_secondi_minimi_slide = 60
         regola.save()
         self.registra()
         self.anonimo.get(self.url())
         r = self.anonimo.get(self.url() + "?s=2")
-        self.assertContains(r, "Slide 1")
-        self.assertContains(r, "Puoi andare avanti tra")
+        self.assertContains(r, "Slide 2")
+        self.assertNotContains(r, "Puoi andare avanti tra")
 
     def test_media_solo_di_slide_aperte(self):
         s2 = self.corso.slides.get(ordine=2)

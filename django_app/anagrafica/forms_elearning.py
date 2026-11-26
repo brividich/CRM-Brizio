@@ -10,7 +10,8 @@ from .services.elearning_regole import CAMPI_FAD
 class ElearningRegolaForm(forms.ModelForm):
     class Meta:
         model = TrainingCompletionRule
-        fields = list(CAMPI_FAD) + ["rspp_note"]
+        # «Permanenza minima per slide» non si applica più (26/11/2026): fuori dal modulo.
+        fields = [c for c in CAMPI_FAD if c != "el_secondi_minimi_slide"] + ["rspp_note"]
         labels = {
             "el_tempo_minimo_minuti": "Tempo minimo di fruizione (minuti)",
             "el_richiede_tutte_slide": "Tutte le slide obbligatorie",
