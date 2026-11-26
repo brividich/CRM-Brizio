@@ -9,6 +9,15 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Ordini di produzione: stile unico in tutto il modulo
+
+- Filtri (Elenco OP «Da sistemare», catalogo «Mostra», report, Analisi quote: chip e scelte Periodo/Misure) con lo stesso aspetto dei filtri del protocollo: rettangolo arrotondato, scelto = pieno scuro (chiaro nel tema scuro), non più pillola arancione.
+- Numeri in alto (scheda OP, catalogo, Quote CMM, Analisi quote: riepilogo del programma e della quota) in una striscia unica divisa da righe, come la testata del report, non più riquadri separati.
+- «Pezzi e fasi» della scheda OP con le celle della matrice del pezzo: OK verde chiaro, al limite giallo, fuori rosso pieno.
+- Catalogo P/N: tolto il titolo ripetuto della tabella; catalogo ed Elenco OP senza la seconda casella «Cerca…» della tabella (resta quella in alto).
+- Verificato il tema scuro su report, pezzo, Qualità CMM, Quote CMM, scheda OP e Analisi quote.
+- File: `produzione/static/produzione/css/produzione.css`, `analisi_quote.css`, template `pn_elenco.html`, `elenco.html` e versione dei CSS in tutti i template del modulo e in `tasks/fai_scheda.html`. Nessuna migrazione; `collectstatic`.
+
 ### Ordini di produzione: pagine in stile protocollo CMM (report, pezzo, qualità del P/N, mappa)
 
 - Report CMM come il protocollo della CMM: timbro «Esito» (NOK / DA VERIFICARE / OK / ESCLUSO) con P/N, S/N, OP, programma, data e quote; quote per gruppo del report con icone ✓ ! ✕ ?; tabella con deviazione, grafico di deviazione (tolleranza, fascia all'80%, nominale, barra verde/gialla/rossa), «Fuori di» e «Usata»; dettaglio della quota a destra con l'andamento sugli ultimi 30 pezzi, Cpk, deriva, fuori, «Analisi quote» e «Apri anomalia»; frecce ↑ ↓, «Compatta», pezzo prima/dopo con lo stesso filtro.
