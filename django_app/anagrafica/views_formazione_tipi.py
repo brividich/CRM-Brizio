@@ -31,7 +31,8 @@ def formazione_tipi_corso(request):
     return render(request, "anagrafica/pages/formazione_tipi_corso.html", {
         "tipi": servizio.tipi_con_conteggi(),
         "piani": piani,
-        "n_senza_tipo": sum(p["senza_tipo"] for p in piani),
+        # Stesso numero della pastiglia «Senza tipo» dell'elenco corsi (tutti i corsi, non solo i piani attivi).
+        "n_senza_tipo": _n_senza_tipo(),
         "doppioni": doppi,
         "prova": prova,
         "n_da_rivedere": len(doppi) + len(prova),
@@ -39,6 +40,11 @@ def formazione_tipi_corso(request):
         "modifica": request.GET.get("modifica") or "",
         "efficacia_senza_tipo": _efficacia_senza_tipo(),
     })
+
+
+def _n_senza_tipo() -> int:
+    from .services.formazione_catalogo import n_corsi_senza_tipo
+    return n_corsi_senza_tipo()
 
 
 def _efficacia_senza_tipo() -> int:

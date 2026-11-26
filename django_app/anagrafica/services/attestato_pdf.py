@@ -640,7 +640,7 @@ def build_registro_lezione_pdf_bytes(lezione) -> bytes:
 
 
 def build_registri_corso_pdf_bytes(corso) -> bytes:
-    """Foglio firme (vuoto, da compilare) di **tutte le lezioni** del corso.
+    """Foglio firme (vuoto, da compilare) delle **prossime lezioni** del corso.
 
     Una pagina per lezione, raggruppate per sessione, con l'elenco degli iscritti
     già stampato e le colonne firma ingresso/uscita da firmare a mano. Veste
@@ -655,21 +655,29 @@ def build_registri_corso_pdf_bytes(corso) -> bytes:
     buf = BytesIO()
     doc = make_document(buf, title=f"Fogli firme — {corso.titolo}")
 
+    # Solo i fogli che servono ancora: lezioni da oggi in poi di sessioni pianificate o in corso
+    # (prima anche lezioni passate e sessioni annullate o chiuse).
+    from django.db.models import Q
+    from django.utils import timezone
+
+    from anagrafica.models_formazione import TrainingEnrollment
+
     lezioni = list(
         TrainingLesson.objects
-        .filter(sessione__corso=corso)
+        .filter(sessione__corso=corso, sessione__stato__in=("PIANIFICATA", "IN_CORSO"))
+        .filter(Q(data__gte=timezone.localdate()) | Q(data__isnull=True))
         .select_related("sessione", "sessione__corso")
         .order_by("sessione__data_inizio", "data", "ora_inizio")
     )
-    all_ids = []
-    for lz in lezioni:
-        all_ids += list(lz.sessione.iscrizioni.values_list("legacy_anagrafica_id", flat=True))
+    all_ids = list(TrainingEnrollment.objects.filter(sessione_id__in={lz.sessione_id for lz in lezioni})
+                   .values_list("legacy_anagrafica_id", flat=True)) if lezioni else []
     nomi_map = _nomi_map(all_ids)
 
     story = []
     if not lezioni:
         from reportlab.platypus import Paragraph
-        story.append(Paragraph("Nessuna lezione pianificata per questo corso.", styles["body"]))
+        story.append(Paragraph("Nessuna lezione da oggi in poi nelle sessioni pianificate o in corso di questo corso.",
+                               styles["body"]))
     for idx, lz in enumerate(lezioni):
         story += _foglio_firme_lezione_story(lz, nomi_map, theme, styles)
         if idx < len(lezioni) - 1:
