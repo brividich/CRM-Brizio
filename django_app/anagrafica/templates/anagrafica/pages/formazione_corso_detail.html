@@ -86,7 +86,7 @@
           {% elif m.online %}<span class="fmd-badge fmd-b-amber">Acceso · {% if not m.n_slide %}mancano le slide{% else %}corso non pubblicato{% endif %}</span>
           {% else %}<span class="fmd-badge fmd-b-grey">Spento</span>{% endif %}</div>
         <div class="fmd-muted">Sempre aperto in «I miei corsi online»: chi è assegnato lo trova tra le sue attività, chi non ha l'utente usa il link aperto.</div>
-        {% if m.online %}<div class="csf-num"><span><b>{{ m.assegnati }}</b> assegnati</span><span title="Persone con il corso valido, da qualunque strada: aula, sessioni, link aperto, online"><b>{{ m.completati_validi }}</b> con il corso valido</span>{% if m.dal_link_aperto %}<span><b>{{ m.dal_link_aperto }}</b> dal link aperto</span>{% endif %}</div>{% endif %}
+        {% if m.online %}<div class="csf-num"><span><b>{{ m.assegnati }}</b> assegnat{{ m.assegnati|pluralize:"o,i" }}</span><span title="Persone con il corso valido, da qualunque strada: aula, sessioni, link aperto, online"><b>{{ m.completati_validi }}</b> con il corso valido</span>{% if m.dal_link_aperto %}<span><b>{{ m.dal_link_aperto }}</b> dal link aperto</span>{% endif %}</div>{% endif %}
         <div class="csf-act">
           {% if m.online %}<a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_elearning_manage' corso.pk %}">Risultati e assegnazioni</a>{% endif %}
           {% if is_editor %}
