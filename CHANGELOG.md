@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: ritocchi dopo gli screenshot
+
+- Copertura: messaggio «tutti in regola» coerente con la definizione unica di obbligo (prima parlava ancora di «regole di obbligatorietà»).
+- Tipi di corso: riquadro «Corsi senza tipo: efficacia dopo» su una riga.
+- File: template `formazione_copertura.html`, `formazione_tipi_corso.html`.
+
 ### Formazione: interventi dall'analisi del 26/11 (punti 1, 2, 3, 4, 5, 7, 8, 9)
 
 - **Efficacia per i corsi senza tipo** (nessuno dei 774 corsi aveva un tipo, quindi 0 valutazioni): `AttestatoFormazioneConfig.efficacia_mesi_senza_tipo` (predefinito 3), modificabile in Tipi di corso; il tipo e la regola del corso vincono.
