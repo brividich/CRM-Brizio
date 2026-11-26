@@ -1744,6 +1744,20 @@ def _global_search_module_allowed(request, path: str) -> bool:
         setattr(request, "_global_search_acl_cache", cache)
     if path in cache:
         return cache[path]
+    # La ricerca parte a ogni tasto: la decisione per (utente, modulo) resta valida
+    # per GLOBAL_SEARCH_ACL_CACHE_SECONDS (0 = spento) o finché cambia la versione dei permessi.
+    import time as _time
+
+    durata = int(getattr(settings, "GLOBAL_SEARCH_ACL_CACHE_SECONDS", 120) or 0)
+    chiave = None
+    if durata > 0 and getattr(request.user, "pk", None):
+        from core.permessi.cache import versione_permessi
+
+        chiave = (request.user.pk, versione_permessi(), path)
+    memo = _GS_ACL_MEMO.get(chiave) if chiave else None
+    if memo is not None and memo[1] > _time.monotonic():
+        cache[path] = memo[0]
+        return memo[0]
     allowed = False
     try:
         from core.acl_v2 import resolve_acl_access
@@ -1758,9 +1772,17 @@ def _global_search_module_allowed(request, path: str) -> bool:
         )
         allowed = bool(decision.get("allowed", False))
     except Exception:
-        allowed = False
+        cache[path] = False
+        return False
     cache[path] = allowed
+    if chiave:
+        if len(_GS_ACL_MEMO) > 5000:
+            _GS_ACL_MEMO.clear()
+        _GS_ACL_MEMO[chiave] = (allowed, _time.monotonic() + durata)
     return allowed
+
+
+_GS_ACL_MEMO: dict = {}
 
 
 def _cerca_processi_qualificati(request, q: str, limite: int = 5) -> list[dict]:
@@ -1966,7 +1988,7 @@ def api_global_search(request):
         from procedure_refresh import libreria as cnsgi
         from procedure_refresh.libreria import etichetta_sezione, identita_da_cartella
         vis = cnsgi.Visibilita(request)
-        visibili = vis.filtra(cnsgi.documenti_in_vigore())
+        visibili = vis.filtra(cnsgi.documenti_in_vigore_memo())
         trovati = 0
         trovate = cnsgi.cerca(q, visibili, campo="titolo")
         for r in ([] if trovate.approssimati else trovate):

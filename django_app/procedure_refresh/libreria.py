@@ -369,6 +369,25 @@ def documenti_in_vigore():
     return out
 
 
+_MEMO_IN_VIGORE: dict = {}
+
+
+def documenti_in_vigore_memo():
+    """``documenti_in_vigore()`` tenuto in memoria per GLOBAL_SEARCH_DOCUMENTI_CACHE_SECONDS
+    (0 = spento): la ricerca globale parte a ogni tasto. Solo lettura: non modificare i documenti."""
+    import time
+
+    durata = int(getattr(settings, "GLOBAL_SEARCH_DOCUMENTI_CACHE_SECONDS", 60) or 0)
+    if durata <= 0:
+        return documenti_in_vigore()
+    memo = _MEMO_IN_VIGORE.get("docs")
+    if memo is not None and memo[1] > time.monotonic():
+        return memo[0]
+    docs = documenti_in_vigore()
+    _MEMO_IN_VIGORE["docs"] = (docs, time.monotonic() + durata)
+    return docs
+
+
 def codici_nuove_revisioni(giorni: int = GIORNI_NUOVE_REVISIONI) -> dict[str, object]:
     """Codice → data dell'ultima novità (nuovo documento o nuova revisione) negli ultimi N giorni."""
     from procedure_refresh.models import SgiSyncAction, SgiSyncLog
@@ -459,6 +478,16 @@ def _piega(testo: str) -> str:
         base = unicodedata.normalize("NFD", ch)[0]
         out.append(base.lower() if len(base.lower()) == 1 else ch.lower())
     return "".join(out)
+
+
+def _intestazione_piegata(doc) -> str:
+    """Codice e titolo piegati, calcolati una volta per oggetto documento."""
+    grezza = f"{doc.code} {doc.title}"
+    memo = getattr(doc, "_intestazione_piegata", None)
+    if memo is None or memo[0] != grezza:
+        memo = (grezza, _piega(grezza))
+        doc._intestazione_piegata = memo
+    return memo[1]
 
 
 def _pagina(offsets: list, pos: int, n_pagine: int | None, n_car: int) -> int | None:
@@ -608,7 +637,7 @@ def cerca(q: str, docs: list, *, campo: str = "tutto") -> Risultati:
     usa_testo = campo in ("tutto", "testo")
     per_rev = {d.rev.pk: d for d in docs}
     testi = _testi_piegati(list(per_rev)) if (usa_testo and per_rev) else {}
-    intestazioni = {d.pk: _piega(f"{d.code} {d.title}") for d in docs}
+    intestazioni = {d.pk: _intestazione_piegata(d) for d in docs}
     testo_di = {per_rev[r].pk: t for r, t in testi.items()}
 
     def trova(g):

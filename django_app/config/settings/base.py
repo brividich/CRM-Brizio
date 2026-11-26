@@ -371,6 +371,10 @@ HOME_MIE_ATTIVITA_DIFFERITA = env_bool("HOME_MIE_ATTIVITA_DIFFERITA", True)
 HOME_BACHECA_CACHE_SECONDS = int(env("HOME_BACHECA_CACHE_SECONDS", "300") or "300")
 # Home anagrafica: secondi di cache del cruscotto HR e del carico mansioni (0 = spenta).
 ANAGRAFICA_CRUSCOTTO_CACHE_SECONDS = int(env("ANAGRAFICA_CRUSCOTTO_CACHE_SECONDS", "120") or "120")
+# Ricerca globale (Ctrl+K): secondi in memoria della decisione ACL per utente e modulo (0 = spenta).
+GLOBAL_SEARCH_ACL_CACHE_SECONDS = int(env("GLOBAL_SEARCH_ACL_CACHE_SECONDS", "120") or "120")
+# Ricerca globale: secondi in memoria dell'elenco dei documenti SGI in vigore (0 = spento).
+GLOBAL_SEARCH_DOCUMENTI_CACHE_SECONDS = int(env("GLOBAL_SEARCH_DOCUMENTI_CACHE_SECONDS", "60") or "60")
 
 OLLAMA_RAG_CHUNK_CHARS = int(env("OLLAMA_RAG_CHUNK_CHARS", "900") or "900")
 OLLAMA_RAG_MAX_FILES = int(env("OLLAMA_RAG_MAX_FILES", "80") or "80")

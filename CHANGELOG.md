@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Prestazioni: ricerca globale (Ctrl+K) più veloce
+
+- `core/views.py`: la decisione ACL per utente e modulo della ricerca globale resta in memoria `GLOBAL_SEARCH_ACL_CACHE_SECONDS` (120 s, legata alla versione dei permessi: una modifica a ruoli o matrice la azzera); i documenti SGI in vigore vengono da `documenti_in_vigore_memo()`.
+- `procedure_refresh/libreria.py`: `documenti_in_vigore_memo()` (`GLOBAL_SEARCH_DOCUMENTI_CACHE_SECONDS`, 60 s) e codice+titolo piegati una volta per documento.
+- `core/static/core/js/command-palette.js`: attesa dopo l'ultimo tasto da 120 a 250 ms, una richiesta per parola invece che per lettera.
+- `config/settings/base.py`, `test.py`: le due durate (0 nei test).
+- Su dati di prod: da circa 500 a circa 110 ms per ricerca, query da 17 a 13. In prod 7 ricerche della stessa persona in 4 s si accodavano fino a 5-6 s.
+
 ### Ordini di produzione: report CMM del formato vecchio (2014-2024)
 
 - Il lettore dei report CMM legge anche il formato vecchio (CALYPSO stampato con novaPDF: «Aktual», «pos Tol», «neg Tol», «<--|-->», testata anche in italiano): tolleranze di forma senza «neg Tol», posizioni con bonus di massimo materiale, eccedenza al posto della barretta, data scritta per esteso. Provato su 325 report veri dal 2012 al 2024 (22.560 quote, 4 da verificare) e su 120 del formato nuovo, invariati.
