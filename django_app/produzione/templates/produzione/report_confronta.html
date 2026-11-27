@@ -6,10 +6,10 @@
 
 {% block content %}
 <div class="prod">
-  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a><a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></template>
+  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Controllo dimensionale</a><a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></template>
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a> › <a href="{% url 'produzione:pn' pn %}">{{ pn }}</a> › Report CMM</span>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Controllo dimensionale</a> › <a href="{% url 'produzione:pn' pn %}">{{ pn }}</a> › Report CMM</span>
       <h1>Confronto report</h1>
     </div>
     <div class="prod-filtri">

@@ -1,11 +1,11 @@
-"""Guida d'uso della sezione Ordini di produzione (pulsante «? Guida» e PDF).
+"""Guida d'uso della sezione Controllo dimensionale (pulsante «? Guida» e PDF).
 
 Le etichette sono quelle dei template ``produzione/elenco.html`` e ``produzione/scheda.html``;
 se cambiano, va aggiornata anche ``core/guide_moduli/contenuti/produzione.py``.
 """
 from __future__ import annotations
 
-TITOLO = "Ordini di produzione"
+TITOLO = "Controllo dimensionale"
 SOTTOTITOLO = "Ogni P/N con i suoi OP e i suoi FAI; ogni OP con i documenti di produzione, i programmi CAM e CMM e le anomalie."
 
 SEZIONI: list[dict] = [
@@ -31,13 +31,13 @@ SEZIONI: list[dict] = [
         "id": "elenco",
         "titolo": "Elenco degli OP",
         "blocchi": [
-            ("p", "«Ordini di produzione» nel menu Produzione. La tabella mostra gli OP dal più recente, con P/N, "
+            ("p", "«Controllo dimensionale» nel menu Produzione. La tabella mostra gli OP dal più recente, con P/N, "
                   "capocommessa, CAR, stato e quanti documenti, FAI e anomalie aperte hanno. Cerca per OP, P/N, "
                   "capocommessa o CAR e filtra per stato; un clic sull'OP apre la sua scheda."),
             ("p", "«+ Nuovo OP» apre un pannello a lato: causale (OP, OG…), anno, numero, P/N, fase, capocommessa, CAR, "
                   "collaudo di benestare e note. Il titolo è causale/anno/numero e non può esistere già. Creato l'OP, si apre "
                   "la sua scheda. Le regole e le liste di capicommessa e CAR sono quelle di Gestione anomalie, che crea "
-                  "nello stesso elenco. Serve il permesso «Ordini di produzione - Nuovo OP» (di default solo admin)."),
+                  "nello stesso elenco. Serve il permesso «Controllo dimensionale - Nuovo OP» (di default solo admin)."),
         ],
     },
     {
@@ -46,8 +46,8 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "La scheda «P/N» è il catalogo di tutti i P/N: quelli degli OP, dei KICK-OFF e delle cartelle della share "
                   "Collaudo, anche senza OP nel portale. Per ogni P/N: descrizione e revisione, cliente, stato, OP (e quanti "
-                  "aperti), ultimo OP, report CMM degli ultimi 12 mesi con la linea dei report per mese, Cpk peggiore, quote non "
-                  "capaci (Cpk sotto 1,33), report con quote fuori negli ultimi 30 giorni, anomalie aperte, FAI e ultimo report. "
+                  "aperti), ultimo OP, report CMM degli ultimi 12 mesi con la linea dei report per mese, indice peggiore, quote sotto "
+                  "obiettivo (al limite o non capaci), report con quote fuori negli ultimi 30 giorni, anomalie aperte, FAI e ultimo report. "
                   "I numeri dei report si aggiornano ogni ora con il giro dei report CMM; OP, anomalie e FAI sono sempre attuali."),
             ("p", "Stato: «Attivo» con report o OP aperti negli ultimi 12 mesi, «Fermo» senza attività recente, «Solo archivio» "
                   "se c'è solo la cartella Collaudo; si può fissare a mano (anche «Obsoleto») nell'anagrafica."),
@@ -74,8 +74,8 @@ SEZIONI: list[dict] = [
                 ("Report CMM", "i programmi CMM letti (con «Analisi quote») e gli ultimi 60 report, da spuntare per il "
                  "confronto; arrivando dalla mappa di «Quote CMM» solo i report di quella settimana («tutti» li rimostra)."),
                 ("Qualità CMM", "a sinistra i programmi e le loro quote, dalla peggiore (icona rossa = fuori nell'ultimo "
-                 "report, gialla = Cpk sotto 1,33 o in deriva, verde = capace, grigia = pochi pezzi per il Cpk) con il Cpk "
-                 "accanto. Al centro la quota scelta: carta di controllo dei singoli valori sugli ultimi 30 pezzi validi "
+                 "report, gialla = al limite, non capace o in deriva, verde = capace, grigia = pochi pezzi per il Cpk) con il Cpk "
+                 "accanto. Al centro la quota scelta: carta di controllo dei singoli valori sui pezzi della finestra "
                  "(fascia di tolleranza, LS e LI, media x̄, punti rossi = fuori, cerchiato l'ultimo pezzo), «Distribuzione», "
                  "Cpk, Cp, Media, σ, Fuori e Deriva, e una «Lettura» scritta dai numeri (dove lavora la media, la deriva, il "
                  "Cpk). «Tabella Cpk» elenca tutte le quote dal Cpk più basso; «Apri in Analisi quote» porta allo strumento completo."),
@@ -130,7 +130,7 @@ SEZIONI: list[dict] = [
                 "stesso pannello col P/N del FAI e mette l'OP creato nel campo.",
                 "Sezione «Programmi»: i programmi CAM e CMM del KICK-OFF, che si cambiano dal KICK-OFF.",
             ]),
-            ("p", "Aggiungere, cambiare ed eliminare i documenti richiede il permesso «Ordini di produzione - Documenti» "
+            ("p", "Aggiungere, cambiare ed eliminare i documenti richiede il permesso «Controllo dimensionale - Documenti» "
                   "(di default solo admin, si assegna in Admin › ACL). Ogni modifica finisce nel registro delle azioni."),
         ],
     },
@@ -140,8 +140,8 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Il portale legge da solo i report CMM in PDF della cartella Collaudo (una cartella per P/N, dentro una "
                   "per OP) e ne tiene le misure: ogni ora i PDF nuovi o cambiati, senza toccare i file. Nella scheda del "
-                  "P/N il riquadro «Report CMM» mostra «Quote da tenere d'occhio» (sugli ultimi 30 report di ogni "
-                  "programma: fuori nell'ultimo report, poi Cpk sotto 1,33) e gli ultimi report; nella scheda dell'OP "
+                  "P/N il riquadro «Report CMM» mostra «Quote da tenere d'occhio» (sui pezzi della finestra di ogni "
+                  "programma: fuori nell'ultimo report, in deriva o sotto obiettivo) e gli ultimi report; nella scheda dell'OP "
                   "ci sono i report di quell'OP."),
             ("p", "Si leggono sia i report di oggi sia quelli del formato vecchio (CALYPSO stampato con novaPDF, colonne "
                   "«Aktual», «pos Tol», «neg Tol», «<--|-->», fino al 2024, anche con la testata in italiano «Nome piano», "
@@ -151,11 +151,12 @@ SEZIONI: list[dict] = [
             ("p", "«Analisi quote» (dalla scheda del P/N). In alto i filtri, che valgono per tutto quello che c'è sotto: "
                   "Programma (il «Part Program Name» senza revisione), Periodo (Tutto, 12 mesi, 90 giorni, 30 giorni, "
                   "«Dal… al…»), OP (uno o più, «Solo l'ultimo») ed «Evidenzia S/N», che segna un pezzo in tutte le viste. "
-                  "Sotto, i numeri del programma: report, quote, misure fuori, quote andate fuori, quote con Cpk sotto "
-                  "1,33 (un clic filtra l'elenco), ultimo report. Senza un periodo si vedono al massimo gli ultimi 800 "
+                  "Sotto, i numeri del programma: report, quote, misure fuori, quote andate fuori, quote sotto "
+                  "obiettivo (un clic filtra l'elenco), ultimo report. Il periodo parte da «Ultimi N pezzi» (la finestra delle "
+                  "Impostazioni, la stessa delle altre pagine); «Tutto» mostra al massimo gli ultimi 800 "
                   "report."),
             ("p", "A sinistra l'elenco delle quote, raggruppate per titolo del report, con una mini linea degli ultimi 30 "
-                  "valori e quante volte sono andate fuori (o il Cpk). Filtri: Tutte, Andate fuori, Cpk < 1,33, Vicine al "
+                  "valori e quante volte sono andate fuori (o il Cpk). Filtri: Tutte, Andate fuori, Sotto obiettivo, Vicine al "
                   "limite (ultima misura dentro ma oltre l'80% della tolleranza), Da verificare; «Cerca» per nome o "
                   "gruppo; «Ordina» come nel report, per volte fuori, Cpk peggiore, vicinanza al limite o nome. La "
                   "casella accanto a una quota la mette nel Confronto (fino a 6)."),
@@ -204,14 +205,14 @@ SEZIONI: list[dict] = [
                   "quote dell'elenco). L'indirizzo della pagina conserva filtri e vista: si può copiare e mandare. "
                   "«Leggi i report» rilegge subito la cartella del P/N (in background: ricarica dopo qualche minuto)."),
             ("p", "«Quote CMM» (scheda della sezione): in alto P/N con report, P/N con fuori negli ultimi 30 giorni, quote con "
-                  "Cpk sotto 1,33, quote in deriva e report letti oggi. La «Mappa qualità» ha una riga per P/N e una colonna per "
+                  "sotto obiettivo, quote in deriva e report letti oggi. La «Mappa qualità» ha una riga per P/N e una colonna per "
                   "settimana (ultime 12, «S» e numero della settimana): in ogni casella i report con quote fuori su quelli "
                   "misurati, verde senza fuori, giallo fino al 12%, rosa fino al 25%, rosso oltre; «·» nessun report. Clic su una "
                   "casella: i report di quel P/N in quella settimana; clic sul P/N: la sua Qualità CMM. Poi «Fuori ora», «Cpk < "
                   "1,33», «Deriva» e «Ultimo report»: questi tre li calcola il giro orario dei report (dopo un report nuovo o escluso), "
-                  "finché non tocca a un P/N la riga dice «in calcolo». «Da guardare» mostra solo i P/N con fuori recenti o quote "
+                  "finché non tocca a un P/N la riga dice «in calcolo». «Da guardare» mostra solo i P/N con fuori recenti, quote sotto obiettivo o quote "
                   "in deriva. Sotto, "
-                  "«Quote da guardare» di tutti questi P/N: fuori nell'ultimo report, poi in deriva, poi Cpk sotto 1,33."),
+                  "«Quote da guardare» di tutti questi P/N: fuori nell'ultimo report, in deriva o sotto obiettivo, dal rischio più alto."),
             ("p", "Escludere un report (prova, rilavorazione, doppione): nella pagina del report «Escludi dall'analisi», con motivo "
                   "e nota. Resta scritto chi e quando; «Riammetti» lo rimette. Il PDF non si tocca. Serve il permesso «Gestire le "
                   "quote CMM» (di default solo admin)."),
@@ -236,7 +237,7 @@ SEZIONI: list[dict] = [
                   "browser lo ricorda. In alto «Confronta», «PDF originale» e «Apri segnalazione anomalia», che apre Gestione "
                   "anomalie sull'OP con il pannello «📄 Dal report CMM (PDF)» già pronto."),
             ("p", "Nelle pagine di dettaglio (report, pezzo, P/N, OP, confronto, Analisi quote) non ci sono le schede del "
-                  "modulo: in alto il percorso «Ordini di produzione › P/N › OP» con i link e il pulsante «? Guida»."),
+                  "modulo: in alto il percorso «Controllo dimensionale › P/N › OP» con i link e il pulsante «? Guida»."),
         ],
     },
     {
@@ -244,14 +245,14 @@ SEZIONI: list[dict] = [
         "titolo": "Statistica di processo (Cpk, Ppk, rischio, segnali)",
         "blocchi": [
             ("p", "Le stesse formule valgono in tutte le pagine (report, scheda P/N, Analisi quote, Quote CMM, catalogo), sugli "
-                  "ultimi 30 pezzi validi di ogni programma (Analisi quote: sui pezzi dei filtri scelti)."),
+                  "ultimi pezzi validi di ogni programma: 30, 50 o 100, da Impostazioni (Analisi quote parte dalla stessa finestra, «Ultimi N pezzi», e la cambia solo se scegli un altro periodo)."),
             ("def", [
                 ("Cpk e Ppk", "Cpk = capacità della macchina, con la σ di breve periodo (differenze fra pezzi consecutivi, "
                  "«Sigma breve»); Ppk = quello che il processo ha fatto nel tempo, con la σ di tutti i pezzi. Se il Ppk è molto "
                  "più basso del Cpk la macchina è capace ma il processo si sposta (utensile, lotti, temperatura). Classifiche, "
                  "conteggi «non capaci» e «da guardare» usano il peggiore dei due."),
-                ("Verdetto", "capace (almeno 1,33), al limite (da 1 a 1,33), non capace (sotto 1): si guarda il limite basso "
-                 "dell'intervallo di confidenza al 95%, scritto accanto (es. «0,65–1,18»). Sotto 25 pezzi «pochi dati»."),
+                ("Verdetto", "capace (almeno 1,33), al limite (da 1 a 1,33), non capace (sotto 1): si guarda il peggiore fra Cpk e Ppk. "
+                 "L'intervallo di confidenza al 95% è scritto accanto (es. «0,65–1,18») come informazione. Sotto 25 pezzi «pochi dati»."),
                 ("Forma e posizione", "planarità, rotondità, posizione, concentricità (nominale 0, solo limite superiore) non "
                  "hanno una distribuzione normale: indice col metodo dei percentili (ISO 22514-2), segnato «percentili»."),
                 ("Rischio", "probabilità che il prossimo pezzo esca, dal livello attuale della quota (media mobile EWMA, più la "
@@ -323,10 +324,12 @@ SEZIONI: list[dict] = [
         "id": "impostazioni",
         "titolo": "Impostazioni",
         "blocchi": [
-            ("p", "Scheda «Impostazioni» (permesso «Ordini di produzione - Impostazioni»): i tipi di documento, con nome, "
+            ("p", "Scheda «Impostazioni» (permesso «Controllo dimensionale - Impostazioni»): i tipi di documento, con nome, "
                   "descrizione e ordine. Un tipo spento non si propone più, ma i documenti già registrati lo tengono."),
             ("p", "«Avvisi delle quote CMM»: report nuovi con quote fuori tolleranza, quote in deriva, e chi riceve gli avvisi. "
                   "Nessuno scelto = nessun avviso."),
+            ("p", "«Analisi delle quote CMM»: su quanti pezzi si calcolano Cpk e Ppk (ultimi 30, 50 o 100). Vale in tutte le "
+                  "pagine e nel PDF di capacità; dopo il cambio i numeri si aggiornano al prossimo giro dei report."),
         ],
     },
 ]

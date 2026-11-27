@@ -1,4 +1,4 @@
-/* NOVICROM HUB — Ordini di produzione: scelta dei report da confrontare (2-6) negli elenchi dei report CMM. */
+/* NOVICROM HUB — Controllo dimensionale: scelta dei report da confrontare (2-6) negli elenchi dei report CMM. */
 (function () {
   "use strict";
   var MASSIMO = 6;

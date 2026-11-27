@@ -9,6 +9,21 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Asset: la famiglia della categoria riallinea gli asset
+
+- Impostazioni › categorie: cambiando la «Famiglia tecnica» di una categoria, gli asset già dentro passano al nuovo tipo (prima cambiava solo per gli asset salvati dopo). Il messaggio dice quanti; esclusi gli asset delle sottocategorie e i prodotti chimici. Serve per portare tra le «Macchine di lavoro» le categorie d'officina (Torni, Frese, Affilatrici…). Nessuna migrazione.
+- File: `assets/services/categoria_tipo.py`, `assets/views/_helpers_c.py`, `assets/templates/assets/pages/gestione_admin.html`, `guida.html`, `core/guide_moduli/contenuti/assets.py`, `docs/moduli/assets.md`, `assets/tests_categoria_tipo.py`.
+
+### Controllo dimensionale (già «Ordini di produzione»): nome nuovo e regole uniche
+
+- Il modulo si chiama «Controllo dimensionale» in menu, titoli, guida, matrice e nomi dei permessi; schede interne P/N, Quote CMM, Elenco OP. URL `/produzione/` e codici ACL invariati.
+- Un solo giudizio di capacità in tutte le pagine: il peggiore fra Cpk e Ppk contro 1,33 e 1,00 («pochi dati» sotto 25 pezzi); l'intervallo al 95% resta come informazione. «Sotto obiettivo» e «da guardare» hanno una regola sola per catalogo, scheda P/N, Quote CMM e Analisi quote.
+- Finestra degli indici a scelta (ultimi 30, 50 o 100 pezzi) in Impostazioni › «Analisi delle quote CMM»: la stessa in tutte le pagine, in Analisi quote (periodo «Ultimi N pezzi», predefinito) e nel PDF di capacità.
+- I pezzi dello stesso giorno sono in ordine di ora del file, non di lettura: carta di controllo, segnali e Cpk non cambiano più secondo l'ordine in cui il portale ha letto i PDF.
+- Deriva e tolleranza usata calcolate solo in `spc.py` / `spc.js` (test di parità esteso).
+- File: `produzione/spc.py`, `report_cmm_indice.py`, `report_cmm_pagine.py`, `articoli.py`, `models.py`, `views.py`, `pdf_capacita.py`, `acl_bootstrap.py`, `registro_permessi.py`, `guida.py`, migrazioni `0011`-`0012`, template e `static/produzione/js/{spc,analisi_quote}.js`, `tests_regole_uniche.py`, `tests_spc.py`; `core/guide_moduli/contenuti/produzione.py`, `hub_tools/schema_db.py`, `procedure_refresh/collegamenti.py`, testi in `anomalie` e `tasks`, `docs/moduli/produzione.md`, `README.md`.
+- Deploy: `migrate produzione`, `collectstatic`, riavvio di qcluster.
+
 ### Asset: «Proponi acronimi»
 
 - Nuova pagina `/assets/edit/acronimi/` (chip «Senza acronimo (N)» nell'inventario, permesso «Modifica asset»): propone l'acronimo leggendo le sigle già scritte in nome e tag, con casella e campo modificabile per riga. Spuntate in partenza solo le proposte sicure; avviso su sigle multiple, doppie, già usate o su dispositivi IT. Scheda «Senza proposta» per scrivere a mano. Salva solo le righe spuntate e solo dove l'acronimo è vuoto; 200 righe per volta. Nessuna migrazione.

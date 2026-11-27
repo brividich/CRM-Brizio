@@ -400,7 +400,7 @@ def fai_op(request):
 
 
 def _fai_cmm(request, record):
-    """Report CMM del primo articolo (Ordini di produzione), se c'è e l'utente lo vede."""
+    """Report CMM del primo articolo (Controllo dimensionale), se c'è e l'utente lo vede."""
     if record is None or not record.op:
         return None
     try:
@@ -414,7 +414,7 @@ def _fai_cmm(request, record):
 
 
 def _url_report_cmm(request, articolo) -> str:
-    """Andamento quote dei report CMM del P/N (Ordini di produzione), se ce ne sono e l'utente li vede."""
+    """Andamento quote dei report CMM del P/N (Controllo dimensionale), se ce ne sono e l'utente li vede."""
     if articolo is None or not articolo.part_number:
         return ""
     try:
@@ -496,7 +496,7 @@ def _iniziali(record, project, ref, richiesta) -> dict:
     stato = stato_iniziale()
     return {
         "client_name": project.client_name if project else "",
-        # Dalla scheda dell'OP (Ordini di produzione) arrivano OP e P/N.
+        # Dalla scheda dell'OP (Controllo dimensionale) arrivano OP e P/N.
         "part_number": project.part_number if project else richiesta.GET.get("pn", "")[:120],
         "op": richiesta.GET.get("op", "")[:120],
         "causale": causale.pk if causale else None,

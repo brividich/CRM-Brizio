@@ -33,7 +33,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
                 "permessi ripetuti (serie di richieste con una sola approvazione), capi aggiunti a mano e "
                 "capo fisso per dipendente"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle; firma di documenti su portale"),
-    "produzione": ("Operations", "#0d9488", "Ordini di produzione: scheda dell'OP (tabella legacy ordini_produzione, letta) con i documenti "
+    "produzione": ("Operations", "#0d9488", "Controllo dimensionale: scheda dell'OP (tabella legacy ordini_produzione, letta) con i documenti "
                    "di produzione registrati e i tipi decisi in Impostazioni; FAI, programmi CAM/CMM e anomalie letti dai loro moduli; "
                    "archivio dei report CMM letti dalla share Collaudo (report e misure, esclusioni, note, quote unite, impostazioni avvisi) per l'analisi delle quote; "
                    "anagrafica dei P/N (produzione_articolopn: descrizione, cliente, disegno, stato e riepilogo precalcolato del catalogo, rischio e salute), capacità per quota (produzione_quotacapacita: Cpk, Ppk, verdetto, rischio, per Quote CMM e il confronto fra P/N)"),
@@ -93,7 +93,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
     {
         "nome": "Share dei report CMM (Collaudo)",
         "cosa": "Cartella di rete con i report CMM CALYPSO in PDF, una cartella per P/N e dentro una per OP. L'HUB la legge soltanto: ogni ora i PDF nuovi o cambiati finiscono nell'archivio delle misure; il PDF resta sulla share e si apre dal portale.",
-        "chi": "Ordini di produzione → Andamento quote, report CMM nelle schede P/N e OP; Gestione anomalie → pannello «Dal report CMM (PDF)» aperto da un report dell'archivio.",
+        "chi": "Controllo dimensionale → Andamento quote, report CMM nelle schede P/N e OP; Gestione anomalie → pannello «Dal report CMM (PDF)» aperto da un report dell'archivio.",
         "config": "PRODUZIONE_REPORT_CMM_ROOT (vuota = spenta), PRODUZIONE_REPORT_CMM_MINUTI; lavori pianificati produzione_report_cmm_giro e produzione_manutenzione_db (statistiche e indici, notte); misure CMM in cluster (report_id, id) compresse PAGE; lettura NTFS+SMB per l'utente del portale e di qcluster.",
         "controllo": "Andamento quote di un P/N: «Cartella non leggibile» o «Report letti il …»; manage.py leggi_report_cmm --pn <P/N>.",
     },

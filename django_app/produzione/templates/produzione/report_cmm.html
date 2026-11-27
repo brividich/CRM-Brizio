@@ -6,10 +6,10 @@
 
 {% block content %}
 <div class="prod prod-largo">
-  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a><a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% endif %}</template>
+  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Controllo dimensionale</a><a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a>{% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% endif %}</template>
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a> › <a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a>{% if report.op %} › {% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% else %}{{ report.op }}{% endif %}{% endif %} › Report CMM</span>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Controllo dimensionale</a> › <a href="{% url 'produzione:pn' report.pn %}">{{ report.pn }}</a>{% if report.op %} › {% if op %}<a href="{% url 'produzione:scheda' op.id %}">{{ report.op }}</a>{% else %}{{ report.op }}{% endif %}{% endif %} › Report CMM</span>
       <h1>{% if report.seriale %}<a class="prod-titolo-link" href="{% url 'produzione:pezzo' %}?pn={{ report.pn|urlencode }}&amp;sn={{ report.seriale|urlencode }}" title="Storia del pezzo">{{ report.seriale }}</a>{% else %}{{ report.file }}{% endif %}</h1>
     </div>
     <div class="prod-filtri">

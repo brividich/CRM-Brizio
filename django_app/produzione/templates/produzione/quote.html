@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Analisi quote {{ pn }} · Ordini di produzione{% endblock %}
+{% block title %}Analisi quote {{ pn }} · Controllo dimensionale{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127a">
 <link rel="stylesheet" href="{% static 'produzione/css/analisi_quote.css' %}?v=20261127a">
@@ -21,8 +21,8 @@
      data-puo-quote="{% if prod_puo_quote %}1{% endif %}">
   <div class="prod-head">
     <div>
-      <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a><a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></template>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Ordini di produzione</a> › <a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></span>
+      <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Controllo dimensionale</a><a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></template>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Controllo dimensionale</a> › <a href="{% url 'produzione:pn' pn %}">{{ pn }}</a></span>
       <h1>Analisi quote</h1>
     </div>
     <div class="prod-filtri">
@@ -60,6 +60,7 @@
     </label>
     <div class="aq-campo">Periodo
       <div class="aq-segmenti" data-filtro="per">
+        <button type="button" data-v="fin">Ultimi {{ stato.fin }} pezzi</button>
         <button type="button" data-v="">Tutto</button>
         <button type="button" data-v="365">12 mesi</button>
         <button type="button" data-v="90">90 giorni</button>

@@ -1,8 +1,8 @@
-"""Centro guide: Ordini di produzione (OP e documenti di produzione)."""
+"""Centro guide: Controllo dimensionale (OP e documenti di produzione)."""
 
 GUIDA = {
     "slug": "produzione",
-    "titolo": "Ordini di produzione",
+    "titolo": "Controllo dimensionale",
     "area": "Produzione e operations",
     "sintesi": "Ogni P/N con i suoi OP e i suoi FAI; ogni OP con documenti di produzione, programmi CAM e CMM e anomalie.",
     "parole": "ctrl+k cerca op ordine di produzione ordini documenti di produzione fai programmi cam cmm ciclo disegno dip "
@@ -10,14 +10,14 @@ GUIDA = {
     "url": "produzione:elenco",
     "prefissi": ("/produzione/",),
     "dettaglio": [
-        ("Guida Ordini di produzione", "produzione:guida"),
+        ("Guida Controllo dimensionale", "produzione:guida"),
     ],
     "uso": [
         {
             "id": "elenco",
             "titolo": "Elenco degli OP",
             "blocchi": [
-                ("p", "«Ordini di produzione» nel menu Produzione. Gli OP sono quelli di Gestione anomalie, letti e non "
+                ("p", "«Controllo dimensionale» nel menu Produzione. Gli OP sono quelli di Gestione anomalie, letti e non "
                       "copiati, dal più recente. Per ogni OP: P/N, capocommessa, CAR, stato e quanti documenti, FAI e "
                       "anomalie aperte ha. Cerca per OP, P/N, capocommessa o CAR, filtra per stato."),
                 ("p", "«+ Nuovo OP» apre un pannello a lato (causale, anno, numero, P/N, fase, capocommessa, CAR, collaudo "
@@ -77,7 +77,7 @@ GUIDA = {
             "blocchi": [
                 ("p", "I report CMM in PDF della cartella Collaudo si leggono da soli ogni ora. Dalla scheda del P/N, "
                       "«Analisi quote»: filtri per programma, periodo, OP e S/N da evidenziare; elenco delle quote con "
-                      "filtri (andate fuori, Cpk < 1,33, vicine al limite, da verificare) e ordinamenti; quattro viste: "
+                      "filtri (andate fuori, sotto obiettivo, vicine al limite, da verificare) e ordinamenti; quattro viste: "
                       "Quota (statistiche Cp/Cpk, grafico con zona di tolleranza, zoom, distribuzione, tabella), Mappa "
                       "(tutte le quote × tutti i report, colore = tolleranza usata), Confronto (fino a 6 quote in % "
                       "della tolleranza) e Pezzo (tutte le quote di un S/N, confrontabile con un altro). «Esporta CSV» "
@@ -89,7 +89,8 @@ GUIDA = {
                       "report con quote fuori su report misurati, clic = i report di quella settimana) e le «Quote da guardare» "
                       "di tutti i P/N; Impostazioni › «Avvisi delle quote CMM» sceglie chi riceve gli avvisi."),
                 ("p", "Statistica di processo, uguale in tutte le pagine: Cpk (macchina, σ di breve periodo) e Ppk (processo, σ "
-                      "totale), verdetto sul limite basso dell'intervallo al 95% (sotto 25 pezzi «pochi dati»), metodo dei "
+                      "totale), verdetto sul peggiore dei due contro 1,33 e 1,00 (sotto 25 pezzi «pochi dati»), finestra a scelta "
+                      "(ultimi 30, 50 o 100 pezzi), pezzi in ordine di giorno e ora del file, metodo dei "
                       "percentili per forma e posizione, rischio che il prossimo pezzo esca, limiti di controllo, regole di Nelson "
                       "ed EWMA, punto in cui il processo è cambiato, quote che si muovono insieme, confronto fra OP, quanta "
                       "tolleranza consuma la misura (dalle rimisure). Quote CMM: «Salute» 0-100, «Anomalie da aprire» (solo report "
@@ -106,7 +107,7 @@ GUIDA = {
                       "«Stato pezzo» dall'ultimo report di ogni fase (la rimisura sostituisce la misura fuori), «Multi-protocollo» "
                       "quote × report colorato dalla tolleranza usata (% / deviazione / valore, clic = report alla quota), "
                       "report, anomalie e altri pezzi dello stesso OP, «Confronta le fasi» e «Scheda pezzo (PDF)». Nelle pagine "
-                      "di dettaglio niente schede del modulo: percorso «Ordini di produzione › P/N › OP» e «? Guida»."),
+                      "di dettaglio niente schede del modulo: percorso «Controllo dimensionale › P/N › OP» e «? Guida»."),
                 ("p", "Confronto report: spunta da 2 a 6 righe negli elenchi dei report e premi «Confronta». Quote "
                       "allineate (anche quelle unite fra programmi), differenza fra ultimo e primo in % della tolleranza, "
                       "confronti pronti (stesso S/N in tutte le fasi, primo articolo e ultimi pezzi, pezzo prima e dopo), "
@@ -121,12 +122,12 @@ GUIDA = {
             "blocchi": [
                 ("def", [
                     ("Permessi", "«Elenco e scheda OP» a tutti i ruoli; «Documenti», «Impostazioni» e «Nuovo OP» solo admin "
-                     "(Accessi › permessi del modulo Ordini di produzione). FAI, programmi e KICK-OFF seguono i "
+                     "(Accessi › permessi del modulo Controllo dimensionale). FAI, programmi e KICK-OFF seguono i "
                      "permessi del KICK-OFF."),
-                    ("Tipi di documento", "Ordini di produzione › Impostazioni: nome, descrizione, ordine, attivo."),
+                    ("Tipi di documento", "Controllo dimensionale › Impostazioni: nome, descrizione, ordine, attivo."),
                     ("Quote CMM", "permesso «Gestire le quote CMM» (escludere report, unire quote; di default solo admin); "
-                     "avvisi in Impostazioni (destinatari, fuori tolleranza, deriva)."),
-                    ("Anagrafica P/N", "permesso «Ordini di produzione - Anagrafica P/N» (di default solo admin) per "
+                     "avvisi in Impostazioni (destinatari, fuori tolleranza, deriva); finestra degli indici in Impostazioni › «Analisi delle quote CMM»."),
+                    ("Anagrafica P/N", "permesso «Controllo dimensionale - Anagrafica P/N» (di default solo admin) per "
                      "cambiare l'anagrafica e usare «Aggiorna il catalogo». Il catalogo si aggiorna da solo alla fine di ogni "
                      "giro dei report CMM; al primo uso, se è vuoto, si crea all'apertura della pagina."),
                     ("Report CMM", "cartella PRODUZIONE_REPORT_CMM_ROOT (di default \\\\novisrv\\Area Controllo\\Collaudo), "
@@ -151,7 +152,7 @@ GUIDA = {
             "sintomo": "Gli avvisi delle quote CMM non arrivano",
             "perche": "nessun destinatario scelto, interruttori spenti, oppure il report era già stato letto prima (avvisa solo i "
                       "report nuovi con data negli ultimi 30 giorni; una quota in deriva al massimo una volta al mese).",
-            "fare": ["Ordini di produzione › Impostazioni › «Avvisi delle quote CMM»: scegli chi riceve gli avvisi."],
+            "fare": ["Controllo dimensionale › Impostazioni › «Avvisi delle quote CMM»: scegli chi riceve gli avvisi."],
         },
         {
             "sintomo": "«Analisi quote» non mostra report o dice «Cartella non leggibile»",

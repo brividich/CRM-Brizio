@@ -1,6 +1,6 @@
-# Ordini di produzione (`produzione`)
+# Controllo dimensionale (`produzione`)
 
-URL: `/produzione/`. Voce «Ordini di produzione» nel menu Produzione.
+URL: `/produzione/`. Voce «Controllo dimensionale» nel menu Produzione (fino al 27/11/2026 «Ordini di produzione»; app, URL e codici ACL invariati).
 
 ## Cosa fa
 
@@ -97,6 +97,16 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 
 - `quote_da_guardare_tutte` scorre `QuotaCapacita` (flag fuori/deriva/indice < 1,33, ordinate come `quote_critiche`) e tiene i P/N scelti, senza `pn IN (…)`; `cruscotto()` prende l'ultimo report con `ROW_NUMBER()` e legge tutto `ArticoloPN` filtrando in Python. La richiesta non chiama mai `analisi_pn` (test con `assert_not_called`).
 
+### Nome nuovo e regole uniche (27/11/2026)
+
+- Il modulo si chiama **Controllo dimensionale**: titoli, percorsi, guida, matrice permessi, nomi dei permessi e voce di menu (`produzione 0012` rinomina quelli già creati; una voce di menu rinominata a mano resta). Menu del modulo: P/N, Quote CMM, Elenco OP, Impostazioni. L'elenco OP resta la pagina di `/produzione/`.
+- **Un giudizio**: `spc.verdetto(indice, n)` = il peggiore fra Cpk e Ppk contro 1,33 e 1,00, «pochi dati» sotto 25 pezzi. L'intervallo di Bissell si mostra ma non decide. «Sotto obiettivo» = al limite o non capace (`spc.SOTTO_OBIETTIVO`): lo usano `ArticoloPN.quote_non_capaci`, catalogo, Quote CMM e Analisi quote.
+- **Un «da guardare»**: quota = `spc.da_guardare` (fuori nell'ultimo report, in deriva, sotto obiettivo); P/N = `report_cmm_indice.pn_da_guardare` (catalogo e Quote CMM; il catalogo aggiunge anomalie e FAI).
+- **Una finestra**: `ImpostazioniQuoteCMM.finestra` (30, 50, 100; `produzione 0011`), letta da `report_cmm_indice.finestra()`; Impostazioni › «Analisi delle quote CMM» (`imposta_finestra` azzera `analisi_il`: ricalcolo al giro successivo). Analisi quote parte dal periodo «Ultimi N pezzi» (`per` assente nell'indirizzo; `per=tutto` = tutto) e il PDF riceve `fin=N`. Il FAI usa la stessa finestra (prima 60).
+- **Ordine dei pezzi**: giorno, poi ora del file (`ReportCMM.modificato`), poi id: σ di breve periodo, segnali e punti di cambio non dipendono più dall'ordine di lettura.
+- Formule solo in `spc.py` / `spc.js`: anche `deriva`, `usata`, `chiave_seriale`, `ultima_per_seriale`; tolleranza «al limite» = `spc.TOLLERANZA_AL_LIMITE` (0,80).
+- Deploy: `migrate produzione` (0011, 0012), `collectstatic` (`spc.js`, `analisi_quote.js`), riavvio di qcluster. Chiave di cache `prod_cmm_analisi4`: i numeri si riallineano al primo giro.
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |
@@ -107,7 +117,7 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 | `produzione.op.manage` | admin | op_nuovo (risponde in JSON 401/403/400) |
 | `produzione.quote.manage` | admin | report_escludi, api_quote_alias(_elimina) |
 
-Nella matrice di Ruoli e permessi il modulo è «Ordini di produzione» (area Produzione, `produzione/registro_permessi.py`): «Vedere» accende `op.view`, «Creare/Modificare/Cancellare» accendono `documenti.manage` e `op.manage` (capacità forzate a modifica), «Impostazioni del modulo» accende `impostazioni.manage` (`core/permessi/impostazioni.py`). Dopo il deploy: «Sincronizza i permessi delle pagine».
+Nella matrice di Ruoli e permessi il modulo è «Controllo dimensionale» (area Produzione, `produzione/registro_permessi.py`): «Vedere» accende `op.view`, «Creare/Modificare/Cancellare» accendono `documenti.manage` e `op.manage` (capacità forzate a modifica), «Impostazioni del modulo» accende `impostazioni.manage` (`core/permessi/impostazioni.py`). Dopo il deploy: «Sincronizza i permessi delle pagine».
 
 ## Tabelle
 

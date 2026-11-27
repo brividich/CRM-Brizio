@@ -1,4 +1,4 @@
-"""Manutenzione notturna delle tabelle di Ordini di produzione (solo SQL Server).
+"""Manutenzione notturna delle tabelle di Controllo dimensionale (solo SQL Server).
 
 Sull'istanza non c'è l'Agent né un piano di manutenzione: la lettura dei report scrive migliaia di misure ogni ora
 e le statistiche restavano ferme (30.000 righe contate su 2,4 milioni), con piani di esecuzione sbagliati. Ogni

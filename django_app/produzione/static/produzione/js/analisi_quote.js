@@ -1,4 +1,4 @@
-/* Analisi quote CMM (Ordini di produzione › P/N › Analisi quote).
+/* Analisi quote CMM (Controllo dimensionale › P/N › Analisi quote).
    Dati da /produzione/api/quote/ (un programma alla volta); filtri, viste e grafici qui, senza librerie.
    Testi che arrivano dai report (nomi, S/N, gruppi) sempre con textContent. */
 (function () {
@@ -13,7 +13,7 @@
   const tooltip = $('[data-tooltip]');
 
   const S = {
-    prog: iniziale.prog || '', per: iniziale.per || '', da: iniziale.da || '', a: iniziale.a || '',
+    prog: iniziale.prog || '', per: iniziale.per === 'tutto' ? '' : (iniziale.per || 'fin'), fin: +iniziale.fin || 30, da: iniziale.da || '', a: iniziale.a || '',
     ops: new Set((iniziale.op || '').split('~').filter(Boolean)), sn: /^\d+$/.test(iniziale.r || '') ? +iniziale.r : null,
     tab: ['quota', 'mappa', 'confronto', 'pezzo'].includes(iniziale.tab) ? iniziale.tab : 'quota',
     q: iniziale.q || '', nom: iniziale.nom || '', cmp: (iniziale.cmp || '').split('~').filter(Boolean),
@@ -78,12 +78,7 @@
   /* Quanta tolleranza usa una misura: 0 = ideale, +-1 = limite (segno: sopra o sotto).
      Forma, posizione, concentricita (nominale 0 e limite inferiore 0): ideale 0, si conta verso il limite superiore.
      Le altre: dal centro della zona di tolleranza. */
-  const unilaterale = (nom, lsl, usl) => Math.abs(nom) < 1e-12 && Math.abs(lsl) < 1e-12 && usl > 0;
-  function usata(x, nom, lsl, usl) {
-    if (unilaterale(nom, lsl, usl)) return x / usl;
-    const banda = usl - lsl;
-    return banda > 0 ? (x - (usl + lsl) / 2) / (banda / 2) : null;
-  }
+  const unilaterale = SPC.unilaterale, usata = SPC.usata;   // formule in spc.js
   /* Statistiche della quota: le formule sono in spc.js (le stesse di produzione/spc.py). */
   function statistiche(pts) {
     const n = pts.length;
@@ -96,18 +91,18 @@
       nFuori: pts.filter(p => p.f).length, nVer: pts.filter(p => p.dv).length,
       rischio: SPC.rischio_prossimo(xs, ult.lsl, ult.usl, nom), controllo: SPC.limiti_controllo(xs) });
   }
-  /* Stato dal verdetto (limite basso dell'intervallo del peggiore fra Cpk e Ppk; «pochi dati» sotto 25 pezzi). */
+  /* Stato dal verdetto (SPC.verdetto: il peggiore fra Cpk e Ppk contro 1,33 e 1,00; «pochi dati» sotto 25 pezzi). */
   const statoCpk = s => !s || s.indice === null || s.indice === undefined ? null
     : s.verdetto === 'capace' ? { c: 'ok', t: 'Capace' } : s.verdetto === 'al limite' ? { c: 'warn', t: 'Al limite' }
     : s.verdetto === 'non capace' ? { c: 'crit', t: 'Non capace' } : { c: 'muto', t: 'Pochi dati' };
-  const vicina = s => s.n && !s.ultimo.f && s.ultimo.u !== null && Math.abs(s.ultimo.u) >= 0.8;
+  const vicina = s => s.n && !s.ultimo.f && s.ultimo.u !== null && Math.abs(s.ultimo.u) >= SPC.TOLLERANZA_AL_LIMITE;
 
   /* ── stato nell'indirizzo (link condivisibili) ───────────────────────── */
   function salvaUrl() {
     const p = new URLSearchParams({ pn: root.dataset.pn, prog: S.prog });
     if (S.q) p.set('q', S.q);
     if (S.tab !== 'quota') p.set('tab', S.tab);
-    if (S.per) p.set('per', S.per);
+    if (S.per !== 'fin') p.set('per', S.per || 'tutto');
     if (S.per === 'custom') { if (S.da) p.set('da', S.da); if (S.a) p.set('a', S.a); }
     if (S.ops.size) p.set('op', [...S.ops].join('~'));
     if (S.cmp.length) p.set('cmp', S.cmp.join('~'));
@@ -123,7 +118,7 @@
   /* ── dati ────────────────────────────────────────────────────────────── */
   function periodo() {
     if (S.per === 'custom') return { da: S.da, a: S.a };
-    if (!S.per) return { da: '', a: '' };
+    if (!S.per || S.per === 'fin') return { da: '', a: '' };
     const d = new Date(); d.setDate(d.getDate() - (+S.per));
     return { da: d.toISOString().slice(0, 10), a: '' };
   }
@@ -181,6 +176,10 @@
     rimisurati = [...conta.entries()].filter(([, n]) => n > 1).map(([k]) => k);
     vis = D.report.map((r, i) => (!S.ops.size || S.ops.has(r[2] || '—')) && (S.esclusi || !r[6])
       && (!S.rs.size || S.rs.has(r[0])) && (S.tutte || ultime.has(i)));
+    if (S.per === 'fin') {   // finestra di riferimento: gli ultimi N pezzi fra quelli dei filtri (come nelle altre pagine)
+      let resta = S.fin;
+      for (let i = vis.length - 1; i >= 0; i--) { if (vis[i] && !D.report[i][6]) { if (resta > 0) resta--; else vis[i] = false; } }
+    }
     info = D.quote.map((q, qi) => {
       const pts = [];
       for (const v of D.valori[qi]) {
@@ -194,20 +193,8 @@
     });
   }
 
-  /* Tendenza degli ultimi 20 (stessa regola del portale lato server: report_cmm_indice.deriva). */
-  function deriva(us, ultimi = 20) {
-    const v = us.filter(u => u !== null && isFinite(u)).slice(-ultimi);
-    const n = v.length;
-    if (n < 10) return null;
-    const mx = (n - 1) / 2, my = v.reduce((a, b) => a + b, 0) / n;
-    let num0 = 0, den = 0;
-    v.forEach((u, i) => { num0 += (i - mx) * (u - my); den += (i - mx) ** 2; });
-    const b = num0 / den, fine = my + b * (n - 1 - mx);
-    if (Math.abs(b * n) < 0.2 || b * fine <= 0 || Math.abs(fine) < 0.5) return null;
-    const pezzi = Math.max(0, Math.ceil(((b > 0 ? 1 : -1) - fine) / b));
-    if (pezzi > 50) return null;
-    return { pendenza: b, pezzi, verso: b > 0 ? 'sup' : 'inf', n, my, mx };
-  }
+  /* Tendenza degli ultimi 20: la formula è in spc.js (la stessa di produzione/spc.py). */
+  const deriva = us => SPC.deriva(us);
   /* Regole di controllo: Nelson 1-8 ed EWMA, da spc.js. */
   const segnali = xs => SPC.segnali(xs);
   const testoSegnale = g => (SPC.testi[String(g.regola)] || [String(g.regola)])[0];
@@ -306,7 +293,7 @@
     const sn = new Set(rv.map(r => r[1]));
     let mis = 0, fuori = 0;
     info.forEach(x => { mis += x.pts.length; fuori += x.s.nFuori || 0; });
-    const nonCap = info.filter(x => x.s.indice !== null && x.s.indice !== undefined && x.s.indice < 1.33).length;
+    const nonCap = info.filter(x => SPC.sotto_obiettivo(x.s.verdetto)).length;
     const conFuori = info.filter(x => x.s.nFuori).length;
     const ult = rv[rv.length - 1];
     const tile = (et, val, sub, opts = {}) => el(opts.onclick ? 'button' : 'div', { class: `aq-tile${opts.allerta ? ' is-allerta' : ''}`, type: opts.onclick ? 'button' : null, onclick: opts.onclick, title: opts.title },
@@ -316,7 +303,7 @@
       tile('Quote', `${info.filter(x => x.pts.length).length}`, `${mis} misure`),
       tile('Misure fuori', mis ? pct(fuori / mis) : '—', `${fuori} su ${mis}`, { allerta: fuori > 0 }),
       tile('Andate fuori', `${conFuori}`, 'quote, almeno una volta', { allerta: conFuori > 0, onclick: () => scegliFiltro('fuori'), title: 'Mostra solo queste' }),
-      tile('Cpk o Ppk < 1,33', `${nonCap}`, 'quote non capaci o al limite', { allerta: nonCap > 0, onclick: () => scegliFiltro('cpk'), title: 'Mostra solo queste' }),
+      tile('Sotto obiettivo', `${nonCap}`, 'al limite o non capaci', { allerta: nonCap > 0, onclick: () => scegliFiltro('cpk'), title: 'Mostra solo queste' }),
       tile('In deriva', `${info.filter(x => x.deriva).length}`, 'quote verso un limite', { allerta: info.some(x => x.deriva), onclick: () => scegliFiltro('deriva'), title: 'Mostra solo queste' }),
       tile('Ultimo report', ult ? dataIt(ult[3]) : '—', ult ? ult[1] : '', { title: ult ? `${ult[1]} · ${ult[2] || ''}` : null }),
     );
@@ -330,7 +317,7 @@
   const FILTRI = [
     ['tutte', 'Tutte', () => true],
     ['fuori', 'Andate fuori', x => x.s.nFuori > 0],
-    ['cpk', 'Cpk o Ppk < 1,33', x => x.s.indice !== null && x.s.indice !== undefined && x.s.indice < 1.33],
+    ['cpk', 'Sotto obiettivo', x => SPC.sotto_obiettivo(x.s.verdetto)],
     ['limite', 'Vicine al limite', x => vicina(x.s)],
     ['deriva', 'In deriva', x => !!x.deriva],
     ['segnali', 'Con segnali', x => x.segnali.length > 0],
@@ -1054,6 +1041,7 @@
     if (S.ops.size) p.set('op', [...S.ops].join('~'));
     if (S.rs.size) p.set('rs', [...S.rs].join('~'));
     if (S.tutte) p.set('tutte', '1');
+    if (S.per === 'fin') p.set('fin', S.fin);
     const quote = S.cmp.length ? S.cmp : (S.tab === 'quota' && S.q ? [S.q] : quoteFiltrate().map(x => x.q.id));
     if (quote.length && quote.length < info.length) p.set('quote', quote.slice(0, 80).join('~'));
     location.href = `${root.dataset.urlPdf}?${p}`;

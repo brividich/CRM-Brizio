@@ -1,4 +1,4 @@
-"""Legge i report CMM della share nell'archivio delle quote (Ordini di produzione).
+"""Legge i report CMM della share nell'archivio delle quote (Controllo dimensionale).
 
     manage.py leggi_report_cmm                 # un giro come quello pianificato
     manage.py leggi_report_cmm --pn PN-ESEMPIO-1

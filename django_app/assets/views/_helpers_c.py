@@ -1299,6 +1299,7 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
         parent = AssetCategory.objects.filter(pk=parent_id).first() if parent_id else None
         if parent and parent.id == category.id:
             return False, "Una categoria non puo essere padre di se stessa."
+        famiglia_prima = category.base_asset_type
         category.label = label[:120]
         category.parent = parent
         category.base_asset_type = base_asset_type
@@ -1330,6 +1331,19 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
                 "updated_at",
             ]
         )
+        # Il tipo di un asset deriva dalla famiglia della sua categoria: cambiandola,
+        # gli asset già dentro la seguono (services/categoria_tipo.py).
+        from core.audit import log_action
+
+        from ..services import categoria_tipo
+
+        riallineati = categoria_tipo.allinea_asset(category, famiglia_prima)
+        if riallineati:
+            log_action(request, "asset_categoria_famiglia_cambiata", "assets",
+                       {"categoria": category.code, "da": famiglia_prima, "a": category.base_asset_type,
+                        "asset": riallineati})
+            return True, (f"Categoria asset \"{category.label}\" aggiornata: {riallineati} asset passati a "
+                          f"«{category.get_base_asset_type_display()}».")
         return True, f"Categoria asset \"{category.label}\" aggiornata."
 
     if action == "create_sidebar_button_for_category":

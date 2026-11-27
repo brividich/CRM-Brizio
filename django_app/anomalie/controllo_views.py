@@ -661,7 +661,7 @@ def api_report_cmm_leggi(request):
 @login_required
 @require_GET
 def api_report_cmm_archivio(request):
-    """Report CMM dell'OP già letti dalla share (Ordini di produzione), per sceglierli senza caricare il PDF."""
+    """Report CMM dell'OP già letti dalla share (Controllo dimensionale), per sceglierli senza caricare il PDF."""
     from core.acl_v2 import request_has_permission_code
     from produzione.acl_bootstrap import PERM_VIEW
     from produzione.models import ReportCMM
@@ -680,7 +680,7 @@ def api_report_cmm_archivio(request):
 
 
 def _report_cmm_da_archivio(request, op_id: str, report_id: int):
-    """Report CMM già indicizzato da Ordini di produzione: il PDF si rilegge dalla share."""
+    """Report CMM già indicizzato da Controllo dimensionale: il PDF si rilegge dalla share."""
     from core.acl_v2 import request_has_permission_code
     from produzione.acl_bootstrap import PERM_VIEW
     from produzione.models import ReportCMM
@@ -689,7 +689,7 @@ def _report_cmm_da_archivio(request, op_id: str, report_id: int):
     from .report_cmm import ErroreReport, leggi_pdf
 
     if not request_has_permission_code(request, PERM_VIEW):
-        return _err("Permesso negato: serve «Ordini di produzione - Elenco e scheda OP»", 403)
+        return _err("Permesso negato: serve «Controllo dimensionale - Elenco e scheda OP»", 403)
     report = ReportCMM.objects.filter(pk=report_id).first()
     percorso = percorso_sicuro(report.percorso) if report else ""
     if not percorso:

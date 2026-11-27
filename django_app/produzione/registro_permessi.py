@@ -21,7 +21,7 @@ def proprietario_documento(documento):
 
 registra_modulo(ModuloPermessi(
     chiave="produzione",
-    nome="Ordini di produzione",
+    nome="Controllo dimensionale",
     descrizione="Gli OP con i documenti di produzione: documenti registrati, FAI, programmi CAM e CMM, anomalie.",
     area="Produzione",
     app="produzione",

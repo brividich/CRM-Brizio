@@ -1,4 +1,4 @@
-"""Lavori django-q della sezione Ordini di produzione: lettura dei report CMM dalla share."""
+"""Lavori django-q della sezione Controllo dimensionale: lettura dei report CMM dalla share."""
 from __future__ import annotations
 
 import time

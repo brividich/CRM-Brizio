@@ -9,7 +9,9 @@ Regole principali:
   macchina; la σ di tutti i pezzi dà **Pp e Ppk**, quello che il processo ha fatto davvero nel tempo.
 - Quote con solo limite superiore (forma, posizione: nominale 0, limite inferiore 0) non sono normali: indice col
   metodo dei percentili (ISO 22514-2) su una Weibull, Ppk = (LS − mediana) / (P99,865 − mediana).
-- Intervallo di confidenza al 95% sul Cpk (Bissell); il verdetto guarda il limite basso; sotto 25 pezzi «pochi dati».
+- Un solo giudizio (``verdetto``): l'indice (il peggiore fra Cpk e Ppk) contro 1,33 e 1,00; sotto 25 pezzi «pochi
+  dati». L'intervallo di confidenza al 95% (Bissell) si mostra come informazione, non decide.
+- Una sola finestra di riferimento (``FINESTRA`` pezzi, impostabile) e un solo «da guardare» (``da_guardare``).
 - Limiti di controllo = media ± 3σ di breve periodo; regole di Nelson 1-8 e EWMA (λ 0,2) per gli spostamenti piccoli.
 """
 from __future__ import annotations
@@ -24,6 +26,9 @@ POCHI_DATI = 25            # sotto: indice mostrato ma verdetto «pochi dati»
 P_ALTO = 0.99865           # ±3σ della normale
 EWMA_LAMBDA = 0.2
 EWMA_L = 3.0
+FINESTRA = 30              # pezzi su cui si calcolano gli indici di riferimento (Impostazioni: FINESTRE)
+FINESTRE = (30, 50, 100)
+TOLLERANZA_AL_LIMITE = 0.80   # una misura oltre l'80% della tolleranza è «al limite»
 
 
 # --- base -------------------------------------------------------------------------------------------------
@@ -102,14 +107,22 @@ def intervallo_cpk(cpk, n, z=1.96):
     return cpk - z * se, cpk + z * se
 
 
-def verdetto(indice, basso, n):
-    """«capace», «al limite», «non capace» sul limite basso dell'intervallo; «pochi dati» sotto 25 pezzi."""
+def verdetto(indice, n):
+    """L'unico giudizio di capacità del modulo: «capace» (indice ≥ 1,33), «al limite» (≥ 1,00), «non capace»;
+    «pochi dati» sotto 25 pezzi. ``indice`` = il peggiore fra Cpk e Ppk."""
     if indice is None:
         return None
     if n < POCHI_DATI:
         return "pochi dati"
-    v = basso if basso is not None else indice
-    return "capace" if v >= CAPACE else ("al limite" if v >= AL_LIMITE else "non capace")
+    return "capace" if indice >= CAPACE else ("al limite" if indice >= AL_LIMITE else "non capace")
+
+
+SOTTO_OBIETTIVO = ("al limite", "non capace")
+
+
+def da_guardare(fuori_ultimo, deriva, verdetto_) -> bool:
+    """L'unica regola di «quota da guardare»: fuori nell'ultimo report, in deriva o sotto l'obiettivo di capacità."""
+    return bool(fuori_ultimo or deriva or verdetto_ in SOTTO_OBIETTIVO)
 
 
 def capacita(xs, lsl, usl, nominale=None):
@@ -146,7 +159,7 @@ def capacita(xs, lsl, usl, nominale=None):
     valori = [v for v in (out["cpk"], out["ppk"]) if v is not None]
     out["indice"] = min(valori) if valori else None
     out["cpk_basso"], out["cpk_alto"] = intervallo_cpk(out["indice"], n)
-    out["verdetto"] = verdetto(out["indice"], out["cpk_basso"], n)
+    out["verdetto"] = verdetto(out["indice"], n)
     return out
 
 
@@ -351,6 +364,56 @@ def pezzi_al_limite(b, se_b, fine, massimo=200):
         return p if p <= massimo else None
 
     return pezzi(b + 1.96 * se_b * verso), pezzi(b - 1.96 * se_b * verso)
+
+
+def usata(x, nominale, lsl, usl):
+    """Tolleranza usata: 0 = ideale, ±1 = limite. Unilaterali: rilevato / limite superiore; le altre dal centro."""
+    if unilaterale(nominale, lsl, usl):
+        return x / usl
+    banda = usl - lsl
+    return (x - (usl + lsl) / 2) / (banda / 2) if banda > 0 else None
+
+
+def deriva(us, ultimi=20):
+    """Tendenza degli ultimi ``ultimi`` valori di tolleranza usata (0 = ideale, ±1 = limite).
+
+    In deriva se la retta sale (o scende) di almeno il 20% della tolleranza in quei pezzi, l'ultimo punto della
+    retta è oltre metà tolleranza nella stessa direzione e, al ritmo attuale, il limite arriva entro 50 pezzi.
+    ``{"pendenza": per pezzo, "pezzi": quanti pezzi al limite (0 se già oltre), "verso": "sup"|"inf",
+    "pezzi_min"/"pezzi_max": forchetta al 95% (``None`` = oltre 200 pezzi), "n", "my", "mx": la retta}``."""
+    v = [u for u in us if u is not None][-ultimi:]
+    n = len(v)
+    if n < 10:
+        return None
+    mx = (n - 1) / 2
+    my = sum(v) / n
+    den = sum((i - mx) ** 2 for i in range(n))
+    b = sum((i - mx) * (u - my) for i, u in enumerate(v)) / den
+    fine = my + b * (n - 1 - mx)
+    if abs(b * n) < 0.2 or b * fine <= 0 or abs(fine) < 0.5:
+        return None
+    limite = 1 if b > 0 else -1
+    pezzi = max(0, int(math.ceil((limite - fine) / b)))
+    if pezzi > 50:
+        return None
+    res = sum((u - (my + b * (i - mx))) ** 2 for i, u in enumerate(v))
+    se_b = math.sqrt(res / (n - 2) / den) if n > 2 else 0.0
+    prima, dopo = pezzi_al_limite(b, se_b, fine)
+    return {"pendenza": b, "pezzi": pezzi, "verso": "sup" if b > 0 else "inf", "pezzi_min": prima, "pezzi_max": dopo,
+            "n": n, "my": my, "mx": mx}
+
+
+def chiave_seriale(sn) -> str:
+    """S/N confrontabile: solo lettere e cifre, maiuscolo."""
+    return "".join(c for c in str(sn or "").upper() if c.isascii() and c.isalnum())
+
+
+def ultima_per_seriale(seriali) -> list[int]:
+    """Indici da tenere con «ultima misura per S/N»: per ogni S/N l'ultimo della lista (gli altri sono rimisure)."""
+    ultimo: dict[str, int] = {}
+    for i, sn in enumerate(seriali):
+        ultimo[chiave_seriale(sn) or f"#{i}"] = i
+    return sorted(ultimo.values())
 
 
 # --- confronti --------------------------------------------------------------------------------------------

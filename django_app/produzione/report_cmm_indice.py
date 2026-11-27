@@ -14,7 +14,6 @@ Le quote si confrontano dentro lo stesso P/N e lo stesso programma senza revisio
 from __future__ import annotations
 
 import logging
-import math
 import os
 import re
 import time
@@ -389,13 +388,13 @@ def riepilogo_pn(pn: str) -> dict:
     """Per la scheda del P/N: quanti report, quanti con quote fuori, gli ultimi e lo stato della lettura."""
     qs = ReportCMM.objects.filter(pn=pn, righe__gt=0, escluso=False)
     return {
-        "n": qs.count(), "con_fuori": qs.filter(fuori__gt=0).count(), "ultimi": list(qs.order_by("-data", "-id")[:8]),
+        "n": qs.count(), "con_fuori": qs.filter(fuori__gt=0).count(), "ultimi": list(qs.order_by("-data", "-modificato", "-id")[:8]),
         "cartella": CartellaReportCMM.objects.filter(pn=pn).order_by("-letta_il").first(), "attivo": attivo(),
     }
 
 
 def report_dell_op(titolo: str) -> list[ReportCMM]:
-    return list(ReportCMM.objects.filter(op=titolo, righe__gt=0).order_by("-data", "-id")[:50]) if titolo else []
+    return list(ReportCMM.objects.filter(op=titolo, righe__gt=0).order_by("-data", "-modificato", "-id")[:50]) if titolo else []
 
 
 def conteggi_per_pn() -> dict[str, dict]:
@@ -412,6 +411,42 @@ def conteggi_per_pn() -> dict[str, dict]:
 # --- Analisi quote (pagina interattiva) ----------------------------------------------------------------
 
 LIMITE_REPORT = 800
+_CACHE_FINESTRA = "prod_cmm_finestra"
+
+
+def finestra() -> int:
+    """Su quanti pezzi (ultima misura per S/N) si calcolano gli indici di riferimento: Impostazioni, predefinito 30."""
+    from django.core.cache import cache
+
+    from .models import ImpostazioniQuoteCMM
+
+    n = cache.get(_CACHE_FINESTRA)
+    if n is None:
+        n = ImpostazioniQuoteCMM.attuali().finestra
+        cache.set(_CACHE_FINESTRA, n, 300)
+    return n if n in spc.FINESTRE else spc.FINESTRA
+
+
+def imposta_finestra(n: int) -> bool:
+    """Cambia la finestra; ``True`` se è cambiata (le analisi precalcolate vanno rifatte: ``analisi_il`` a vuoto)."""
+    from django.core.cache import cache
+
+    from .models import ArticoloPN, ImpostazioniQuoteCMM
+
+    imp = ImpostazioniQuoteCMM.attuali()
+    if n not in spc.FINESTRE or imp.finestra == n:
+        return False
+    imp.finestra = n
+    imp.save(update_fields=["finestra"])
+    cache.delete(_CACHE_FINESTRA)
+    ArticoloPN.objects.update(analisi_il=None)
+    return True
+
+
+def pn_da_guardare(non_capaci, deriva, fuori_ultimo, fuori_recenti) -> bool:
+    """L'unica regola di «P/N da guardare» dalle misure: quote sotto obiettivo, in deriva, fuori nell'ultimo report,
+    o report recenti con quote fuori."""
+    return bool(non_capaci or deriva or fuori_ultimo or fuori_recenti)
 
 
 def _round(v):
@@ -444,8 +479,8 @@ def dati_programma(pn: str, prog: str, da: date | None = None, a: date | None = 
     if a:
         qs = qs.filter(data__lte=a)
     totale = qs.count()
-    campi = ("id", "seriale", "op", "data", "file", "fuori", "escluso", "programma", "escluso_motivo")
-    righe = list(qs.order_by("-data", "-id").values_list(*campi)[:limite])
+    campi = ("id", "seriale", "op", "data", "file", "fuori", "escluso", "programma", "escluso_motivo", "modificato")
+    righe = list(qs.order_by("-data", "-modificato", "-id").values_list(*campi)[:limite])
     primo = min((r[3] for r in righe if r[3]), default=None)
 
     # Quote unite: l'origine (anche di un altro programma) entra nella quota di destinazione.
@@ -469,7 +504,7 @@ def dati_programma(pn: str, prog: str, da: date | None = None, a: date | None = 
     extra -= id_noti
     if extra:
         righe += list(ReportCMM.objects.filter(pk__in=list(extra)[:2000]).values_list(*campi))
-    righe.sort(key=lambda r: (r[3] or date.min, r[0]))
+    righe.sort(key=lambda r: (r[3] or date.min, r[9], r[0]))   # giorno, ora del file, lettura
     indice = {r[0]: i for i, r in enumerate(righe)}
 
     quote: dict[str, dict] = {}
@@ -578,26 +613,7 @@ def deriva(us: list[float], ultimi: int = 20) -> dict | None:
     retta è oltre metà tolleranza nella stessa direzione e, al ritmo attuale, il limite arriva entro 50 pezzi.
     ``{"pendenza": per pezzo, "pezzi": quanti pezzi al limite (0 se già oltre), "verso": "sup"|"inf",
     "pezzi_min"/"pezzi_max": forchetta al 95% (``None`` = oltre 200 pezzi)}``."""
-    v = [u for u in us if u is not None][-ultimi:]
-    n = len(v)
-    if n < 10:
-        return None
-    mx = (n - 1) / 2
-    my = sum(v) / n
-    den = sum((i - mx) ** 2 for i in range(n))
-    b = sum((i - mx) * (u - my) for i, u in enumerate(v)) / den
-    fine = my + b * (n - 1 - mx)
-    if abs(b * n) < 0.2 or b * fine <= 0 or abs(fine) < 0.5:
-        return None
-    limite = 1 if b > 0 else -1
-    pezzi = max(0, int(math.ceil((limite - fine) / b)))
-    if pezzi > 50:
-        return None
-    # forchetta: pendenza ± 1,96 errori standard della retta
-    res = sum((u - (my + b * (i - mx))) ** 2 for i, u in enumerate(v))
-    se_b = math.sqrt(res / (n - 2) / den) if n > 2 else 0.0
-    prima, dopo = spc.pezzi_al_limite(b, se_b, fine)
-    return {"pendenza": b, "pezzi": pezzi, "verso": "sup" if b > 0 else "inf", "pezzi_min": prima, "pezzi_max": dopo}
+    return spc.deriva(us, ultimi)     # la formula è in spc
 
 
 def segnali(xs: list[float]) -> list[dict]:
@@ -607,15 +623,12 @@ def segnali(xs: list[float]) -> list[dict]:
 
 def unilaterale(nominale: float, lsl: float, usl: float) -> bool:
     """Forma, posizione, concentricità…: nominale 0 e limite inferiore 0, conta solo il superiore."""
-    return abs(nominale) < 1e-12 and abs(lsl) < 1e-12 and usl > 0
+    return spc.unilaterale(nominale, lsl, usl)
 
 
 def usata(x: float, nominale: float, lsl: float, usl: float) -> float | None:
     """Tolleranza usata: 0 = ideale, ±1 = limite. Unilaterali: rilevato / limite superiore; le altre dal centro."""
-    if unilaterale(nominale, lsl, usl):
-        return x / usl
-    banda = usl - lsl
-    return (x - (usl + lsl) / 2) / (banda / 2) if banda > 0 else None
+    return spc.usata(x, nominale, lsl, usl)
 
 
 def statistiche(punti: list[tuple[float, float, float]], nominale: float | None = None) -> dict:
@@ -640,11 +653,7 @@ def statistiche(punti: list[tuple[float, float, float]], nominale: float | None 
 
 def ultima_per_seriale(report: list) -> list[int]:
     """Indici dei report da tenere con «ultima misura per S/N»: per ogni S/N il più recente (gli altri sono rimisure)."""
-    ultimo: dict[str, int] = {}
-    for i, r in enumerate(report):
-        chiave = re.sub(r"[^A-Z0-9]", "", str(r[1] or "").upper())
-        ultimo[chiave or f"#{i}"] = i
-    return sorted(ultimo.values())
+    return spc.ultima_per_seriale([r[1] for r in report])
 
 
 def _confronto_op(vals, rep, lsl, usl, nom) -> dict | None:
@@ -688,7 +697,7 @@ def _ripetibilita(tutti, rep, banda) -> dict | None:
     return spc.ripetibilita(diff, banda)
 
 
-def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
+def analisi_pn(pn: str, ultimi: int | None = None) -> list[dict]:
     """Ogni quota di ogni programma del P/N sugli ultimi ``ultimi`` report validi (esclusi fuori, rimisure fuori):
     fuori nell'ultimo report, volte fuori, capacità (``spc.capacita``: Cpk, Ppk, ``indice`` = il peggiore dei due,
     intervallo e verdetto), deriva con forchetta, rischio del prossimo pezzo, limiti di controllo, segnali, punti di
@@ -697,8 +706,9 @@ def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
     from django.core.cache import cache
     from django.db.models import Max
 
+    ultimi = ultimi or finestra()
     firma = ReportCMM.objects.filter(pn=pn).aggregate(m=Max("letto_il"), e=Max("escluso_il"))
-    chiave = f"prod_cmm_analisi3:{pn}:{ultimi}:{firma['m']}:{firma['e']}:{AliasQuotaCMM.objects.filter(pn=pn).count()}"
+    chiave = f"prod_cmm_analisi4:{pn}:{ultimi}:{firma['m']}:{firma['e']}:{AliasQuotaCMM.objects.filter(pn=pn).count()}"
     trovato = cache.get(chiave)
     if trovato is not None:
         return trovato
@@ -756,10 +766,9 @@ def analisi_pn(pn: str, ultimi: int = 30) -> list[dict]:
     return out
 
 
-def quote_critiche(pn: str, ultimi: int = 30, quante: int = 6) -> list[dict]:
-    """Le quote da guardare del P/N: fuori nell'ultimo report, poi in deriva, poi Cpk sotto 1,33 dal peggiore."""
-    righe = [r for r in analisi_pn(pn, ultimi)
-             if r["fuori_ultimo"] or r["deriva"] or (r["indice"] is not None and r["indice"] < spc.CAPACE)]
+def quote_critiche(pn: str, ultimi: int | None = None, quante: int = 6) -> list[dict]:
+    """Le quote da guardare del P/N (``spc.da_guardare``): fuori nell'ultimo report, poi dal rischio più alto."""
+    righe = [r for r in analisi_pn(pn, ultimi) if spc.da_guardare(r["fuori_ultimo"], r["deriva"], r.get("verdetto"))]
     righe.sort(key=lambda r: (not r["fuori_ultimo"], -(r["rischio"] or 0), r["indice"] if r["indice"] is not None else 9))
     return righe[:quante]
 
@@ -789,14 +798,14 @@ def settimane_mappa(settimane: int = 12) -> list[dict]:
 
 def quote_da_guardare_tutte(pns: list[str], quante: int = 15) -> list:
     """Le quote da guardare di questi P/N, dalla tabella precalcolata ``QuotaCapacita``: fuori nell'ultimo report,
-    in deriva o non capaci (Cpk o Ppk sotto 1,33), dal rischio più alto."""
+    in deriva o sotto obiettivo (stessa regola di ``spc.da_guardare``), dal rischio più alto."""
     from django.db.models import Q
 
     from .models import QuotaCapacita
 
     # niente «pn IN (centinaia di P/N)»: si scorrono le quote da guardare già ordinate e si tengono quelle dei P/N scelti
     scelti, out = set(pns), []
-    qs = (QuotaCapacita.objects.filter(Q(fuori_ultimo=True) | Q(deriva=True) | Q(indice__lt=spc.CAPACE))
+    qs = (QuotaCapacita.objects.filter(Q(fuori_ultimo=True) | Q(deriva=True) | Q(verdetto__in=spc.SOTTO_OBIETTIVO))
           .order_by("-fuori_ultimo", "-rischio", "indice"))
     for q in qs.iterator(chunk_size=200):
         if q.pn in scelti:
@@ -837,7 +846,7 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
     from django.db.models import F, Window
     from django.db.models.functions import RowNumber
 
-    numerati = validi.annotate(rn=Window(RowNumber(), partition_by=[F("pn")], order_by=[F("data").desc(), F("id").desc()]))
+    numerati = validi.annotate(rn=Window(RowNumber(), partition_by=[F("pn")], order_by=[F("data").desc(), F("modificato").desc(), F("id").desc()]))
     ultimi = {pn: (sn, d, rid) for pn, sn, d, rid in numerati.filter(rn=1).values_list("pn", "seriale", "data", "id")}
     from .models import ArticoloPN
 
@@ -860,7 +869,7 @@ def cruscotto(giorni: int = 30, settimane: int = 12) -> list[dict]:
             "ultimo": ultimi.get(pn),
         })
     for r in out:
-        r["da_guardare"] = bool(r["fuori_rec"] or r["deriva"] or r["fuori_ultimo"])
+        r["da_guardare"] = pn_da_guardare(r["cpk_bassi"], r["deriva"], r["fuori_ultimo"], r["fuori_rec"])
         r["barre"] = [{"x": k * 9, "h": max(1, round(v / r["max_sett"] * 20)) if v else 1, "v": v}
                       for k, v in enumerate(r["settimane"])]
         for b in r["barre"]:
@@ -874,13 +883,13 @@ def report_primo_articolo(op: str) -> ReportCMM | None:
     if not op:
         return None
     return (ReportCMM.objects.filter(op=op.replace("-", "/"), righe__gt=0, escluso=False)
-            .order_by("data", "id").first())
+            .order_by("data", "modificato", "id").first())
 
 
 def capacita_dopo(report: ReportCMM, quante: int = 8) -> list[dict]:
     """Quote del report del primo articolo con il Cpk sui pezzi successivi dello stesso programma (peggiori prima)."""
     righe = []
-    analisi = {(a["prog"], a["quota"]["id"]): a for a in analisi_pn(report.pn, ultimi=60)}
+    analisi = {(a["prog"], a["quota"]["id"]): a for a in analisi_pn(report.pn)}
     for m in report.misure.all():
         a = analisi.get((report.programma_base, id_quota(m.chiave, m.nominale)))
         righe.append({"misura": m, "cpk": a["indice"] if a else None, "deriva": a["deriva"] if a else None,
