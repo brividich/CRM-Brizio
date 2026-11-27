@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Scadenzario: «+ Nuova attività» anche nel calendario /scadenze
+
+- `django_app/dashboard/views_scadenze.py`, `django_app/dashboard/templates/dashboard/pages/scadenze_globali.html`: pulsante «+ Nuova attività» nella barra in alto del calendario (tutte le viste), con la stessa regola di Scadenze generiche (gestisce almeno una categoria). Prima c'era solo dentro «🗂 Scadenze generiche».
+- `django_app/scadenzario/guida.py`: guida aggiornata. Test in `django_app/dashboard/tests_scadenze_viste.py`.
+
 ### Organigramma ufficiale: firma su portale con il Registro timbri (MT CN 08 §7.2.1)
 
 - «Pubblica» diventa «✍ Invia in firma»: la bozza si congela (copia + impronta SHA-256 + codice di verifica), chi invia firma la casella Redazione e RDD (ruolo con sigla RDD) firma l'Approvazione; la revisione nasce dopo l'ultima firma con «Approvato da» compilato dal portale. Respingi con motivo, Ritira, notifiche `firma_da_apporre` / `firma_respinta` / `firma_completata`.

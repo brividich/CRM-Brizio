@@ -39,7 +39,7 @@ SEZIONI: list[dict] = [
                 ("Aprire il dettaglio", "clic sulla scadenza: porta alla pagina dove si gestisce."),
                 ("Dire ai colleghi che ci penso io", "«👤 Me ne occupo io» sotto la scadenza."),
                 ("Registrare un rinnovo", "«✓ Rinnovato oggi» (solo scadenze generiche con validità in mesi)."),
-                ("Aggiungere un'attività da ricordare", "Scadenze generiche → «+ Nuova attività»."),
+                ("Aggiungere un'attività da ricordare", "«+ Nuova attività» in alto nel calendario, oppure in Scadenze generiche."),
                 ("Riceverle senza aprire il portale", "Impostazioni notifiche: riepilogo per mail ogni mattina feriale, oppure calendario in Outlook."),
             ]),
         ],
@@ -152,7 +152,7 @@ SEZIONI: list[dict] = [
         "titolo": "Scadenze generiche: inserire un'attività",
         "blocchi": [
             ("passi", [
-                "Scadenzario → «🗂 Scadenze generiche» → «+ Nuova attività». Il pulsante c'è se gestisci almeno una categoria.",
+                "Scadenzario → «+ Nuova attività» (in alto nel calendario, o in «🗂 Scadenze generiche»). Il pulsante c'è se gestisci almeno una categoria.",
                 "Scegli la categoria e scrivi l'attività.",
                 "Inserisci la «Scadenza», oppure «Ultimo controllo» e «Validità (mesi)»: la data si calcola da sola e la vedi subito.",
                 "In «A chi arrivano gli avvisi» scrivi le email separate da virgola, oppure premi «Usa quelli della categoria».",

@@ -506,6 +506,7 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
         "torna": request.get_full_path(),
         "puo_pannello": puo_pannello,
         "puo_generiche": _puo_generiche(request),
+        "puo_nuova_generica": _puo_nuova_generica(request),
         "oggi": oggi,
         "oggi_iso": oggi.isoformat(),
     }
@@ -607,6 +608,17 @@ def _puo_generiche(request) -> bool:
         from scadenzario.permessi import puo_usare_modulo
 
         return puo_usare_modulo(request)
+    except Exception:
+        return False
+
+
+def _puo_nuova_generica(request) -> bool:
+    """Stessa regola di «+ Nuova attività» in Scadenze generiche: gestisce almeno una categoria."""
+    try:
+        from scadenzario.permessi import categorie_gestibili
+
+        gestibili = categorie_gestibili(request)
+        return gestibili is None or bool(gestibili)
     except Exception:
         return False
 
