@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_asset_qr, views_asset_rete, views_mtconnect, views_rete, views_rete_rack, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_software, views_verifiche, views_reporting
+from . import views, views_acronimi, views_asset_qr, views_asset_rete, views_mtconnect, views_rete, views_rete_rack, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_software, views_verifiche, views_reporting
 
 from .api_meters import api as meters_api
 from . import views_spare_parts
@@ -143,6 +143,7 @@ urlpatterns = [
     ),
     path("assets/labels/", views.asset_label_designer, name="asset_label_designer"),
     path("assets/new/", views.asset_create, name="asset_create"),
+    path("assets/edit/acronimi/", views_acronimi.acronimi_proponi, name="acronimi_proponi"),
     path("assets/edit/", views.asset_edit, name="asset_edit"),
     path("assets/edit/<int:id>/", views.asset_edit, name="asset_edit"),
     # Sotto /assets/edit/: stesso binding ACL v2 della modifica asset (prefisso).
