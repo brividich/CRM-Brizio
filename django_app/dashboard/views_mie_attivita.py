@@ -343,33 +343,39 @@ def _my_elearning(request) -> list[dict]:
         )
     except Exception:
         return []
+    # Un corso, una voce: se la persona è iscritta a un'edizione online del corso, vale quella.
+    lezioni = []
+    try:
+        from anagrafica.services.sessione_online import lezioni_della_persona
+        lezioni = lezioni_della_persona(ana.id)
+    except Exception:
+        logger.exception("Le mie attività: lezioni online non calcolabili")
+    corsi_con_lezione = {lz["sessione"].corso_id for lz in lezioni}
     out = []
     for a in qs:
+        if a.corso_id in corsi_con_lezione:
+            continue
         out.append({
             "code": a.corso.codice,
             "title": a.corso.titolo,
-            "meta": ("Scadenza " + a.due_date.isoformat()) if a.due_date else "Da completare",
+            "meta": ("Entro il " + a.due_date.strftime("%d/%m/%Y")) if a.due_date else "Da completare",
             "status": a.get_stato_display(),
             "due": a.due_date,
             "url": _safe_url("anagrafica:formazione_online_player", a.corso_id),
         })
-    # Lezioni online delle sessioni a cui la persona è iscritta (slide + test).
-    try:
-        from anagrafica.services.sessione_online import lezioni_della_persona
-        for lz in lezioni_della_persona(ana.id):
-            if lz["finita"]:
-                continue
-            scad = lz["cfg"].scadenza
-            out.append({
-                "code": lz["sessione"].codice_sessione,
-                "title": f"Lezione online: {lz['sessione'].corso.titolo}",
-                "meta": ("Entro il " + scad.strftime("%d-%m-%Y")) if scad else "Da completare",
-                "status": lz["stato_label"],
-                "due": scad,
-                "url": lz["url"],
-            })
-    except Exception:
-        pass
+    for lz in lezioni:
+        if lz["finita"]:
+            continue
+        scad = lz["cfg"].scadenza
+        out.append({
+            "code": lz["sessione"].corso.codice,
+            "title": lz["sessione"].corso.titolo,
+            "meta": ("Entro il " + scad.strftime("%d/%m/%Y")) if scad else "Da completare",
+            "status": lz["stato_label"],
+            "due": scad,
+            "url": lz["url"],
+        })
+    out.sort(key=lambda r: (r["due"] is None, r["due"] or 0))
     return out
 
 
