@@ -245,9 +245,12 @@ SEZIONI: list[dict] = [
         "titolo": "Statistica di processo (Cpk, Ppk, rischio, segnali)",
         "blocchi": [
             ("p", "Ogni quota ha la sua pagina con indirizzo stabile («Pagina della quota», anche da «Quote da guardare» in Quote "
-                  "CMM e dal dettaglio di un report): lo stesso riquadro della Qualità CMM, con carta di controllo, indici, "
-                  "segnali, confronto fra OP e lettura. Accanto al nome c'è «processo»: stabile, media spostata (dal pezzo "
-                  "indicato), in deriva, segnali sulla carta, pochi pezzi."),
+                  "CMM, dal dettaglio di un report e da Analisi quote). In alto «processo»: stabile, media spostata (dal pezzo "
+                  "indicato), in deriva, segnali sulla carta, pochi pezzi. In mezzo la stessa analisi di Analisi quote, ma su "
+                  "questa sola quota: periodo, OP, report, misure, zoom, note sul grafico, «Unisci un'altra quota», tabella "
+                  "delle misure, PDF di capacità ed Esporta CSV; i filtri scelti restano nell'indirizzo. Sotto: quando il "
+                  "processo è cambiato, le quote che si muovono insieme, il confronto fra OP e la lettura. «Tutte le quote "
+                  "del programma» apre Analisi quote con mappa, confronto e pezzo."),
             ("def", [
                 ("Limiti di controllo (LCS, LCI)", "si calcolano sui primi pezzi della finestra (la base: prima metà, almeno 15; "
                  "sotto 25 pezzi tutti) e restano fermi: uno spostamento recente non li allarga e quindi si vede. «LCS base» "

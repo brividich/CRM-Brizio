@@ -55,7 +55,9 @@ class FormuleTests(SimpleTestCase):
         xs = [round(10 + rnd.gauss(0, 0.003) + (0.01 if i >= 20 else 0), 5) for i in range(40)]
         script = JS.read_text(encoding="utf-8") + "\nconst xs = " + json.dumps(xs) + """;
 const b = SPC.base_controllo(xs.length), l = SPC.limiti_controllo(xs, b);
-console.log(JSON.stringify({b: b, lcs: l.lcs, lci: l.lci, base: l.base, segnali: SPC.segnali(xs, b).map(g => [String(g.regola), g.da, g.a])}));
+console.log(JSON.stringify({b: b, lcs: l.lcs, lci: l.lci, base: l.base, segnali: SPC.segnali(xs, b).map(g => [String(g.regola), g.da, g.a]),
+  tratti: [SPC.tratto_tolleranza([]), SPC.tratto_tolleranza([[9.9, 10.1], [9.9, 10.1]]), SPC.tratto_tolleranza([[9.9, 10.1], [9.95, 10.05], [9.95, 10.05]]),
+           SPC.tratto_tolleranza([[9.9, 10.1], [9.95, 10.05], [9.9, 10.1]])]}));
 """
         r = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -66,6 +68,9 @@ console.log(JSON.stringify({b: b, lcs: l.lcs, lci: l.lci, base: l.base, segnali:
         self.assertAlmostEqual(j["lcs"], lim["lcs"], places=9)
         self.assertAlmostEqual(j["lci"], lim["lci"], places=9)
         self.assertEqual(j["segnali"], [[str(g["regola"]), g["da"], g["a"]] for g in spc.segnali(xs, b)])
+        self.assertEqual(j["tratti"], [spc.tratto_tolleranza([]), spc.tratto_tolleranza([(9.9, 10.1)] * 2),
+                                       spc.tratto_tolleranza([(9.9, 10.1), (9.95, 10.05), (9.95, 10.05)]),
+                                       spc.tratto_tolleranza([(9.9, 10.1), (9.95, 10.05), (9.9, 10.1)])])
 
 
 class RegistroQuoteTests(QuoteBase):
@@ -131,8 +136,25 @@ class RegistroQuoteTests(QuoteBase):
         pagina = self.client.get(reverse("produzione:quota", args=[q.pk]))
         self.assertEqual(pagina.status_code, 200)
         self.assertContains(pagina, "D10")
-        self.assertContains(pagina, "qualita-dati")
         self.assertContains(pagina, "processo:")
+        # in mezzo l'analisi interattiva di Analisi quote, su questa sola quota
+        self.assertContains(pagina, 'data-solo="1"')
+        self.assertContains(pagina, "aq-stato")
+        self.assertContains(pagina, 'data-pane="quota"')
+        self.assertEqual(pagina.context["stato"]["q"], q.quota_id)
+        self.assertEqual(pagina.context["stato"]["prog"], "PRG_A")
+        self.assertNotContains(pagina, "data-carta-qualita")             # un solo grafico: quello interattivo
+        self.assertNotContains(pagina, "Apri in Analisi quote")
+        self.assertContains(pagina, "Tutte le quote del programma")
+        filtrata = self.client.get(reverse("produzione:quota", args=[q.pk]) + "?per=90&op=OP/2026/101")
+        self.assertEqual((filtrata.context["stato"]["per"], filtrata.context["stato"]["op"]), ("90", "OP/2026/101"))
+        # l'API dice ad Analisi quote l'id stabile di ogni quota (link «Pagina della quota»)
+        api = self.client.get(reverse("produzione:api_quote"), {"pn": "PN-ALFA-1", "prog": "PRG_A"}).json()
+        self.assertEqual(api["quote"][0]["pk"], q.pk)
+        programma = self.client.get(reverse("produzione:pn_quote"), {"pn": "PN-ALFA-1"})
+        self.assertContains(programma, "data-url-quota")
+        self.assertNotContains(programma, 'data-solo="1"')
+        self.assertNotContains(programma, "{#")
         self.assertNotContains(pagina, "Pagina della quota")              # ci siamo già
         self.assertNotContains(pagina, "{#")
         self.assertEqual(self.client.get(reverse("produzione:quota", args=[q.pk + 999])).status_code, 404)

@@ -23,6 +23,7 @@
     rs: new Set((iniziale.rs || '').split('~').filter(x => /^\d+$/.test(x)).map(Number)),
   };
   const puoQuote = root.dataset.puoQuote === '1';
+  const solo = root.dataset.solo === '1';      // pagina della quota: una sola quota, niente elenco né schede
   const errore = msg => { const av = $('[data-avviso]'); av.textContent = msg; av.hidden = false; av.scrollIntoView({ block: 'nearest' }); };
   const csrf = () => (document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || '';
   async function posta(url, corpo) {
@@ -80,14 +81,17 @@
      Le altre: dal centro della zona di tolleranza. */
   const unilaterale = SPC.unilaterale, usata = SPC.usata;   // formule in spc.js
   /* Statistiche della quota: le formule sono in spc.js (le stesse di produzione/spc.py). */
-  function statistiche(pts) {
+  function statistiche(tutti) {
+    // indici solo sul tratto con la tolleranza di oggi (come l'analisi del portale): i0 = primo punto del tratto
+    const i0 = tutti.length ? SPC.tratto_tolleranza(tutti.map(p => [p.lsl, p.usl])) : 0;
+    const pts = i0 ? tutti.slice(i0) : tutti;
     const n = pts.length;
-    if (!n) return { n: 0 };
+    if (!n) return { n: 0, i0: 0 };
     const xs = pts.map(p => p.x);
     const ult = pts[n - 1];
     const nom = ult.uni ? 0 : NaN;          // NaN = non unilaterale
     const c = SPC.capacita(xs, ult.lsl, ult.usl, nom);
-    return Object.assign(c, { min: Math.min(...xs), max: Math.max(...xs), ultimo: ult,
+    return Object.assign(c, { i0, min: Math.min(...xs), max: Math.max(...xs), ultimo: ult,
       nFuori: pts.filter(p => p.f).length, nVer: pts.filter(p => p.dv).length,
       rischio: SPC.rischio_prossimo(xs, ult.lsl, ult.usl, nom), controllo: SPC.limiti_controllo(xs, SPC.base_controllo(xs.length)) });
   }
@@ -99,8 +103,8 @@
 
   /* ── stato nell'indirizzo (link condivisibili) ───────────────────────── */
   function salvaUrl() {
-    const p = new URLSearchParams({ pn: root.dataset.pn, prog: S.prog });
-    if (S.q) p.set('q', S.q);
+    const p = new URLSearchParams(solo ? {} : { pn: root.dataset.pn, prog: S.prog });
+    if (S.q && !solo) p.set('q', S.q);
     if (S.tab !== 'quota') p.set('tab', S.tab);
     if (S.per !== 'fin') p.set('per', S.per || 'tutto');
     if (S.per === 'custom') { if (S.da) p.set('da', S.da); if (S.a) p.set('a', S.a); }
@@ -112,6 +116,7 @@
     if (S.tutte) p.set('tutte', '1');
     if (S.esclusi) p.set('esclusi', '1');
     if (S.rs.size) p.set('rs', [...S.rs].join('~'));
+    if (solo) { ['f', 'ord', 'cmp', 'tab'].forEach(k => p.delete(k)); history.replaceState(null, '', `${location.pathname}${p.toString() ? '?' + p : ''}`); return; }
     history.replaceState(null, '', `${root.dataset.urlPagina}?${p}`);
   }
 
@@ -189,7 +194,9 @@
           uni: unilaterale(q.nominale, lsl, usl), u: usata(v[1], q.nominale, lsl, usl) });
       }
       const s = statistiche(pts);
-      return { q, qi, pts, s, deriva: deriva(pts.map(p => p.u)), segnali: segnali(pts.map(p => p.x)) };
+      const oggi = s.i0 ? pts.slice(s.i0) : pts;
+      return { q, qi, pts, s, deriva: deriva(oggi.map(p => p.u)),
+        segnali: segnali(oggi.map(p => p.x)).map(g => Object.assign({}, g, { da: g.da + s.i0, a: g.a + s.i0 })) };
     });
   }
 
@@ -661,7 +668,7 @@
   }
 
   function vistaQuota(pane) {
-    const x = info.find(i => i.q.id === S.q) || quoteFiltrate()[0];
+    const x = info.find(i => i.q.id === S.q) || (solo ? null : quoteFiltrate()[0]);
     if (!x) { pane.replaceChildren(el('div', { class: 'aq-card' }, el('p', { class: 'aq-vuoto', text: 'Nessuna quota con questi filtri.' }))); return; }
     S.q = x.q.id;
     const card = el('div', { class: 'aq-card' });
@@ -669,7 +676,7 @@
       onclick: () => { S[chiave] = !S[chiave]; disegnaVista(); } }, et);
     const ultimoRep = x.pts.length ? D.report[x.pts[x.pts.length - 1].ri] : null;
     card.append(el('div', { class: 'aq-card-head' },
-      el('h2', {}, x.q.nome, el('small', { text: [x.q.sezione, x.q.tipo, `nominale ${num(x.q.nominale)}`].filter(Boolean).join(' · ') })),
+      el('h2', {}, solo ? '' : x.q.nome, el('small', { text: [x.q.sezione, x.q.tipo, `nominale ${num(x.q.nominale)}`].filter(Boolean).join(' · ') })),
       el('div', { class: 'aq-opzioni' },
         el('button', { type: 'button', class: 'aq-toggle', 'aria-pressed': S.scala === 'pct' ? 'true' : 'false', title: 'Mostra quanta tolleranza usa ogni misura: 0 = centro, ±100% = limite',
           onclick: () => { S.scala = S.scala === 'pct' ? 'valore' : 'pct'; disegnaVista(); } }, '% tolleranza'),
@@ -678,7 +685,13 @@
         toggle('Colori per OP', 'perOp', 'Colora i punti dei 3 OP più recenti'),
         toggle('Segnali', 'segnali', 'Evidenzia i segnali di controllo statistico'),
         S.zoom ? el('button', { type: 'button', class: 'aq-toggle', onclick: () => { S.zoom = null; disegnaVista(); } }, 'Reimposta zoom') : null,
-        ultimoRep ? el('a', { class: 'aq-link', href: urlReport(ultimoRep[0]) }, 'Ultimo report') : null)));
+        ultimoRep ? el('a', { class: 'aq-link', href: urlReport(ultimoRep[0]) }, 'Ultimo report') : null,
+        !solo && x.q.pk && root.dataset.urlQuota ? el('a', { class: 'aq-link', href: root.dataset.urlQuota.replace(/0\/?$/, `${x.q.pk}/`) }, 'Pagina della quota') : null)));
+    if (x.s.i0) {
+      const rc = D.report[x.pts[x.s.i0].ri], pr = x.pts[x.s.i0 - 1];
+      card.append(el('div', { class: 'aq-avviso-deriva' }, el('span', { class: 'aq-badge is-warn', text: 'Tolleranza cambiata' }),
+        el('span', {}, 'da ', el('b', { text: rc[1] || dataIt(rc[3]) }), ` (prima ${num(pr.lsl)} – ${num(pr.usl)}): Cpk, Ppk, segnali e limiti di controllo contano solo i ${x.s.n} pezzi da lì in poi.`)));
+    }
     if (x.deriva) {
       const d = x.deriva;
       card.append(el('div', { class: 'aq-avviso-deriva' }, el('span', { class: 'aq-badge is-warn', text: 'In deriva' }),
@@ -1075,7 +1088,8 @@
     if (!D) return;
     disegnaFiltri();
     disegnaKpi();
-    if (S.tab === 'quota' && !info.some(x => x.q.id === S.q && x.pts.length)) { const f = quoteFiltrate()[0]; S.q = f ? f.q.id : ''; }
+    if (solo) S.tab = 'quota';
+    if (!solo && S.tab === 'quota' && !info.some(x => x.q.id === S.q && x.pts.length)) { const f = quoteFiltrate()[0]; S.q = f ? f.q.id : ''; }
     disegnaLista();
     disegnaVista();
   }

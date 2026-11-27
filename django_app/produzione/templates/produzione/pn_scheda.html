@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}{{ pn }} · Controllo dimensionale{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127c">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127d">{% endblock %}
 
 {% block content %}
 <div class="prod{% if sezione == 'qualita' %} prod-largo{% endif %}">
@@ -283,5 +283,5 @@
 <script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
 {% endif %}
 <script src="{% static 'produzione/js/confronta.js' %}?v=20261126a" defer></script>
-{% if sezione == "qualita" %}<script src="{% static 'produzione/js/protocollo.js' %}?v=20261127c" defer></script>{% endif %}
+{% if sezione == "qualita" %}<script src="{% static 'produzione/js/protocollo.js' %}?v=20261127d" defer></script>{% endif %}
 {% endblock %}

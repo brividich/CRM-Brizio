@@ -116,6 +116,13 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 - `spc.stato_processo` → `processo` (`deriva`, `spostato`, `segnali`, `pochi`, `stabile`); confronto fra OP su tutti i pezzi caricati (doppio della finestra) con `min`/`max` per le barre. Chiave di cache `prod_cmm_analisi5`.
 - Deploy: `migrate produzione` (0013), `collectstatic` (`produzione.css`, `protocollo.js`, `spc.js`, `analisi_quote.js`), sincronizzazione dei permessi (rotta `produzione:quota`), riavvio di qcluster; `dati` si riempie al primo giro (fino ad allora le pagine calcolano come prima).
 
+### Analisi quote dentro la pagina della quota (27/11/2026)
+
+- `templates/produzione/_analisi_app.html` (filtri, viste e riquadri di `analisi_quote.js`) e `_analisi_attr.html` (attributi `data-*`) sono condivisi fra `quote.html` (pagina del programma) e `quota.html`. Nella pagina della quota la radice ha `data-solo="1"` e la classe `aq-solo`: niente programma, numeri del programma, schede ed elenco (CSS), `S.q` fisso sulla quota, stato dei filtri nell'indirizzo della pagina (`r`, `per`, `da`, `a`, `op`, `rs`, `tutte`, `esclusi`, letti da `views.quota`).
+- `quota.html`: `_quota.html` con `parte="testa"` (stato del processo), l'app, `_quota.html` con `parte="resto"` (cambi, legami, confronto fra OP, rimisure, lettura). In pagina il riquadro non ripete carta, indici e segnali: li mostra l'analisi interattiva.
+- `analisi_quote.js`: `statistiche` calcola solo sul tratto con la tolleranza di oggi (`SPC.tratto_tolleranza`, `s.i0`) e avvisa «Tolleranza cambiata»; link «Pagina della quota» nella vista Quota (`api_quote` aggiunge `pk` a ogni quota, `data-url-quota`).
+- Deploy: `collectstatic` (`analisi_quote.js`, `spc.js`, `analisi_quote.css`). Nessuna migrazione.
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |
