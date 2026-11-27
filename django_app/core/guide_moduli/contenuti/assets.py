@@ -426,6 +426,10 @@ GUIDA = {
                     "(senza categoria = validi per tutti). Un codice usato non si elimina: si disattiva.",
                     "Impostazioni → «Studio inventario»: campi personalizzati, valori delle liste, pulsanti della scheda, "
                     "dati del dettaglio asset e strumenti della lista (prima nello «Studio amministratore» della lista).",
+                    "Impostazioni → categorie → «Famiglia tecnica»: decide il tipo degli asset della categoria (es. «Macchina di "
+                    "lavoro» per farli comparire tra le Macchine di lavoro). Cambiandola e salvando, cambiano tipo anche gli asset "
+                    "già nella categoria (il messaggio dice quanti); non quelli delle sottocategorie, che hanno la loro famiglia, "
+                    "né i prodotti chimici.",
                     "Dopo aver cambiato le categorie, rigenera il menu laterale con il comando sync_sidebar_categories.",
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (revisioni, verifiche di legge, certificati, garanzie) sono separate dai "
