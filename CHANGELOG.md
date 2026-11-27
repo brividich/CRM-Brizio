@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Asset: la famiglia della categoria riallinea gli asset
+
+- Impostazioni › categorie: cambiando la «Famiglia tecnica» di una categoria, gli asset già dentro passano al nuovo tipo (prima cambiava solo per gli asset salvati dopo). Il messaggio dice quanti; esclusi gli asset delle sottocategorie e i prodotti chimici. Serve per portare tra le «Macchine di lavoro» le categorie d'officina (Torni, Frese, Affilatrici…). Nessuna migrazione.
+- File: `assets/services/categoria_tipo.py`, `assets/views/_helpers_c.py`, `assets/templates/assets/pages/gestione_admin.html`, `guida.html`, `core/guide_moduli/contenuti/assets.py`, `docs/moduli/assets.md`, `assets/tests_categoria_tipo.py`.
+
 ### Asset: «Proponi acronimi»
 
 - Nuova pagina `/assets/edit/acronimi/` (chip «Senza acronimo (N)» nell'inventario, permesso «Modifica asset»): propone l'acronimo leggendo le sigle già scritte in nome e tag, con casella e campo modificabile per riga. Spuntate in partenza solo le proposte sicure; avviso su sigle multiple, doppie, già usate o su dispositivi IT. Scheda «Senza proposta» per scrivere a mano. Salva solo le righe spuntate e solo dove l'acronimo è vuoto; 200 righe per volta. Nessuna migrazione.
