@@ -5,6 +5,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/partials/_org_uff_render.html" %}
+{% include "anagrafica/partials/_firma_stile.html" %}
 <style>
 .content:has(> .ouv-page) { width:100%; max-width:none; }
 .ouv-page { display:flex; flex-direction:column; gap:14px; }
@@ -60,6 +61,10 @@
     <div class="ouv-avviso">Stai guardando la Rev.{{ rev.numero }}, non più in vigore. <a href="{% url 'anagrafica:organigramma_ufficiale_vedi' org.pk %}">Vai alla Rev.{{ in_vigore.numero }} in vigore</a>.</div>
   {% endif %}
 
+  {% if in_firma %}
+    <div class="ouv-avviso">✍ La Rev.{{ in_firma.numero_revisione }} è in firma: entra in vigore dopo l'ultima firma.{% if in_firma_link %} <a href="{% url 'anagrafica:organigramma_ufficiale_firma' org.pk %}">Apri il documento in firma</a>{% endif %}</div>
+  {% endif %}
+
   {% if confronto %}
   <div class="ouv-conf">
     <h2>Modifiche dalla Rev.{{ confronto.da.numero }} alla Rev.{{ confronto.a.numero }}</h2>
@@ -72,6 +77,11 @@
   <div class="ouv-grid">
     <div class="ouv-tela">{% include "anagrafica/partials/_org_uff_disegno.html" with p=pacchetto only %}</div>
     <aside class="ouv-side">
+      {% if firme_rev %}
+      <h2>Firme della Rev.{{ rev.numero }}</h2>
+      {% include "anagrafica/partials/_firma_passi.html" with caselle=firme_rev.caselle %}
+      <div class="ouv-rev" style="border-bottom:0"><small>Codice verifica {{ firme_rev.doc.codice_verifica }} · impronta SHA-256 {{ firme_rev.doc.impronta|slice:":8" }}…{{ firme_rev.doc.impronta|slice:"-4:" }}</small></div>
+      {% endif %}
       <h2>Storico revisioni</h2>
       {% for r in revisioni %}
         <div class="ouv-rev{% if r.pk == rev.pk %} is-sel{% endif %}">

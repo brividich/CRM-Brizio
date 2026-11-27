@@ -32,7 +32,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
                 "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti, "
                 "permessi ripetuti (serie di richieste con una sola approvazione), capi aggiunti a mano e "
                 "capo fisso per dipendente"),
-    "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
+    "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle; firma di documenti su portale"),
     "produzione": ("Operations", "#0d9488", "Ordini di produzione: scheda dell'OP (tabella legacy ordini_produzione, letta) con i documenti "
                    "di produzione registrati e i tipi decisi in Impostazioni; FAI, programmi CAM/CMM e anomalie letti dai loro moduli; "
                    "archivio dei report CMM letti dalla share Collaudo (report e misure, esclusioni, note, quote unite, impostazioni avvisi) per l'analisi delle quote; "

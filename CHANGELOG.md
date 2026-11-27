@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Organigramma ufficiale: firma su portale con il Registro timbri (MT CN 08 §7.2.1)
+
+- «Pubblica» diventa «✍ Invia in firma»: la bozza si congela (copia + impronta SHA-256 + codice di verifica), chi invia firma la casella Redazione e RDD (ruolo con sigla RDD) firma l'Approvazione; la revisione nasce dopo l'ultima firma con «Approvato da» compilato dal portale. Respingi con motivo, Ritira, notifiche `firma_da_apporre` / `firma_respinta` / `firma_completata`.
+- Ognuno firma solo con le proprie immagini del Registro timbri (record attivi), conferma con codice 2FA o password; le immagini vengono copiate nel documento firmato. Caselle con immagini, codice di verifica e impronta in stampa e nella pagina della revisione.
+- «✍ Firme richieste» nell'elenco (amministratori): firma accesa/spenta e caselle configurabili (chi invia o ruolo del catalogo, immagini ammesse).
+- File: `timbri/firme.py`, `timbri/models.py` (+ migrazione timbri 0008), `anagrafica/views_organigramma_firma.py`, `anagrafica/services/organigramma_firma.py`, `anagrafica/services/organigramma_ufficiale.py` (`pubblica(..., dati=)`), `anagrafica/views_organigramma_ufficiale.py`, `anagrafica/urls.py`, migrazione anagrafica 0266 (binding ACL), template `organigramma_ufficiale_{firma,disegna,elenco,vedi,stampa}.html`, partial `_firma_{stile,passi,campi}.html`, `core/notifiche_meta.py`, guide (`core/guide_moduli/contenuti/anagrafica.py`, `timbri/guida.py`), `docs/moduli/{anagrafica,timbri}.md`, test `anagrafica/tests_organigramma_firma.py`.
+
 ### Formazione: remediation dell'intero modulo (analisi del 26/11 sera, 18 interventi)
 
 **Sicurezza**

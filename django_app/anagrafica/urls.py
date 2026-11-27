@@ -36,6 +36,7 @@ from . import views_admin_hub
 from . import views_formazione_integrita
 from . import views_ricerca
 from . import views_organigramma_ufficiale as views_org_uff
+from . import views_organigramma_firma as views_org_firma
 
 app_name = "anagrafica"
 
@@ -481,6 +482,11 @@ urlpatterns = [
     path("organigramma/ufficiale/<int:pk>/scarta/", views_org_uff.organigramma_ufficiale_scarta, name="organigramma_ufficiale_scarta"),
     path("organigramma/ufficiale/<int:pk>/api/bozza/", views_org_uff.organigramma_ufficiale_bozza, name="organigramma_ufficiale_bozza"),
     path("organigramma/ufficiale/<int:pk>/api/riepilogo/", views_org_uff.organigramma_ufficiale_riepilogo, name="organigramma_ufficiale_riepilogo"),
+    path("organigramma/ufficiale/<int:pk>/invia-in-firma/", views_org_firma.organigramma_ufficiale_invia, name="organigramma_ufficiale_invia"),
+    path("organigramma/ufficiale/<int:pk>/firma/", views_org_firma.organigramma_ufficiale_firma, name="organigramma_ufficiale_firma"),
+    path("organigramma/ufficiale/firme/<int:casella_id>/<str:variante>/", views_org_firma.organigramma_ufficiale_firma_immagine, name="organigramma_ufficiale_firma_immagine"),
+    path("organigramma/ufficiale/mia-immagine/<int:image_id>/", views_org_firma.organigramma_ufficiale_mia_immagine, name="organigramma_ufficiale_mia_immagine"),
+    path("organigramma/ufficiale/firme-richieste/", views_org_firma.organigramma_ufficiale_firme_impostazioni, name="organigramma_ufficiale_firme_impostazioni"),
 
     # Report conformità "idoneità alla mansione" (semaforo per dominio)
     path("conformita/", views.conformita_report, name="conformita_report"),

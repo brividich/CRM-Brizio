@@ -576,14 +576,14 @@ def salva_bozza(org, dati: dict, user) -> None:
 
 
 @transaction.atomic
-def pubblica(org, *, nota: str, approvato_da: str, data_emissione: date, user):
-    """La bozza diventa la revisione successiva; la bozza si chiude."""
+def pubblica(org, *, nota: str, approvato_da: str, data_emissione: date, user, dati: dict | None = None):
+    """La bozza (o il disegno firmato in ``dati``) diventa la revisione successiva; la bozza si chiude."""
     from anagrafica.models import OrganigrammaRevisione, OrganigrammaUfficiale
 
     org = OrganigrammaUfficiale.objects.select_for_update().get(pk=org.pk)
-    if org.bozza is None:
+    if dati is None and org.bozza is None:
         raise ValueError("Non c'è una bozza da pubblicare.")
-    dati = normalizza(org.bozza)
+    dati = normalizza(dati if dati is not None else org.bozza)
     if not dati["nodi"]:
         raise ValueError("Il disegno è vuoto: aggiungi almeno un riquadro prima di pubblicare.")
     ultima = org.revisioni.order_by("-numero").values_list("numero", flat=True).first() or 0

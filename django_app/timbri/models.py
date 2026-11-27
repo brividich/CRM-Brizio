@@ -275,3 +275,139 @@ class TimbriUserPermOverride(models.Model):
     def __str__(self) -> str:
         stato = "ON" if self.granted else "OFF"
         return f"{self.user_id}:{self.azione}={stato}"
+
+
+# ── firma su portale ─────────────────────────────────────────────────────────
+#
+# Un documento da firmare (oggi: la revisione di un organigramma ufficiale)
+# passa per caselle in ordine (Redazione, Approvazione…). Ogni casella si firma
+# con le immagini del Registro timbri di chi firma: solo le proprie. Le immagini
+# usate vengono copiate nella casella, così il documento firmato non cambia se
+# il timbro viene poi sostituito o ritirato. Regole: timbri/firme.py.
+
+def _firma_copia_upload_to(instance: "CasellaFirma", filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()[:20] or ".png"
+    return f"firme_documenti/doc{instance.documento_id}/casella{instance.pk or 'tmp'}_{timezone.now():%Y%m%d%H%M%S}{suffix}"
+
+
+class ImpostazioneFirma(models.Model):
+    """Caselle di firma richieste per un tipo di documento (vuoto = valori di serie)."""
+
+    tipo = models.CharField(max_length=60, unique=True)
+    attiva = models.BooleanField(default=True, help_text="Spenta: il documento si pubblica senza firme.")
+    caselle = models.JSONField(default=list, blank=True)
+    aggiornata_il = models.DateTimeField(auto_now=True)
+    aggiornata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Impostazione firma su portale"
+        verbose_name_plural = "Impostazioni firma su portale"
+
+    def __str__(self) -> str:
+        return self.tipo
+
+
+class DocumentoFirma(models.Model):
+    STATO_IN_FIRMA = "IN_FIRMA"
+    STATO_FIRMATO = "FIRMATO"
+    STATO_RESPINTO = "RESPINTO"
+    STATO_RITIRATO = "RITIRATO"
+    STATO_CHOICES = [
+        (STATO_IN_FIRMA, "In firma"),
+        (STATO_FIRMATO, "Firmato"),
+        (STATO_RESPINTO, "Respinto"),
+        (STATO_RITIRATO, "Ritirato"),
+    ]
+
+    tipo = models.CharField(max_length=60, db_index=True)
+    oggetto_id = models.PositiveIntegerField(db_index=True)
+    titolo = models.CharField(max_length=250)
+    numero_revisione = models.PositiveIntegerField(default=0)
+    contenuto = models.JSONField(default=dict, help_text="Copia congelata di ciò che si firma.")
+    impronta = models.CharField(max_length=64, help_text="SHA-256 del contenuto congelato.")
+    codice_verifica = models.CharField(max_length=9, unique=True)
+    nota = models.TextField(blank=True, default="")
+    stato = models.CharField(max_length=12, choices=STATO_CHOICES, default=STATO_IN_FIRMA, db_index=True)
+    motivo = models.TextField(blank=True, default="", help_text="Motivo del respingimento o del ritiro.")
+    esito_id = models.PositiveIntegerField(null=True, blank=True, help_text="Ciò che nasce dalla firma completa (es. la revisione).")
+    creato_il = models.DateTimeField(auto_now_add=True)
+    creato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    chiuso_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-creato_il", "-id"]
+        indexes = [models.Index(fields=["tipo", "oggetto_id", "stato"], name="timbri_docfirma_tipo_ogg")]
+        verbose_name = "Documento in firma"
+        verbose_name_plural = "Documenti in firma"
+
+    def __str__(self) -> str:
+        return f"{self.titolo} ({self.get_stato_display()})"
+
+
+class CasellaFirma(models.Model):
+    VARIANTE_FIRMA = "FIRMA"
+    VARIANTE_TIMBRO = "TIMBRO"
+    VARIANTE_TIMBRO_FIRMA = "TIMBRO_FIRMA"
+    VARIANTE_SIGLA = "SIGLA"
+    VARIANTE_CHOICES = [
+        (VARIANTE_FIRMA, "Firma"),
+        (VARIANTE_TIMBRO, "Timbro"),
+        (VARIANTE_TIMBRO_FIRMA, "Timbro + firma"),
+        (VARIANTE_SIGLA, "Sigla"),
+    ]
+    STATO_ATTESA = "ATTESA"
+    STATO_FIRMATA = "FIRMATA"
+    STATO_RESPINTA = "RESPINTA"
+    STATO_CHOICES = [
+        (STATO_ATTESA, "In attesa"),
+        (STATO_FIRMATA, "Firmata"),
+        (STATO_RESPINTA, "Respinta"),
+    ]
+    CONFERMA_TOTP = "totp"
+    CONFERMA_PASSWORD = "password"
+
+    documento = models.ForeignKey(DocumentoFirma, on_delete=models.CASCADE, related_name="caselle")
+    ordine = models.PositiveSmallIntegerField(default=1)
+    etichetta = models.CharField(max_length=60)
+    mittente = models.BooleanField(default=False, help_text="La firma chi invia il documento.")
+    ruolo = models.ForeignKey(
+        "anagrafica.RuoloOperativo", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    ruolo_etichetta = models.CharField(max_length=120, blank=True, default="")
+    varianti = models.CharField(max_length=60, default="FIRMA,TIMBRO", help_text="Immagini ammesse, separate da virgola.")
+    stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=STATO_ATTESA)
+    firmata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    nome_firmatario = models.CharField(max_length=200, blank=True, default="")
+    firmata_il = models.DateTimeField(null=True, blank=True)
+    variante = models.CharField(max_length=14, choices=VARIANTE_CHOICES, blank=True, default="")
+    registro = models.ForeignKey(RegistroTimbro, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    codice_timbro = models.CharField(max_length=120, blank=True, default="")
+    immagine_firma = models.FileField(upload_to=_firma_copia_upload_to, storage=PrivateTimbriStorage, blank=True)
+    immagine_timbro = models.FileField(upload_to=_firma_copia_upload_to, storage=PrivateTimbriStorage, blank=True)
+    conferma = models.CharField(max_length=10, blank=True, default="")
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    motivo = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["documento_id", "ordine", "id"]
+        verbose_name = "Casella di firma"
+        verbose_name_plural = "Caselle di firma"
+
+    def __str__(self) -> str:
+        return f"{self.documento_id}:{self.ordine} {self.etichetta}"
+
+    @property
+    def varianti_ammesse(self) -> list[str]:
+        return [v for v in (self.varianti or "").split(",") if v]
+
+    @property
+    def chi(self) -> str:
+        if self.mittente:
+            return "Chi invia in firma"
+        return self.ruolo_etichetta or (self.ruolo.nome if self.ruolo_id else "—")

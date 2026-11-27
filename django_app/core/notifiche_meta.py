@@ -58,6 +58,10 @@ TIPO_META: dict[str, dict[str, str]] = {
     "anomalia_chiusa":       _t("Anomalia chiusa", "✅", "ok", "operativita", "anomalie"),
     "anomalia_da_gestire":   _t("Anomalia da gestire", "🔧", "warn", "operativita", "anomalie"),
     "anomalia_rdc_mancante": _t("RDC da aprire", "📝", "warn", "operativita", "anomalie"),
+    # Firma su portale (documenti con firme: oggi l'organigramma ufficiale)
+    "firma_da_apporre":      _t("Documento da firmare", "✍️", "warn", "operativita", "altro"),
+    "firma_respinta":        _t("Firma respinta", "⛔", "danger", "operativita", "altro"),
+    "firma_completata":      _t("Documento firmato", "✅", "ok", "operativita", "altro"),
     "anomalia_nc_azione":    _t("Azione NC in scadenza", "📋", "warn", "operativita", "anomalie"),
     "capa":                  _t("Azione CAPA", "🛠️", "info", "operativita", "anomalie"),
     # DPI

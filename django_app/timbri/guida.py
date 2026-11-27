@@ -163,6 +163,25 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "firma-portale",
+        "titolo": "Firmare documenti sul portale",
+        "blocchi": [
+            ("p", "Le immagini di firma, timbro e sigla del registro servono anche per firmare i documenti dal portale. "
+                  "Oggi si firma così l'organigramma ufficiale (Anagrafica › Organigramma › Ufficiale): Redazione di chi "
+                  "lo invia e Approvazione di RDD, come da MT CN 08 §7.2.1."),
+            ("ul", [
+                "Ognuno firma solo con le proprie immagini: il portale le cerca fra i record del registro collegati alla "
+                "propria persona in anagrafica. Quelle degli altri non sono mai selezionabili.",
+                "Valgono solo i record attivi: un timbro sospeso, superato, archiviato o con data di ritiro passata non "
+                "si può usare.",
+                "Per firmare serve il codice dell'app di autenticazione (chi usa la 2FA con app) o la password del portale.",
+                "Le immagini usate vengono copiate nel documento firmato: sostituire o ritirare il timbro dopo non "
+                "cambia i documenti già firmati.",
+            ]),
+            ("nota", "Se a qualcuno manca la firma nel registro, non può firmare: va caricata qui, nella sua scheda."),
+        ],
+    },
+    {
         "id": "impostazioni",
         "titolo": "Impostazioni (amministratori)",
         "blocchi": [

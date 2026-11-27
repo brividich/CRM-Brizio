@@ -207,6 +207,10 @@ class VisteTests(TestCase):
         UserOnboarding.objects.update_or_create(user=self.su, defaults={"completed": True})
 
     def test_flusso_crea_disegna_salva_riepilogo_pubblica(self):
+        # Pubblicazione diretta: firma su portale spenta (il flusso con le firme sta in tests_organigramma_firma).
+        from timbri.models import ImpostazioneFirma
+
+        ImpostazioneFirma.objects.create(tipo="organigramma_ufficiale", attiva=False)
         r = self.client.post(reverse("anagrafica:organigramma_ufficiale_nuovo"), {"nome": "Aziendale"})
         org = OrganigrammaUfficiale.objects.get(nome="Aziendale")
         self.assertRedirects(r, reverse("anagrafica:organigramma_ufficiale_disegna", args=[org.pk]),
@@ -336,3 +340,12 @@ class PermessiTests(TestCase):
         self.assertEqual(presenti, {f"anagrafica:{r}" for r in rotte})
         self.assertTrue(RoutePermissionBinding.objects.filter(
             route_name="anagrafica:organigramma_ufficiale_bozza", note__contains="ruolo_operativo_edit").exists())
+
+        # 0266: le pagine della firma copiano vedi (firmare) e pubblica (inviare, impostare)
+        mig2 = importlib.import_module("anagrafica.migrations.0266_org_ufficiale_firma_binding")
+        mig2.avanti(apps, None)
+        nuove = [r for rotte2 in mig2.COPIE.values() for r in rotte2]
+        self.assertEqual(set(RoutePermissionBinding.objects.filter(route_name__in=nuove).values_list("route_name", flat=True)),
+                         set(nuove))
+        self.assertTrue(RoutePermissionBinding.objects.filter(
+            route_name="anagrafica:organigramma_ufficiale_firma", note__contains="organigramma_ufficiale_vedi").exists())
