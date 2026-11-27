@@ -2,10 +2,13 @@
 {% load static %}
 
 {% block title %}{{ a.quota.nome }} · {{ pn }}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127c">{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127d">
+<link rel="stylesheet" href="{% static 'produzione/css/analisi_quote.css' %}?v=20261127d">
+{% endblock %}
 
 {% block content %}
-<div class="prod">
+<div class="prod aq aq-solo" data-analisi data-solo="1" {% include "produzione/_analisi_attr.html" %}>
   <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Controllo dimensionale</a><a href="{% url 'produzione:pn' pn %}">{{ pn }}</a><a href="{% url 'produzione:pn' pn %}?sez=qualita">Qualità CMM</a></template>
   <div class="prod-head">
     <div>
@@ -13,14 +16,20 @@
       <h1><span class="prot-ic is-{{ a.stato }}" aria-hidden="true"></span> {{ a.quota.nome }}</h1>
     </div>
     <div class="prod-filtri">
-      {% if ultimo_report %}<a class="prod-btn" href="{% url 'produzione:report_cmm' ultimo_report %}">Ultimo report</a>{% endif %}
+      <button type="button" class="prod-btn" data-azione="pdf" disabled title="Tabella Cp/Cpk e grafico di questa quota con i filtri attivi">PDF di capacità</button>
+      <button type="button" class="prod-btn" data-azione="csv" disabled>Esporta CSV</button>
+      <a class="prod-btn" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}&amp;prog={{ a.prog|urlencode }}" title="Tutte le quote del programma: mappa, confronto, pezzo">Tutte le quote del programma</a>
       <a class="prod-btn" href="{% url 'produzione:guida' %}">? Guida</a>
     </div>
   </div>
   <section class="prot">
-{% include "produzione/_quota.html" %}
+{% include "produzione/_quota.html" with parte="testa" %}
   </section>
-  {{ grafico|json_script:"qualita-dati" }}
+{% include "produzione/_analisi_app.html" %}
+  <section class="prot">
+{% include "produzione/_quota.html" with parte="resto" %}
+  </section>
 </div>
-<script src="{% static 'produzione/js/protocollo.js' %}?v=20261127c" defer></script>
+<script src="{% static 'produzione/js/spc.js' %}?v=20261127d" defer></script>
+<script src="{% static 'produzione/js/analisi_quote.js' %}?v=20261127d" defer></script>
 {% endblock %}

@@ -89,7 +89,8 @@ GUIDA = {
                       "report con quote fuori su report misurati, clic = i report di quella settimana) e le «Quote da guardare» "
                       "di tutti i P/N; Impostazioni › «Avvisi delle quote CMM» sceglie chi riceve gli avvisi."),
                 ("p", "Pagina della quota (da Qualità CMM, da «Quote da guardare» e dal dettaglio di un report): indirizzo "
-                      "stabile, carta con limiti di controllo fermi sui primi pezzi, stato del processo (stabile, media "
+                      "stabile, l'analisi interattiva di Analisi quote su quella sola quota (filtri, zoom, note, unioni, PDF), "
+                      "limiti di controllo fermi sui primi pezzi, stato del processo (stabile, media "
                       "spostata, in deriva), barre per OP; se la tolleranza è cambiata gli indici contano solo i pezzi con "
                       "quella di oggi."),
                 ("p", "Statistica di processo, uguale in tutte le pagine: Cpk (macchina, σ di breve periodo) e Ppk (processo, σ "

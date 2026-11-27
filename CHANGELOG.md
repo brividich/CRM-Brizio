@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Controllo dimensionale: Analisi quote dentro la pagina della quota
+
+- La pagina della quota contiene l'analisi interattiva di Analisi quote su quella sola quota: periodo, OP, report, zoom, note sul grafico, «Unisci un'altra quota», tabella delle misure, PDF di capacità ed Esporta CSV. Un solo grafico: quello statico non c'è più in questa pagina.
+- Analisi quote resta la pagina del programma (elenco quote, mappa, confronto, pezzo) e dalla vista Quota apre la «Pagina della quota»; dalla pagina della quota «Tutte le quote del programma».
+- In Analisi quote Cpk, Ppk e segnali contano solo i pezzi con la tolleranza di oggi, con l'avviso «Tolleranza cambiata».
+- File: `produzione/views.py`, `templates/produzione/_analisi_app.html`, `_analisi_attr.html`, `quota.html`, `quote.html`, `_quota.html`, `static/produzione/js/{analisi_quote,spc}.js`, `css/analisi_quote.css`, `guida.py`, `core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`, `tests_quota_unica.py`.
+- Deploy: `collectstatic`.
+
 ### Controllo dimensionale: registro delle quote e pagina della quota
 
 - Ogni quota ha una pagina con indirizzo stabile (`/produzione/quota/<id>/`), con lo stesso riquadro della Qualità CMM: ci si arriva da «Pagina della quota», da «Quote da guardare» e dal dettaglio di un report. Accanto al nome lo stato del processo: stabile, media spostata, in deriva, segnali, pochi pezzi.

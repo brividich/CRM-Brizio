@@ -233,6 +233,11 @@ def api_quote(request):
     if not pn or not prog:
         return JsonResponse({"ok": False, "error": "Servono P/N e programma."}, status=400)
     dati = cmm.dati_programma(pn, prog, _data_get(request, "da"), _data_get(request, "a"))
+    from .models import QuotaCapacita
+
+    pagine = dict(QuotaCapacita.objects.filter(pn=pn, prog=prog[:200]).values_list("quota_id", "pk"))
+    for q in dati["quote"]:
+        q["pk"] = pagine.get(q["id"][:260])       # id stabile: link alla pagina della quota
     return JsonResponse({"ok": True, **dati})
 
 
@@ -415,14 +420,20 @@ def quote_cruscotto(request):
 @login_required
 @require_GET
 def quota(request, pk: int):
-    """La pagina della quota: indirizzo stabile (id di ``QuotaCapacita``), stesso riquadro della Qualità CMM del P/N."""
+    """La pagina della quota: indirizzo stabile (id di ``QuotaCapacita``). In testa e in coda il riquadro della Qualità
+    CMM (stato del processo, cambi, confronto fra OP, lettura); in mezzo l'analisi interattiva di Analisi quote su questa
+    sola quota (filtri, zoom, note, unioni), con lo stato dei filtri nell'indirizzo."""
     from .models import QuotaCapacita
 
     q = get_object_or_404(QuotaCapacita, pk=pk)
     dati = pagine_cmm.quota_pagina(q)
     if dati is None:
         raise Http404("Quota senza analisi.")
-    return render(request, "produzione/quota.html", _ctx(request, "pn", pn=q.pn, quota=q, pagina_quota=True, **dati))
+    stato = {k: (request.GET.get(k) or "").strip()[:2000] for k in ("r", "per", "da", "a", "op", "rs", "tutte", "esclusi")}
+    stato.update(prog=q.prog, q=q.quota_id, fin=cmm.finestra())
+    return render(request, "produzione/quota.html", _ctx(
+        request, "pn", pn=q.pn, quota=q, pagina_quota=True, stato=stato, prog=q.prog, programmi=cmm.programmi_del_pn(q.pn),
+        cartella=CartellaReportCMM.objects.filter(pn=q.pn).order_by("-letta_il").first(), attivo=cmm.attivo(), **dati))
 
 
 @login_required

@@ -136,6 +136,13 @@ var SPC = (function () {
     if (base && base >= 2 && base < xs.length && sigmaBreve(xs.slice(0, base)) > 0) return xs.slice(0, base);
     return xs;
   }
+  /* Indice del primo punto del tratto finale con la tolleranza dell'ultima misura (0 = mai cambiata), come spc.py. */
+  function trattoTolleranza(limiti) {
+    if (!limiti.length) return 0;
+    var l0 = limiti[limiti.length - 1][0], u0 = limiti[limiti.length - 1][1], i = limiti.length;
+    while (i > 0 && Math.abs(limiti[i - 1][0] - l0) <= 1e-6 && Math.abs(limiti[i - 1][1] - u0) <= 1e-6) i--;
+    return i;
+  }
   function limitiControllo(xs, base) {
     if (xs.length < 2) return null;
     var b = pezziBase(xs, base), m = media(b), sb = sigmaBreve(b);
@@ -269,6 +276,6 @@ var SPC = (function () {
   return { media: media, dev_std: devStd, sigma_breve: sigmaBreve, unilaterale: unilaterale, phi: phi, weibull: weibull,
     capacita: capacita, intervallo_cpk: intervalloCpk, verdetto: verdetto, limiti_controllo: limitiControllo, ewma: ewma,
     segnali: segnali, testi: TESTI, rischio_prossimo: rischioProssimo, punti_cambio: puntiCambio, CAPACE: CAPACE,
-    usata: usata, deriva: deriva, base_controllo: baseControllo, sotto_obiettivo: sottoObiettivo, da_guardare: daGuardare, TOLLERANZA_AL_LIMITE: 0.8 };
+    usata: usata, deriva: deriva, base_controllo: baseControllo, tratto_tolleranza: trattoTolleranza, sotto_obiettivo: sottoObiettivo, da_guardare: daGuardare, TOLLERANZA_AL_LIMITE: 0.8 };
 })();
 if (typeof window !== "undefined") window.SPC = SPC;
