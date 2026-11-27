@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}{{ report.seriale|default:report.file }} · Report CMM{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127a">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127c">{% endblock %}
 
 {% block content %}
 <div class="prod prod-largo">
@@ -39,7 +39,7 @@
   {% if report.errore %}<p class="prod-avviso">{{ report.errore }}</p>{% endif %}
   {% if report.op and not op %}<p class="prod-nota">L'OP {{ report.op }} non è nell'elenco degli OP: la segnalazione si apre da Gestione anomalie.</p>{% endif %}
 
-  <section class="prot" data-protocollo data-andamento="{% url 'produzione:pn_quote' %}?pn={{ report.pn|urlencode }}&amp;prog={{ report.programma_base|urlencode }}&amp;r={{ report.id }}" data-anomalia="{{ url_anomalia }}">
+  <section class="prot" data-protocollo data-andamento="{% url 'produzione:pn_quote' %}?pn={{ report.pn|urlencode }}&amp;prog={{ report.programma_base|urlencode }}&amp;r={{ report.id }}" data-anomalia="{{ url_anomalia }}" data-quota="{% url 'produzione:quota' 0 %}">
     <div class="prot-barra">
       <span class="prot-titolo">Protocollo</span>
       <a class="prot-filtro{% if not filtro %} is-on{% endif %}" href="?">Tutte <b>{{ conta.tutte }}</b></a>
@@ -114,5 +114,5 @@
 <script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
 {% endif %}
 <script src="{% static 'produzione/js/confronta.js' %}?v=20261126a" defer></script>
-<script src="{% static 'produzione/js/protocollo.js' %}?v=20261127a" defer></script>
+<script src="{% static 'produzione/js/protocollo.js' %}?v=20261127c" defer></script>
 {% endblock %}

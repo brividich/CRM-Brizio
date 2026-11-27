@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}{{ pn }} · Controllo dimensionale{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127a">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127c">{% endblock %}
 
 {% block content %}
 <div class="prod{% if sezione == 'qualita' %} prod-largo{% endif %}">
@@ -190,45 +190,7 @@
         {% for a in p.quote %}<a class="prot-foglia{% if Q.scelta.chiave == a.chiave %} is-sel{% endif %}" href="?sez=qualita&amp;q={{ a.chiave|urlencode }}"><span class="prot-ic is-{{ a.stato }}" aria-hidden="true"></span><span class="prot-tx">{{ a.quota.nome }}</span><span class="prot-n" title="Il peggiore fra Cpk e Ppk">{% if a.indice is not None %}{{ a.indice|floatformat:2 }}{% else %}—{% endif %}</span></a>{% endfor %}
         {% endfor %}
       </nav>
-      {% with a=Q.scelta %}
-      <div class="prot-qualita">
-        <div class="prot-qualita-head">
-          <h3><span class="prot-ic is-{{ a.stato }}" aria-hidden="true"></span>{{ a.quota.nome }}</h3>
-          <span class="prod-nota">{{ a.prog }} · nominale {{ a.quota.nominale|floatformat:4 }} · limiti {{ a.lsl|floatformat:4 }} – {{ a.usl|floatformat:4 }} · ultimi {{ a.n }} pezzi validi</span>
-        </div>
-        <div class="prot-qualita-grafici">
-          <div data-carta-qualita><p class="prod-nota">Carta di controllo…</p></div>
-          <div data-istogramma-qualita></div>
-        </div>
-        <div class="prot-indici prot-indici-6">
-          <div class="{% if a.cpk is None %}{% elif a.cpk < 1 %}is-ko{% elif a.cpk < 1.33 %}is-wa{% else %}is-ok{% endif %}" title="Capacità della macchina: σ di breve periodo (escursioni fra pezzi consecutivi)">Cpk<b>{% if a.cpk is not None %}{{ a.cpk|floatformat:2 }}{% else %}—{% endif %}</b><small>macchina</small></div>
-          <div class="{% if a.verdetto == 'non capace' %}is-ko{% elif a.verdetto == 'al limite' %}is-wa{% elif a.verdetto == 'capace' %}is-ok{% endif %}" title="Quello che il processo ha fatto nel tempo (σ di tutti i pezzi). Verdetto sul peggiore fra Cpk e Ppk">Ppk<b>{% if a.ppk is not None %}{{ a.ppk|floatformat:2 }}{% else %}—{% endif %}</b><small>{% if a.cpk_basso is not None %}{{ a.cpk_basso|floatformat:2 }}–{{ a.cpk_alto|floatformat:2 }} · {% endif %}{{ a.verdetto|default:"" }}{% if a.metodo == "percentili" %} · percentili{% endif %}</small></div>
-          <div class="{% if a.rischio is not None and a.rischio >= 0.1 %}is-ko{% elif a.rischio is not None and a.rischio >= 0.01 %}is-wa{% endif %}" title="Probabilità che il prossimo pezzo esca">Rischio<b>{% if a.rischio is not None %}{% widthratio a.rischio 1 100 %}%{% else %}—{% endif %}</b><small>prossimo pezzo</small></div>
-          <div title="Media e σ di breve periodo">Media<b>{% if a.media is not None %}{{ a.media|floatformat:4 }}{% else %}—{% endif %}</b><small>σ breve {% if a.sigma_breve is not None %}{{ a.sigma_breve|floatformat:4 }}{% endif %}</small></div>
-          <div class="{% if a.n_fuori %}is-ko{% endif %}">Fuori<b>{{ a.n_fuori }} / {{ a.n }}</b><small>pezzi</small></div>
-          <div class="{% if a.deriva_info %}is-wa{% endif %}" title="Forchetta al 95% dei pezzi al limite">Deriva<b>{% if a.deriva_info %}{% if a.deriva_info.verso == "sup" %}↑{% else %}↓{% endif %} {% if a.deriva_info.pezzi %}{{ a.deriva_info.pezzi }} pz{% else %}al limite{% endif %}{% else %}no{% endif %}</b><small>{% if a.deriva_info and a.deriva_info.pezzi %}{% if a.deriva_info.pezzi_min is not None %}{{ a.deriva_info.pezzi_min }}{% else %}?{% endif %} – {% if a.deriva_info.pezzi_max is not None %}{{ a.deriva_info.pezzi_max }}{% else %}oltre 200{% endif %} pezzi{% endif %}</small></div>
-        </div>
-        <div class="prot-schede">
-          {% if a.segnali_testo %}
-          <div class="prot-scheda"><h4>Segnali della carta</h4><ul>{% for g in a.segnali_testo %}<li><b>{{ g.titolo }}</b> · pezzi {{ g.pezzi }}<br><span>{{ g.spiega }}</span></li>{% endfor %}</ul></div>
-          {% endif %}
-          {% if a.cambi %}
-          <div class="prot-scheda"><h4>Il processo è cambiato</h4><ul>{% for c in a.cambi %}<li>da <a href="{% url 'produzione:report_cmm' c.report %}">{{ c.sn|default:"questo pezzo" }}</a>: media da {{ c.prima|floatformat:4 }} a {{ c.dopo|floatformat:4 }}</li>{% endfor %}</ul></div>
-          {% endif %}
-          {% if a.legami %}
-          <div class="prot-scheda"><h4>Si muove insieme a</h4><ul>{% for l in a.legami %}<li><a href="?sez=qualita&amp;q={{ a.prog|urlencode }}%3A%3A{{ l.id|urlencode }}">{{ l.nome }}</a> · r = {{ l.r|floatformat:2 }}</li>{% endfor %}</ul><p>Probabilmente la stessa causa: macchina, piazzamento, temperatura.</p></div>
-          {% endif %}
-          {% if a.op_confronto %}
-          <div class="prot-scheda"><h4>Gli OP sono diversi?</h4><p>{% if a.op_confronto.diversi %}<b class="prot-rosso">Sì</b>: la differenza fra gli OP non è solo rumore{% else %}No: le differenze fra gli OP sono nel rumore{% endif %} (p = {{ a.op_confronto.p|floatformat:3 }}).</p><ul>{% for o in a.op_confronto.op %}<li>{{ o.op }} · {{ o.n }} pezzi · indice {% if o.indice is not None %}{{ o.indice|floatformat:2 }}{% else %}—{% endif %}</li>{% endfor %}</ul></div>
-          {% endif %}
-          {% if a.ripetibilita %}
-          <div class="prot-scheda"><h4>Quanto sbaglia la misura</h4><p>Dalle {{ a.ripetibilita.coppie }} rimisure dello stesso pezzo entro 2 giorni la misura consuma il <b class="{% if a.ripetibilita.pct >= 30 %}prot-rosso{% elif a.ripetibilita.pct >= 10 %}prot-giallo{% endif %}">{{ a.ripetibilita.pct|floatformat:0 }}%</b> della tolleranza (σ {{ a.ripetibilita.sigma|floatformat:4 }}).{% if a.ripetibilita.pct >= 30 %} Oltre il 30%: il problema è il metodo di misura, non il pezzo.{% endif %}</p></div>
-          {% endif %}
-        </div>
-        {% if Q.lettura %}<p class="prot-lettura{% if a.stato == 'ok' %} is-ok{% endif %}"><b>Lettura:</b> {{ Q.lettura }}</p>{% endif %}
-        <div class="prot-det-azioni"><a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}&amp;prog={{ a.prog|urlencode }}&amp;q={{ a.q_chiave|urlencode }}&amp;nom={{ a.quota.nominale|stringformat:'.4f' }}">Apri in Analisi quote</a></div>
-      </div>
-      {% endwith %}
+      {% include "produzione/_quota.html" with a=Q.scelta lettura=Q.lettura %}
     </div>
     <div class="prot-legenda"><span><span class="prot-ic is-fuori"></span> fuori nell'ultimo report</span><span><span class="prot-ic is-limite"></span> al limite, non capace o in deriva</span><span><span class="prot-ic is-ok"></span> capace</span><span><span class="prot-ic is-nd"></span> pochi pezzi per il Cpk</span><span class="prot-spazio"></span><span>Ultimi 30 pezzi validi di ogni programma (esclusi e rimisure non contano) · carta: LCS/LCI = limiti di controllo (media ± 3σ di breve periodo), LS/LI = tolleranza, cerchiato l'ultimo pezzo</span></div>
     {{ Q.grafico|json_script:"qualita-dati" }}
@@ -321,5 +283,5 @@
 <script src="{% static 'produzione/js/dialoghi.js' %}?v=20261125a" defer></script>
 {% endif %}
 <script src="{% static 'produzione/js/confronta.js' %}?v=20261126a" defer></script>
-{% if sezione == "qualita" %}<script src="{% static 'produzione/js/protocollo.js' %}?v=20261127a" defer></script>{% endif %}
+{% if sezione == "qualita" %}<script src="{% static 'produzione/js/protocollo.js' %}?v=20261127c" defer></script>{% endif %}
 {% endblock %}

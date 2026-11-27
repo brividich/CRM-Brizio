@@ -101,7 +101,8 @@
       indice("Fuori", q.n ? q.n_fuori + " / " + q.n : "—", q.n_fuori ? "is-ko" : "") +
       indice("Verdetto", q.verdetto || "—", q.verdetto === "non capace" ? "is-ko" : (q.verdetto === "al limite" ? "is-wa" : (q.verdetto === "capace" ? "is-ok" : ""))) +
       "</div>" +
-      "<div class='prot-det-azioni'><a class='prod-btn prod-btn-piccolo' href='" + esc(andamento) + "'>Analisi quote</a>" +
+      "<div class='prot-det-azioni'>" + (q.pk && sez.getAttribute("data-quota") ? "<a class='prod-btn prod-btn-piccolo' href='" + esc(sez.getAttribute("data-quota").replace(/0\/?$/, q.pk + "/")) + "'>Pagina della quota</a>" : "") +
+      "<a class='prod-btn prod-btn-piccolo' href='" + esc(andamento) + "'>Analisi quote</a>" +
       (anomalia ? "<a class='prod-btn prod-btn-piccolo prod-btn-primary' href='" + esc(anomalia) + "'>Apri anomalia</a>" : "") + "</div>";
     if (scorri) {
       var r = sez.querySelector(".prot-riga[data-i='" + i + "']");
@@ -168,7 +169,8 @@
   function controllo() {
     var c = q.controllo; if (!c) return "";
     var out = "";
-    [[c.lcs, "LCS"], [c.lci, "LCI"]].forEach(function (l) {
+    var diBase = c.base && c.base < s.length - (q.tol_cambio ? q.tol_cambio.indice : 0) ? " base" : "";
+    [[c.lcs, "LCS" + diBase], [c.lci, "LCI" + diBase]].forEach(function (l) {
       if (l[0] < lo || l[0] > hi) return;
       out += "<line class='ctl' x1='" + sx + "' x2='" + (w - dx) + "' y1='" + y(l[0]).toFixed(1) + "' y2='" + y(l[0]).toFixed(1) + "'/>" +
         "<text x='" + (w - dx - 2) + "' y='" + (y(l[0]) - 3).toFixed(1) + "' text-anchor='end'>" + l[1] + "</text>";
@@ -180,6 +182,12 @@
       var xc = (x(c.indice) + x(Math.max(0, c.indice - 1))) / 2;
       return "<line class='cambio' x1='" + xc.toFixed(1) + "' x2='" + xc.toFixed(1) + "' y1='" + top + "' y2='" + (h - bot) + "'><title>Il processo è cambiato qui</title></line>";
     }).join("");
+  }
+  function tolCambio() {
+    var t = q.tol_cambio; if (!t) return "";
+    var xc = (x(t.indice) + x(Math.max(0, t.indice - 1))) / 2;
+    return "<line class='cambio is-tol' x1='" + xc.toFixed(1) + "' x2='" + xc.toFixed(1) + "' y1='" + top + "' y2='" + (h - bot) + "'><title>La tolleranza è cambiata qui</title></line>" +
+      "<text x='" + (xc + 4).toFixed(1) + "' y='" + (top + 9) + "'>tolleranza cambiata</text>";
   }
   function segnaliCarta() {
     return (q.segnali || []).map(function (g) {
@@ -198,7 +206,7 @@
     "<rect class='fascia' x='" + sx + "' y='" + y(q.usl).toFixed(1) + "' width='" + (w - sx - dx) + "' height='" + (y(q.lsl) - y(q.usl)).toFixed(1) + "'/>" +
     riga(q.usl, "lim", "LS") + riga(q.lsl, "lim", "LI") +
     riga(media, "med", Math.min(Math.abs(y(media) - y(q.usl)), Math.abs(y(media) - y(q.lsl))) < 12 ? "" : "x̄") +
-    controllo() + cambi() + segnaliCarta() +
+    controllo() + cambi() + tolCambio() + segnaliCarta() +
     "<polyline class='linea' points='" + pts + "'/>" + punti +
     "<text x='" + (w - dx) + "' y='" + (h - 3) + "' text-anchor='end'>" + s.length + " pezzi, dal più vecchio →</text></svg>";
 

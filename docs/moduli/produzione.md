@@ -107,11 +107,20 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 - Formule solo in `spc.py` / `spc.js`: anche `deriva`, `usata`, `chiave_seriale`, `ultima_per_seriale`; tolleranza «al limite» = `spc.TOLLERANZA_AL_LIMITE` (0,80).
 - Deploy: `migrate produzione` (0011, 0012), `collectstatic` (`spc.js`, `analisi_quote.js`), riavvio di qcluster. Chiave di cache `prod_cmm_analisi4`: i numeri si riallineano al primo giro.
 
+### Registro delle quote e pagina della quota (27/11/2026)
+
+- `QuotaCapacita` è il registro delle quote: `articoli.analizza` la aggiorna in posto (id stabile; toglie solo le quote sparite) e salva in `dati` (JSON, migrazione `produzione 0013`) la riga completa di `analisi_pn`. `report_cmm_indice.analisi_salvata(pn)` la rilegge se `ArticoloPN.analisi_il` è successiva all'ultimo `letto_il`/`escluso_il`, altrimenti ripiega su `analisi_pn`: report, scheda P/N (panoramica e Qualità), FAI e pagina della quota non ricalcolano quando il giro ha già calcolato.
+- `/produzione/quota/<id>/` (`views.quota`, `report_cmm_pagine.quota_pagina`, permesso `produzione.op.view`): riquadro `produzione/_quota.html`, lo stesso della Qualità CMM (`report_cmm_pagine.dettaglio_quota`). Ci arrivano «Pagina della quota» (Qualità CMM, dettaglio del report) e «Quote da guardare» / «Stessa caratteristica» di Quote CMM.
+- Tolleranza cambiata: `spc.tratto_tolleranza`; indici, deriva, segnali, punti di cambio e limiti solo sul tratto con la tolleranza dell'ultima misura; `tol_cambio` (indice nella serie, report, S/N, limiti di prima) per il grafico; `serie` resta l'intera finestra.
+- Limiti di controllo congelati: `spc.base_controllo(n)` (prima metà, almeno 15; sotto 25 pezzi tutti), `spc.limiti_controllo(xs, base)` e `spc.segnali(xs, base)`; uguale in `spc.js` e in Analisi quote.
+- `spc.stato_processo` → `processo` (`deriva`, `spostato`, `segnali`, `pochi`, `stabile`); confronto fra OP su tutti i pezzi caricati (doppio della finestra) con `min`/`max` per le barre. Chiave di cache `prod_cmm_analisi5`.
+- Deploy: `migrate produzione` (0013), `collectstatic` (`produzione.css`, `protocollo.js`, `spc.js`, `analisi_quote.js`), sincronizzazione dei permessi (rotta `produzione:quota`), riavvio di qcluster; `dati` si riempie al primo giro (fino ad allora le pagine calcolano come prima).
+
 ## Permessi (ACL v2)
 
 | Codice | Default | Rotte |
 |---|---|---|
-| `produzione.op.view` | tutti i ruoli | elenco, scheda, pn_elenco, pn_scheda, pn_quote, api_quote, api_quote_candidati, api_quote_nota(_elimina), quote_cruscotto, quote_pdf, pn_leggi_report, report_cmm, report_cmm_pdf, guida |
+| `produzione.op.view` | tutti i ruoli | elenco, scheda, pn_elenco, pn_scheda, pn_quote, api_quote, api_quote_candidati, api_quote_nota(_elimina), quote_cruscotto, quota, quote_pdf, pn_leggi_report, report_cmm, report_cmm_pdf, guida |
 | `produzione.documenti.manage` | admin | documento, documento_elimina |
 | `produzione.impostazioni.manage` | admin | impostazioni |
 | `produzione.op.manage` | admin | op_nuovo (risponde in JSON 401/403/400) |

@@ -89,7 +89,7 @@
     const c = SPC.capacita(xs, ult.lsl, ult.usl, nom);
     return Object.assign(c, { min: Math.min(...xs), max: Math.max(...xs), ultimo: ult,
       nFuori: pts.filter(p => p.f).length, nVer: pts.filter(p => p.dv).length,
-      rischio: SPC.rischio_prossimo(xs, ult.lsl, ult.usl, nom), controllo: SPC.limiti_controllo(xs) });
+      rischio: SPC.rischio_prossimo(xs, ult.lsl, ult.usl, nom), controllo: SPC.limiti_controllo(xs, SPC.base_controllo(xs.length)) });
   }
   /* Stato dal verdetto (SPC.verdetto: il peggiore fra Cpk e Ppk contro 1,33 e 1,00; «pochi dati» sotto 25 pezzi). */
   const statoCpk = s => !s || s.indice === null || s.indice === undefined ? null
@@ -196,7 +196,7 @@
   /* Tendenza degli ultimi 20: la formula è in spc.js (la stessa di produzione/spc.py). */
   const deriva = us => SPC.deriva(us);
   /* Regole di controllo: Nelson 1-8 ed EWMA, da spc.js. */
-  const segnali = xs => SPC.segnali(xs);
+  const segnali = xs => SPC.segnali(xs, SPC.base_controllo(xs.length));
   const testoSegnale = g => (SPC.testi[String(g.regola)] || [String(g.regola)])[0];
   const spiegaSegnale = g => (SPC.testi[String(g.regola)] || ['', ''])[1];
 

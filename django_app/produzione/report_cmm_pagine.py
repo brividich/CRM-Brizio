@@ -10,7 +10,7 @@ from django.db.models import Q
 
 from . import spc
 from .models import AliasQuotaCMM, ReportCMM
-from .report_cmm_indice import analisi_pn, id_quota, report_primo_articolo, unilaterale, usata
+from .report_cmm_indice import analisi_salvata, id_quota, report_primo_articolo, unilaterale, usata
 
 MAX_CONFRONTO = 6
 SOGLIA_CAMBIO = 0.20  # «cambia»: differenza fra primo e ultimo oltre il 20% della tolleranza
@@ -83,7 +83,7 @@ def righe_report(report: ReportCMM) -> dict:
     prec = {}
     if prima:
         prec = {id_quota(m.chiave, m.nominale): m.misurato for m in prima.misure.all()}
-    analisi = {a["quota"]["id"]: a for a in analisi_pn(report.pn) if a["prog"] == report.programma_base}
+    analisi = {a["quota"]["id"]: a for a in analisi_salvata(report.pn) if a["prog"] == report.programma_base}
     righe = []
     for m in report.misure.all():
         qid = id_quota(m.chiave, m.nominale)
@@ -108,7 +108,7 @@ def righe_report(report: ReportCMM) -> dict:
             "rischio": a.get("rischio") if a else None, "controllo": a.get("controllo") if a else None,
             "media": a.get("media") if a else None, "sd": a.get("sd") if a else None,
             "n_fuori": a["n_fuori"] if a else None, "n": a["n"] if a else None,
-            "serie": (a.get("serie") or []) if a else [],
+            "serie": (a.get("serie") or []) if a else [], "pk": a.get("pk") if a else None,
         })
     righe.sort(key=lambda r: (not r["m"].fuori, not r["m"].da_verificare, r["m"].indice))
     conta = {
@@ -149,7 +149,7 @@ def pannello(righe: list[dict], report: ReportCMM) -> list[dict]:
             "ppk": r["ppk"], "indice": r["indice"], "cpk_basso": r["cpk_basso"], "verdetto": r["verdetto"],
             "rischio": r["rischio"], "controllo": r["controllo"],
             "n_fuori": r["n_fuori"], "n": r["n"], "lsl": r["lsl"], "usl": r["usl"], "chiave": m.chiave,
-            "serie": r["serie"], "corrente": report.pk,
+            "serie": r["serie"], "corrente": report.pk, "pk": r["pk"],
         })
     return out
 
@@ -264,10 +264,64 @@ def lettura_quota(a: dict) -> str:
     return frase
 
 
+PROCESSO = {"deriva": "in deriva", "spostato": "media spostata", "segnali": "segnali sulla carta",
+            "pochi": "pochi pezzi", "stabile": "stabile"}
+
+
+def dettaglio_quota(a: dict) -> tuple[dict, dict]:
+    """Quello che serve al riquadro della quota (``_quota.html``, lo stesso nella scheda P/N e nella pagina della quota):
+    la riga d'analisi con stato, segnali in parole, stato del processo e barre per OP; e i dati della carta."""
+    a = dict(a)
+    a.setdefault("stato", _stato_quota(a))
+    a.setdefault("chiave", chiave_quota(a))
+    a.setdefault("q_chiave", a["quota"]["id"].rsplit("|", 1)[0])
+    grafico = {"nome": a["quota"]["nome"], "lsl": a["lsl"], "usl": a["usl"], "serie": a.get("serie") or [],
+               "media": a.get("media"), "controllo": a.get("controllo"), "cambi": a.get("cambi") or [],
+               "tol_cambio": a.get("tol_cambio"),
+               "segnali": [{"regola": str(g["regola"]), "da": g["da"], "a": g["a"]} for g in a.get("segnali") or []]}
+    gruppi: dict = {}
+    for g in a.get("segnali") or []:
+        tratto = f"{g['da'] + 1}" if g["da"] == g["a"] else f"{g['da'] + 1}–{g['a'] + 1}"
+        gruppi.setdefault(g["regola"], []).append(tratto)
+    a["segnali_testo"] = [
+        {"titolo": spc.TESTI_REGOLE[r][0], "spiega": spc.TESTI_REGOLE[r][1], "pezzi": ", ".join(t[:4]) + ("…" if len(t) > 4 else "")}
+        for r, t in ((int(k) if str(k).isdigit() else k, v) for k, v in gruppi.items())]
+    stato = a.get("processo") or spc.stato_processo(a.get("deriva"), a.get("cambi"), a.get("segnali"), a.get("n") or 0)
+    testo = PROCESSO.get(stato, stato)
+    if stato == "spostato" and a.get("cambi") and a["cambi"][-1].get("sn"):
+        testo = f"media spostata da {a['cambi'][-1]['sn']}"
+    a["processo"], a["processo_testo"] = stato, testo
+    confronto = a.get("op_confronto")
+    if confronto and a.get("lsl") is not None:
+        nom = a["quota"]["nominale"]
+        ops = []
+        for o in confronto["op"]:
+            o = dict(o)
+            if o.get("min") is not None:
+                pos = [_posizione(usata(v, nom, a["lsl"], a["usl"])) for v in (o["min"], o["max"], o["media"])]
+                if None not in pos:
+                    da, al = min(pos[0], pos[1]), max(pos[0], pos[1])
+                    o["barra"] = {"da": round(da), "w": max(1, round(al - da)), "m": round(pos[2])}
+            ops.append(o)
+        a["op_confronto"] = dict(confronto, op=ops)
+    return a, grafico
+
+
+def quota_pagina(q) -> dict | None:
+    """La pagina della quota (``QuotaCapacita``, id stabile): la sua riga d'analisi con il riquadro e la carta."""
+    a = next((r for r in analisi_salvata(q.pn)
+              if (r["prog"] or "")[:200] == q.prog and r["quota"]["id"][:260] == q.quota_id), None)
+    if a is None:
+        return None
+    a, grafico = dettaglio_quota(dict(a, pk=q.pk))
+    serie = a.get("serie") or []
+    return {"a": a, "grafico": grafico, "lettura": lettura_quota(a), "ultimo_report": serie[-1][2] if serie else None}
+
+
 def qualita_pn(pn: str, scelta: str = "") -> dict:
     """La sezione «Qualità CMM» della scheda P/N: albero programmi → quote (dalla peggiore per Cpk), la quota scelta
     (``prog::id``, altrimenti la peggiore) con i dati della carta di controllo, e la tabella di tutte le quote."""
-    analisi = analisi_pn(pn)
+    analisi = analisi_salvata(pn)
     gravita = {"fuori": 0, "limite": 1, "ok": 2, "nd": 3}
     programmi: dict[str, dict] = {}
     for a in analisi:
@@ -282,19 +336,7 @@ def qualita_pn(pn: str, scelta: str = "") -> dict:
     scelta_a = next((a for a in tutte if a["chiave"] == scelta), None) or (tutte[0] if tutte else None)
     grafico = None
     if scelta_a:
-        grafico = {"nome": scelta_a["quota"]["nome"], "lsl": scelta_a["lsl"], "usl": scelta_a["usl"],
-                   "serie": scelta_a.get("serie") or [], "media": scelta_a.get("media"),
-                   "controllo": scelta_a.get("controllo"), "cambi": scelta_a.get("cambi") or [],
-                   "segnali": [{"regola": str(g["regola"]), "da": g["da"], "a": g["a"]} for g in scelta_a.get("segnali") or []]}
-        from . import spc
-
-        gruppi: dict = {}
-        for g in scelta_a.get("segnali") or []:
-            tratto = f"{g['da'] + 1}" if g["da"] == g["a"] else f"{g['da'] + 1}–{g['a'] + 1}"
-            gruppi.setdefault(g["regola"], []).append(tratto)
-        scelta_a = dict(scelta_a, segnali_testo=[
-            {"titolo": spc.TESTI_REGOLE[r][0], "spiega": spc.TESTI_REGOLE[r][1], "pezzi": ", ".join(t[:4]) + ("…" if len(t) > 4 else "")}
-            for r, t in gruppi.items()])
+        scelta_a, grafico = dettaglio_quota(scelta_a)
     tabella = sorted(tutte, key=lambda a: (-(a["rischio"] or 0), a["indice"] if a["indice"] is not None else 99, a["prog"], a["quota"]["nome"]))
     return {"programmi": elenco, "scelta": scelta_a, "grafico": grafico, "tabella": tabella,
             "lettura": lettura_quota(scelta_a) if scelta_a else "",
