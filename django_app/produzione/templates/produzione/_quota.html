@@ -1,10 +1,13 @@
 {# Riquadro della quota: lo stesso nella Qualità CMM della scheda P/N e nella pagina della quota (a, lettura, pn). #}
       <div class="prot-qualita">
+        {% if parte != "resto" %}
         <div class="prot-qualita-head">
           {% if not pagina_quota %}<h3><span class="prot-ic is-{{ a.stato }}" aria-hidden="true"></span>{{ a.quota.nome }}</h3>{% endif %}
           <span class="prod-nota">{{ a.prog }} · nominale {{ a.quota.nominale|floatformat:4 }} · limiti {{ a.lsl|floatformat:4 }} – {{ a.usl|floatformat:4 }} · ultimi {{ a.n }} pezzi validi · processo: <b class="prot-processo is-{{ a.processo }}">{{ a.processo_testo }}</b></span>
         </div>
-        {% if a.tol_cambio %}<p class="prot-nota-tol">La tolleranza è cambiata da <a href="{% url 'produzione:report_cmm' a.tol_cambio.report %}">{{ a.tol_cambio.sn|default:"questo pezzo" }}</a> (prima {{ a.tol_cambio.lsl|floatformat:4 }} – {{ a.tol_cambio.usl|floatformat:4 }}): indici, segnali e limiti di controllo contano solo i pezzi da lì in poi.</p>{% endif %}
+        {% endif %}
+        {% if a.tol_cambio and not pagina_quota %}<p class="prot-nota-tol">La tolleranza è cambiata da <a href="{% url 'produzione:report_cmm' a.tol_cambio.report %}">{{ a.tol_cambio.sn|default:"questo pezzo" }}</a> (prima {{ a.tol_cambio.lsl|floatformat:4 }} – {{ a.tol_cambio.usl|floatformat:4 }}): indici, segnali e limiti di controllo contano solo i pezzi da lì in poi.</p>{% endif %}
+        {% if not pagina_quota %}
         <div class="prot-qualita-grafici">
           <div data-carta-qualita><p class="prod-nota">Carta di controllo…</p></div>
           <div data-istogramma-qualita></div>
@@ -17,8 +20,10 @@
           <div class="{% if a.n_fuori %}is-ko{% endif %}">Fuori<b>{{ a.n_fuori }} / {{ a.n }}</b><small>pezzi</small></div>
           <div class="{% if a.deriva_info %}is-wa{% endif %}" title="Forchetta al 95% dei pezzi al limite">Deriva<b>{% if a.deriva_info %}{% if a.deriva_info.verso == "sup" %}↑{% else %}↓{% endif %} {% if a.deriva_info.pezzi %}{{ a.deriva_info.pezzi }} pz{% else %}al limite{% endif %}{% else %}no{% endif %}</b><small>{% if a.deriva_info and a.deriva_info.pezzi %}{% if a.deriva_info.pezzi_min is not None %}{{ a.deriva_info.pezzi_min }}{% else %}?{% endif %} – {% if a.deriva_info.pezzi_max is not None %}{{ a.deriva_info.pezzi_max }}{% else %}oltre 200{% endif %} pezzi{% endif %}</small></div>
         </div>
+        {% endif %}
+        {% if parte != "testa" %}
         <div class="prot-schede">
-          {% if a.segnali_testo %}
+          {% if a.segnali_testo and not pagina_quota %}
           <div class="prot-scheda"><h4>Segnali della carta</h4><ul>{% for g in a.segnali_testo %}<li><b>{{ g.titolo }}</b> · pezzi {{ g.pezzi }}<br><span>{{ g.spiega }}</span></li>{% endfor %}</ul></div>
           {% endif %}
           {% if a.cambi %}
@@ -35,5 +40,6 @@
           {% endif %}
         </div>
         {% if lettura %}<p class="prot-lettura{% if a.stato == 'ok' %} is-ok{% endif %}"><b>Lettura:</b> {{ lettura }}</p>{% endif %}
-        <div class="prot-det-azioni">{% if a.pk and not pagina_quota %}<a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:quota' a.pk %}">Pagina della quota</a>{% endif %}<a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}&amp;prog={{ a.prog|urlencode }}&amp;q={{ a.q_chiave|urlencode }}&amp;nom={{ a.quota.nominale|stringformat:'.4f' }}">Apri in Analisi quote</a></div>
+        {% endif %}
+        {% if not pagina_quota %}<div class="prot-det-azioni">{% if a.pk and not pagina_quota %}<a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:quota' a.pk %}">Pagina della quota</a>{% endif %}<a class="prod-btn prod-btn-piccolo" href="{% url 'produzione:pn_quote' %}?pn={{ pn|urlencode }}&amp;prog={{ a.prog|urlencode }}&amp;q={{ a.q_chiave|urlencode }}&amp;nom={{ a.quota.nominale|stringformat:'.4f' }}">Apri in Analisi quote</a></div>{% endif %}
       </div>

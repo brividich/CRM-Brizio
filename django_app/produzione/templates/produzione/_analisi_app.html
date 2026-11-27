@@ -1,0 +1,86 @@
+{# L'app di Analisi quote (filtri, viste, grafici di analisi_quote.js): nella pagina del programma e, con aq-solo, nella pagina della quota. #}
+  {{ stato|json_script:"aq-stato" }}
+
+  <div class="aq-filtri" role="group" aria-label="Filtri dell'analisi">
+   <div class="aq-filtri-riga">
+    <label class="aq-campo aq-campo-prog">Programma
+      <select data-filtro="prog">
+        {% for p in programmi %}<option value="{{ p.programma_base }}"{% if p.programma_base == prog %} selected{% endif %}>{{ p.programma_base|default:"(senza nome)" }} · {{ p.n }} report</option>{% endfor %}
+      </select>
+    </label>
+    <div class="aq-campo">Periodo
+      <div class="aq-segmenti" data-filtro="per">
+        <button type="button" data-v="fin">Ultimi {{ stato.fin }} pezzi</button>
+        <button type="button" data-v="">Tutto</button>
+        <button type="button" data-v="365">12 mesi</button>
+        <button type="button" data-v="90">90 giorni</button>
+        <button type="button" data-v="30">30 giorni</button>
+        <button type="button" data-v="custom">Dal… al…</button>
+      </div>
+    </div>
+    <div class="aq-campo aq-date" data-date hidden>
+      <span>Dal / al</span>
+      <span class="aq-date-campi"><input type="date" data-filtro="da" aria-label="Dal"><input type="date" data-filtro="a" aria-label="Al"></span>
+    </div>
+    {% if cartella.letta_il %}<span class="aq-letti">Report letti il {{ cartella.letta_il|date:"d/m/Y H:i" }}</span>{% endif %}
+   </div>
+   <div class="aq-filtri-riga">
+    <details class="aq-campo aq-pop" data-pop="op">
+      <summary>OP <b data-op-etichetta>tutti</b></summary>
+      <div class="aq-pop-corpo" data-op-lista></div>
+    </details>
+    <details class="aq-campo aq-pop" data-pop="rs">
+      <summary>Report <b data-rs-etichetta>tutti</b></summary>
+      <div class="aq-pop-corpo aq-pop-report">
+        <div class="aq-pop-azioni aq-pop-in-alto"><button type="button" data-rs-modo="tutti">Tutti</button><button type="button" data-rs-modo="u10">Ultimi 10</button><button type="button" data-rs-modo="u30">Ultimi 30</button><button type="button" data-rs-modo="op">Solo l'ultimo OP</button></div>
+        <input type="search" class="aq-cerca" data-rs-cerca placeholder="Cerca S/N o OP…" autocomplete="off">
+        <div data-rs-lista></div>
+      </div>
+    </details>
+    <div class="aq-campo">Misure
+      <div class="aq-segmenti" data-filtro="misure" title="Un S/N rimisurato (es. dopo una rilavorazione) conta una volta sola, con l'ultima misura">
+        <button type="button" data-v="ultima">Ultima per S/N</button><button type="button" data-v="tutte">Tutte</button>
+      </div>
+    </div>
+    <button type="button" class="aq-toggle aq-esclusi" data-filtro="esclusi" hidden aria-pressed="false">Esclusi</button>
+    <label class="aq-campo">Evidenzia S/N
+      <input type="search" list="aq-sn" data-filtro="sn" placeholder="S/N…" autocomplete="off">
+      <datalist id="aq-sn"></datalist>
+    </label>
+   </div>
+  </div>
+
+  <div class="aq-kpi" data-kpi aria-live="polite"></div>
+  <p class="prod-avviso" data-avviso hidden></p>
+
+  <div class="aq-tabs" role="tablist" aria-label="Viste">
+    <button type="button" role="tab" data-tab="quota">Quota</button>
+    <button type="button" role="tab" data-tab="mappa">Mappa</button>
+    <button type="button" role="tab" data-tab="confronto">Confronto <span class="aq-conta" data-conta-cmp></span></button>
+    <button type="button" role="tab" data-tab="pezzo">Pezzo</button>
+  </div>
+
+  <div class="aq-layout" data-corpo>
+    <aside class="aq-lato" aria-label="Quote del programma">
+      <input type="search" class="aq-cerca" data-filtro="cerca" placeholder="Cerca quota o gruppo…" autocomplete="off">
+      <div class="aq-chips" data-chips role="group" aria-label="Filtra le quote"></div>
+      <label class="aq-ordina">Ordina
+        <select data-filtro="ord">
+          <option value="">come nel report</option>
+          <option value="fuori">più volte fuori</option>
+          <option value="cpk">Cpk peggiore</option>
+          <option value="limite">più vicine al limite</option>
+          <option value="nome">nome</option>
+        </select>
+      </label>
+      <div class="aq-lista" data-lista role="listbox" aria-label="Quote"></div>
+    </aside>
+
+    <section class="aq-main">
+      <div class="aq-pane" data-pane="quota"></div>
+      <div class="aq-pane" data-pane="mappa" hidden></div>
+      <div class="aq-pane" data-pane="confronto" hidden></div>
+      <div class="aq-pane" data-pane="pezzo" hidden></div>
+    </section>
+  </div>
+  <div class="aq-tooltip" data-tooltip role="tooltip" hidden></div>
