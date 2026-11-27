@@ -410,6 +410,11 @@ def dividi_in_gruppi(
     edizione: str = "",
     giorni_tra_gruppi: int = 0,
     user=None,
+    *,
+    assegnazione: dict[int, int] | None = None,
+    orari_gruppi: dict[int, time] | None = None,
+    copia_lezioni: bool = True,
+    giorni_lavorativi: bool = False,
 ) -> list[TrainingSession]:
     """Divide gli iscritti già presenti in ``sessione_sorgente`` fra ``n_gruppi`` sessioni.
 
@@ -431,6 +436,15 @@ def dividi_in_gruppi(
     iscritto dopo che ha firmato una lezione lo scollegherebbe dal proprio
     registro. Va quindi usata **prima** di iniziare le lezioni, appena si sa come
     si dividono i gruppi — non a corso già partito.
+
+    Varianti del percorso «Prepara la sessione» (28/11/2026), tutte facoltative:
+
+    - ``assegnazione``: ``{legacy_anagrafica_id: indice gruppo}`` scelto a mano
+      (trascinando le persone); chi non c'è resta nel primo gruppo;
+    - ``orari_gruppi``: ``{indice: ora di inizio}``: stesse date, orario spostato
+      (mattina / pomeriggio); durata e pausa restano quelle della sorgente;
+    - ``giorni_lavorativi``: ``giorni_tra_gruppi`` conta solo lun-ven;
+    - ``copia_lezioni=False``: il gruppo nasce senza giornate (calendario libero).
     """
     from ..models_formazione import (
         TrainingEnrollment, TrainingEnrollmentLesson,
@@ -468,20 +482,33 @@ def dividi_in_gruppi(
         # Bucket 0 = resta sulla sorgente; i successivi vanno ai gruppi nuovi.
         secchi: list[list[TrainingEnrollment]] = [[] for _ in range(n_gruppi)]
         for i, iscrizione in enumerate(iscrizioni):
-            secchi[i % n_gruppi].append(iscrizione)
+            if assegnazione is not None:
+                indice = int(assegnazione.get(iscrizione.legacy_anagrafica_id, 0) or 0)
+                secchi[indice if 0 <= indice < n_gruppi else 0].append(iscrizione)
+            else:
+                secchi[i % n_gruppi].append(iscrizione)
 
         gruppi = [sessione_sorgente]
         for indice in range(1, n_gruppi):
-            offset = timedelta(days=giorni_tra_gruppi * indice)
+            spostamento = giorni_tra_gruppi * indice
+
+            def sposta(giorno, _n=spostamento):
+                return aggiungi_lavorativi(giorno, _n) if giorni_lavorativi else giorno + timedelta(days=_n)
+
+            orari = _orari_spostati(lezioni_sorgente, (orari_gruppi or {}).get(indice))
+            inizio, fine = sposta(sessione_sorgente.data_inizio), sposta(sessione_sorgente.data_fine)
+            if copia_lezioni and lezioni_sorgente:
+                inizio = min(sposta(lz.data) for lz in lezioni_sorgente)
+                fine = max(sposta(lz.data) for lz in lezioni_sorgente)
             nuovo = TrainingSession.objects.create(
                 corso=corso,
-                codice_sessione=genera_codice_sessione(
-                    corso, (sessione_sorgente.data_inizio + offset).year),
+                codice_sessione=genera_codice_sessione(corso, inizio.year),
                 stato="PIANIFICATA",
                 modalita=sessione_sorgente.modalita,
-                data_inizio=sessione_sorgente.data_inizio + offset,
-                data_fine=sessione_sorgente.data_fine + offset,
+                data_inizio=inizio,
+                data_fine=max(fine, inizio),
                 sede=sessione_sorgente.sede,
+                sala=sessione_sorgente.sala,
                 docente=sessione_sorgente.docente,
                 docente_nome=sessione_sorgente.docente_nome,
                 edizione=etichetta[:80],
@@ -496,13 +523,14 @@ def dividi_in_gruppi(
                     ore_previste=voce.ore_previste, riferimento=voce.riferimento,
                     origine=voce.origine, aggiunto=voce.aggiunto,
                 )
-            for lz in lezioni_sorgente:
+            for lz in (lezioni_sorgente if copia_lezioni else []):
+                ora_inizio, ora_fine = orari.get(lz.pk, (lz.ora_inizio, lz.ora_fine))
                 TrainingLesson.objects.create(
                     sessione=nuovo,
                     numero=lz.numero,
-                    data=lz.data + offset,
-                    ora_inizio=lz.ora_inizio,
-                    ora_fine=lz.ora_fine,
+                    data=sposta(lz.data),
+                    ora_inizio=ora_inizio,
+                    ora_fine=ora_fine,
                     pausa_minuti=lz.pausa_minuti,
                     argomento=lz.argomento,
                     docente=lz.docente,
@@ -518,3 +546,38 @@ def dividi_in_gruppi(
             gruppi.append(nuovo)
 
     return gruppi
+
+
+def aggiungi_lavorativi(giorno: date, n: int) -> date:
+    """``giorno`` + ``n`` giorni lavorativi (lun-ven); un sabato o una domenica di
+    partenza vanno prima al lunedì. ``n`` = 0 lascia il giorno com'è."""
+    if n <= 0:
+        return giorno
+    while giorno.weekday() >= 5:
+        giorno += timedelta(days=1)
+    while n > 0:
+        giorno += timedelta(days=1)
+        if giorno.weekday() < 5:
+            n -= 1
+    return giorno
+
+
+def _orari_spostati(lezioni, nuova_ora: time | None) -> dict:
+    """``{lezione_id: (inizio, fine)}`` con tutte le giornate spostate della stessa
+    differenza fra ``nuova_ora`` e l'inizio della prima giornata (mattina →
+    pomeriggio). Vuoto se non si sposta niente. ``ValueError`` se si finisce
+    oltre la mezzanotte."""
+    from datetime import datetime
+
+    if nuova_ora is None or not lezioni:
+        return {}
+    oggi = date.today()
+    delta = datetime.combine(oggi, nuova_ora) - datetime.combine(oggi, lezioni[0].ora_inizio)
+    esito = {}
+    for lz in lezioni:
+        a = datetime.combine(oggi, lz.ora_inizio) + delta
+        b = datetime.combine(oggi, lz.ora_fine) + delta
+        if a.date() != oggi or b.date() != oggi:
+            raise ValueError(f"Con inizio alle {nuova_ora:%H:%M} la giornata {lz.numero} finirebbe dopo mezzanotte.")
+        esito[lz.pk] = (a.time(), b.time())
+    return esito

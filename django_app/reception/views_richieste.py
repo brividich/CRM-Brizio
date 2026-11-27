@@ -271,5 +271,5 @@ def sale_disponibilita(request):
     from tasks.services.sale import disponibilita_giorno
 
     dati = disponibilita_giorno(giorno, organizer_email=(request.user.email or "").strip(),
-                                sale=list(sale.sale_attive()), blocchi_extra=sale.blocchi_giorno(giorno))
+                                sale=list(sale.sale_attive()), blocchi_extra=sale.blocchi_visite(giorno))
     return JsonResponse({"ok": True, **dati})
