@@ -15,7 +15,8 @@ GUIDA = {
                 ("passi", [
                     "Apri Asset: si apre il cruscotto.",
                     "Clicca «Inventario completo» (area «Inventario» del menu a sinistra) oppure una categoria in «Inventario per categoria».",
-                    "Cerca per nome, numero interno, seriale o IP e apri la scheda. Non serve scrivere il nome esatto: "
+                    "Cerca per nome, acronimo (la sigla di riconoscimento, es. DM11, AGV1, MK2: campo «Acronimo» "
+                    "della scheda), numero interno, seriale o IP e apri la scheda. Non serve scrivere il nome esatto: "
                     "«dixi 80» trova anche «DIXI80» e «Dixi-80» (spazi, trattini e punti non contano) e le parole "
                     "valgono in qualunque ordine («80 dixi»). Vale per la ricerca in testa al modulo, per gli elenchi "
                     "e per la ricerca rapida delle tabelle.",

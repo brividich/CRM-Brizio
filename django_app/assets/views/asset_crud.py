@@ -1137,8 +1137,9 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             assets = assets.filter(
                 testo_q(
                     q,
-                    ("asset_tag", "internal_number", "name", "serial_number", "manufacturer", "model", "reparto"),
-                    compatti=("asset_tag", "internal_number", "name", "serial_number", "model"),
+                    ("asset_tag", "internal_number", "name", "acronimo", "serial_number", "manufacturer", "model",
+                     "reparto"),
+                    compatti=("asset_tag", "internal_number", "name", "acronimo", "serial_number", "model"),
                 )
                 | Q(endpoints__endpoint_name__icontains=q)
                 | Q(endpoints__ip__icontains=q)
