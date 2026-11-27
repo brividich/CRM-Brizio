@@ -290,7 +290,8 @@ def sposta_iscritti(sessione, mappa: dict[int, int]) -> tuple[int, list[str]]:
             dest = mappa.get(isc.pk)
             if dest not in gruppi or dest == isc.sessione_id:
                 continue
-            if TrainingLessonAttendance.objects.filter(enrollment=isc).exists():
+            if TrainingLessonAttendance.objects.filter(
+                    lezione__sessione_id=isc.sessione_id, legacy_anagrafica_id=isc.legacy_anagrafica_id).exists():
                 avvisi.append(f"#{isc.legacy_anagrafica_id} ha già firmato una giornata: resta nel suo gruppo.")
                 continue
             if TrainingEnrollment.objects.filter(sessione_id=dest, legacy_anagrafica_id=isc.legacy_anagrafica_id).exists():

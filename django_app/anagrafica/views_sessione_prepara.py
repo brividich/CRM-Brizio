@@ -216,9 +216,11 @@ def _contesto_gruppi(sessione, gruppi, lezioni, nomi) -> dict:
         sessione.iscrizioni.model.objects.filter(sessione__in=gruppi).exclude(stato="RITIRATO")
         .order_by("legacy_anagrafica_id")
     )
-    firmate = set(
-        TrainingLessonAttendance.objects.filter(enrollment__in=iscrizioni).values_list("enrollment_id", flat=True)
+    firmati = set(
+        TrainingLessonAttendance.objects.filter(lezione__sessione__in=gruppi)
+        .values_list("lezione__sessione_id", "legacy_anagrafica_id")
     )
+    firmate = {i.pk for i in iscrizioni if (i.sessione_id, i.legacy_anagrafica_id) in firmati}
     info = _persone_info({i.legacy_anagrafica_id for i in iscrizioni})
     posizione = {g.pk: n for n, g in enumerate(gruppi)}
     persone = []

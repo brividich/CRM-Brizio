@@ -168,6 +168,7 @@ body.theme-dark .sp-hint.warn{background:rgba(251,191,36,.12);color:#fbbf24}
                 {% for s in sale %}<option value="{{ s.pk }}"{% if s.pk == sessione.sala_id %} selected{% endif %}>{{ s.nome }}{% if s.capienza %} · {{ s.capienza }} posti{% endif %}</option>{% endfor %}
               </select>
               <noscript><button type="submit" class="hr-btn hr-btn-sm hr-btn-outline">Scegli</button></noscript>
+              <a href="{% url 'reception:sale' %}" style="font-size:12px;" title="Reception → Configurazione → Sale: nome, posti e casella Microsoft 365">Gestisci le sale</a>
             </form>
             <span class="sp-sp">
               {% if sessione.sala %}
