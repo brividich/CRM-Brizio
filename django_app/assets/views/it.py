@@ -64,6 +64,7 @@ def device_list(request: HttpRequest) -> HttpResponse:
             devices_qs = devices_qs.filter(
                 Q(asset_tag__icontains=q)
                 | Q(internal_number__icontains=q)
+                | Q(acronimo__icontains=q)
                 | Q(name__icontains=q)
                 | Q(reparto__icontains=q)
                 | Q(manufacturer__icontains=q)

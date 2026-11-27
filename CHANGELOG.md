@@ -9,10 +9,20 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Asset: «Proponi acronimi»
+
+- Nuova pagina `/assets/edit/acronimi/` (chip «Senza acronimo (N)» nell'inventario, permesso «Modifica asset»): propone l'acronimo leggendo le sigle già scritte in nome e tag, con casella e campo modificabile per riga. Spuntate in partenza solo le proposte sicure; avviso su sigle multiple, doppie, già usate o su dispositivi IT. Scheda «Senza proposta» per scrivere a mano. Salva solo le righe spuntate e solo dove l'acronimo è vuoto; 200 righe per volta. Nessuna migrazione.
+- File: `assets/services/acronimi.py`, `assets/views_acronimi.py`, `assets/urls.py`, `assets/views/asset_crud.py`, `assets/templates/assets/pages/acronimi_proponi.html`, `asset_list.html`, `guida.html`, `core/guide_moduli/contenuti/assets.py`, `docs/moduli/assets.md`, `assets/tests_acronimo.py`.
+
 ### Scadenzario: «+ Nuova attività» anche nel calendario /scadenze
 
 - `django_app/dashboard/views_scadenze.py`, `django_app/dashboard/templates/dashboard/pages/scadenze_globali.html`: pulsante «+ Nuova attività» nella barra in alto del calendario (tutte le viste), con la stessa regola di Scadenze generiche (gestisce almeno una categoria). Prima c'era solo dentro «🗂 Scadenze generiche».
 - `django_app/scadenzario/guida.py`: guida aggiornata. Test in `django_app/dashboard/tests_scadenze_viste.py`.
+
+### Asset: campo «Acronimo»
+
+- Nuovo campo testuale facoltativo **Acronimo** su tutti gli asset (la sigla di riconoscimento: DM11, AGV1, MK2…), non univoco. Si compila in «Nuovo/Modifica asset» e nel form macchina; compare in testa alla scheda e nel sottotitolo dell'elenco; la ricerca (elenco, ricerca del modulo, dispositivi IT) lo trova. Migrazione `assets 0176`.
+- File: `assets/models.py`, `assets/migrations/0176_asset_acronimo.py`, `assets/forms.py`, `assets/views/asset_crud.py`, `assets/views/it.py`, `assets/services/module_search.py`, `assets/templates/assets/pages/asset_detail.html`, `asset_list.html`, `guida.html`, `core/guide_moduli/contenuti/assets.py`, `docs/moduli/assets.md`, `assets/tests_acronimo.py`.
 
 ### Organigramma ufficiale: firma su portale con il Registro timbri (MT CN 08 §7.2.1)
 

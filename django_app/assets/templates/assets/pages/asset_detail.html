@@ -45,6 +45,7 @@
           <div class="af-hero-kicker"><a class="af-back" href="{{ collection_url }}" data-af-back-link title="Torna all'elenco">&larr; {{ collection_label }}</a>{% if asset.category_label %} / {{ asset.category_label }}{% endif %}</div>
           <h1 class="af-title">{{ asset.name }}</h1>
           <div class="af-title-code-row">
+            {% if asset.acronimo %}<span class="af-title-code" title="Acronimo">{{ asset.acronimo }}</span>{% endif %}
             <span class="af-title-code">#{{ asset.asset_tag }}</span>
             {% if asset.internal_number %}<span class="af-title-code">N.{{ asset.internal_number }}</span>{% endif %}
           </div>
