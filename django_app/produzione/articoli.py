@@ -22,6 +22,7 @@ from core import ordini_produzione as op_db
 from tasks.identity import normalize_part_number
 
 from . import report_cmm_indice as cmm
+from . import spc
 from .models import ArticoloPN, QuotaCapacita, ReportCMM
 
 logger = logging.getLogger(__name__)
@@ -192,7 +193,7 @@ def analizza(a: ArticoloPN) -> None:
     righe = cmm.analisi_pn(a.pn)
     valori = [r["indice"] for r in righe if r["indice"] is not None]      # il peggiore fra Cpk e Ppk
     a.cpk_peggiore = min(valori) if valori else None
-    a.quote_non_capaci = sum(1 for v in valori if v < 1.33)
+    a.quote_non_capaci = sum(1 for r in righe if r.get("verdetto") in spc.SOTTO_OBIETTIVO)
     a.quote_deriva = sum(1 for r in righe if r["deriva"])
     a.quote_fuori_ultimo = sum(1 for r in righe if r["fuori_ultimo"])
     rischi = [r["rischio"] for r in righe if r.get("rischio") is not None]
@@ -202,13 +203,17 @@ def analizza(a: ArticoloPN) -> None:
     a.save(update_fields=["cpk_peggiore", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "rischio_max",
                           "salute", "analisi_il"])
     # una riga per quota (Quote CMM, confronto della stessa caratteristica fra P/N)
-    QuotaCapacita.objects.filter(pn=a.pn).delete()
-    QuotaCapacita.objects.bulk_create([QuotaCapacita(
+    from django.db import transaction
+
+    nuove = [QuotaCapacita(
         pn=a.pn, prog=(r["prog"] or "")[:200], quota_id=r["quota"]["id"][:260], nome=(r["quota"]["nome"] or "")[:200],
         caratteristica=caratteristica(r["quota"]["nome"]), nominale=r["quota"]["nominale"], lsl=r.get("lsl"), usl=r.get("usl"),
         n=r["n"], cpk=r.get("cpk"), ppk=r.get("ppk"), indice=r.get("indice"), cpk_basso=r.get("cpk_basso"),
         verdetto=r.get("verdetto") or "", metodo=r.get("metodo") or "", rischio=r.get("rischio"), deriva=bool(r["deriva"]),
-        fuori_ultimo=r["fuori_ultimo"], famiglia=r.get("famiglia")) for r in righe], batch_size=500)
+        fuori_ultimo=r["fuori_ultimo"], famiglia=r.get("famiglia")) for r in righe]
+    with transaction.atomic():      # mai un istante senza le quote del P/N
+        QuotaCapacita.objects.filter(pn=a.pn).delete()
+        QuotaCapacita.objects.bulk_create(nuove, batch_size=500)
 
 
 def caratteristica(nome: str) -> str:
@@ -253,4 +258,5 @@ def aggiorna_cpk(secondi: float, pn: list[str] | None = None) -> int:
 def da_guardare(a: ArticoloPN, anomalie: int = 0, fai_codice: str = "") -> bool:
     """Un P/N «da guardare»: quote non capaci, report con quote fuori nell'ultimo mese, anomalie aperte,
     FAI da ripetere o da verificare."""
-    return bool(a.quote_non_capaci or a.fuori_30g or anomalie or fai_codice in ("da_ripetere", "da_verificare"))
+    return (cmm.pn_da_guardare(a.quote_non_capaci, a.quote_deriva, a.quote_fuori_ultimo, a.fuori_30g)
+            or bool(anomalie or fai_codice in ("da_ripetere", "da_verificare")))

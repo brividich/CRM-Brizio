@@ -8,30 +8,32 @@ from datetime import date
 
 from django.db.models import Q
 
+from . import spc
 from .models import AliasQuotaCMM, ReportCMM
 from .report_cmm_indice import analisi_pn, id_quota, report_primo_articolo, unilaterale, usata
 
 MAX_CONFRONTO = 6
 SOGLIA_CAMBIO = 0.20  # «cambia»: differenza fra primo e ultimo oltre il 20% della tolleranza
-AL_LIMITE = 0.80      # tolleranza usata oltre l'80%
+AL_LIMITE = spc.TOLLERANZA_AL_LIMITE   # tolleranza usata oltre l'80%
 
 
 def _ordine(r: ReportCMM):
-    return (r.data or date.min, r.id)
+    return (r.data or date.min, r.modificato, r.id)
 
 
 def stessi_programma(report: ReportCMM):
     """Report validi dello stesso P/N e programma (base), dal più vecchio."""
     return (ReportCMM.objects.filter(pn=report.pn, programma_base=report.programma_base, righe__gt=0, escluso=False)
-            .order_by("data", "id"))
+            .order_by("data", "modificato", "id"))
 
 
 def vicini(report: ReportCMM) -> tuple[ReportCMM | None, ReportCMM | None]:
     """Il pezzo prima e il pezzo dopo nello stesso programma (per data, poi per lettura)."""
     qs = stessi_programma(report).exclude(pk=report.pk)
     d = report.data or date.min
-    prima = qs.filter(Q(data__lt=d) | Q(data=d, id__lt=report.id)).order_by("-data", "-id").first()
-    dopo = qs.filter(Q(data__gt=d) | Q(data=d, id__gt=report.id)).order_by("data", "id").first()
+    m = report.modificato
+    prima = qs.filter(Q(data__lt=d) | Q(data=d, modificato__lt=m) | Q(data=d, modificato=m, id__lt=report.id)).order_by("-data", "-modificato", "-id").first()
+    dopo = qs.filter(Q(data__gt=d) | Q(data=d, modificato__gt=m) | Q(data=d, modificato=m, id__gt=report.id)).order_by("data", "modificato", "id").first()
     return prima, dopo
 
 
@@ -189,7 +191,7 @@ def anomalie_da_aprire(quante: int = 15, pns: list[str] | None = None) -> list[d
     if pns is not None:
         qs = qs.filter(pn__in=pns)
     out, op_cache = [], {}
-    for r in qs.order_by("-data", "-id")[: quante * 3]:
+    for r in qs.order_by("-data", "-modificato", "-id")[: quante * 3]:
         if anomalia_aperta_per(r):
             continue
         op = None
@@ -211,7 +213,7 @@ def _stato_quota(a: dict) -> str:
     senza Cpk (pochi pezzi)."""
     if a["fuori_ultimo"]:
         return "fuori"
-    if a["deriva"] or (a["indice"] is not None and a["indice"] < 1.33):
+    if spc.da_guardare(False, a["deriva"], a.get("verdetto")):
         return "limite"
     return "ok" if a["indice"] is not None else "nd"
 
@@ -322,12 +324,12 @@ def proposte(report: ReportCMM) -> dict[str, list[int]]:
     out = {}
     if report.seriale:
         stesso = list(ReportCMM.objects.filter(pn=report.pn, seriale=report.seriale, righe__gt=0)
-                      .order_by("data", "id").values_list("id", flat=True)[:MAX_CONFRONTO])
+                      .order_by("data", "modificato", "id").values_list("id", flat=True)[:MAX_CONFRONTO])
         if len(stesso) > 1:
             out["fasi"] = stesso
     primo = report_primo_articolo(report.op) if report.op else None
     if primo:
-        ultimi = list(stessi_programma(primo).exclude(pk=primo.pk).order_by("-data", "-id")
+        ultimi = list(stessi_programma(primo).exclude(pk=primo.pk).order_by("-data", "-modificato", "-id")
                       .values_list("id", flat=True)[:3])
         if ultimi:
             out["primo"] = [primo.pk] + ultimi[::-1]
@@ -400,9 +402,7 @@ MAX_REPORT_OP = 1500
 
 def chiave_seriale(sn: str) -> str:
     """S/N confrontabile: solo lettere e cifre, maiuscolo (come «ultima misura per S/N»)."""
-    import re
-
-    return re.sub(r"[^A-Z0-9]", "", str(sn or "").upper())
+    return spc.chiave_seriale(sn)
 
 
 def matrice_op(titolo: str, anomalie_sn: dict[str, int] | None = None) -> dict:
@@ -415,7 +415,7 @@ def matrice_op(titolo: str, anomalie_sn: dict[str, int] | None = None) -> dict:
 
     anomalie_sn = anomalie_sn or {}
     righe = list(ReportCMM.objects.filter(op=titolo, righe__gt=0)
-                 .order_by("data", "id").values("id", "seriale", "programma_base", "data", "fuori", "escluso")[:MAX_REPORT_OP])
+                 .order_by("data", "modificato", "id").values("id", "seriale", "programma_base", "data", "fuori", "escluso")[:MAX_REPORT_OP])
     validi = [r for r in righe if not r["escluso"]]
     massimo: dict[int, float] = {}
     for m in MisuraCMM.objects.filter(report_id__in=[r["id"] for r in validi]).values_list(
@@ -453,7 +453,7 @@ def matrice_op(titolo: str, anomalie_sn: dict[str, int] | None = None) -> dict:
 def cronologia_op(titolo: str, documenti, quanti: int = 12) -> list[dict]:
     """Cosa è successo sull'OP, dal più recente: report CMM (con le quote fuori) e documenti registrati."""
     eventi = []
-    for r in ReportCMM.objects.filter(op=titolo, righe__gt=0).order_by("-data", "-id")[:quanti]:
+    for r in ReportCMM.objects.filter(op=titolo, righe__gt=0).order_by("-data", "-modificato", "-id")[:quanti]:
         eventi.append({"quando": r.data, "tipo": "fuori" if r.fuori else "ok", "id": r.id,
                        "testo": f"{r.seriale or r.file} · {r.programma_base or '—'}",
                        "esito": f"{r.fuori} quot{'a' if r.fuori == 1 else 'e'} fuori" if r.fuori else "tutto in tolleranza"})
@@ -479,7 +479,7 @@ def report_del_pezzo(pn: str, sn: str) -> list[ReportCMM]:
 
     cifre = re.findall(r"\d+", chiave)
     filtro = cifre[-1][-4:] if cifre else chiave[-3:]      # le ultime cifre restano uguali anche con trattini e spazi
-    candidati = ReportCMM.objects.filter(pn=pn, righe__gt=0, seriale__icontains=filtro).order_by("data", "id")
+    candidati = ReportCMM.objects.filter(pn=pn, righe__gt=0, seriale__icontains=filtro).order_by("data", "modificato", "id")
     return [r for r in candidati if chiave_seriale(r.seriale) == chiave]
 
 
@@ -537,7 +537,7 @@ def pezzo(pn: str, sn: str, solo: str = "") -> dict | None:
     if ultimo.op:
         visti_sn: dict[str, dict] = {}
         for r in (ReportCMM.objects.filter(pn=pn, op=ultimo.op, righe__gt=0, escluso=False)
-                  .order_by("data", "id").only("seriale", "fuori", "data")[:MAX_REPORT_OP]):
+                  .order_by("data", "modificato", "id").only("seriale", "fuori", "data", "modificato")[:MAX_REPORT_OP]):
             k = chiave_seriale(r.seriale)
             if k and k != chiave_seriale(ultimo.seriale):
                 visti_sn[k] = {"sn": r.seriale, "fuori": r.fuori, "data": r.data}

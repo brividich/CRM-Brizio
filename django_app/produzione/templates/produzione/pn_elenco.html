@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Catalogo P/N · Ordini di produzione{% endblock %}
+{% block title %}Catalogo P/N · Controllo dimensionale{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127a">{% endblock %}
 
 {% block content %}
@@ -45,8 +45,8 @@
         <thead>
           <tr>
             <th>P/N</th><th>Cliente</th><th>Stato</th><th class="prod-n">OP</th><th>Ultimo OP</th>
-            <th class="prod-n">Report 12 mesi</th><th>Report per mese</th><th class="prod-n" title="Cpk più basso fra le quote, ultimi 30 pezzi">Cpk peggiore</th>
-            <th class="prod-n" title="Quote con Cpk sotto 1,33">Non capaci</th><th class="prod-n" title="Report degli ultimi 30 giorni con quote fuori">Fuori 30 gg</th>
+            <th class="prod-n">Report 12 mesi</th><th>Report per mese</th><th class="prod-n" title="Il più basso fra Cpk e Ppk delle quote, ultimi {{ prod_finestra }} pezzi">Indice peggiore</th>
+            <th class="prod-n" title="Quote al limite o non capaci: Cpk o Ppk sotto 1,33 con almeno 25 pezzi">Sotto obiettivo</th><th class="prod-n" title="Report degli ultimi 30 giorni con quote fuori">Fuori 30 gg</th>
             <th class="prod-n">Anomalie</th>{% if vede_kickoff %}<th>FAI</th>{% endif %}<th>Ultimo report</th>
           </tr>
         </thead>

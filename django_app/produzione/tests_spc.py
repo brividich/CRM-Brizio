@@ -44,9 +44,9 @@ class CapacitaTests(SimpleTestCase):
         self.assertAlmostEqual(lo, 1.4 - 1.96 * math.sqrt(1 / 270 + 1.96 / 58), places=9)
         self.assertLess(lo, 1.4)
         self.assertGreater(hi, 1.4)
-        self.assertEqual(spc.verdetto(1.4, lo, 30), "al limite")  # il limite basso è sotto 1,33
-        self.assertEqual(spc.verdetto(2.5, 2.0, 30), "capace")
-        self.assertEqual(spc.verdetto(0.8, 0.6, 30), "non capace")
+        self.assertEqual(spc.verdetto(1.4, 30), "capace")          # l'intervallo si mostra, non decide
+        self.assertEqual(spc.verdetto(1.2, 30), "al limite")
+        self.assertEqual(spc.verdetto(0.8, 30), "non capace")
         self.assertIsNone(spc.capacita([1, 2], 0, 3)["cpk"])
 
     def test_forma_metodo_percentili(self):
@@ -153,7 +153,8 @@ const out = casi.map(c => {
   const cap = SPC.capacita(c.xs, c.lsl, c.usl, c.nom);
   return {cpk: cap.cpk, ppk: cap.ppk, basso: cap.cpk_basso, metodo: cap.metodo, verdetto: cap.verdetto,
           segnali: SPC.segnali(c.xs).map(g => [String(g.regola), g.da, g.a]),
-          rischio: SPC.rischio_prossimo(c.xs, c.lsl, c.usl, c.nom), cambi: SPC.punti_cambio(c.xs).map(p => p.indice)};
+          rischio: SPC.rischio_prossimo(c.xs, c.lsl, c.usl, c.nom), cambi: SPC.punti_cambio(c.xs).map(p => p.indice),
+          deriva: SPC.deriva(c.xs.map(x => SPC.usata(x, c.nom, c.lsl, c.usl)))};
 });
 console.log(JSON.stringify(out));
 """
@@ -168,3 +169,9 @@ console.log(JSON.stringify(out));
             self.assertEqual([[str(g["regola"]), g["da"], g["a"]] for g in spc.segnali(c["xs"])], j["segnali"])
             self.assertAlmostEqual(spc.rischio_prossimo(c["xs"], c["lsl"], c["usl"], c["nom"]), j["rischio"], places=6)
             self.assertEqual([p["indice"] for p in spc.punti_cambio(c["xs"])], j["cambi"])
+            d = spc.deriva([spc.usata(x, c["nom"], c["lsl"], c["usl"]) for x in c["xs"]])
+            self.assertEqual(d is None, j["deriva"] is None)
+            if d:
+                self.assertEqual((d["pezzi"], d["verso"], d["pezzi_min"], d["pezzi_max"]),
+                                 (j["deriva"]["pezzi"], j["deriva"]["verso"], j["deriva"]["pezzi_min"], j["deriva"]["pezzi_max"]))
+                self.assertAlmostEqual(d["pendenza"], j["deriva"]["pendenza"], places=9)

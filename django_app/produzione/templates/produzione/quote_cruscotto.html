@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Quote CMM · Ordini di produzione{% endblock %}
+{% block title %}Quote CMM · Controllo dimensionale{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127a">{% endblock %}
 
 {% block content %}
@@ -17,7 +17,7 @@
   <div class="prot-esito prot-esito-dati">
     <div class="prot-campo"><small>P/N con report</small><b>{{ tot.pn }}</b></div>
     <div class="prot-campo{% if tot.fuori %} is-allerta{% endif %}"><small>Con fuori negli ultimi 30 giorni</small><b>{{ tot.fuori }} P/N</b></div>
-    <div class="prot-campo{% if tot.cpk %} is-allerta{% endif %}"><small>Quote non capaci (Cpk o Ppk &lt; 1,33)</small><b>{{ tot.cpk }}</b></div>
+    <div class="prot-campo{% if tot.cpk %} is-allerta{% endif %}"><small>Quote sotto obiettivo (Cpk o Ppk &lt; 1,33)</small><b>{{ tot.cpk }}</b></div>
     <div class="prot-campo"><small>Quote in deriva</small><b>{{ tot.deriva }}</b></div>
     <div class="prot-campo{% if anomalie_aprire %} is-allerta{% endif %}"><small>Anomalie da aprire</small><b>{{ anomalie_aprire|length }}</b></div>
     <div class="prot-campo"><small>Report letti oggi</small><b>{{ oggi }}</b></div>
@@ -57,7 +57,7 @@
     {% if righe %}
     <div class="prot-tabella">
       <table class="prot-tab prot-mappa" data-fm-table-skip="1">
-        <thead><tr><th class="l">P/N</th><th title="Salute CMM 0-100: rischio, quote fuori, non capaci, in deriva">Salute</th>{% for s in settimane %}<th class="prot-sett">S{{ s.n }}<span>{{ s.da|date:"d/m" }}</span></th>{% endfor %}<th title="Rischio più alto che il prossimo pezzo esca">Rischio</th><th title="Quote fuori nell'ultimo report">Fuori ora</th><th title="Cpk o Ppk sotto 1,33">Non capaci</th><th>Deriva</th><th class="l">Ultimo report</th></tr></thead>
+        <thead><tr><th class="l">P/N</th><th title="Salute CMM 0-100: rischio, quote fuori, non capaci, in deriva">Salute</th>{% for s in settimane %}<th class="prot-sett">S{{ s.n }}<span>{{ s.da|date:"d/m" }}</span></th>{% endfor %}<th title="Rischio più alto che il prossimo pezzo esca">Rischio</th><th title="Quote fuori nell'ultimo report">Fuori ora</th><th title="Cpk o Ppk sotto 1,33">Sotto obiettivo</th><th>Deriva</th><th class="l">Ultimo report</th></tr></thead>
         <tbody>
           {% for r in righe %}
           <tr>
@@ -84,7 +84,7 @@
 
   {% if quote_guardare %}
   <section class="prot">
-    <div class="prot-barra"><span class="prot-titolo">Quote da guardare</span><span class="prot-spazio"></span><span class="prot-conta">Fuori nell'ultimo report, poi dal rischio più alto · ultimi 30 pezzi validi</span></div>
+    <div class="prot-barra"><span class="prot-titolo">Quote da guardare</span><span class="prot-spazio"></span><span class="prot-conta">Fuori nell'ultimo report, poi dal rischio più alto · ultimi {{ prod_finestra }} pezzi validi</span></div>
     <div class="prot-tabella">
       <table class="prot-tab" data-fm-table-skip="1">
         <thead><tr><th class="l">Quota</th><th class="l">P/N</th><th class="l">Programma</th><th>Cpk</th><th>Ppk</th><th title="Probabilità che il prossimo pezzo esca">Rischio</th><th class="l">Verdetto</th></tr></thead>

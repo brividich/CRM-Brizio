@@ -1,6 +1,6 @@
 """Avvisi delle quote CMM: report nuovi con quote fuori tolleranza e quote che vanno in deriva.
 
-Li riceve chi è scelto in Ordini di produzione › Impostazioni («Chi riceve gli avvisi»), come notifica
+Li riceve chi è scelto in Controllo dimensionale › Impostazioni («Chi riceve gli avvisi»), come notifica
 in-app (campanella e, se l'utente l'ha chiesta, push). Ogni report avvisa una volta sola (``avvisato``);
 una quota in deriva si riavvisa al massimo ogni 30 giorni. Si avvisa solo per i report degli ultimi
 ``GIORNI_AVVISO`` giorni: la prima lettura di una cartella (anni di report) non manda avvisi su pezzi vecchi.

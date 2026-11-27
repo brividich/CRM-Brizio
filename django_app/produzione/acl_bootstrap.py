@@ -1,4 +1,4 @@
-"""Bootstrap ACL v2 canonico della sezione Ordini di produzione.
+"""Bootstrap ACL v2 canonico della sezione Controllo dimensionale.
 
 Permessi:
 
@@ -33,17 +33,17 @@ PERM_QUOTE = "produzione.quote.manage"
 PERM_ARTICOLI = "produzione.articoli.manage"
 
 _CANONICAL = {
-    PERM_VIEW: {"label": "Ordini di produzione - Elenco e scheda OP",
+    PERM_VIEW: {"label": "Controllo dimensionale - Elenco e scheda OP",
                 "description": "Elenco degli OP, scheda con documenti di produzione, FAI e anomalie."},
-    PERM_DOCUMENTI: {"label": "Ordini di produzione - Documenti",
+    PERM_DOCUMENTI: {"label": "Controllo dimensionale - Documenti",
                      "description": "Aggiungere, cambiare ed eliminare i documenti di produzione di un OP."},
-    PERM_IMPOSTAZIONI: {"label": "Ordini di produzione - Impostazioni",
+    PERM_IMPOSTAZIONI: {"label": "Controllo dimensionale - Impostazioni",
                         "description": "Tipi di documento di produzione."},
-    PERM_OP: {"label": "Ordini di produzione - Nuovo OP",
+    PERM_OP: {"label": "Controllo dimensionale - Nuovo OP",
               "description": "Creare un OP dall'elenco degli OP e dalla scheda FAI."},
-    PERM_QUOTE: {"label": "Ordini di produzione - Gestire le quote CMM",
+    PERM_QUOTE: {"label": "Controllo dimensionale - Gestire le quote CMM",
                  "description": "Escludere e riammettere report CMM, unire quote con nomi diversi."},
-    PERM_ARTICOLI: {"label": "Ordini di produzione - Anagrafica P/N",
+    PERM_ARTICOLI: {"label": "Controllo dimensionale - Anagrafica P/N",
                     "description": "Cambiare descrizione, cliente, disegno, materiale e stato dei P/N; aggiornare il catalogo."},
 }
 
@@ -114,7 +114,7 @@ def _bootstrap_canonical() -> bool:
                 route_name=route_name, path_pattern="",
                 defaults={"match_strategy": RoutePermissionBinding.MATCH_EXACT,
                           "permission_id": code, "source_app": MODULE,
-                          "note": "[PRODUZIONE_BOOTSTRAP] binding Ordini di produzione",
+                          "note": "[PRODUZIONE_BOOTSTRAP] binding Controllo dimensionale",
                           "priority": 80, "is_active": True},
             )
             changed = changed or created
@@ -127,7 +127,7 @@ def _bootstrap_canonical() -> bool:
                 changed = True
 
         defaults_nav = {
-            "label": "Ordini di produzione", "route_name": "produzione:elenco", "url_path": "",
+            "label": "Controllo dimensionale", "route_name": "produzione:elenco", "url_path": "",
             "section": "topbar", "required_permission_code": PERM_VIEW, "order": 15,
             "is_visible": True, "is_enabled": True, "icon": "clipboard",
             "description": "Gli OP con i documenti di produzione, i FAI e le anomalie.",
