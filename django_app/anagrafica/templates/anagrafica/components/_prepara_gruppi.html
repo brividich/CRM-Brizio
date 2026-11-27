@@ -1,0 +1,213 @@
+{# Passo «Gruppi» del percorso Prepara la sessione: lavagna trascina-e-rilascia + tabella a scelta multipla, stesso stato. #}
+<h2>{{ n_passo }} · Gruppi</h2>
+{% if not divisa %}
+<div class="sp-tool">
+  <div class="sp-seg" role="tablist" aria-label="Come si svolge">
+    <button type="button" data-scelta="tutti" class="{% if not oltre_posti %}on{% endif %}">Tutti insieme</button>
+    <button type="button" data-scelta="gruppi" class="{% if oltre_posti %}on{% endif %}">In più gruppi</button>
+  </div>
+  {% if oltre_posti %}<span class="fmd-muted">{{ iscrizioni|length }} iscritti, {{ posti }} posti in sala {{ sessione.sala.nome }}: propongo {{ gruppi_suggeriti }} gruppi.</span>{% endif %}
+</div>
+<div class="sp-hint" id="sp-tutti-msg"{% if oltre_posti %} hidden{% endif %}>Tutti nella stessa aula e nelle stesse giornate: non serve fare niente, vai avanti.</div>
+{% else %}
+<div class="sp-hint ok">✓ L'edizione è divisa in {{ lavagna.gruppi|length }} gruppi. Trascina le persone da un gruppo all'altro (o selezionale nella tabella) e salva. Chi ha già firmato una giornata resta dov'è.</div>
+{% endif %}
+
+<form method="post" action="{{ azione_url }}{% if divisa %}sposta{% else %}dividi{% endif %}/" id="sp-gruppi"{% if not divisa and not oltre_posti %} hidden{% endif %} style="display:flex;flex-direction:column;gap:12px;">
+  {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+  {% if not divisa %}
+  <input type="hidden" name="n_gruppi" id="sp-n-in" value="{{ gruppi_suggeriti }}">
+  <div class="sp-tool">
+    <span>Gruppi</span>
+    <span class="sp-num"><button type="button" data-n="-1" aria-label="Un gruppo in meno">−</button><b id="sp-n">{{ gruppi_suggeriti }}</b><button type="button" data-n="1" aria-label="Un gruppo in più">+</button></span>
+    <span class="fmd-muted" style="margin-left:8px;">Proponi:</span>
+    <button type="button" class="hr-btn hr-btn-sm hr-btn-ghost" data-proponi="rotazione">a rotazione</button>
+    <button type="button" class="hr-btn hr-btn-sm hr-btn-ghost" data-proponi="reparto">per reparto</button>
+    <button type="button" class="hr-btn hr-btn-sm hr-btn-ghost" data-proponi="mansione">per mansione</button>
+  </div>
+  <div class="sp-modi" role="radiogroup" aria-label="Calendario dei gruppi">
+    <label class="sp-modo"><input type="radio" name="modello" value="orari" checked><span><b>Stesso giorno, orari diversi</b>Mattina / pomeriggio: stesse date, il gruppo dopo inizia più tardi.<span id="sp-orari" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></span></span></label>
+    <label class="sp-modo"><input type="radio" name="modello" value="giorni"><span><b>Giorni diversi, stesso orario</b>Ogni gruppo parte <input type="number" name="giorni" min="1" max="60" value="{{ lavagna.giornate }}" style="width:52px;" class="fm-input"> giorni lavorativi dopo il precedente.</span></label>
+    <label class="sp-modo"><input type="radio" name="modello" value="libero"><span><b>Calendario libero</b>I gruppi nascono senza giornate: le metti tu, gruppo per gruppo, con il generatore.</span></label>
+  </div>
+  {% endif %}
+
+  <div class="sp-tool">
+    <div class="sp-seg" aria-label="Vista">
+      <button type="button" data-vista="lavagna" class="on">Lavagna</button>
+      <button type="button" data-vista="tabella">Tabella</button>
+    </div>
+    <span class="fmd-muted" id="sp-sel-info"></span>
+  </div>
+
+  <div class="sp-board" id="sp-board"></div>
+
+  <div id="sp-tab" hidden>
+    <div class="sp-tool" style="margin-bottom:6px;">
+      <span>Sposta i selezionati in</span>
+      <select id="sp-dest" data-no-search class="sp-mini"></select>
+      <button type="button" class="hr-btn hr-btn-sm hr-btn-outline" id="sp-sposta">Sposta</button>
+    </div>
+    <div class="sp-tbl alto" data-table-enhanced="0"><table class="hr-table">
+      <thead><tr><th style="width:40px;text-align:center;"><input type="checkbox" id="sp-tab-tutti" aria-label="Seleziona tutti"></th><th>Persona</th><th>Reparto</th><th>Mansione</th><th>Gruppo</th></tr></thead>
+      <tbody id="sp-tab-body"></tbody>
+    </table></div>
+  </div>
+
+  <div id="sp-hidden"></div>
+  <div class="sp-az">
+    <button type="submit" class="hr-btn hr-btn-primary" id="sp-invia">{% if divisa %}Salva gli spostamenti{% else %}Dividi in gruppi{% endif %}</button>
+  </div>
+</form>
+{{ lavagna|json_script:"sp-lavagna" }}
+<script>
+(function(){
+  var D=JSON.parse(document.getElementById("sp-lavagna").textContent);
+  var form=document.getElementById("sp-gruppi"); if(!form) return;
+  var persone=D.persone, divisa=D.divisa, n=divisa?D.gruppi.length:parseInt(document.getElementById("sp-n-in").value,10);
+  var sel=new Set(), vista="lavagna";
+  var board=document.getElementById("sp-board"), tbody=document.getElementById("sp-tab-body");
+  function esc(t){var d=document.createElement("div");d.textContent=t==null?"":String(t);return d.innerHTML;}
+  function nomeG(i){return "Gruppo "+(i+1);}
+
+  // ── scelta «tutti insieme / in gruppi» ──
+  document.querySelectorAll("[data-scelta]").forEach(function(b){
+    b.addEventListener("click",function(){
+      document.querySelectorAll("[data-scelta]").forEach(function(x){x.classList.toggle("on",x===b);});
+      var g=b.dataset.scelta==="gruppi"; form.hidden=!g;
+      var m=document.getElementById("sp-tutti-msg"); if(m) m.hidden=g;
+      if(g&&persone.every(function(p){return p.g===0;})) proponi("rotazione");
+    });
+  });
+
+  // ── proposte ──
+  function proponi(chi){
+    var mobili=persone.filter(function(p){return !p.bloccata;});
+    if(chi==="rotazione"){mobili.forEach(function(p,i){p.g=i%n;});}
+    else{
+      // per reparto/mansione: gruppi interi, il più grande nel gruppo più vuoto
+      var mucchi={}; mobili.forEach(function(p){var k=p[chi]||"—";(mucchi[k]=mucchi[k]||[]).push(p);});
+      var conta=new Array(n).fill(0);
+      Object.keys(mucchi).sort(function(a,b){return mucchi[b].length-mucchi[a].length;}).forEach(function(k){
+        var i=conta.indexOf(Math.min.apply(null,conta));
+        mucchi[k].forEach(function(p){p.g=i;}); conta[i]+=mucchi[k].length;
+      });
+    }
+    render();
+  }
+  document.querySelectorAll("[data-proponi]").forEach(function(b){b.addEventListener("click",function(){proponi(b.dataset.proponi);});});
+
+  // ── numero gruppi (solo prima della divisione) ──
+  document.querySelectorAll("[data-n]").forEach(function(b){
+    b.addEventListener("click",function(){
+      n=Math.max(2,Math.min(D.max,n+parseInt(b.dataset.n,10)));
+      persone.forEach(function(p){if(p.g>=n)p.g=n-1;});
+      document.getElementById("sp-n").textContent=n; document.getElementById("sp-n-in").value=n;
+      orari(); render();
+    });
+  });
+  function hhmm(min){min=((min%1440)+1440)%1440;return String(Math.floor(min/60)).padStart(2,"0")+":"+String(min%60).padStart(2,"0");}
+  function orari(){
+    var box=document.getElementById("sp-orari"); if(!box) return;
+    var vecchi={}; box.querySelectorAll("input").forEach(function(i){vecchi[i.name]=i.value;});
+    var p=D.inizio.split(":"), base=parseInt(p[0],10)*60+parseInt(p[1],10), html="";
+    for(var k=1;k<n;k++){
+      var nome="ora_"+k, v=vecchi[nome]||hhmm(base+k*(D.durata+60));
+      html+='<label style="font-size:12px;">'+nomeG(k)+' <input type="time" name="'+nome+'" value="'+v+'" class="fm-input" style="width:96px;"></label>';
+    }
+    box.innerHTML='<span style="font-size:12px;">'+nomeG(0)+' '+D.inizio+'</span>'+html;
+  }
+  orari();
+
+  // ── vista ──
+  document.querySelectorAll("[data-vista]").forEach(function(b){
+    b.addEventListener("click",function(){
+      vista=b.dataset.vista;
+      document.querySelectorAll("[data-vista]").forEach(function(x){x.classList.toggle("on",x===b);});
+      board.style.display=vista==="lavagna"?"":"none"; document.getElementById("sp-tab").hidden=vista!=="tabella";
+    });
+  });
+
+  function colonne(){
+    if(divisa) return D.gruppi.map(function(g,i){return {i:i,nome:g.nome,g:g};});
+    var c=[]; for(var i=0;i<n;i++) c.push({i:i,nome:nomeG(i),g:null}); return c;
+  }
+  function sposta(ids,dest){
+    persone.forEach(function(p){if(ids.has(p.id)&&!p.bloccata)p.g=dest;});
+    sel.clear(); render();
+  }
+
+  function render(){
+    var cols=colonne();
+    // lavagna
+    board.innerHTML="";
+    cols.forEach(function(c){
+      var dentro=persone.filter(function(p){return p.g===c.i;});
+      var over=D.posti&&dentro.length>D.posti;
+      var col=document.createElement("div"); col.className="sp-col"; col.dataset.g=c.i;
+      var info=c.g?('<span>'+esc(c.g.codice)+' · '+esc(c.g.quando)+'</span>'+(c.g.attuale?'':'<a href="'+esc(c.g.prepara)+'" style="font-size:11.5px;">Giornate del gruppo →</a>')):"";
+      col.innerHTML='<div class="sp-col-h"><b><span>'+esc(c.nome)+'</span><span class="'+(over?"over":"")+'">'+dentro.length+(D.posti?" / "+D.posti:"")+'</span></b>'+info+'</div><div class="sp-col-b"></div>';
+      var body=col.querySelector(".sp-col-b");
+      if(!dentro.length) body.innerHTML='<div class="sp-vuoto">Trascina qui</div>';
+      dentro.forEach(function(p){
+        var ch=document.createElement("div");
+        ch.className="sp-chip"+(sel.has(p.id)?" sel":"")+(p.bloccata?" lock":"");
+        ch.draggable=!p.bloccata; ch.dataset.id=p.id; ch.tabIndex=0;
+        ch.title=p.bloccata?"Ha già firmato una giornata":"Trascina in un altro gruppo · clic per selezionare";
+        ch.innerHTML='<span>'+esc(p.nome)+'</span><small>'+esc(p.reparto||p.mansione||"")+'</small>';
+        ch.addEventListener("click",function(){if(p.bloccata)return; sel.has(p.id)?sel.delete(p.id):sel.add(p.id); render();});
+        ch.addEventListener("dragstart",function(e){
+          if(!sel.has(p.id)){sel.clear();sel.add(p.id);}
+          e.dataTransfer.setData("text/plain",Array.from(sel).join(","));
+          e.dataTransfer.effectAllowed="move"; ch.classList.add("drag");
+        });
+        ch.addEventListener("dragend",function(){ch.classList.remove("drag");});
+        body.appendChild(ch);
+      });
+      col.addEventListener("dragover",function(e){e.preventDefault();col.classList.add("drop");});
+      col.addEventListener("dragleave",function(){col.classList.remove("drop");});
+      col.addEventListener("drop",function(e){
+        e.preventDefault(); col.classList.remove("drop");
+        var ids=new Set(e.dataTransfer.getData("text/plain").split(",").filter(Boolean).map(Number));
+        sposta(ids,c.i);
+      });
+      board.appendChild(col);
+    });
+    // tabella
+    var opz=cols.map(function(c){return '<option value="'+c.i+'">'+esc(c.nome)+'</option>';}).join("");
+    document.getElementById("sp-dest").innerHTML=opz;
+    tbody.innerHTML=persone.map(function(p){
+      return '<tr><td style="text-align:center;"><input type="checkbox" class="sp-tcb" value="'+p.id+'"'+(sel.has(p.id)?" checked":"")+(p.bloccata?" disabled":"")+'></td>'+
+        '<td>'+esc(p.nome)+(p.bloccata?' <span class="fm-pill fm-pill-ok" style="font-size:10px;">firmato</span>':'')+'</td><td>'+esc(p.reparto||"—")+'</td><td>'+esc(p.mansione||"—")+'</td>'+
+        '<td><select data-no-search class="sp-mini sp-tg" data-id="'+p.id+'"'+(p.bloccata?" disabled":"")+'>'+opz.replace('value="'+p.g+'"','value="'+p.g+'" selected')+'</select></td></tr>';
+    }).join("");
+    tbody.querySelectorAll(".sp-tcb").forEach(function(cb){
+      cb.addEventListener("change",function(){var id=Number(cb.value); cb.checked?sel.add(id):sel.delete(id); info();});
+    });
+    tbody.querySelectorAll(".sp-tg").forEach(function(s){
+      s.addEventListener("change",function(){sposta(new Set([Number(s.dataset.id)]),Number(s.value));});
+    });
+    info();
+  }
+  function info(){
+    var t=sel.size?(sel.size+" selezionat"+(sel.size===1?"a":"e")+": trascinal"+(sel.size===1?"a":"e")+" insieme o usa la tabella"):"Clic su più nomi per spostarli insieme";
+    document.getElementById("sp-sel-info").textContent=t;
+  }
+  document.getElementById("sp-tab-tutti").addEventListener("change",function(){
+    var on=this.checked; sel.clear(); if(on) persone.forEach(function(p){if(!p.bloccata)sel.add(p.id);}); render();
+  });
+  document.getElementById("sp-sposta").addEventListener("click",function(){
+    sposta(new Set(sel),Number(document.getElementById("sp-dest").value));
+  });
+
+  form.addEventListener("submit",function(){
+    var h=document.getElementById("sp-hidden"), out="";
+    persone.forEach(function(p){
+      out+=divisa?'<input type="hidden" name="m_'+p.id+'" value="'+D.gruppi[p.g].id+'">'
+                 :'<input type="hidden" name="a_'+p.lid+'" value="'+p.g+'">';
+    });
+    h.innerHTML=out;
+  });
+  {% if not divisa %}if({{ oltre_posti|yesno:"true,false" }}) proponi("rotazione"); else render();{% else %}render();{% endif %}
+})();
+</script>

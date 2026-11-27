@@ -2922,6 +2922,33 @@ def formazione_rinnovo_in_sessione(request, sessione_id: int):
     return _agli_iscritti(sessione, pre.get("back") or "")
 
 
+def _ultime_edizioni_per_corso() -> dict:
+    """``{corso_id: dati}`` dell'edizione più recente di ogni corso attivo, per il
+    pulsante «Come l'ultima edizione» del form di creazione."""
+    esito: dict[str, dict] = {}
+    righe = (
+        TrainingSession.objects.exclude(stato="ANNULLATA").filter(corso__is_active=True)
+        .order_by("corso_id", "-data_inizio", "-pk")
+        .values("pk", "corso_id", "codice_sessione", "data_inizio", "modalita", "sede",
+                "docente_id", "docente_ente_id", "docente_nome", "sala__nome")
+    )
+    oggi = django_timezone.localdate()
+    for r in righe:
+        chiave = str(r["corso_id"])
+        # Vince l'edizione più recente già partita; una futura solo se non ce ne sono.
+        if chiave in esito and (esito[chiave]["_passata"] or not (r["data_inizio"] and r["data_inizio"] <= oggi)):
+            continue
+        esito[chiave] = {
+            "id": r["pk"], "codice": r["codice_sessione"],
+            "data": r["data_inizio"].strftime("%d-%m-%Y") if r["data_inizio"] else "",
+            "modalita": r["modalita"] if r["modalita"] != "ONLINE" else "", "sede": r["sede"] or "",
+            "docente": r["docente_id"] or "", "docente_ente": r["docente_ente_id"] or "",
+            "docente_nome": r["docente_nome"] or "", "sala": r["sala__nome"] or "",
+            "_passata": bool(r["data_inizio"] and r["data_inizio"] <= oggi),
+        }
+    return esito
+
+
 @login_required
 def formazione_sessione_create(request):
     if not _helpers._can_edit_formazione(request):
@@ -2939,6 +2966,13 @@ def formazione_sessione_create(request):
             copia_programma_dal_corso(sessione)
             # Materiale del corso spuntato nel form: copiato sull\'edizione (copia,
             # non collegamento, come il programma qui sopra).
+            # «Come l'ultima edizione»: la sala non è nel form, arriva dall'edizione scelta.
+            come = str(request.POST.get("come_edizione") or "")
+            if come.isdigit() and not sessione.sala_id:
+                origine = TrainingSession.objects.filter(pk=int(come), corso_id=sessione.corso_id).first()
+                if origine is not None and origine.sala_id:
+                    sessione.sala_id = origine.sala_id
+                    sessione.save(update_fields=["sala"])
             n_allegati = form.copia_allegati(user=request.user)
             if n_allegati:
                 messages.info(
@@ -2984,6 +3018,7 @@ def formazione_sessione_create(request):
         "modalita_aiuto": TrainingSession.MODALITA_AIUTO,
         "form": form,
         "modo": "crea",
+        "ultime_edizioni": _ultime_edizioni_per_corso(),
         "rinnovo": rinnovo,
     })
 
@@ -3296,6 +3331,8 @@ def formazione_lezione_delete(request, sessione_id: int, lezione_id: int):
     num = lezione.numero
     n_presenze = lezione.presenze.count()
     data = lezione.data.isoformat() if lezione.data else ""
+    from ..services.formazione_preparazione import libera_giornata
+    libera_giornata(lezione)  # la sala prenotata in Outlook per quel giorno torna libera
     lezione.delete()
     _audit_formazione(request, "lezione_eliminata", {
         "sessione_id": sessione_id, "lezione_id": lezione_id,

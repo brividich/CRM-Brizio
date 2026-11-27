@@ -619,10 +619,14 @@ GUIDA = {
         },
         {
             "id": "sessione-prepara",
-            "titolo": "Nuova sessione passo passo: giornate, iscritti, pronta",
+            "titolo": "Nuova sessione passo passo: giornate, sala, iscritti, gruppi, pronta",
             "blocchi": [
                 ("ul", [
-                    "Dopo «Crea sessione» si apre «Prepara la sessione» con i passi Dati · Giornate · Iscritti · Pronta (ente esterno: Dati · Iscritti · Pronta).",
+                    "Nel form di creazione «↺ Come l'ultima edizione» riprende modalità, sede, sala e docente.",
+                    "Dopo «Crea sessione» si apre «Prepara la sessione» con i passi Dati · Giornate · Iscritti · Gruppi (se serve) · Pronta (ente esterno: Dati · Iscritti · Pronta).",
+                    "Giornate: sala aziendale con i posti (si gestiscono in Reception → Configurazione → Sale) e «Prenota la sala» in Outlook giornata per giornata; avvisi se sala o docente sono già occupati; «Copia le giornate» dall'edizione precedente; «Programma per giornata».",
+                    "Iscritti: avvisi di ferie/assenze e di altri corsi nelle stesse ore; avviso se gli iscritti superano i posti della sala.",
+                    "Gruppi: quanti (2–8), proposta a rotazione / per reparto / per mansione, calendario «stesso giorno orari diversi», «giorni diversi stesso orario» o «libero»; persone spostate trascinandole nella lavagna o in blocco dalla tabella.",
                     "Giornate: orario-tipo, pausa e giorni della settimana → «Genera le giornate»; «Aggiungi una giornata singola» per una data sparsa; confronto con le ore del corso.",
                     "Iscritti: «Da formare per questo corso» con già spuntati scaduti e in scadenza → «Iscrivi i selezionati»; «Aggiungi un'altra persona» per gli altri.",
                     "Pronta: cosa manca e, in aula, foglio firme, QR d'aula e locandina.",
