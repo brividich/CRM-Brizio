@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}Quote CMM · Controllo dimensionale{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127a">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127c">{% endblock %}
 
 {% block content %}
 <div class="prod prod-largo">
@@ -91,7 +91,7 @@
         <tbody>
           {% for q in quote_guardare %}
           <tr class="prot-riga is-{% if q.fuori_ultimo %}fuori{% else %}limite{% endif %}">
-            <td class="l"><span class="prot-ic is-{% if q.fuori_ultimo %}fuori{% else %}limite{% endif %}" aria-hidden="true"></span> <a class="prot-link" href="{% url 'produzione:pn' q.pn %}?sez=qualita&amp;q={{ q.prog|urlencode }}%3A%3A{{ q.quota_id|urlencode }}"><b>{{ q.nome }}</b></a>{% if q.deriva %} <span class="prot-deriva">deriva</span>{% endif %}</td>
+            <td class="l"><span class="prot-ic is-{% if q.fuori_ultimo %}fuori{% else %}limite{% endif %}" aria-hidden="true"></span> <a class="prot-link" href="{% url 'produzione:quota' q.pk %}"><b>{{ q.nome }}</b></a>{% if q.deriva %} <span class="prot-deriva">deriva</span>{% endif %}</td>
             <td class="l">{{ q.pn }}</td>
             <td class="l">{{ q.prog|default:"—" }}</td>
             <td>{% if q.cpk is not None %}{{ q.cpk|floatformat:2 }}{% else %}—{% endif %}</td>
@@ -122,7 +122,7 @@
           {% for q in caratteristiche %}
           <tr class="prot-riga is-{% if q.verdetto == 'non capace' %}fuori{% elif q.verdetto == 'al limite' %}limite{% else %}ok{% endif %}">
             <td class="l"><b>{{ q.caratteristica }}</b></td>
-            <td class="l"><a class="prot-link" href="{% url 'produzione:pn' q.pn %}?sez=qualita&amp;q={{ q.prog|urlencode }}%3A%3A{{ q.quota_id|urlencode }}">{{ q.pn }}</a></td>
+            <td class="l"><a class="prot-link" href="{% url 'produzione:quota' q.pk %}">{{ q.pn }}</a></td>
             <td class="l">{{ q.prog|default:"—" }}</td>
             <td>{% if q.lsl is not None %}{{ q.lsl|floatformat:4 }} – {{ q.usl|floatformat:4 }}{% else %}—{% endif %}</td>
             <td>{{ q.n }}</td>

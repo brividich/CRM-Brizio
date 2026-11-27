@@ -203,17 +203,40 @@ def analizza(a: ArticoloPN) -> None:
     a.save(update_fields=["cpk_peggiore", "quote_non_capaci", "quote_deriva", "quote_fuori_ultimo", "rischio_max",
                           "salute", "analisi_il"])
     # una riga per quota (Quote CMM, confronto della stessa caratteristica fra P/N)
+    import json
+
     from django.db import transaction
 
-    nuove = [QuotaCapacita(
-        pn=a.pn, prog=(r["prog"] or "")[:200], quota_id=r["quota"]["id"][:260], nome=(r["quota"]["nome"] or "")[:200],
-        caratteristica=caratteristica(r["quota"]["nome"]), nominale=r["quota"]["nominale"], lsl=r.get("lsl"), usl=r.get("usl"),
-        n=r["n"], cpk=r.get("cpk"), ppk=r.get("ppk"), indice=r.get("indice"), cpk_basso=r.get("cpk_basso"),
-        verdetto=r.get("verdetto") or "", metodo=r.get("metodo") or "", rischio=r.get("rischio"), deriva=bool(r["deriva"]),
-        fuori_ultimo=r["fuori_ultimo"], famiglia=r.get("famiglia")) for r in righe]
+    # aggiornate in posto: l'id della quota resta lo stesso da un giro all'altro (pagina della quota, link)
+    campi = ["nome", "caratteristica", "nominale", "lsl", "usl", "n", "cpk", "ppk", "indice", "cpk_basso", "verdetto", "metodo",
+             "rischio", "deriva", "fuori_ultimo", "famiglia", "dati", "aggiornato_il"]
+    esistenti = {(q.prog, q.quota_id): q for q in QuotaCapacita.objects.filter(pn=a.pn)}
+    nuove, cambiate, viste = [], [], set()
+    for r in righe:
+        chiave = ((r["prog"] or "")[:200], r["quota"]["id"][:260])
+        if chiave in viste:
+            continue
+        viste.add(chiave)
+        valori = dict(
+            nome=(r["quota"]["nome"] or "")[:200], caratteristica=caratteristica(r["quota"]["nome"]),
+            nominale=r["quota"]["nominale"], lsl=r.get("lsl"), usl=r.get("usl"), n=r["n"], cpk=r.get("cpk"), ppk=r.get("ppk"),
+            indice=r.get("indice"), cpk_basso=r.get("cpk_basso"), verdetto=r.get("verdetto") or "", metodo=r.get("metodo") or "",
+            rischio=r.get("rischio"), deriva=bool(r["deriva"]), fuori_ultimo=r["fuori_ultimo"], famiglia=r.get("famiglia"),
+            dati=json.dumps(r, ensure_ascii=False, separators=(",", ":")))
+        q = esistenti.get(chiave)
+        if q is None:
+            nuove.append(QuotaCapacita(pn=a.pn, prog=chiave[0], quota_id=chiave[1], **valori))
+        else:
+            for k, v in valori.items():
+                setattr(q, k, v)
+            q.aggiornato_il = a.analisi_il
+            cambiate.append(q)
+    sparite = [q.pk for k, q in esistenti.items() if k not in viste]
     with transaction.atomic():      # mai un istante senza le quote del P/N
-        QuotaCapacita.objects.filter(pn=a.pn).delete()
-        QuotaCapacita.objects.bulk_create(nuove, batch_size=500)
+        for i in range(0, len(sparite), 500):
+            QuotaCapacita.objects.filter(pk__in=sparite[i:i + 500]).delete()
+        QuotaCapacita.objects.bulk_create(nuove, batch_size=200)
+        QuotaCapacita.objects.bulk_update(cambiate, campi, batch_size=50)
 
 
 def caratteristica(nome: str) -> str:

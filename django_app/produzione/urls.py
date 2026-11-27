@@ -16,6 +16,7 @@ urlpatterns = [
     path("api/quote/alias/", views.api_quote_alias, name="api_quote_alias"),
     path("api/quote/alias/<int:pk>/elimina/", views.api_quote_alias_elimina, name="api_quote_alias_elimina"),
     path("quote/", views.quote_cruscotto, name="quote_cruscotto"),
+    path("quota/<int:pk>/", views.quota, name="quota"),
     path("pn/quote/pdf/", views.quote_pdf, name="quote_pdf"),
     path("report-cmm/<int:pk>/escludi/", views.report_escludi, name="report_escludi"),
     path("pn/leggi-report/", views.pn_leggi_report, name="pn_leggi_report"),

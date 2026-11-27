@@ -9,6 +9,16 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Controllo dimensionale: registro delle quote e pagina della quota
+
+- Ogni quota ha una pagina con indirizzo stabile (`/produzione/quota/<id>/`), con lo stesso riquadro della Qualità CMM: ci si arriva da «Pagina della quota», da «Quote da guardare» e dal dettaglio di un report. Accanto al nome lo stato del processo: stabile, media spostata, in deriva, segnali, pochi pezzi.
+- Limiti di controllo fermi sui primi pezzi della finestra (base: prima metà, almeno 15): uno spostamento recente non li allarga più. Vale anche in Analisi quote.
+- Se il programma cambia la tolleranza di una quota, Cpk, Ppk e segnali contano solo i pezzi con la tolleranza di oggi; il grafico segna dove è cambiata.
+- Confronto fra OP sugli ultimi pezzi caricati (non solo la finestra), con una barra per OP.
+- Le pagine leggono l'analisi salvata dal giro (`QuotaCapacita.dati`) invece di ricalcolarla.
+- File: `produzione/spc.py`, `report_cmm_indice.py`, `report_cmm_pagine.py`, `articoli.py`, `models.py`, `views.py`, `urls.py`, `acl_bootstrap.py`, migrazione `0013`, `templates/produzione/_quota.html`, `quota.html`, `pn_scheda.html`, `quote_cruscotto.html`, `report_cmm.html`, `static/produzione/js/{spc,protocollo,analisi_quote}.js`, `css/produzione.css`, `guida.py`, `core/guide_moduli/contenuti/produzione.py`, `docs/moduli/produzione.md`, `tests_quota_unica.py`.
+- Deploy: `migrate produzione`, `collectstatic`, sincronizzazione dei permessi, riavvio di qcluster.
+
 ### Asset: la famiglia della categoria riallinea gli asset
 
 - Impostazioni › categorie: cambiando la «Famiglia tecnica» di una categoria, gli asset già dentro passano al nuovo tipo (prima cambiava solo per gli asset salvati dopo). Il messaggio dice quanti; esclusi gli asset delle sottocategorie e i prodotti chimici. Serve per portare tra le «Macchine di lavoro» le categorie d'officina (Torni, Frese, Affilatrici…). Nessuna migrazione.

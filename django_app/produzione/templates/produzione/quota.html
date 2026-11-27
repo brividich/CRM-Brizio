@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ a.quota.nome }} · {{ pn }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127c">{% endblock %}
+
+{% block content %}
+<div class="prod">
+  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:pn_elenco' %}">Controllo dimensionale</a><a href="{% url 'produzione:pn' pn %}">{{ pn }}</a><a href="{% url 'produzione:pn' pn %}?sez=qualita">Qualità CMM</a></template>
+  <div class="prod-head">
+    <div>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:pn_elenco' %}">Controllo dimensionale</a> › <a href="{% url 'produzione:pn' pn %}">{{ pn }}</a> › <a href="{% url 'produzione:pn' pn %}?sez=qualita">Qualità CMM</a> › {{ a.prog|default:"—" }}</span>
+      <h1><span class="prot-ic is-{{ a.stato }}" aria-hidden="true"></span> {{ a.quota.nome }}</h1>
+    </div>
+    <div class="prod-filtri">
+      {% if ultimo_report %}<a class="prod-btn" href="{% url 'produzione:report_cmm' ultimo_report %}">Ultimo report</a>{% endif %}
+      <a class="prod-btn" href="{% url 'produzione:guida' %}">? Guida</a>
+    </div>
+  </div>
+  <section class="prot">
+{% include "produzione/_quota.html" %}
+  </section>
+  {{ grafico|json_script:"qualita-dati" }}
+</div>
+<script src="{% static 'produzione/js/protocollo.js' %}?v=20261127c" defer></script>
+{% endblock %}

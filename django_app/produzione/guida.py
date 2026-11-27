@@ -244,6 +244,20 @@ SEZIONI: list[dict] = [
         "id": "statistica",
         "titolo": "Statistica di processo (Cpk, Ppk, rischio, segnali)",
         "blocchi": [
+            ("p", "Ogni quota ha la sua pagina con indirizzo stabile («Pagina della quota», anche da «Quote da guardare» in Quote "
+                  "CMM e dal dettaglio di un report): lo stesso riquadro della Qualità CMM, con carta di controllo, indici, "
+                  "segnali, confronto fra OP e lettura. Accanto al nome c'è «processo»: stabile, media spostata (dal pezzo "
+                  "indicato), in deriva, segnali sulla carta, pochi pezzi."),
+            ("def", [
+                ("Limiti di controllo (LCS, LCI)", "si calcolano sui primi pezzi della finestra (la base: prima metà, almeno 15; "
+                 "sotto 25 pezzi tutti) e restano fermi: uno spostamento recente non li allarga e quindi si vede. «LCS base» "
+                 "nel grafico."),
+                ("Tolleranza cambiata", "se il programma cambia la tolleranza di una quota, Cpk, Ppk, segnali e limiti contano "
+                 "solo i pezzi misurati con la tolleranza di oggi; il grafico mostra anche quelli prima, con la riga «tolleranza "
+                 "cambiata»."),
+                ("Gli OP sono diversi?", "confronto sugli ultimi pezzi caricati (fino al doppio della finestra), con una barra per "
+                 "OP: dal minimo al massimo dentro la tolleranza, il segno è la media."),
+            ]),
             ("p", "Le stesse formule valgono in tutte le pagine (report, scheda P/N, Analisi quote, Quote CMM, catalogo), sugli "
                   "ultimi pezzi validi di ogni programma: 30, 50 o 100, da Impostazioni (Analisi quote parte dalla stessa finestra, «Ultimi N pezzi», e la cambia solo se scegli un altro periodo)."),
             ("def", [

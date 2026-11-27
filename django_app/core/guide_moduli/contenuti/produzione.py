@@ -88,6 +88,10 @@ GUIDA = {
                       "programmi, «PDF di capacità». «Quote CMM» ha la «Mappa qualità» (P/N × ultime 12 settimane, in ogni casella "
                       "report con quote fuori su report misurati, clic = i report di quella settimana) e le «Quote da guardare» "
                       "di tutti i P/N; Impostazioni › «Avvisi delle quote CMM» sceglie chi riceve gli avvisi."),
+                ("p", "Pagina della quota (da Qualità CMM, da «Quote da guardare» e dal dettaglio di un report): indirizzo "
+                      "stabile, carta con limiti di controllo fermi sui primi pezzi, stato del processo (stabile, media "
+                      "spostata, in deriva), barre per OP; se la tolleranza è cambiata gli indici contano solo i pezzi con "
+                      "quella di oggi."),
                 ("p", "Statistica di processo, uguale in tutte le pagine: Cpk (macchina, σ di breve periodo) e Ppk (processo, σ "
                       "totale), verdetto sul peggiore dei due contro 1,33 e 1,00 (sotto 25 pezzi «pochi dati»), finestra a scelta "
                       "(ultimi 30, 50 o 100 pezzi), pezzi in ordine di giorno e ora del file, metodo dei "
