@@ -84,6 +84,13 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <section class="ag-sec" id="acronimo">
       <h2>Acronimo dell'asset</h2>
       <p>Il campo <strong>Acronimo</strong> è la sigla con cui l'asset è riconosciuto in azienda (es. DM11, AGV1, MK2). È facoltativo e a testo libero: si compila in <span class="ag-btn">Modifica</span> della scheda (anche nel form macchina). Compare in testa alla scheda, prima del tag, e in grassetto sotto il nome nell'elenco; la ricerca lo trova anche scritto con spazi o trattini («dm 11»).</p>
+      <h3>Proponi acronimi</h3>
+      <p>Per compilarli in blocco: nell'<strong>Inventario</strong> clicca l'etichetta <span class="ag-btn">Senza acronimo (N)</span> (la vede chi può modificare gli asset). La pagina legge le sigle già scritte nel nome e nel tag («DM7 - DMG Mori» → DM7, «CNC-DM7-0006» → DM7) e le propone, senza salvare niente.</p>
+      <ul>
+        <li><strong>Con proposta</strong>: una riga per asset con la sigla proposta, modificabile. Sono già spuntate solo le proposte sicure; le altre hanno un avviso e restano da spuntare a mano: <em>Più sigle possibili</em> (scegli tra le etichette accanto al campo), <em>Stessa sigla su N asset</em>, <em>Già usato da un altro asset</em>, <em>Dispositivo IT: controlla</em>.</li>
+        <li><strong>Senza proposta</strong>: gli asset in cui non c'è una sigla riconoscibile. Scrivi l'acronimo nel campo: la riga si spunta da sola.</li>
+        <li><span class="ag-btn">Salva gli acronimi spuntati</span> scrive solo le righe spuntate e solo dove l'acronimo è ancora vuoto: non sovrascrive mai un acronimo già inserito. La pagina mostra 200 righe alla volta: dopo il salvataggio compaiono le successive.</li>
+      </ul>
     </section>
 
     <section class="ag-sec" id="rinvio">

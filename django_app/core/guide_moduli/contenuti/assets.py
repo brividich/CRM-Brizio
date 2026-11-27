@@ -23,6 +23,11 @@ GUIDA = {
                 ]),
                 ("p", "Il menu a sinistra è diviso per area: Inventario, Manutenzione e officina, IT e rete (licenze, software, "
                       "indirizzi IP, rack), Inventario per categoria; in fondo «Guida del modulo»."),
+                ("p", "Acronimi in blocco: nell'Inventario il chip «Senza acronimo (N)» apre «Proponi acronimi» (serve il permesso di "
+                      "modificare gli asset). La pagina propone la sigla già scritta nel nome o nel tag («DM7 - DMG Mori» → DM7); "
+                      "sono spuntate solo le proposte sicure, le altre hanno un avviso («Più sigle possibili», «Stessa sigla su N asset», "
+                      "«Già usato da un altro asset», «Dispositivo IT: controlla»). In «Senza proposta» scrivi la sigla a mano. "
+                      "«Salva gli acronimi spuntati» scrive solo le righe spuntate e non sovrascrive mai un acronimo già inserito."),
                 ("p", "Dal telefono basta inquadrare il QR sulla macchina: si apre la scheda con manutenzioni e documenti."),
                 ("nota", "Con il link pubblico attivo, chi non ha login vede solo le cartelle scelte nel pannello QR («Cosa si vede senza login», "
                          "di base solo «Manuali») e carica file sui ticket solo se lì è spuntato."),

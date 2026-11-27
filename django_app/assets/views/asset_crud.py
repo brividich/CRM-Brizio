@@ -1103,6 +1103,12 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         from ..services.reparti_collegati import testi_da_collegare
 
         reparti_da_collegare = testi_da_collegare()
+    # Asset senza acronimo: chip verso «Proponi acronimi», solo a chi può modificare gli asset.
+    senza_acronimo_count = 0
+    from ..views_rete import _acl_consente
+
+    if _acl_consente(request, reverse("assets:acronimi_proponi")):
+        senza_acronimo_count = assets.filter(acronimo="").exclude(status=Asset.STATUS_RETIRED).count()
     if senza_reparto:
         assets = senza_reparto_qs
     # Dalla scheda dipendente: gli asset assegnati a una persona (id utente), sempre
@@ -1423,6 +1429,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             "senza_reparto": senza_reparto,
             "assegnatario": assegnatario,
             "reparti_da_collegare": reparti_da_collegare,
+            "senza_acronimo_count": senza_acronimo_count,
             "rows": rows,
             "rows_options": rows_options,
             "page_obj": page_obj,

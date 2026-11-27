@@ -1,0 +1,104 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Proponi acronimi{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/partials/rete_rack_stile.html" %}
+<style>
+.acr-tabs{display:flex;flex-wrap:wrap;gap:6px}
+.acr-tab{padding:6px 12px;border-radius:999px;border:1px solid var(--border,#dbe3ef);font-weight:700;font-size:var(--fs-sm,13px);text-decoration:none;color:var(--text-mid,#475569)}
+.acr-tab.on{background:#2563eb;border-color:#2563eb;color:#fff}
+.acr-dx{margin-left:auto}
+.acr-in{box-sizing:border-box;border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:var(--text,#0f172a)}
+.acr-in{width:11em;font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-weight:700;text-transform:uppercase}
+.acr-sel{width:1%;white-space:nowrap}
+.acr-sub{display:block;color:var(--text-mid,#64748b);font-size:var(--fs-xs,12px)}
+.acr-altre{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.acr-altre button{cursor:pointer;background:var(--surface,#fff);font-family:var(--font-mono,ui-monospace,Consolas,monospace)}
+.acr-barra{position:sticky;bottom:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 0 2px;background:var(--surface,#fff)}
+.acr-barra button{cursor:pointer}
+</style>{% endblock %}
+
+{% block assets_shell_title %}Proponi acronimi{% endblock %}
+
+{% block assets_shell_content %}
+<div class="rk-page">
+  <div class="rk-toolbar">
+    <div class="acr-tabs" role="tablist">
+      <a class="acr-tab{% if vista == 'proposte' %} on{% endif %}" href="{{ url_proposte }}">Con proposta ({{ n_proposte }})</a>
+      <a class="acr-tab{% if vista == 'senza' %} on{% endif %}" href="{{ url_senza }}">Senza proposta ({{ n_senza }})</a>
+    </div>
+    <a class="rk-btn acr-dx" href="{% url 'assets:asset_list' %}">Inventario</a>
+    {% if guida_url %}<a class="rk-btn" href="{{ guida_url }}">? Guida</a>{% endif %}
+  </div>
+
+  <section class="rk-card">
+    {% if righe %}
+    <form method="post" id="acr-form">
+      {% csrf_token %}
+      <div class="rk-table-wrap"><table class="rk-table">
+        <thead><tr>
+          <th class="acr-sel"><input type="checkbox" id="acr-tutti" aria-label="Seleziona tutte le righe" title="Seleziona o deseleziona tutte"></th>
+          <th>Asset</th><th>Categoria</th><th>Reparto</th><th>Acronimo</th><th></th>
+        </tr></thead>
+        <tbody>{% for r in righe %}<tr>
+          <td class="acr-sel"><input type="checkbox" name="sel" value="{{ r.asset.id }}" aria-label="Salva l'acronimo di {{ r.asset.name }}"{% if r.spuntata %} checked{% endif %}></td>
+          <td><a href="{% url 'assets:asset_view' r.asset.id %}">{{ r.asset.name }}</a><span class="acr-sub">#{{ r.asset.asset_tag }}{% if r.asset.internal_number %} · N.{{ r.asset.internal_number }}{% endif %}</span></td>
+          <td>{% if r.asset.asset_category_id %}{{ r.asset.asset_category.label }}{% else %}{{ r.asset.get_asset_type_display }}{% endif %}</td>
+          <td>{{ r.asset.reparto|default:"—" }}</td>
+          <td><input class="acr-in" type="text" name="acr_{{ r.asset.id }}" value="{{ r.proposta }}" maxlength="32" autocomplete="off" aria-label="Acronimo di {{ r.asset.name }}">{% if r.proposte|length > 1 %}<span class="acr-altre">{% for p in r.proposte %}<button type="button" class="rk-chip" data-acr-usa="{{ p }}" title="Usa questa sigla">{{ p }}</button>{% endfor %}</span>{% endif %}</td>
+          <td>{% if r.avviso %}<span class="rk-chip rk-chip-warn">{{ r.avviso }}</span>{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      <div class="acr-barra">
+        <button class="rk-btn rk-btn-primary" type="submit">Salva gli acronimi spuntati (<span id="acr-n">0</span>)</button>
+        {% if oltre %}<span class="rk-note">Prime {{ righe|length }} righe di {{ totale }}: dopo il salvataggio compaiono le successive.</span>{% endif %}
+      </div>
+    </form>
+    {% elif vista == 'proposte' %}
+    <p class="rk-ok">Nessuna proposta.{% if n_senza %} Restano {{ n_senza }} asset da compilare a mano in «Senza proposta».{% endif %}</p>
+    {% else %}
+    <p class="rk-ok">Nessun asset senza acronimo.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  var form = document.getElementById("acr-form");
+  if (!form) return;
+  var tutti = document.getElementById("acr-tutti"), n = document.getElementById("acr-n");
+  function caselle() { return Array.prototype.slice.call(form.querySelectorAll('input[name="sel"]')); }
+  function conta() {
+    var c = caselle(), su = c.filter(function (x) { return x.checked; }).length;
+    n.textContent = su;
+    tutti.checked = su > 0 && su === c.length;
+    tutti.indeterminate = su > 0 && su < c.length;
+  }
+  tutti.addEventListener("change", function () {
+    caselle().forEach(function (x) {
+      var campo = x.closest("tr").querySelector(".acr-in");
+      x.checked = tutti.checked && campo.value.trim() !== "";
+    });
+    conta();
+  });
+  form.addEventListener("change", function (ev) { if (ev.target.name === "sel") conta(); });
+  // Scrivere una sigla spunta la riga, svuotarla la toglie.
+  form.addEventListener("input", function (ev) {
+    if (!ev.target.classList.contains("acr-in")) return;
+    ev.target.closest("tr").querySelector('input[name="sel"]').checked = ev.target.value.trim() !== "";
+    conta();
+  });
+  form.addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-acr-usa]");
+    if (!b) return;
+    var riga = b.closest("tr");
+    riga.querySelector(".acr-in").value = b.getAttribute("data-acr-usa");
+    riga.querySelector('input[name="sel"]').checked = true;
+    conta();
+  });
+  conta();
+})();
+</script>
+{% endblock %}
