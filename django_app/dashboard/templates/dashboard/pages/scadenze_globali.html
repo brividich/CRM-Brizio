@@ -34,6 +34,7 @@ Context: dashboard/views_scadenze.py (scadenze_globali).
       {% if vista != "andamento" %}<button type="button" class="sc-btn" id="sc-stampa" title="Stampa o salva in PDF quello che vedi (dal dialogo di stampa: «Salva come PDF»)">🖨 Stampa</button>{% endif %}
       <a class="sc-btn sc-btn-intero{% if intero %} primary{% endif %}" href="{{ link_intero }}" id="sc-intero" title="{% if intero %}Torna alla pagina normale (Esc){% else %}Lo scadenzario occupa tutto lo schermo (per il browser intero anche F11){% endif %}">{% if intero %}✕ Esci dallo schermo intero{% else %}⛶ Schermo intero{% endif %}</a>
       {% if not intero %}
+      {% if puo_nuova_generica %}<a class="sc-btn primary" href="{% url 'scadenzario:scadenza_nuova' %}">+ Nuova attività</a>{% endif %}
       {% if puo_generiche %}<a class="sc-btn" href="{% url 'scadenzario:elenco' %}">🗂 Scadenze generiche</a>{% endif %}
       {% if puo_pannello %}<a class="sc-btn" href="{% url 'scadenzario:gestione' %}">⚙ Gestione</a>{% endif %}
       <a class="sc-btn" href="{% url 'scadenzario:guida' %}">? Guida</a>

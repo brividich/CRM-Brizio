@@ -133,3 +133,26 @@ class VisteScadenzarioTests(TestCase):
     def test_sposta_mese(self):
         self.assertEqual(vs._sposta_mese(date(2026, 12, 1), 1), date(2027, 1, 1))
         self.assertEqual(vs._sposta_mese(date(2026, 1, 1), -1), date(2025, 12, 1))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class NuovaAttivitaDalCalendarioTests(TestCase):
+    def _get(self, user):
+        from core.models import UserOnboarding
+
+        UserOnboarding.objects.create(user=user, completed=True)
+        self.client.force_login(user)
+        with patch("dashboard.views_scadenze.collect_all", return_value=[]):
+            return self.client.get(reverse("scadenze_globali") + "?sorgente=generiche&vista=mese")
+
+    def test_chi_gestisce_vede_nuova_attivita(self):
+        user = get_user_model().objects.create_superuser(username="adm.nuova", email="n@example.com", password="x")
+        resp = self._get(user)
+        self.assertContains(resp, reverse("scadenzario:scadenza_nuova"))
+        self.assertContains(resp, "+ Nuova attività")
+
+    def test_senza_categorie_gestibili_niente_pulsante(self):
+        user = get_user_model().objects.create_superuser(username="adm.no", email="no@example.com", password="x")
+        with patch("scadenzario.permessi.categorie_gestibili", return_value=set()):
+            resp = self._get(user)
+        self.assertNotContains(resp, "+ Nuova attività")
