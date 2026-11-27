@@ -1238,7 +1238,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                 </select>
               </div>
               <div class="field">
-                <label>Famiglia tecnica</label>
+                <label title="Cambiandola, cambiano tipo anche gli asset già in questa categoria (non quelli delle sottocategorie).">Famiglia tecnica · vale anche per gli asset già dentro</label>
                 <select class="input" name="base_asset_type">
                   {% for type_code, type_label in asset_category_type_choices %}
                     <option value="{{ type_code }}" {% if row.category.base_asset_type == type_code %}selected{% endif %}>{{ type_label }}</option>
