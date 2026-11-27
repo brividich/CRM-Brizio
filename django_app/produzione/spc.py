@@ -165,12 +165,54 @@ def capacita(xs, lsl, usl, nominale=None):
 
 # --- carta di controllo -----------------------------------------------------------------------------------
 
-def limiti_controllo(xs):
-    """Carta dei singoli: centro, LCS e LCI (media ± 3σ di breve periodo), e LCS delle escursioni mobili."""
+BASE_MIN = 15              # pezzi minimi della base congelata dei limiti di controllo
+
+
+def base_controllo(n):
+    """Quanti pezzi (i primi) fanno la base congelata dei limiti di controllo: la prima metà, almeno 15; con meno di
+    25 pezzi tutti. Così uno spostamento recente non allarga i limiti che dovrebbero rivelarlo."""
+    return n if n < POCHI_DATI else max(BASE_MIN, n // 2)
+
+
+def _base(xs, base):
+    """I pezzi di base: i primi ``base`` se bastano e hanno dispersione, altrimenti tutti."""
+    if base and 2 <= base < len(xs) and sigma_breve(xs[:base]) > 0:
+        return xs[:base]
+    return xs
+
+
+def limiti_controllo(xs, base=None):
+    """Carta dei singoli: centro, LCS e LCI (media ± 3σ di breve periodo), e LCS delle escursioni mobili. Con ``base``
+    i limiti vengono dai primi ``base`` pezzi (base congelata) e valgono per tutta la serie."""
     if len(xs) < 2:
         return None
-    m, sb = media(xs), sigma_breve(xs)
-    return {"centro": m, "lcs": m + 3 * sb, "lci": m - 3 * sb, "sigma": sb, "mr_lcs": 3.267 * sb * D2}
+    b = _base(xs, base)
+    m, sb = media(b), sigma_breve(b)
+    return {"centro": m, "lcs": m + 3 * sb, "lci": m - 3 * sb, "sigma": sb, "mr_lcs": 3.267 * sb * D2, "base": len(b)}
+
+
+def tratto_tolleranza(limiti, eps=1e-6):
+    """``limiti`` = [(limite inferiore, limite superiore)] dal più vecchio: indice del primo punto del tratto finale
+    che ha la tolleranza dell'ultima misura (0 = non è mai cambiata)."""
+    if not limiti:
+        return 0
+    l0, u0 = limiti[-1]
+    i = len(limiti)
+    while i > 0 and abs(limiti[i - 1][0] - l0) <= eps and abs(limiti[i - 1][1] - u0) <= eps:
+        i -= 1
+    return i
+
+
+def stato_processo(deriva_, cambi, segnali_, n):
+    """Una sola lettura del processo dai rivelatori: «deriva», «spostato» (la media è cambiata), «segnali»,
+    «pochi» (meno di 25 pezzi), «stabile»."""
+    if deriva_:
+        return "deriva"
+    if cambi:
+        return "spostato"
+    if segnali_:
+        return "segnali"
+    return "pochi" if n < POCHI_DATI else "stabile"
 
 
 def _finestre(flag_fine, lung):
@@ -210,13 +252,15 @@ TESTI_REGOLE = {
 }
 
 
-def segnali(xs):
-    """Regole di Nelson 1-8 sulla carta dei singoli (centro = media, σ di breve periodo) ed EWMA rispetto alla
-    prima metà della serie. ``[{"regola", "da", "a", "sopra"?}]`` con gli indici della serie."""
+def segnali(xs, base=None):
+    """Regole di Nelson 1-8 sulla carta dei singoli (centro = media, σ di breve periodo; con ``base`` quelle dei primi
+    ``base`` pezzi, come ``limiti_controllo``) ed EWMA rispetto alla prima metà della serie.
+    ``[{"regola", "da", "a", "sopra"?}]`` con gli indici della serie."""
     n = len(xs)
     if n < 9:
         return []
-    m, s = media(xs), sigma_breve(xs)
+    b = _base(xs, base)
+    m, s = media(b), sigma_breve(b)
     if s <= 0:
         return []
     z = [(x - m) / s for x in xs]

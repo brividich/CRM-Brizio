@@ -414,6 +414,19 @@ def quote_cruscotto(request):
 
 @login_required
 @require_GET
+def quota(request, pk: int):
+    """La pagina della quota: indirizzo stabile (id di ``QuotaCapacita``), stesso riquadro della Qualità CMM del P/N."""
+    from .models import QuotaCapacita
+
+    q = get_object_or_404(QuotaCapacita, pk=pk)
+    dati = pagine_cmm.quota_pagina(q)
+    if dati is None:
+        raise Http404("Quota senza analisi.")
+    return render(request, "produzione/quota.html", _ctx(request, "pn", pn=q.pn, quota=q, pagina_quota=True, **dati))
+
+
+@login_required
+@require_GET
 def quote_pdf(request):
     """PDF «Studio di capacità» con i filtri della pagina Analisi quote."""
     from datetime import date, timedelta

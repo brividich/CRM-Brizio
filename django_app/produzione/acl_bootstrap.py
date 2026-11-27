@@ -64,6 +64,7 @@ _ROUTE_BINDINGS = {
     "produzione:api_quote_alias_elimina": PERM_QUOTE,
     "produzione:report_escludi": PERM_QUOTE,
     "produzione:quote_cruscotto": PERM_VIEW,
+    "produzione:quota": PERM_VIEW,
     "produzione:quote_pdf": PERM_VIEW,
     "produzione:pn_leggi_report": PERM_VIEW,
     "produzione:report_cmm": PERM_VIEW,

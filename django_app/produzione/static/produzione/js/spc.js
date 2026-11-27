@@ -130,10 +130,16 @@ var SPC = (function () {
     return out;
   }
 
-  function limitiControllo(xs) {
+  /* Base congelata dei limiti di controllo: la prima meta, almeno 15 pezzi; sotto 25 pezzi tutti (come spc.py). */
+  function baseControllo(n) { return n < POCHI_DATI ? n : Math.max(15, Math.floor(n / 2)); }
+  function pezziBase(xs, base) {
+    if (base && base >= 2 && base < xs.length && sigmaBreve(xs.slice(0, base)) > 0) return xs.slice(0, base);
+    return xs;
+  }
+  function limitiControllo(xs, base) {
     if (xs.length < 2) return null;
-    var m = media(xs), sb = sigmaBreve(xs);
-    return { centro: m, lcs: m + 3 * sb, lci: m - 3 * sb, sigma: sb, mr_lcs: 3.267 * sb * D2 };
+    var b = pezziBase(xs, base), m = media(b), sb = sigmaBreve(b);
+    return { centro: m, lcs: m + 3 * sb, lci: m - 3 * sb, sigma: sb, mr_lcs: 3.267 * sb * D2, base: b.length };
   }
   function finestre(fine, lung) {
     var tratti = [];
@@ -164,9 +170,9 @@ var SPC = (function () {
     "8": ["8 punti lontani dalla media", "due popolazioni mescolate: due macchine o due lotti"],
     "ewma": ["Spostamento (EWMA)", "piccolo spostamento persistente, visto prima che diventi deriva"]
   };
-  function segnali(xs) {
+  function segnali(xs, base) {
     var n = xs.length; if (n < 9) return [];
-    var m = media(xs), s = sigmaBreve(xs); if (s <= 0) return [];
+    var bb = pezziBase(xs, base), m = media(bb), s = sigmaBreve(bb); if (s <= 0) return [];
     var z = xs.map(function (x) { return (x - m) / s; }), out = [], i, j, k;
     for (i = 0; i < n; i++) if (Math.abs(z[i]) > 3) out.push({ regola: 1, da: i, a: i, sopra: z[i] > 0 });
     function corse(lato, lung, regola) {
@@ -263,6 +269,6 @@ var SPC = (function () {
   return { media: media, dev_std: devStd, sigma_breve: sigmaBreve, unilaterale: unilaterale, phi: phi, weibull: weibull,
     capacita: capacita, intervallo_cpk: intervalloCpk, verdetto: verdetto, limiti_controllo: limitiControllo, ewma: ewma,
     segnali: segnali, testi: TESTI, rischio_prossimo: rischioProssimo, punti_cambio: puntiCambio, CAPACE: CAPACE,
-    usata: usata, deriva: deriva, sotto_obiettivo: sottoObiettivo, da_guardare: daGuardare, TOLLERANZA_AL_LIMITE: 0.8 };
+    usata: usata, deriva: deriva, base_controllo: baseControllo, sotto_obiettivo: sottoObiettivo, da_guardare: daGuardare, TOLLERANZA_AL_LIMITE: 0.8 };
 })();
 if (typeof window !== "undefined") window.SPC = SPC;

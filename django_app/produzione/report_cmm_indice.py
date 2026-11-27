@@ -13,6 +13,7 @@ Le quote si confrontano dentro lo stesso P/N e lo stesso programma senza revisio
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -668,9 +669,14 @@ def _confronto_op(vals, rep, lsl, usl, nom) -> dict | None:
     for op, xs in gruppi.items():
         if len(xs) >= spc.MIN_CAPACITA:
             c = spc.capacita(xs, lsl, usl, nom)
-            per_op.append({"op": op, "n": len(xs), "media": c["media"], "indice": c["indice"]})
+            per_op.append({"op": op, "n": len(xs), "media": c["media"], "indice": c["indice"], "min": min(xs), "max": max(xs)})
     per_op.sort(key=lambda o: (o["indice"] if o["indice"] is not None else 99))
     return {"p": test["p"], "diversi": test["p"] < 0.05, "op": per_op}
+
+
+def _tratto(vals, nom):
+    """I valori del tratto finale con la tolleranza dell'ultima misura (``spc.tratto_tolleranza``)."""
+    return vals[spc.tratto_tolleranza([(nom + v[3], nom + v[2]) for v in vals]):]
 
 
 def _ripetibilita(tutti, rep, banda) -> dict | None:
@@ -708,7 +714,7 @@ def analisi_pn(pn: str, ultimi: int | None = None) -> list[dict]:
 
     ultimi = ultimi or finestra()
     firma = ReportCMM.objects.filter(pn=pn).aggregate(m=Max("letto_il"), e=Max("escluso_il"))
-    chiave = f"prod_cmm_analisi4:{pn}:{ultimi}:{firma['m']}:{firma['e']}:{AliasQuotaCMM.objects.filter(pn=pn).count()}"
+    chiave = f"prod_cmm_analisi5:{pn}:{ultimi}:{firma['m']}:{firma['e']}:{AliasQuotaCMM.objects.filter(pn=pn).count()}"
     trovato = cache.get(chiave)
     if trovato is not None:
         return trovato
@@ -718,7 +724,9 @@ def analisi_pn(pn: str, ultimi: int | None = None) -> list[dict]:
         if not d["report"]:
             continue
         rep = d["report"]
-        tieni = set(ultima_per_seriale(rep)[-ultimi:])
+        larga = ultima_per_seriale(rep)           # tutti i pezzi caricati (il doppio della finestra): confronto fra OP
+        tieni = set(larga[-ultimi:])
+        larga = set(larga)
         ultimo = max(tieni)
         righe_prog = []
         serie_famiglie = {}
@@ -727,6 +735,14 @@ def analisi_pn(pn: str, ultimi: int | None = None) -> list[dict]:
             if not vals:
                 continue
             nom = q["nominale"]
+            # indici solo sul tratto con la tolleranza di oggi: una revisione che la cambia non riscrive il passato
+            finestra_vals = vals
+            i0 = spc.tratto_tolleranza([(nom + v[3], nom + v[2]) for v in vals])
+            vals = finestra_vals[i0:]
+            tol_cambio = None
+            if i0:
+                tol_cambio = {"indice": i0, "report": rep[vals[0][0]][0], "sn": rep[vals[0][0]][1],
+                              "lsl": nom + finestra_vals[i0 - 1][3], "usl": nom + finestra_vals[i0 - 1][2]}
             punti = [(v[1], nom + v[3], nom + v[2]) for v in vals]
             s_ = statistiche(punti, nom)
             xs = [v[1] for v in vals]
@@ -736,8 +752,9 @@ def analisi_pn(pn: str, ultimi: int | None = None) -> list[dict]:
             pend_x = 0.0
             if der:
                 pend_x = der["pendenza"] * (usl if unilaterale(nom, lsl, usl) else (usl - lsl) / 2)
-            lim = spc.limiti_controllo(xs)
-            cambi = [{"indice": c["indice"], "prima": c["prima"], "dopo": c["dopo"], "report": rep[vals[c["indice"]][0]][0],
+            base = spc.base_controllo(len(xs))        # limiti di controllo congelati sui primi pezzi
+            lim = spc.limiti_controllo(xs, base)
+            cambi = [{"indice": c["indice"] + i0, "prima": c["prima"], "dopo": c["dopo"], "report": rep[vals[c["indice"]][0]][0],
                       "sn": rep[vals[c["indice"]][0]][1]} for c in spc.punti_cambio(xs)]
             serie_famiglie[q["id"]] = {rep[v[0]][0]: v[1] for v in vals}
             righe_prog.append({
@@ -749,26 +766,55 @@ def analisi_pn(pn: str, ultimi: int | None = None) -> list[dict]:
                 "media": s_.get("media"), "sd": s_.get("sd"), "sigma_breve": s_.get("sigma_breve"), "cp": s_.get("cp"),
                 "pp": s_.get("pp"), "lsl": lsl, "usl": usl, "deriva_info": der,
                 "rischio": spc.rischio_prossimo(xs, lsl, usl, nom, pend_x),
-                "controllo": lim, "segnali": spc.segnali(xs), "cambi": cambi,
-                "op_confronto": _confronto_op(vals, rep, lsl, usl, nom),
+                "controllo": lim, "cambi": cambi, "tol_cambio": tol_cambio,
+                "segnali": [dict(g, da=g["da"] + i0, a=g["a"] + i0) for g in spc.segnali(xs, base)],
+                "op_confronto": _confronto_op(_tratto([v for v in tutti if v[0] in larga and v[1] is not None], nom), rep, lsl, usl, nom),
                 "ripetibilita": _ripetibilita(tutti, rep, usl - lsl if not unilaterale(nom, lsl, usl) else usl),
                 # per il grafico del protocollo: [rilevato, fuori 0/1, id report] dal più vecchio
-                "serie": [[round(v[1], 6), int(v[4]), rep[v[0]][0]] for v in vals],
+                "serie": [[round(v[1], 6), int(v[4]), rep[v[0]][0]] for v in finestra_vals],
             })
         numero, legami = spc.famiglie(serie_famiglie)
         nomi = {r["quota"]["id"]: r["quota"]["nome"] for r in righe_prog}
         for r in righe_prog:
             qid = r["quota"]["id"]
             r["famiglia"] = numero.get(qid)
+            r["processo"] = spc.stato_processo(r["deriva"], r["cambi"], r["segnali"], r["n"])
             r["legami"] = [{"nome": nomi.get(o, o), "id": o, "r": round(rr, 2)} for o, rr in legami.get(qid, [])[:3]]
         out += righe_prog
     cache.set(chiave, out, 6 * 3600)
     return out
 
 
+def analisi_salvata(pn: str) -> list[dict]:
+    """L'analisi delle quote del P/N per le pagine: quella salvata dal giro in ``QuotaCapacita`` (una riga per quota,
+    con ``pk`` = id stabile della quota) se è aggiornata all'ultimo report letto o escluso; altrimenti ``analisi_pn``
+    (in cache). Le pagine non ricalcolano quando il giro ha già calcolato."""
+    from django.db.models import Max
+
+    from .models import ArticoloPN, QuotaCapacita
+
+    fatta = ArticoloPN.objects.filter(pn=pn).values_list("analisi_il", flat=True).first()
+    if fatta:
+        firma = ReportCMM.objects.filter(pn=pn, righe__gt=0).aggregate(m=Max("letto_il"), e=Max("escluso_il"))
+        ultimo = max((x for x in (firma["m"], firma["e"]) if x), default=None)
+        if ultimo is None or ultimo <= fatta:
+            righe = []
+            for pk, dati in QuotaCapacita.objects.filter(pn=pn).exclude(dati="").values_list("pk", "dati"):
+                try:
+                    r = json.loads(dati)
+                except ValueError:
+                    continue
+                r["pk"] = pk
+                righe.append(r)
+            if righe:
+                righe.sort(key=lambda r: (r["prog"], r["quota"].get("ordine", 0), r["quota"]["nome"]))
+                return righe
+    return analisi_pn(pn)
+
+
 def quote_critiche(pn: str, ultimi: int | None = None, quante: int = 6) -> list[dict]:
     """Le quote da guardare del P/N (``spc.da_guardare``): fuori nell'ultimo report, poi dal rischio più alto."""
-    righe = [r for r in analisi_pn(pn, ultimi) if spc.da_guardare(r["fuori_ultimo"], r["deriva"], r.get("verdetto"))]
+    righe = [r for r in (analisi_pn(pn, ultimi) if ultimi else analisi_salvata(pn)) if spc.da_guardare(r["fuori_ultimo"], r["deriva"], r.get("verdetto"))]
     righe.sort(key=lambda r: (not r["fuori_ultimo"], -(r["rischio"] or 0), r["indice"] if r["indice"] is not None else 9))
     return righe[:quante]
 
@@ -889,7 +935,7 @@ def report_primo_articolo(op: str) -> ReportCMM | None:
 def capacita_dopo(report: ReportCMM, quante: int = 8) -> list[dict]:
     """Quote del report del primo articolo con il Cpk sui pezzi successivi dello stesso programma (peggiori prima)."""
     righe = []
-    analisi = {(a["prog"], a["quota"]["id"]): a for a in analisi_pn(report.pn)}
+    analisi = {(a["prog"], a["quota"]["id"]): a for a in analisi_salvata(report.pn)}
     for m in report.misure.all():
         a = analisi.get((report.programma_base, id_quota(m.chiave, m.nominale)))
         righe.append({"misura": m, "cpk": a["indice"] if a else None, "deriva": a["deriva"] if a else None,

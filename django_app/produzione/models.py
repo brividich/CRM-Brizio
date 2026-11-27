@@ -288,6 +288,8 @@ class QuotaCapacita(models.Model):
     deriva = models.BooleanField(default=False)
     fuori_ultimo = models.BooleanField(default=False)
     famiglia = models.PositiveSmallIntegerField(null=True, blank=True)
+    dati = models.TextField(blank=True, default="", help_text="L'analisi completa della quota in JSON (serie, limiti, "
+                                                             "segnali, confronto fra OP): la leggono le pagine.")
     aggiornato_il = models.DateTimeField(auto_now=True)
 
     class Meta:
