@@ -618,6 +618,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "sessione-prepara",
+            "titolo": "Nuova sessione passo passo: giornate, iscritti, pronta",
+            "blocchi": [
+                ("ul", [
+                    "Dopo «Crea sessione» si apre «Prepara la sessione» con i passi Dati · Giornate · Iscritti · Pronta (ente esterno: Dati · Iscritti · Pronta).",
+                    "Giornate: orario-tipo, pausa e giorni della settimana → «Genera le giornate»; «Aggiungi una giornata singola» per una data sparsa; confronto con le ore del corso.",
+                    "Iscritti: «Da formare per questo corso» con già spuntati scaduti e in scadenza → «Iscrivi i selezionati»; «Aggiungi un'altra persona» per gli altri.",
+                    "Pronta: cosa manca e, in aula, foglio firme, QR d'aula e locandina.",
+                    "«Salta per ora» non perde niente; finché mancano giornate o iscritti la sessione mostra «Riprendi la preparazione».",
+                    "Le sessioni «Online: slide + test» usano il loro percorso: slide, test, invio.",
+                ]),
+            ],
+        },
+        {
             "id": "sessioni-aula",
             "titolo": "Sessioni in aula: presenze, QR d'aula, chiusura, efficacia",
             "blocchi": [
