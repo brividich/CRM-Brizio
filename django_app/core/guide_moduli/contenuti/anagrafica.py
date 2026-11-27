@@ -578,6 +578,7 @@ GUIDA = {
                     "Annulla: iscritti «Ritirato»; rifiutato con completamenti o verifiche superate.",
                     "Chiusura: proposti «Ritirato» ex dipendenti e chi ha già il corso; presenza sul turno della persona.",
                     "Un completamento chiude rinnovi solo se valido; «Assegna» salta chi è in regola; rinnovo a 90 giorni.",
+                    "Assegnazione automatica: chi è iscritto a un'edizione aperta del corso non riceve anche l'assegnazione.",
                     "Link aperto: tentativi e tempo del quiz rispettati; «Quiz superati da abbinare» in Corsi online.",
                     "«Obbligatorio»: «Sì · per tutti» o «Sì · per mansione/ruolo/processo»; Scadenzario → «Ricalcola scadenze».",
                     "Conformità: corso obbligatorio mai fatto e qualifica richiesta mancante = avviso; soglie 90/60.",

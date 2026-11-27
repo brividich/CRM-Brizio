@@ -12,6 +12,8 @@ scadenza, e si notifica il dipendente.
   delle impostazioni (o scaduto) apre il ciclo successivo (iscrizione e
   assegnazione nuove), lasciando intatta la storia del ciclo precedente.
 - Cessati e persone senza anagrafica attiva esclusi.
+- Chi è già iscritto a un'edizione aperta dello stesso corso (es. «Online: slide + test»)
+  non riceve anche l'assegnazione: il corso lo fa dall'edizione (un corso, una voce).
 """
 from __future__ import annotations
 
@@ -48,8 +50,13 @@ def sincronizza(legacy_ids=None, *, oggi=None, notifica: bool = True) -> dict:
         voluti = {ctx.canonico(int(i)) for i in legacy_ids}
         persone = {pid: p for pid, p in persone.items() if pid in voluti}
     report["persone"] = len(persone)
+    report["gia_iscritti"] = 0
+    iscritti = iscritti_edizioni_aperte(pubblicati)
     for voce in requisiti.formazione(ctx, persone):
         if voce.corso.pk not in pubblicati or not voce.obbligatorio:
+            continue
+        if (voce.corso.pk, voce.persona) in iscritti:
+            report["gia_iscritti"] += 1
             continue
         in_scadenza = voce.scadenza is not None and voce.scadenza <= finestra
         if voce.stato not in STATI_DA_ASSEGNARE and not in_scadenza:
@@ -75,6 +82,18 @@ def sincronizza(legacy_ids=None, *, oggi=None, notifica: bool = True) -> dict:
             pid, corso_id = voce.persona, voce.corso.pk
             transaction.on_commit(lambda pid=pid, corso_id=corso_id: _notifica(corso_id, pid))
     return report
+
+
+def iscritti_edizioni_aperte(corsi_ids=None) -> set[tuple[int, int]]:
+    """(corso, persona) con un'iscrizione ancora valida a un'edizione non chiusa né annullata."""
+    from ..models_formazione import TrainingEnrollment
+    from .sessione_online import ESITI_FINALI_NEGATIVI, STATI_SESSIONE_CHIUSA
+    qs = (TrainingEnrollment.objects.exclude(stato__in=ESITI_FINALI_NEGATIVI)
+          .exclude(sessione__stato__in=STATI_SESSIONE_CHIUSA)
+          .filter(sessione__approvata_il__isnull=True))
+    if corsi_ids is not None:
+        qs = qs.filter(sessione__corso_id__in=list(corsi_ids))
+    return set(qs.values_list("sessione__corso_id", "legacy_anagrafica_id"))
 
 
 def _notifica(corso_id: int, legacy_id: int) -> None:
