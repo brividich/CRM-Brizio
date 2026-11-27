@@ -203,6 +203,9 @@ GUIDA = {
                     "Il Dossier mostra anche, a chi ha il permesso del modulo, la formazione richiesta dai processi "
                     "(MOD.128), gli audit interni Part 145 (Sistema di gestione) e le NC Part 145 aperte (Anomalie).",
                     "Nel Catalogo report, area «Qualità e PART 145»: tarature delle attrezzature, da sistemare, scadenze.",
+                    "Scheda del mezzo, riquadro «Chi può usarlo»: le persone con l'abilitazione chiesta dalla categoria "
+                    "(es. Carrelli elevatori → carrellista), con la scadenza; chi l'ha scaduta è segnato. La categoria si "
+                    "collega all'abilitazione in Anagrafica › Qualifiche, riquadro «Serve a».",
                     "Le voci accanto a «PART 145» (es. «P11TF12») sono le sezioni dedicate dei processi qualificati: "
                     "nascono dalla spunta «Crea sezione dedicata» nella modifica del processo (MOD.128). Pagina "
                     "impaginata come il Dossier PART 145, con solo le parti che il processo usa: da sistemare, "

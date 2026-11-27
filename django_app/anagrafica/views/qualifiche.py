@@ -659,8 +659,35 @@ def tipo_qualifica_detail(request, tipo_id: int):
         if visibili is not None:
             mancanti = [m for m in mancanti if m["legacy_id"] in visibili]
 
+    # «Serve a»: le tre scelte della pagina (ruoli, mansioni di rischio, mezzi) e i corsi base/aggiornamento.
+    from ..models import Mansione, RuoloOperativo, RuoloQualifica
+
+    serve_a = {
+        "ruoli": list(RuoloQualifica.objects.filter(qualifica=tipo, obbligatoria=True)
+                      .select_related("ruolo").order_by("ruolo__nome")),
+        "mansioni": list(tipo.mansioni_rischio.order_by("nome")),
+        "categorie": list(tipo.categorie_asset.order_by("label")),
+    }
+    serve_a["vuoto"] = not (serve_a["ruoli"] or serve_a["mansioni"] or serve_a["categorie"] or tipo.mostra_in_presenti)
+    scelte = None
+    if is_admin:
+        from assets.models import AssetCategory
+
+        scelte = {
+            "ruoli": list(RuoloOperativo.objects.filter(is_active=True).order_by("nome").values("id", "nome")),
+            "mansioni": list(Mansione.objects.filter(is_active=True).order_by("nome").values("id", "nome")),
+            "categorie": list(AssetCategory.objects.filter(is_active=True).order_by("label").values("id", "label")),
+            "ruoli_sel": {r.ruolo_id for r in serve_a["ruoli"]},
+            "mansioni_sel": {m.pk for m in serve_a["mansioni"]},
+            "categorie_sel": {c.pk for c in serve_a["categorie"]},
+        }
+
     return render(request, "anagrafica/pages/tipo_qualifica_detail.html", {
         "tipo": tipo,
+        "serve_a": serve_a,
+        "scelte": scelte,
+        "n_valide": len(holders) - n_scaduti - n_scadenza,
+        "n_mancanti": sum(1 for m in mancanti if m["stato"] == "mancante"),
         "mancanti": mancanti,
         # Processi qualificati MOD.128 che la chiedono («Cosa serve a una persona»).
         "processi_mpq": processi_che_richiedono(tipo_qualifica=tipo),
@@ -741,6 +768,116 @@ def tipo_qualifica_edit(request, tipo_id: int):
     tipo.save()
     messages.success(request, f'Tipo qualifica "{tipo.nome}" aggiornato.')
     return _helpers._back_to_caller(request, "anagrafica:qualifiche_list")
+
+
+@login_required
+@require_POST
+def tipo_qualifica_serve_a(request, tipo_id: int):
+    """Salva «Serve a» dell'abilitazione: ruoli, mansioni di rischio, mezzi e bollino in Presenti."""
+    from core.audit import log_action
+
+    from ..models import Mansione, RuoloOperativo, RuoloQualifica
+
+    tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
+    indietro = redirect(f"{reverse('anagrafica:tipo_qualifica_detail', args=[tipo.pk])}#tq-serve-a")
+    if not _helpers._is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per modificare le abilitazioni.")
+        return indietro
+
+    def _ids(nome: str) -> set[int]:
+        return {int(v) for v in request.POST.getlist(nome) if str(v).isdigit()}
+
+    ruoli = set(RuoloOperativo.objects.filter(pk__in=_ids("ruoli")).values_list("pk", flat=True))
+    attuali = set(RuoloQualifica.objects.filter(qualifica=tipo).values_list("ruolo_id", flat=True))
+    # Il ruolo tolto qui smette di chiederla; quello già presente come «preferenziale» diventa obbligatorio.
+    RuoloQualifica.objects.filter(qualifica=tipo).exclude(ruolo_id__in=ruoli).delete()
+    RuoloQualifica.objects.filter(qualifica=tipo, ruolo_id__in=ruoli, obbligatoria=False).update(obbligatoria=True)
+    for ruolo_id in ruoli - attuali:
+        RuoloQualifica.objects.create(ruolo_id=ruolo_id, qualifica=tipo, obbligatoria=True)
+
+    from assets.models import AssetCategory
+
+    tipo.mansioni_rischio.set(Mansione.objects.filter(pk__in=_ids("mansioni")))
+    tipo.categorie_asset.set(AssetCategory.objects.filter(pk__in=_ids("categorie")))
+    tipo.mostra_in_presenti = request.POST.get("mostra_in_presenti") == "1"
+    tipo.save(update_fields=["mostra_in_presenti"])
+    log_action(request, "abilitazione_serve_a", "anagrafica",
+               {"ruoli": len(ruoli), "mansioni": tipo.mansioni_rischio.count(),
+                "categorie": tipo.categorie_asset.count(), "presenti": tipo.mostra_in_presenti}, oggetto=tipo)
+    messages.success(request, f"«{tipo.nome}»: salvato a chi serve.")
+    return indietro
+
+
+@login_required
+def abilitazioni_persone(request):
+    """Abilitazioni per reparto: una riga per persona con quelle che ha e quelle che le servono.
+
+    Stesso calcolo di scheda persona e «Il mio team» (``services/abilitazioni.quadro``); si stampa
+    dal browser (un foglio per reparto) e si scarica dal menu Esporta.
+    """
+    from ..services import abilitazioni
+
+    righe, conta, reparti = _abilitazioni_righe(request)
+    gruppi: list[dict] = []
+    for r in righe:
+        if not gruppi or gruppi[-1]["reparto"] != r["reparto"]:
+            gruppi.append({"reparto": r["reparto"], "righe": []})
+        gruppi[-1]["righe"].append(r)
+    return render(request, "anagrafica/pages/abilitazioni_persone.html", {
+        "gruppi": gruppi, "n_persone": len(righe), "conta": conta, "reparti": reparti,
+        "filtri": {"reparto": request.GET.get("reparto") or "", "stato": request.GET.get("stato") or "",
+                   "tipo": request.GET.get("tipo") or ""},
+        "tipi": list(TipoQualifica.objects.filter(is_active=True).order_by("nome").values("id", "nome")),
+        "stati": [(k, abilitazioni.ETICHETTE[k]) for k in (abilitazioni.MANCANTE, abilitazioni.SCADUTA,
+                                                           abilitazioni.IN_SCADENZA, abilitazioni.VALIDA)],
+        "oggi": _oggi(),
+    })
+
+
+def _oggi():
+    from django.utils import timezone as _tz
+
+    return _tz.localdate()
+
+
+def _abilitazioni_righe(request, *, filtra: bool = True):
+    """``(righe per persona, conteggi per stato, reparti)`` nell'ambito del ruolo di chi guarda.
+
+    I conteggi sono sulle voci dell'elenco senza il filtro di stato: le tessere aprono lo stesso
+    elenco con ``?stato=`` e mostrano tante voci quante ne contano.
+    """
+    from ..services import abilitazioni
+
+    quadro = abilitazioni.quadro()
+    if _helpers._ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request)
+        if visibili is not None:
+            quadro = {lid: v for lid, v in quadro.items() if lid in visibili}
+    anagrafiche = {int(r["id"]): r for r in fetch_anagrafica_rows(ids=list(quadro))} if quadro else {}
+    reparto_f = (request.GET.get("reparto") or "").strip() if filtra else ""
+    stato_f = (request.GET.get("stato") or "").strip() if filtra else ""
+    tipo_f = (request.GET.get("tipo") or "").strip() if filtra else ""
+    righe, reparti = [], set()
+    for lid, voci in quadro.items():
+        r = anagrafiche.get(lid, {})
+        reparto = str(r.get("reparto") or "").strip() or "Senza reparto"
+        reparti.add(reparto)
+        if reparto_f and reparto.casefold() != reparto_f.casefold():
+            continue
+        if tipo_f.isdigit():
+            voci = [v for v in voci if v["tipo"].pk == int(tipo_f)]
+        righe.append({"id": lid, "reparto": reparto, "voci": voci,
+                      "nome": naming.nome_completo(r.get("nome"), r.get("cognome")) or f"#{lid}",
+                      "ordine": f"{r.get('cognome') or ''} {r.get('nome') or ''}".casefold()})
+    conta = abilitazioni.riepilogo({r["id"]: r["voci"] for r in righe})
+    if stato_f in abilitazioni.ETICHETTE:
+        for r in righe:
+            r["voci"] = [v for v in r["voci"] if v["stato"] == stato_f]
+    righe = [r for r in righe if r["voci"]]
+    righe.sort(key=lambda r: (r["reparto"].casefold(), r["ordine"]))
+    return righe, conta, sorted(reparti, key=str.casefold)
 
 
 @login_required

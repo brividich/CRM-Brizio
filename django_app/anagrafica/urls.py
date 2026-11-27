@@ -306,6 +306,9 @@ urlpatterns = [
     path("qualifiche/", views.qualifiche_list, name="qualifiche_list"),
     path("qualifiche/allinea-dai-corsi/", views.qualifiche_allinea, name="qualifiche_allinea"),
     path("qualifiche/nuovo", views.tipo_qualifica_create, name="tipo_qualifica_create"),
+    # Abilitazioni: elenco per reparto (stampa) e «Serve a» della singola abilitazione
+    path("qualifiche/persone/", views.abilitazioni_persone, name="abilitazioni_persone"),
+    path("qualifiche/<int:tipo_id>/serve-a", views.tipo_qualifica_serve_a, name="tipo_qualifica_serve_a"),
     # Sessioni di rinnovo (rilascio/rinnovo collettivo "a sessioni")
     path("qualifiche/sessioni/", views.qualifica_sessioni_list, name="qualifica_sessioni_list"),
     path("qualifiche/sessioni/nuova", views.qualifica_sessione_create, name="qualifica_sessione_create"),

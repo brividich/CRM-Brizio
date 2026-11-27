@@ -58,6 +58,9 @@ SEZIONI: list[dict] = [
             ]),
             ("p", "Gli incarichi (Preposto, Squadra Antincendio, Addetto Primo Soccorso, RLS, ASPP, RSPP…) vengono "
                   "dall'organigramma della sicurezza ISO 45001 in Anagrafica: si aggiornano lì, non in questo modulo."),
+            ("p", "Le abilitazioni contano come gli incarichi: se il ruolo chiede un'abilitazione (Anagrafica › "
+                  "Qualifiche, riquadro «Serve a») e la persona non ce l'ha valida, il bollino diventa grigio con "
+                  "«scaduta». Le abilitazioni con «Presenti in azienda» spuntato (es. BLS-D) compaiono come bollino a chi le ha valide."),
         ],
     },
     {

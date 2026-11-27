@@ -1753,12 +1753,25 @@
   <!-- QUALIFICHE PROFESSIONALI (scheda «Ruolo e competenze») -->
   <div class="dp-card" id="qualifiche" data-tab="{% if posizione %}ruolo{% else %}formazione{% endif %}">
     <div class="dp-card-head">
-      <div class="dp-card-title">📜 Qualifiche professionali</div>
+      <div class="dp-card-title">📜 Abilitazioni e qualifiche</div>
       {% if is_admin %}
         <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:qualifiche_list' %}">Gestisci catalogo</a>
       {% endif %}
     </div>
     <div class="dp-card-body">
+      {% if abilitazioni_mancanti %}
+      <div id="abilitazioni-mancanti" style="border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#b45309;margin-bottom:6px;">Le servono e non le ha ({{ abilitazioni_mancanti|length }})</div>
+        {% for v in abilitazioni_mancanti %}
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;padding:3px 0;">
+          <a href="{% url 'anagrafica:tipo_qualifica_detail' v.tipo.pk %}" style="font-weight:700;color:inherit;">{{ v.nome }}</a>
+          <span style="color:#64748b;font-size:12px;">Serve per: {{ v.motivi|join:", " }}</span>
+          {% if v.corso %}<a href="{% url 'anagrafica:formazione_corso_detail' v.corso.pk %}" style="font-size:12px;color:#1f87cd;">Corso: {{ v.corso.titolo|truncatechars:50 }}</a>{% endif %}
+          {% if is_admin %}<a href="?rinnova={{ v.tipo.pk }}#qualifiche" style="font-size:12px;color:#1f87cd;">+ Registra</a>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
       <div class="dp-qual-list">
         {% regroup qualifiche_dip|dictsort:"tipo.categoria" by tipo.get_categoria_display as qual_gruppi %}
         {% for grp in qual_gruppi %}
@@ -1798,6 +1811,7 @@
                 {% endif %}
                 {% if q.numero %}<span>N° <strong>{{ q.numero }}</strong></span>{% endif %}
                 {% if q.livello %}<span>Livello: <strong>{{ q.livello }}</strong></span>{% endif %}
+                {% if q.serve_per %}<span>Serve per: <strong>{{ q.serve_per|join:", " }}</strong></span>{% endif %}
                 {% if q.ente %}<span>Ente: <strong>{{ q.ente }}</strong></span>{% endif %}
                 {% if q.note %}<span>{{ q.note }}</span>{% endif %}
               </div>

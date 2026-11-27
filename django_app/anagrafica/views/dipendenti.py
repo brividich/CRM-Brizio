@@ -2065,6 +2065,18 @@ def dipendente_detail(request, legacy_id: int):
     # restano richiudibili sotto la corrente (``q.precedenti``).
     qualifiche_dip = _qualifiche_correnti_per_tipo(qualifiche_dip)
     tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
+    # Abilitazioni: perché servono quelle che ha e quali le mancano (stesso calcolo di «Il mio team»).
+    abilitazioni_mancanti: list = []
+    try:
+        from ..services import abilitazioni as _abilitazioni
+
+        _voci = _abilitazioni.quadro([legacy_id]).get(legacy_id, [])
+        _motivi = {v["tipo"].pk: v["motivi"] for v in _voci}
+        for q in qualifiche_dip:
+            q.serve_per = _motivi.get(q.tipo_id, [])
+        abilitazioni_mancanti = [v for v in _voci if v["stato"] == _abilitazioni.MANCANTE]
+    except Exception:
+        logger.warning("Scheda dipendente: abilitazioni non calcolabili", exc_info=True)
     # Processi qualificati MOD.128 della persona, con la sua scadenza (non quella del processo).
     try:
         from ..services.mpq_persone import processi_della_persona
@@ -2693,6 +2705,7 @@ def dipendente_detail(request, legacy_id: int):
         "ruoli_aziendali_catalogo": ruoli_aziendali_catalogo,
         "ruoli_aziendali_per_ambito": ruoli_aziendali_per_ambito,
         "qualifiche_dip": qualifiche_dip,
+        "abilitazioni_mancanti": abilitazioni_mancanti,
         "processi_mpq": processi_mpq,
         "tipi_qualifica": tipi_qualifica,
         "oggi": oggi,

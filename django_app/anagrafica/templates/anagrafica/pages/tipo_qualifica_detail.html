@@ -5,6 +5,18 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<style>
+.tq-serve{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px 18px;margin:0;}
+.tq-campo{display:flex;flex-direction:column;gap:5px;font-size:13px;min-width:0;}
+.tq-campo>span:first-child,.tq-campo>dt{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-light,#64748b);}
+.tq-campo>dd{margin:0;font-weight:600;}
+.tq-campo select{width:100%;min-height:38px;}
+.tq-campo--check>span:last-child{display:flex;align-items:center;gap:8px;min-height:38px;}
+.tq-serve-azioni{grid-column:1/-1;display:flex;justify-content:flex-end;}
+.tq-storico{margin-top:14px;}
+.tq-storico>summary{cursor:pointer;font-weight:700;font-size:13px;color:var(--text-mid,#475569);padding:10px 2px;}
+.tq-storico[open]>summary{margin-bottom:6px;}
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -21,24 +33,54 @@
       <div>
         <template data-hub-percorso-gerarchia><a href="{% url 'anagrafica:qualifiche_list' %}?categoria={{ tipo.categoria }}">Qualifiche</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ tipo.nome|truncatechars:40 }}</span></template>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ tipo.nome }}</h1>
-        <p class="fmd-ph-sub">{{ tipo.get_categoria_display }}{% if tipo.durata_mesi %} · validità {{ tipo.durata_mesi }} mesi{% else %} · senza scadenza{% endif %}{% if not tipo.is_active %} · <span class="fmd-badge fmd-b-red">disattiva</span>{% endif %}</p>
+        <p class="fmd-ph-sub">Categoria: {{ tipo.get_categoria_display }} · Validità: {% if tipo.durata_mesi %}{{ tipo.durata_mesi }} mesi{% else %}senza scadenza{% endif %}{% if not tipo.is_active %} · <span class="fmd-badge fmd-b-red">disattiva</span>{% endif %}</p>
       </div>
       <div class="fmd-pagehead-actions">
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#conformita-qualifiche" title="Come funziona questa pagina">? Guida</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:qualifiche_list' %}?categoria={{ tipo.categoria }}">← Catalogo</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:abilitazioni_persone' %}?tipo={{ tipo.id }}" title="Chi ce l'ha e a chi serve, reparto per reparto">Per reparto</a>
         {% if is_admin %}<a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ tipo.id }}"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Crea sessione di rinnovo</a>{% endif %}
       </div>
     </div>
 
-    {# ── KPI ────────────────────────────────────────────────────────────── #}
+    {# ── Numeri: gli stessi delle due tabelle sotto ─────────────────────── #}
     <section class="fmd-kpi" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
-      <a class="fmd-mtr fmd-t-cyan kpi-link" href="#tq-dipendenti" title="Vai ai dipendenti che possiedono la qualifica"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ n_holders }}</span></div><div class="fmd-mtr-lbl">Dipendenti</div></a>
-      <a class="fmd-mtr fmd-t-amber kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?tipo={{ tipo.id }}&amp;stato=scaduta" title="Apri lo scadenzario qualifiche: solo le scadute di questo tipo"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic" style="background:#fff5f5;color:#c53030;"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div><div class="fmd-mtr-lbl">Scaduti</div></a>
+      <a class="fmd-mtr fmd-t-green kpi-link" href="#tq-dipendenti" title="Vai a chi la possiede"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ n_valide }}</span></div><div class="fmd-mtr-lbl">Valide</div></a>
       <a class="fmd-mtr fmd-t-orange kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?tipo={{ tipo.id }}&amp;stato=60" title="Apri lo scadenzario qualifiche: in scadenza entro 90 giorni di questo tipo"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_scadenza }}</span></div><div class="fmd-mtr-lbl">In scadenza</div></a>
-      <a class="fmd-mtr fmd-t-green kpi-link" href="#tq-corsi" title="Vai ai corsi collegati alla qualifica"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span><span class="fmd-mtr-val">{{ corsi|length }}</span></div><div class="fmd-mtr-lbl">Corsi collegati</div></a>
-      <a class="fmd-mtr fmd-t-violet kpi-link" href="#tq-sessioni" title="Vai alle sessioni di rinnovo della qualifica"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-refresh"/></svg></span><span class="fmd-mtr-val">{{ sessioni|length }}</span></div><div class="fmd-mtr-lbl">Sessioni rinnovo</div></a>
-      <a class="fmd-mtr fmd-t-navy kpi-link" href="#tq-attestati" title="Vai agli attestati e completamenti dei corsi collegati"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ n_attestati }}</span></div><div class="fmd-mtr-lbl">Attestati</div></a>
-      <a class="fmd-mtr fmd-t-cyan kpi-link" href="#tq-lezioni" title="Vai alle sessioni dei corsi collegati, con il numero di lezioni"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_lezioni }}</span></div><div class="fmd-mtr-lbl">Lezioni</div></a>
+      <a class="fmd-mtr fmd-t-amber kpi-link" href="{% url 'anagrafica:qualifiche_scadenzario' %}?tipo={{ tipo.id }}&amp;stato=scaduta" title="Apri lo scadenzario qualifiche: solo le scadute di questo tipo"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic" style="background:#fff5f5;color:#c53030;"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div><div class="fmd-mtr-lbl">Scadute</div></a>
+      <a class="fmd-mtr fmd-t-navy kpi-link" href="#tq-mancanti" title="Vai a chi deve averla e non ce l'ha"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alarm"/></svg></span><span class="fmd-mtr-val">{{ n_mancanti }}</span></div><div class="fmd-mtr-lbl">Mancanti</div></a>
+    </section>
+
+    {# ── Serve a: ruoli, mansioni di rischio, mezzi ─────────────────────── #}
+    <section class="fmd-panel fmd-block" id="tq-serve-a">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Serve a</div></div>
+      {% if scelte %}
+      <form method="post" action="{% url 'anagrafica:tipo_qualifica_serve_a' tipo.id %}" class="tq-serve">
+        {% csrf_token %}
+        <label class="tq-campo"><span>Ruolo</span>
+          <select name="ruoli" multiple class="js-searchable" data-placeholder="Aggiungi ruolo…" data-no-ordina>
+            {% for r in scelte.ruoli %}<option value="{{ r.id }}"{% if r.id in scelte.ruoli_sel %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+          </select></label>
+        <label class="tq-campo"><span>Mansione di rischio</span>
+          <select name="mansioni" multiple class="js-searchable" data-placeholder="Aggiungi mansione…" data-no-ordina>
+            {% for m in scelte.mansioni %}<option value="{{ m.id }}"{% if m.id in scelte.mansioni_sel %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+          </select></label>
+        <label class="tq-campo"><span>Mezzo (categoria)</span>
+          <select name="categorie" multiple class="js-searchable" data-placeholder="Aggiungi mezzo…" data-no-ordina>
+            {% for c in scelte.categorie %}<option value="{{ c.id }}"{% if c.id in scelte.categorie_sel %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+          </select></label>
+        <label class="tq-campo tq-campo--check"><span>Presenti in azienda</span>
+          <span><input type="checkbox" name="mostra_in_presenti" value="1"{% if tipo.mostra_in_presenti %} checked{% endif %}> Mostra il bollino a chi ce l'ha valida</span></label>
+        <div class="tq-serve-azioni"><button type="submit" class="fmd-btn fmd-btn-primary">Salva</button></div>
+      </form>
+      {% else %}
+      <dl class="tq-serve tq-serve--lettura">
+        <div class="tq-campo"><dt>Ruolo</dt><dd>{% for r in serve_a.ruoli %}{{ r.ruolo.nome }}{% if not forloop.last %}, {% endif %}{% empty %}Nessuno{% endfor %}</dd></div>
+        <div class="tq-campo"><dt>Mansione di rischio</dt><dd>{% for m in serve_a.mansioni %}{{ m.nome }}{% if not forloop.last %}, {% endif %}{% empty %}Nessuna{% endfor %}</dd></div>
+        <div class="tq-campo"><dt>Mezzo (categoria)</dt><dd>{% for c in serve_a.categorie %}{{ c.label }}{% if not forloop.last %}, {% endif %}{% empty %}Nessuno{% endfor %}</dd></div>
+        <div class="tq-campo"><dt>Presenti in azienda</dt><dd>{% if tipo.mostra_in_presenti %}Bollino a chi ce l'ha valida{% else %}Nessun bollino{% endif %}</dd></div>
+      </dl>
+      {% endif %}
     </section>
 
     {# ── Dipendenti che la possiedono ───────────────────────────────────── #}
@@ -105,16 +147,19 @@
       {% if corsi %}
       <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
         <table class="fmd-table">
-          <thead><tr><th>Corso</th><th>Piano</th><th>Validità</th><th>Stato</th></tr></thead>
+          <thead><tr><th>Corso</th><th>Tipo</th><th>Piano</th><th>Validità</th><th>Stato</th></tr></thead>
           <tbody>
             {% for c in corsi %}
-            <tr><td style="font-weight:700;"><a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a></td><td class="fmd-muted">{{ c.piano.nome|default:"—" }}</td><td class="fmd-muted">{% if c.validita_mesi %}{{ c.validita_mesi }} mesi{% else %}una tantum{% endif %}</td><td><span class="fmd-badge fmd-b-cyan">{{ c.get_stato_display }}</span></td></tr>
+            <tr><td style="font-weight:700;"><a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a></td><td>{% if c.qualifica_effetto == "AGGIORNAMENTO" %}<span class="fmd-badge fmd-b-orange">Aggiornamento</span>{% else %}<span class="fmd-badge fmd-b-green">Corso base</span>{% endif %}</td><td class="fmd-muted">{{ c.piano.nome|default:"—" }}</td><td class="fmd-muted">{% if c.validita_mesi %}{{ c.validita_mesi }} mesi{% else %}una tantum{% endif %}</td><td><span class="fmd-badge fmd-b-cyan">{{ c.get_stato_display }}</span></td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-      {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessun corso collegato. Il legame si crea automaticamente con <code>import_asr</code> o <code>link_qualifiche_corsi</code>.</div>{% endif %}
+      {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessun corso collegato. Il legame si sceglie nella scheda del corso, campo «Qualifica».</div>{% endif %}
     </section>
+
+    <details class="tq-storico">
+      <summary>Storico: sessioni di rinnovo ({{ sessioni|length }}), sessioni dei corsi ({{ corso_sessioni|length }}), attestati ({{ n_attestati }})</summary>
 
     {# ── Sessioni di rinnovo qualifica ──────────────────────────────────── #}
     <section class="fmd-panel fmd-block" id="tq-sessioni">
@@ -166,6 +211,8 @@
       </div>
       {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessun attestato/completamento collegato.</div>{% endif %}
     </section>
+
+    </details>
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}

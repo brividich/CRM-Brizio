@@ -442,7 +442,7 @@ class TrainingCourseForm(forms.ModelForm):
     class Meta:
         model = TrainingCourse
         fields = [
-            "piano", "tipo", "categoria", "qualifica", "titolo", "descrizione",
+            "piano", "tipo", "categoria", "qualifica", "qualifica_effetto", "titolo", "descrizione",
             "ente_formativo",
             "durata_ore_teorica", "validita_mesi",
             "obbligatorio", "obbligatoria_ccnl", "costo_unitario",
@@ -455,6 +455,7 @@ class TrainingCourseForm(forms.ModelForm):
             "tipo":               forms.Select(attrs=_FM_SELECT),
             "categoria":          forms.Select(attrs=_FM_SELECT),
             "qualifica":          forms.Select(attrs=_FM_SELECT),
+            "qualifica_effetto":  forms.Select(attrs=_FM_SELECT),
             "ente_formativo":     forms.Select(attrs=_FM_SELECT),
             "fonte_obbligo":      forms.Select(attrs=_FM_SELECT),
             "riferimento_fonte":  forms.TextInput(attrs={**_FM, "placeholder": "es. Accordo Stato-Regioni 21/12/2011"}),
@@ -490,6 +491,8 @@ class TrainingCourseForm(forms.ModelForm):
         self.fields["qualifica"].queryset = TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome")
         self.fields["qualifica"].required = False
         self.fields["qualifica"].empty_label = "— Nessuna (corso non legato a qualifica) —"
+        # Base o aggiornamento: se il modulo non lo manda resta quello che il corso ha gia'.
+        self.fields["qualifica_effetto"].required = False
 
         self.fields["ente_formativo"].queryset = TrainingProvider.objects.filter(is_active=True).order_by("nome")
         self.fields["ente_formativo"].required = False
@@ -599,6 +602,10 @@ class TrainingCourseForm(forms.ModelForm):
                     TrainingRequirementRule.objects.filter(
                         corso=self.instance, is_active=True, is_mandatory=obbl, **{f"{target}__isnull": False})
                     .values_list(f"{target}_id", flat=True))
+
+    def clean_qualifica_effetto(self):
+        return (self.cleaned_data.get("qualifica_effetto") or getattr(self.instance, "qualifica_effetto", "")
+                or TrainingCourse.EFFETTO_BASE)
 
     def clean(self):
         cd = super().clean()

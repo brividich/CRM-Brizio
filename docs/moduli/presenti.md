@@ -84,3 +84,5 @@ Numeri di badge da Solari: `manage.py importa_badge_solari` (anteprima), `--appl
 - Un turno a cavallo della mezzanotte: chi entra la sera e timbra l'uscita il giorno dopo compare fra i presenti
   solo fino a mezzanotte e fra le uscite non timbrate del giorno di entrata (stessa logica dello script).
 - L'appello comprende solo chi timbra: visitatori e fornitori dal registro accessi (GuestPortal).
+
+- **Abilitazioni (27/11/2026)**: `services._unisci_abilitazioni` unisce agli incarichi dei ruoli 45001 le abilitazioni dell'anagrafica (`anagrafica/services/abilitazioni.py`): incarico con `scaduta` se il ruolo chiede un'abilitazione non valida (bollino grigio), bollino per le abilitazioni con «Presenti in azienda». I contatori per incarico non cambiano.

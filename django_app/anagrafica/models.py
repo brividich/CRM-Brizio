@@ -746,6 +746,24 @@ class TipoQualifica(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # ── «Serve a»: chi deve avere questa abilitazione ─────────────────────
+    # Tre fonti, tutte scelte dalla pagina dell'abilitazione: il ruolo
+    # (``RuoloQualifica``), la mansione di rischio e il mezzo (categoria asset).
+    # Il calcolo è uno solo: ``services/abilitazioni.py``.
+    mansioni_rischio = models.ManyToManyField(
+        "anagrafica.Mansione", blank=True, related_name="abilitazioni_richieste",
+        help_text="Mansioni di rischio che richiedono questa abilitazione (es. CARRELLISTA).",
+    )
+    categorie_asset = models.ManyToManyField(
+        "assets.AssetCategory", blank=True, related_name="abilitazioni_richieste",
+        help_text="Categorie di mezzi che si possono usare solo con questa abilitazione (es. Carrelli elevatori).",
+    )
+    mostra_in_presenti = models.BooleanField(
+        default=False,
+        help_text="Chi ha l'abilitazione valida porta il bollino in «Presenti in azienda» (es. BLS-D).",
+    )
+    colore = models.CharField(max_length=7, blank=True, default="", help_text="Colore del bollino (esadecimale).")
+
     class Meta:
         ordering = ["categoria", "nome"]
         verbose_name = "Tipo qualifica"

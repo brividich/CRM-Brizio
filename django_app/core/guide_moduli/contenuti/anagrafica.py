@@ -491,6 +491,34 @@ GUIDA = {
             ],
         },
         {
+            "id": "conformita-abilitazioni",
+            "titolo": "Abilitazioni: carrellista, PLE, BLS-D, primo soccorso, antincendio",
+            "blocchi": [
+                ("p", "Un'abilitazione è una voce del catalogo Qualifiche. Il corso la rilascia o la rinnova, la "
+                      "persona la possiede con la sua scadenza e l'attestato, e la pagina dell'abilitazione dice a chi serve."),
+                ("ul", [
+                    "Pagina dell'abilitazione, riquadro «Serve a»: si scelgono il «Ruolo» (es. Squadra Antincendio), la "
+                    "«Mansione di rischio» (es. CARRELLISTA) e il «Mezzo (categoria)» (es. Carrelli elevatori), poi «Salva». "
+                    "Con «Presenti in azienda» spuntato chi ce l'ha valida porta il bollino nella lista dei presenti.",
+                    "I quattro numeri in alto sono «Valide», «In scadenza» (entro 90 giorni), «Scadute» e «Mancanti»: "
+                    "gli stessi delle tabelle «Dipendenti che la possiedono» e «Richiesta a, ma mancante».",
+                    "Corsi collegati: ogni corso è «Corso base» o «Aggiornamento» (campo «Tipo di corso per "
+                    "l'abilitazione» nella scheda del corso). A chi manca l'abilitazione si propone il corso base, a "
+                    "chi scade l'aggiornamento.",
+                    "«Abilitazioni per reparto» (menu Competenze › Qualifiche): una riga per persona con le abilitazioni "
+                    "che ha e quelle che le servono; filtri «Reparto», «Abilitazione», «Stato»; «Stampa» fa un foglio "
+                    "per reparto, «Esporta» scarica Excel o PDF.",
+                    "Scheda dipendente, riquadro «Abilitazioni e qualifiche»: in alto «Le servono e non le ha», con il "
+                    "motivo e il corso da fare; accanto a quelle possedute «Serve per».",
+                    "«Il mio team»: riquadro «Abilitazioni» della persona scelta, con scadenza e stato.",
+                    "Scheda del mezzo (Asset): riquadro «Chi può usarlo» con le persone abilitate e la scadenza; chi ha "
+                    "l'abilitazione scaduta è segnato.",
+                    "Presenti in azienda: l'incarico (Primo Soccorso, Antincendio…) diventa grigio con «scaduta» se il "
+                    "ruolo chiede un'abilitazione che la persona non ha valida.",
+                ]),
+            ],
+        },
+        {
             "id": "conformita-qualifiche",
             "titolo": "Conformità, libretto, qualifiche e onboarding: dal numero all'azione",
             "blocchi": [

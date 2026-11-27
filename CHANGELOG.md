@@ -9,6 +9,17 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Anagrafica: abilitazioni (carrellista, PLE, BLS-D, primo soccorso, antincendio)
+
+- Pagina dell'abilitazione più semplice: quattro numeri (Valide, In scadenza, Scadute, Mancanti), riquadro «Serve a» con Ruolo, Mansione di rischio, Mezzo (categoria) e bollino in «Presenti in azienda»; lo storico (sessioni e attestati) è richiudibile.
+- L'abilitazione può essere richiesta dalla mansione di rischio e dalla categoria del mezzo, oltre che dal ruolo e dai processi qualificati.
+- Corsi «Corso base» o «Aggiornamento» sulla stessa abilitazione: a chi manca si propone il base, a chi scade l'aggiornamento.
+- Nuova pagina «Abilitazioni per reparto» (`/anagrafica/qualifiche/persone/`) con stampa per reparto ed export Excel/PDF.
+- Scheda dipendente: «Le servono e non le ha» e «Serve per»; «Il mio team»: riquadro «Abilitazioni»; scheda asset: «Chi può usarlo».
+- Presenti in azienda: incarico grigio con «scaduta» se l'abilitazione chiesta dal ruolo non è valida; bollino per le abilitazioni scelte.
+- File: `anagrafica/services/abilitazioni.py` (nuovo), `services/qualifica_mancanti.py`, `services/persona_semplice.py`, `models.py`, `models_formazione.py`, `forms.py`, `views/qualifiche.py`, `views/dipendenti.py`, `urls.py`, `exports_qualifiche.py`, migrazioni `0267`-`0268`, template `tipo_qualifica_detail.html`, `abilitazioni_persone.html` (nuovo), `dipendente_detail.html`, `mio_team.html`, `formazione_corso_form.html`, `assets/views/asset_detail.py`, `assets/.../asset_detail.html`, `presenti/services.py`, `presenti/.../_lista.html`, `_appello_lista.html`, `presenti/guida.py`, `core/guide_moduli/contenuti/{anagrafica,presenti,assets}.py`, `docs/moduli/{anagrafica,presenti,assets}.md`, `anagrafica/tests_abilitazioni.py`.
+- Deploy: `migrate anagrafica` (0267, 0268).
+
 ### Controllo dimensionale: Analisi quote dentro la pagina della quota
 
 - La pagina della quota contiene l'analisi interattiva di Analisi quote su quella sola quota: periodo, OP, report, zoom, note sul grafico, «Unisci un'altra quota», tabella delle misure, PDF di capacità ed Esporta CSV. Un solo grafico: quello statico non c'è più in questa pagina.

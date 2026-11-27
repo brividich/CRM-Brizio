@@ -6,7 +6,8 @@ Per la scheda del tipo di qualifica. Le fonti del «richiesta a» sono quelle gi
   dell'abilitazione (``mpq_persone.requisiti_per_abilitazione``), abilitazioni attive;
 - mansioni della skill matrix: voce della mansione con la qualifica come requisito formale,
   persone in lista sulla mansione;
-- ruoli operativi: qualifica obbligatoria del ruolo, ruolo in essere.
+- ruoli operativi: qualifica obbligatoria del ruolo, ruolo in essere;
+- mansioni di rischio scelte nella pagina dell'abilitazione (regola del Mansionario).
 
 Solo persone in forza (senza data di cessazione). Vale la qualifica corrente per persona
 (la conseguita per ultima): «mancante» se non c'è, «scaduta» se la corrente è scaduta.
@@ -73,13 +74,28 @@ def _da_ruoli(tipo, motivi, oggi: date) -> None:
         _aggiungi(motivi, a.legacy_anagrafica_id, f"Ruolo «{ruoli[a.ruolo_id]}»")
 
 
+def _da_mansioni_rischio(tipo, motivi) -> None:
+    """Mansioni di rischio che chiedono l'abilitazione (scelte nella pagina dell'abilitazione)."""
+    from .abilitazioni import in_forza_ids, persone_per_mansione_rischio
+
+    mansioni = [m for m in tipo.mansioni_rischio.all() if m.is_active]
+    if not mansioni:
+        return
+    per_mansione = persone_per_mansione_rischio(in_forza_ids())
+    for m in mansioni:
+        chiavi = {m.nome.strip().casefold(), *(n.strip().casefold() for n in (m.nomi_precedenti or "").splitlines() if n.strip())}
+        for chiave in chiavi:
+            for lid in per_mansione.get(chiave, ()):
+                _aggiungi(motivi, lid, f"Mansione di rischio «{m.nome}»")
+
+
 def persone_senza_qualifica(tipo, *, oggi: date | None = None, nomi: dict | None = None) -> list[dict]:
     """``[{"legacy_id", "nome", "motivi", "stato", "scadenza"}]``, mancanti prima delle scadute."""
     from ..models import DipendenteAnagraficaAziendale, DipendenteQualifica
 
     oggi = oggi or timezone.localdate()
     motivi: dict[int, list[str]] = {}
-    for fonte in (_da_processi, _da_mansioni):
+    for fonte in (_da_processi, _da_mansioni, _da_mansioni_rischio):
         try:
             fonte(tipo, motivi)
         except Exception:  # pragma: no cover - modulo non migrato: la sezione resta parziale

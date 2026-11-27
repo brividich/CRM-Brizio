@@ -22,6 +22,21 @@ def _ruoli(legacy_id: int) -> list[str]:
     return sorted({a.ruolo.nome for a in qs}, key=str.casefold)
 
 
+def _abilitazioni(legacy_id: int) -> list[dict]:
+    """Abilitazioni della persona (carrellista, PLE, primo soccorso…): quelle che ha e quelle che le servono."""
+    from . import abilitazioni
+
+    try:
+        voci = abilitazioni.quadro([legacy_id]).get(legacy_id, [])
+    except Exception:  # pragma: no cover - la scheda si apre anche senza questo riquadro
+        import logging
+
+        logging.getLogger(__name__).warning("persona_semplice: abilitazioni non calcolabili", exc_info=True)
+        return []
+    return [{"nome": v["nome"], "stato": v["etichetta"], "tono": v["tono"], "scadenza": v["scadenza"],
+             "motivi": v["motivi"]} for v in voci]
+
+
 def costruisci(riga: dict, *, matricola: str = "") -> dict:
     """``riga`` è la riga della persona in «Il mio team» (id, nome, area, centro)."""
     legacy_id = riga["id"]
@@ -56,4 +71,5 @@ def costruisci(riga: dict, *, matricola: str = "") -> dict:
                          "fatte": sum(1 for r in tutte if r.fatta), "totale": len(tutte),
                          "url": reverse("anagrafica:sessione", args=[s.pk])})
     return {"campi": campi, "mansioni": mansioni, "competenze": competenze, "legenda": es.LEGENDA, "sessioni": sessioni,
+            "abilitazioni": _abilitazioni(legacy_id),
             "url_storico": reverse("anagrafica:storico_competenze_pdf", args=[legacy_id])}

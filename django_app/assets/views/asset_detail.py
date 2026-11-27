@@ -1588,6 +1588,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             **rete_ctx,
             "switch_mappa": switch_mappa,
             "processi_qualificati_asset": _processi_qualificati(asset),
+            "abilitati_asset": _abilitati(asset),
             "operatori_abilitati": _operatori_abilitati(request, asset),
             "it_monitoring": it_monitoring,
             "it_intune": it_intune,
@@ -1702,6 +1703,23 @@ def _operatori_abilitati(request, asset) -> dict | None:
     try:
         return struttura_macchina.operatori(asset, con_nomi=struttura_macchina.puo_vedere_nomi(request))
     except Exception:
+        return None
+
+
+def _abilitati(asset):
+    """«Chi può usarlo»: persone con l'abilitazione chiesta dalla categoria del mezzo; fail-safe.
+
+    None se la categoria non chiede abilitazioni (il riquadro non compare).
+    """
+    try:
+        from anagrafica.services import abilitazioni
+        from anagrafica.views._helpers import _build_nomi_map
+
+        if not abilitazioni.tipi_del_mezzo(asset):
+            return None
+        return abilitazioni.abilitati_asset(asset, nomi=_build_nomi_map())
+    except Exception:
+        logger.warning("Scheda asset: abilitati non calcolabili", exc_info=True)
         return None
 
 

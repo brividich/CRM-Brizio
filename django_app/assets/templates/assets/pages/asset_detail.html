@@ -253,6 +253,20 @@
     <div class="af-span-full">{% include "assets/partials/it_monitoring.html" %}</div>
   </section>
   {% endif %}
+  {% if abilitati_asset %}
+  <section class="af-sections" aria-label="Chi può usarlo" data-af-tab="Panoramica">
+    <article class="af-card af-span-full" id="asset-abilitati">
+      <div class="af-card-head"><div><div class="af-card-kicker">ABILITAZIONE: {% for t in abilitati_asset.tipi %}{{ t.nome|upper }}{% if not forloop.last %} + {% endif %}{% endfor %}</div><h2 class="af-card-title">Chi può usarlo <span style="font-weight:600;opacity:.7;">{{ abilitati_asset.n_validi }}</span></h2></div></div>
+      <div class="af-card-body">
+        {% if abilitati_asset.persone %}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          {% for p in abilitati_asset.persone %}<span class="af-pill {% if p.tono == 'ok' %}af-pill--ok{% elif p.tono == 'warning' %}af-pill--warn{% else %}af-pill--danger{% endif %}" title="{{ p.etichetta }}{% if p.scadenza %} · scadenza {{ p.scadenza|date:'d-m-Y' }}{% endif %}">{{ p.nome }}{% if not p.puo %} · {{ p.etichetta|lower }}{% elif p.scadenza %} · fino al {{ p.scadenza|date:"d-m-Y" }}{% endif %}</span>{% endfor %}
+        </div>
+        {% else %}<p style="margin:0;color:var(--text-light);">Nessuna persona in forza ha questa abilitazione.</p>{% endif %}
+      </div>
+    </article>
+  </section>
+  {% endif %}
   {% if asset_costi and not asset_costi.vuoto or asset_costi.pagine_fatturate %}
   <section class="af-sections" aria-label="Costi dell'asset" data-af-tab="Panoramica">
     <article class="af-card af-span-full" id="asset-costi">

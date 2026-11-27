@@ -6,6 +6,7 @@ Coperte qui:
   - ``qualifiche``            → /anagrafica/qualifiche/            (catalogo TipoQualifica)
   - ``qualifiche_scadenzario``→ /anagrafica/qualifiche/scadenzario/
   - ``qualifica_sessioni``    → /anagrafica/qualifiche/sessioni/
+  - ``abilitazioni_persone``  → /anagrafica/qualifiche/persone/    (abilitazioni per reparto)
   - ``matrice_competenze``    → /anagrafica/sicurezza/matrice/
   - ``mpq_clienti``           → /anagrafica/mod128/clienti/
 
@@ -495,4 +496,61 @@ register(ExportSpec(
     dataset=_mpq_clienti_rows,
     filters_label=lambda request: "",
     permission=acl_gate("/anagrafica/mod128/clienti/"),
+))
+
+
+# ── Abilitazioni per reparto ─────────────────────────────────────────────────
+# Rispecchia `views.abilitazioni_persone`: una riga per persona e abilitazione, con gli stessi
+# filtri (`reparto`, `stato`, `tipo`) e lo stesso ambito di chi guarda la pagina.
+
+def _abilitazioni_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.views.qualifiche import _abilitazioni_righe
+
+    righe, _conta, _reparti = _abilitazioni_righe(request, filtra=scope == "filtered")
+    out: list[dict] = []
+    for r in righe:
+        for v in r["voci"]:
+            out.append({
+                "reparto": r["reparto"], "persona": r["nome"], "abilitazione": v["nome"], "stato": v["etichetta"],
+                "conseguita": _fmt_date(v["conseguita"]), "scadenza": _fmt_date(v["scadenza"]),
+                "serve_per": " · ".join(v["motivi"]),
+            })
+    return out
+
+
+def _abilitazioni_filters(request: HttpRequest) -> str:
+    from anagrafica.models import TipoQualifica
+    from anagrafica.services import abilitazioni
+
+    parts: list[str] = []
+    reparto = (request.GET.get("reparto") or "").strip()
+    if reparto:
+        parts.append(f"Reparto: {reparto}")
+    stato = (request.GET.get("stato") or "").strip()
+    if stato in abilitazioni.ETICHETTE:
+        parts.append(f"Stato: {abilitazioni.ETICHETTE[stato]}")
+    tipo = (request.GET.get("tipo") or "").strip()
+    if tipo.isdigit():
+        nome = TipoQualifica.objects.filter(pk=int(tipo)).values_list("nome", flat=True).first()
+        if nome:
+            parts.append(f"Abilitazione: {nome}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="abilitazioni_persone",
+    title="Abilitazioni per reparto",
+    sheet_title="Abilitazioni",
+    columns=[
+        ("Reparto", "reparto"),
+        ("Persona", "persona"),
+        ("Abilitazione", "abilitazione"),
+        ("Stato", "stato"),
+        ("Conseguita", "conseguita"),
+        ("Scadenza", "scadenza"),
+        ("Serve per", "serve_per"),
+    ],
+    dataset=_abilitazioni_rows,
+    filters_label=_abilitazioni_filters,
+    permission=acl_gate("/anagrafica/qualifiche/persone/"),
 ))

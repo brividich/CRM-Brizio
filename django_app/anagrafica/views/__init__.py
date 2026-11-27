@@ -452,6 +452,8 @@ from .qualifiche import (
     skm_scadenzario,
     tipo_qualifica_create,
     qualifiche_allinea,
+    abilitazioni_persone,
+    tipo_qualifica_serve_a,
     tipo_qualifica_delete,
     tipo_qualifica_detail,
     tipo_qualifica_edit,

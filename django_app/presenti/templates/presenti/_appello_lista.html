@@ -22,7 +22,7 @@
         <span>
           <span class="pres-nome">{{ p.cognome|upper }} {{ p.nome }}</span>
           {% if p.esterno %}<span class="pres-inc pres-esterno">Esterno{% if p.azienda %} · {{ p.azienda }}{% endif %}</span>{% endif %}
-          {% for inc in p.incarichi %}<span class="pres-inc" style="background:{{ inc.colore }}">{{ inc.nome }}</span>{% endfor %}
+          {% for inc in p.incarichi %}<span class="pres-inc" style="background:{% if inc.scaduta %}#94a3b8{% else %}{{ inc.colore }}{% endif %}"{% if inc.scaduta %} title="Abilitazione scaduta o mancante: l'incarico non è coperto"{% endif %}>{{ inc.nome }}{% if inc.scaduta %} · scaduta{% endif %}</span>{% endfor %}
           <span class="pres-chi">{% if p.contato %}Contato alle {{ p.contato_il|time:"H:i" }}{% if p.contato_da %} da {{ p.contato_da }}{% endif %}{% elif p.esterno %}{{ p.tipo }}{% if p.referente %} · ospite di {{ p.referente }}{% endif %} · entrato alle {{ p.entrata }}{% else %}{% if p.reparto %}{{ p.reparto }} · {% endif %}entrato alle {{ p.entrata }}{% if p.verifica %} · <span class="pres-verifica">da verificare: {{ p.verifica }}</span>{% endif %}{% endif %}</span>
         </span>
       </button>

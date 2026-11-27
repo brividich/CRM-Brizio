@@ -64,7 +64,36 @@ def _incarichi_per_persona(oggi: date) -> dict[int, list[dict]]:
             "nome": nome,
             "colore": _COLORI_INCARICO.get(nome.strip().lower()) or colore or "#475569",
         })
+    _unisci_abilitazioni(mappa, oggi)
     return mappa
+
+
+def _unisci_abilitazioni(mappa: dict[int, list[dict]], oggi: date) -> None:
+    """Abilitazioni e incarichi insieme (anagrafica ``services/abilitazioni``).
+
+    - l'incarico il cui ruolo chiede un'abilitazione che la persona non ha valida porta
+      ``scaduta``: in emergenza non si conta su un attestato scaduto;
+    - le abilitazioni con «Mostra in Presenti in azienda» (es. BLS-D) diventano bollini, se valide.
+    Se l'anagrafica non risponde gli incarichi restano quelli dei ruoli.
+    """
+    try:
+        from anagrafica.services import abilitazioni
+
+        scoperti = abilitazioni.incarichi_scoperti(oggi)
+        bollini = abilitazioni.bollini_presenti(oggi)
+    except Exception:
+        logger.warning("presenti: abilitazioni non disponibili", exc_info=True)
+        return
+    for lid, nomi in scoperti.items():
+        for voce in mappa.get(lid, []):
+            if voce["nome"] in nomi:
+                voce["scaduta"] = True
+    for lid, voci_nuove in bollini.items():
+        voci = mappa.setdefault(lid, [])
+        presenti = {v["nome"].strip().casefold() for v in voci}
+        for v in voci_nuove:
+            if v["nome"].strip().casefold() not in presenti:
+                voci.append(dict(v))
 
 
 def _anagrafica_per_cf(codici: set[str]) -> dict[str, dict]:

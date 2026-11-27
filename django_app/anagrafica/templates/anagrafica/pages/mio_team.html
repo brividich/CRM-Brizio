@@ -108,6 +108,19 @@ body.theme-dark .mt-sotto, body.theme-dark .es-s-tab td small.mt-sotto { color:#
           <div class="es-s-legenda">{% for l in persona.legenda %}<span><b>{{ l.codice }}</b> {{ l.parola }}</span>{% endfor %}</div>
         </section>
       </div>
+      <section class="es-s-card" id="team-abilitazioni">
+        <h2 class="es-s-h">Abilitazioni <span>{{ persona.abilitazioni|length }}</span></h2>
+        {% if persona.abilitazioni %}
+        <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+          <thead><tr><th>Abilitazione</th><th>Scadenza</th><th>Stato</th></tr></thead>
+          <tbody>{% for a in persona.abilitazioni %}<tr>
+            <td><b>{{ a.nome }}</b>{% if a.motivi %}<small>Serve per: {{ a.motivi|join:", " }}</small>{% endif %}</td>
+            <td>{% if a.scadenza %}{{ a.scadenza|date:"d-m-Y" }}{% elif a.tono == "neutral" %}—{% else %}Senza scadenza{% endif %}</td>
+            <td><span class="es-s-stato es-s-stato-{{ a.tono }}">{{ a.stato }}</span></td>
+          </tr>{% endfor %}</tbody>
+        </table></div>
+        {% else %}<p class="es-s-vuoto">Nessuna abilitazione posseduta o richiesta.</p>{% endif %}
+      </section>
       <section class="es-s-card">
         <h2 class="es-s-h">Sessioni formative <span>{{ persona.sessioni|length }}</span></h2>
         {% if persona.sessioni %}

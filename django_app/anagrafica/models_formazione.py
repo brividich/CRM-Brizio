@@ -368,6 +368,18 @@ class TrainingCourse(models.Model):
         on_delete=models.SET_NULL, related_name="corsi",
         help_text="Qualifica/abilitazione rilasciata o rinnovata da questo corso.",
     )
+    # Corso base o aggiornamento della stessa abilitazione: a chi manca si propone il
+    # base, a chi scade l'aggiornamento (``services/abilitazioni.corso_per``).
+    EFFETTO_BASE = "BASE"
+    EFFETTO_AGGIORNAMENTO = "AGGIORNAMENTO"
+    QUALIFICA_EFFETTO_CHOICES = [
+        (EFFETTO_BASE, "Corso base (rilascia l'abilitazione)"),
+        (EFFETTO_AGGIORNAMENTO, "Aggiornamento (rinnova l'abilitazione)"),
+    ]
+    qualifica_effetto  = models.CharField(
+        max_length=15, choices=QUALIFICA_EFFETTO_CHOICES, default=EFFETTO_BASE,
+        verbose_name="Tipo di corso per l'abilitazione",
+    )
     codice             = models.CharField(max_length=30, unique=True)
     titolo             = models.CharField(max_length=300)
     descrizione        = models.TextField(blank=True)

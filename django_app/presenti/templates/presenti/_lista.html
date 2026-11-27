@@ -39,7 +39,7 @@
         </td>
         <td class="pres-hide-sm">{{ p.reparto|default:"—" }}</td>
         <td class="pres-c pres-mono">{{ p.entrata }}</td>
-        <td>{% for inc in p.incarichi %}<span class="pres-inc" style="background:{{ inc.colore }}">{{ inc.nome }}</span>{% empty %}<span style="color:var(--text-light)">—</span>{% endfor %}</td>
+        <td>{% for inc in p.incarichi %}<span class="pres-inc" style="background:{% if inc.scaduta %}#94a3b8{% else %}{{ inc.colore }}{% endif %}"{% if inc.scaduta %} title="Abilitazione scaduta o mancante: l'incarico non è coperto"{% endif %}>{{ inc.nome }}{% if inc.scaduta %} · scaduta{% endif %}</span>{% empty %}<span style="color:var(--text-light)">—</span>{% endfor %}</td>
       </tr>
       {% empty %}
       <tr><td colspan="6" class="pres-vuoto">{% if filtrato %}Nessun presente corrisponde ai filtri.{% elif not stato.errore %}Nessun dipendente risulta presente al momento.{% else %}Elenco non disponibile.{% endif %}</td></tr>
