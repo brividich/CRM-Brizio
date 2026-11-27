@@ -1,0 +1,19 @@
+{% comment %}Caselle di firma come passi: firmata, tocca a…, in attesa, respinta. «caselle» = caselle_vista().{% endcomment %}
+{% for v in caselle %}
+  <div class="fps-step">
+    <div class="fps-dot{% if v.c.stato == 'FIRMATA' %} fps-dot--ok{% elif v.c.stato == 'RESPINTA' %} fps-dot--no{% elif v.corrente %} fps-dot--ora{% endif %}">{% if v.c.stato == 'FIRMATA' %}✓{% elif v.c.stato == 'RESPINTA' %}✕{% else %}{{ v.c.ordine }}{% endif %}</div>
+    <div>
+      <b>{{ v.c.etichetta }} · {{ v.c.chi }}</b>
+      {% if v.c.stato == "FIRMATA" %}
+        <small>{{ v.c.nome_firmatario }} · firmato il {{ v.c.firmata_il|date:"d/m/Y H:i" }} · {% if v.c.conferma == "totp" %}confermato con app 2FA{% else %}confermato con password{% endif %}</small>
+        {% if v.url_firma or v.url_timbro %}<div class="sig">{% if v.url_timbro %}<img src="{{ v.url_timbro }}" alt="Timbro">{% endif %}{% if v.url_firma %}<img src="{{ v.url_firma }}" alt="Firma">{% endif %}</div>{% endif %}
+      {% elif v.c.stato == "RESPINTA" %}
+        <small>Respinto da {{ v.c.nome_firmatario }} il {{ v.c.firmata_il|date:"d/m/Y H:i" }}: {{ v.c.motivo }}</small>
+      {% elif v.corrente %}
+        <small>{{ v.chi|default:"nessuno ricopre il ruolo" }} · <span class="fps-pill">da firmare</span></small>
+      {% else %}
+        <small>{{ v.chi|default:"—" }} · in attesa della casella precedente</small>
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}

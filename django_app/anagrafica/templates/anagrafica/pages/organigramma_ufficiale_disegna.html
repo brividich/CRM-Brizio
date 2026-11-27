@@ -5,6 +5,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/partials/_org_uff_render.html" %}
+{% include "anagrafica/partials/_firma_stile.html" %}
 <style>
 .content:has(> .oud-page) { width:100%; max-width:none; }
 .oud-page { display:flex; flex-direction:column; gap:12px; }
@@ -171,7 +172,7 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     <span class="oud-stato" id="oudStato"></span>
     <button type="button" class="hr-btn hr-btn-outline oud-btn-avv" data-act="avvisi" id="oudBtnAvv" hidden></button>
     <button type="button" class="hr-btn hr-btn-outline" data-act="riepilogo" id="oudBtnRiep">☰ Riepilogo modifiche</button>
-    <button type="button" class="hr-btn hr-btn-primary" data-act="pubblica">Pubblica…</button>
+    <button type="button" class="hr-btn hr-btn-primary" data-act="pubblica">{% if invio.attiva %}✍ Invia in firma…{% else %}Pubblica…{% endif %}</button>
   </div>
 
   <div class="oud-grid">
@@ -205,10 +206,38 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
   <footer>
     <a class="hr-btn hr-btn-outline" href="{{ stato.url.stampa }}" target="_blank" rel="noopener">⬇ Anteprima PDF</a>
     <button type="button" class="hr-btn hr-btn-outline" data-chiudi>Continua a disegnare</button>
-    <button type="button" class="hr-btn hr-btn-primary" data-act="pubblica">Pubblica…</button>
+    <button type="button" class="hr-btn hr-btn-primary" data-act="pubblica">{% if invio.attiva %}✍ Invia in firma…{% else %}Pubblica…{% endif %}</button>
   </footer>
 </dialog>
 
+{% if invio.attiva %}
+<dialog class="fps-dlg" id="oudPub">
+  <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_invia' org.pk %}" id="oudPubForm">
+    {% csrf_token %}
+    <header>Invia in firma la Rev.{{ prossimo_numero }}<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      <label>Nota di revisione (va nel cartiglio e nello storico)<textarea name="nota" maxlength="2000" placeholder="es. Creato Ufficio tecnico; Team CNC sotto il Responsabile produzione"></textarea></label>
+      <label>Data di emissione<input type="date" name="data_emissione" value="{{ oggi|date:'Y-m-d' }}" required></label>
+      <div class="fps-tit">Firme richieste (MT CN 08)</div>
+      {% for c in invio.caselle %}
+        <div class="fps-step"><div class="fps-dot{% if forloop.first and invio.firma_subito %} fps-dot--ora{% endif %}">{{ forloop.counter }}</div>
+          <div><b>{{ c.etichetta }} · {% if c.mittente %}tu, ora{% else %}{{ c.ruolo_obj.sigla|default:c.ruolo_sigla|default:"ruolo" }}{% endif %}</b>
+            {% if c.problema %}<small style="color:#b91c1c">{% if not c.ruolo_obj %}Il ruolo {{ c.ruolo_sigla }} non esiste nel catalogo ruoli.{% else %}Nessun utente del portale ricopre oggi il ruolo «{{ c.ruolo_obj.nome }}».{% endif %} Senza, l'invio viene bloccato.</small>
+            {% elif not c.mittente %}<small>{{ c.persone|join:", " }} · riceve la notifica</small>{% endif %}
+          </div></div>
+      {% endfor %}
+      {% if invio.firma_subito %}
+        {% include "anagrafica/partials/_firma_campi.html" with opzioni=invio.opzioni usa_totp=invio.usa_totp etichetta=invio.caselle.0.etichetta numero=prossimo_numero %}
+      {% endif %}
+      <div class="fps-nota">Finché è in firma la bozza non si modifica. La Rev.{{ prossimo_numero }} entra in vigore dopo l'ultima firma{% if in_vigore %}; fino ad allora resta la Rev.{{ in_vigore.numero }}{% endif %}. Ruoli, capi, assegnazioni e permessi del portale non cambiano.</div>
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary">✍ {% if invio.firma_subito %}Firma e invia{% else %}Invia in firma{% endif %}</button>
+    </footer>
+  </form>
+</dialog>
+{% else %}
 <dialog class="oud-dlg" id="oudPub" style="width:min(520px,94vw)">
   <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_pubblica' org.pk %}" id="oudPubForm">
     {% csrf_token %}
@@ -225,6 +254,7 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     </footer>
   </form>
 </dialog>
+{% endif %}
 
 <dialog class="oud-dlg" id="oudDati" style="width:min(520px,94vw)">
   <form method="post" action="{% url 'anagrafica:organigramma_ufficiale_modifica' org.pk %}">

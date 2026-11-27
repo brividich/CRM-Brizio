@@ -363,9 +363,10 @@ GUIDA = {
                     "Canc toglie il riquadro scelto, le frecce lo spostano di 10 px, Ctrl+rotella fa lo zoom.",
                 ]),
                 ("p", "«☰ Riepilogo modifiche» elenca cosa cambia rispetto alla revisione in vigore: aggiunto, spostato, "
-                      "rinominato, modificato, tolto e «solo grafica». «Pubblica…» chiede nota di revisione, «Approvato da» "
-                      "e data di emissione, e crea la revisione successiva: da quel momento tutti vedono quella. Le "
-                      "revisioni vecchie restano nello «Storico revisioni», con «Confronta»."),
+                      "rinominato, modificato, tolto e «solo grafica». Con la firma su portale accesa (di serie) il "
+                      "pulsante è «✍ Invia in firma…»: vedi la sezione sulla firma. Se un amministratore la spegne, "
+                      "«Pubblica…» chiede nota di revisione, «Approvato da» e data di emissione e crea subito la "
+                      "revisione successiva. Le revisioni vecchie restano nello «Storico revisioni», con «Confronta»."),
                 ("p", "«⚠ avvisi» segnala dove il disegno non corrisponde più al portale: persona cessata, persona che "
                       "nella scheda non ha il ruolo del riquadro, ruolo o mansione eliminati o disattivati, e, se hai "
                       "scelto un ambito, i ruoli di quell'ambito con persone ma non disegnati. Gli avvisi non bloccano la "
@@ -402,6 +403,49 @@ GUIDA = {
                 ("nota", "Vedere gli organigrammi ufficiali segue il permesso del Diagramma; disegnare e pubblicare spetta a "
                          "chi gestisce l'anagrafica (stesso permesso della modifica dei ruoli). «Scarta bozza» torna alla "
                          "revisione in vigore; «⚙ Dati» → «Archivia» toglie l'organigramma dall'elenco."),
+            ],
+        },
+        {
+            "id": "organigramma-ufficiale-firma",
+            "titolo": "Organigramma ufficiale: firma su portale (MT CN 08)",
+            "blocchi": [
+                ("p", "Come prevede la MT CN 08 §7.2.1, la revisione la redige chi disegna e la approva RDD, delegato del "
+                      "CEO. Nel portale entrambi firmano con le proprie immagini del Registro timbri (MOD.130): la "
+                      "revisione entra in vigore solo dopo l'ultima firma."),
+                ("ul", [
+                    "Sulla tela, «✍ Invia in firma…»: nota di revisione, data di emissione e le caselle richieste. La "
+                    "casella «Redazione» la firmi subito tu: scegli Firma (o Sigla), inserisci il codice dell'app di "
+                    "autenticazione (se usi la 2FA con app) o la password del portale, spunta «Ho verificato…» e premi "
+                    "«✍ Firma e invia».",
+                    "Da quel momento la bozza è congelata: non si modifica finché è in firma. Chi ricopre oggi il ruolo "
+                    "RDD riceve la notifica «Documento da firmare»; nell'elenco l'organigramma mostra «Rev.N in firma» "
+                    "e a RDD il pulsante «✍ Apri e firma».",
+                    "RDD apre il documento: vede il disegno congelato, «Cosa cambia» rispetto alla revisione in vigore e le "
+                    "firme già apposte. «✍ Firma come Approvazione» permette di scegliere Firma, Timbro o Timbro + firma "
+                    "fra le proprie immagini; dopo la conferma la revisione entra in vigore con «Approvato da» compilato "
+                    "dal portale (nome e sigla del ruolo).",
+                    "«Respingi…» chiede un motivo, avvisa chi ha inviato e rende di nuovo modificabile la bozza. «Ritira» "
+                    "(chi ha inviato o chi disegna) annulla la richiesta: le firme già apposte decadono.",
+                ]),
+                ("p", "Stampa e pagina della revisione mostrano le caselle con le immagini, la data e ora di ogni firma, "
+                      "il modo di conferma, il codice di verifica (es. «7F3A-91C2») e l'impronta SHA-256 del contenuto "
+                      "firmato. Durante la firma «⬇ Anteprima PDF» stampa il documento con la scritta «IN FIRMA · NON IN "
+                      "VIGORE»."),
+                ("ul", [
+                    "Ognuno firma solo con le proprie immagini: quelle degli altri non sono mai selezionabili. Valgono "
+                    "solo i record attivi del Registro timbri, non sospesi, non archiviati e non ritirati.",
+                    "La stessa persona non firma due caselle dello stesso documento.",
+                    "Se nessun utente del portale ricopre il ruolo RDD (o il ruolo manca nel catalogo), l'invio viene "
+                    "bloccato con un avviso.",
+                    "Le immagini usate vengono copiate nella casella: sostituire o ritirare il timbro dopo non cambia "
+                    "i documenti già firmati.",
+                ]),
+                ("p", "«✍ Firme richieste» nell'elenco (solo amministratori del portale): accende o spegne la firma su "
+                      "portale e definisce fino a quattro caselle in ordine di firma, ognuna con «Chi firma» (chi invia "
+                      "in firma oppure un ruolo del catalogo) e le immagini ammesse (Firma, Timbro, Sigla)."),
+                ("nota", "È una firma interna con traccia nel portale (chi, quando, come ha confermato, impronta del "
+                         "contenuto), non una firma digitale qualificata. Firmare segue il permesso di vedere "
+                         "l'organigramma: decide la casella, non il menu."),
             ],
         },
         {
