@@ -37,6 +37,20 @@ body { margin:0; font-family:"Segoe UI", system-ui, sans-serif; color:#0f1f3a; b
 .foglio.st-hub { background:#f6f8fb; }
 .tp-hub, .tp-hub .sx img, .foglio.st-hub, .tp-hub-rev { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 
+/* caselle di firma (firma su portale) */
+.firme { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; border:1px solid #1e3a8a; margin:2mm 0 0; color:#1e3a8a; font:11px Calibri, Carlito, Arial, sans-serif; }
+.st-hub .firme { margin:6px 20px 0; border-color:#94a3b8; color:#0f2a5c; font-family:"Segoe UI", system-ui, sans-serif; background:#fff; }
+.firme > div { border-right:1px solid currentColor; padding:4px 7px 3px; position:relative; height:27mm; display:flex; flex-direction:column; }
+.firme > div:last-child { border-right:0; }
+.firme .r { font-weight:700; letter-spacing:.04em; text-transform:uppercase; font-size:9.5px; }
+.firme .n { color:#0f1f3a; }
+.firme .img { flex:1; min-height:0; display:flex; align-items:center; gap:4px; }
+.firme .img img { max-height:15mm; max-width:48%; object-fit:contain; }
+.firme .img img.timbro { opacity:.9; }
+.firme .att { flex:1; display:flex; align-items:center; color:#94a3b8; font-style:italic; }
+.firme .q { border-top:1px dotted #94a3b8; font-size:8.5px; color:#475569; padding-top:1px; }
+.verifica { font-size:9px; color:#475569; text-align:right; white-space:nowrap; }
+
 @media print {
   body { background:#fff; }
   .barra { display:none; }
@@ -59,19 +73,36 @@ body { margin:0; font-family:"Segoe UI", system-ui, sans-serif; color:#0f1f3a; b
     <div class="tp-doc">
       <div class="cart">{{ p.intestazione }}{% if p.foglio.azienda %}<br>{{ p.foglio.azienda }}{% endif %}{% if p.foglio.logo %}<img src="{{ logo_url }}" alt="">{% endif %}</div>
       <div class="tit">{{ p.titolo }}{% if p.foglio.sottotitolo %}<br>{{ p.foglio.sottotitolo }}{% endif %}</div>
-      <div class="dx">{% if p.bozza %}<span class="bozza">BOZZA NON PUBBLICATA</span>{% endif %}</div>
+      <div class="dx">{% if p.bozza %}<span class="bozza">{% if p.firme %}IN FIRMA · NON IN VIGORE{% else %}BOZZA NON PUBBLICATA{% endif %}</span>{% endif %}</div>
     </div>
   {% else %}
     <div class="tp-hub">
       <div class="sx">{% if p.foglio.logo %}<img src="{{ logo_url }}" alt="">{% endif %}<span>{{ p.foglio.azienda|default:p.intestazione }}</span></div>
       <div class="dx">{{ p.titolo }}{% if p.foglio.sottotitolo %}<small>{{ p.foglio.sottotitolo }}</small>{% endif %}</div>
     </div>
-    <div class="tp-hub-rev">{% if p.rev %}Rev.{{ p.rev.numero }} · in vigore dal {{ p.rev.data_emissione|date:"d/m/Y" }}{% else %}<span class="bozza">BOZZA NON PUBBLICATA</span> · {{ oggi|date:"d/m/Y" }}{% endif %}</div>
+    <div class="tp-hub-rev">{% if p.rev %}Rev.{{ p.rev.numero }} · in vigore dal {{ p.rev.data_emissione|date:"d/m/Y" }}{% else %}<span class="bozza">{% if p.firme %}IN FIRMA · NON IN VIGORE{% else %}BOZZA NON PUBBLICATA{% endif %}</span> · {{ oggi|date:"d/m/Y" }}{% endif %}</div>
   {% endif %}
   <div class="area" data-pagina="{{ forloop.counter0 }}">{{ p.pacchetto|json_script }}</div>
+  {% if p.firme %}
+  <div class="firme">
+    {% for v in p.firme.caselle %}
+      <div>
+        <span class="r">{{ v.c.etichetta }}{% if v.c.ruolo and v.c.ruolo.sigla %} · {{ v.c.ruolo.sigla }}{% endif %}</span>
+        <span class="n">{% if v.c.stato == "FIRMATA" %}{{ v.c.nome_firmatario }}{% else %}{{ v.chi|default:"—" }}{% endif %}</span>
+        {% if v.c.stato == "FIRMATA" %}
+          <span class="img">{% if v.url_firma %}<img src="{{ v.url_firma }}" alt="Firma">{% endif %}{% if v.url_timbro %}<img class="timbro" src="{{ v.url_timbro }}" alt="Timbro">{% endif %}</span>
+          <span class="q">Firmato su portale {{ v.c.firmata_il|date:"d/m/Y H:i" }} · {% if v.c.conferma == "totp" %}2FA{% else %}password{% endif %}</span>
+        {% else %}
+          <span class="att">{% if v.c.stato == "RESPINTA" %}respinto{% else %}da firmare{% endif %}</span>
+          <span class="q">&nbsp;</span>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   <div class="{% if p.foglio.stile == 'documento' %}pd-doc{% else %}pd-hub{% endif %}">
     <span>{{ p.piede }}</span>
-    <span>{% if p.rev %}Emessa il {{ p.rev.data_emissione|date:"d/m/Y" }}{% if p.rev.approvato_da %} · Approvato da {{ p.rev.approvato_da }}{% endif %}{% else %}Bozza del {{ oggi|date:"d/m/Y" }}{% endif %}</span>
+    <span>{% if p.rev %}Emessa il {{ p.rev.data_emissione|date:"d/m/Y" }}{% if p.rev.approvato_da %} · Approvato da {{ p.rev.approvato_da }}{% endif %}{% elif p.firme %}In firma · Rev.{{ p.firme.doc.numero_revisione }}{% else %}Bozza del {{ oggi|date:"d/m/Y" }}{% endif %}{% if p.firme %}<br><span class="verifica">Firmato su NOVICROM HUB · codice verifica <b>{{ p.firme.doc.codice_verifica }}</b> · SHA-256 {{ p.firme.doc.impronta|slice:":8" }}…{{ p.firme.doc.impronta|slice:"-4:" }}</span>{% endif %}</span>
   </div>
 </div>
 {% endfor %}

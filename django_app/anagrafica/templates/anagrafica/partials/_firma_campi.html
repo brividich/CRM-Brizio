@@ -1,0 +1,24 @@
+{% comment %}
+Campi per firmare una casella: immagine dal proprio Registro timbri, conferma (app 2FA o password),
+dichiarazione. «opzioni» = timbri.firme.opzioni(); le immagini sono solo quelle di chi firma.
+{% endcomment %}
+<div class="fps-tit">Cosa metti nella casella (dal tuo Registro timbri)</div>
+{% if opzioni %}
+<div class="fps-opz">
+  {% for o in opzioni %}
+    <label class="{% if not o.disponibile %}off{% endif %}">
+      <input type="radio" name="scelta" value="{{ o.chiave }}" {% if not o.disponibile %}disabled{% elif forloop.first %}checked{% endif %} required>
+      <span class="img">{% for i in o.immagini %}<img src="{% url 'anagrafica:organigramma_ufficiale_mia_immagine' i.pk %}" alt="{{ i.get_variante_display }}">{% empty %}—{% endfor %}</span>
+      {{ o.etichetta }}
+      <small>{% if o.disponibile %}{{ o.codice|default:"record attivo" }}{% else %}manca nel tuo Registro timbri{% endif %}</small>
+    </label>
+  {% endfor %}
+</div>
+{% else %}
+  <div class="fps-avviso">Questa casella non ammette immagini: controlla le firme richieste.</div>
+{% endif %}
+<div class="fps-nota">Sul PDF la casella riporta anche nome, data e ora e il codice di verifica del documento. Si firma solo con le proprie immagini: quelle degli altri non compaiono mai. Se manca la tua firma, chiedi a chi gestisce il Registro timbri di caricarla.</div>
+<label>{% if usa_totp %}Codice dell'app di autenticazione{% else %}La tua password del portale{% endif %}
+  <input name="segreto" {% if usa_totp %}inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="6 cifre"{% else %}type="password" autocomplete="current-password"{% endif %} required>
+</label>
+<div class="fps-chk"><input type="checkbox" name="dichiarazione" value="1" id="fpsDich" required><label for="fpsDich">Ho verificato la Rev.{{ numero }} e la firmo come <b>{{ etichetta }}</b>.</label></div>

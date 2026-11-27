@@ -1,0 +1,37 @@
+{% comment %}
+Stile comune della firma su portale: dialoghi, passi delle caselle, scelta dell'immagine.
+Usato da tela (Invia in firma), pagina del documento in firma, versione in vigore ed elenco.
+{% endcomment %}
+<style>
+dialog.fps-dlg { position:fixed; inset:0; margin:auto; height:fit-content; border:none; border-radius:16px; padding:0; width:min(720px,94vw); box-shadow:0 20px 60px rgba(0,0,0,.28); color:var(--text); background:var(--surface); }
+.fps-dlg::backdrop { background:rgba(15,31,58,.45); }
+.fps-dlg header { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--border); font-weight:700; font-size:15px; }
+.fps-dlg .corpo { padding:14px 18px; display:flex; flex-direction:column; gap:10px; max-height:70vh; overflow:auto; }
+.fps-dlg footer { display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid var(--border); background:var(--surface-alt, #f8fafc); }
+.fps-dlg label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--text-light); }
+.fps-dlg input:not([type=radio]):not([type=checkbox]), .fps-dlg textarea, .fps-dlg select { font:inherit; font-size:13px; color:var(--text); border:1px solid var(--border); border-radius:9px; padding:7px 10px; background:var(--surface); }
+.fps-dlg textarea { min-height:70px; }
+.fps-nota { background:color-mix(in srgb, #0ea5e9 9%, transparent); border:1px solid color-mix(in srgb, #0ea5e9 30%, transparent); color:inherit; border-radius:10px; padding:8px 11px; font-size:12px; }
+.fps-avviso { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:10px; padding:8px 11px; font-size:12px; }
+.fps-tit { font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text-light); margin-top:4px; }
+.fps-opz { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+.fps-opz label { cursor:pointer; border:1.5px solid var(--border); border-radius:12px; padding:9px; text-align:center; color:var(--text); font-weight:700; font-size:12.5px; gap:2px; position:relative; }
+.fps-opz label:has(input:checked) { border-color:#2563eb; background:color-mix(in srgb, #2563eb 7%, transparent); box-shadow:0 0 0 3px color-mix(in srgb, #2563eb 18%, transparent); }
+.fps-opz label.off { opacity:.45; cursor:not-allowed; }
+.fps-opz input { position:absolute; opacity:0; }
+.fps-opz .img { height:58px; display:flex; align-items:center; justify-content:center; gap:4px; background:#fff; border-radius:8px; }
+.fps-opz .img img { max-height:54px; max-width:100%; }
+.fps-opz small { font-weight:500; color:var(--text-light); font-size:11px; }
+.fps-chk { display:flex; flex-direction:row; gap:8px; align-items:flex-start; }
+.fps-chk input { width:16px; height:16px; flex:none; margin:2px 0 0; }
+.fps-dlg .fps-chk label { display:block; font-size:12.5px; color:var(--text); font-weight:500; cursor:pointer; }
+.fps-step { display:flex; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); align-items:flex-start; }
+.fps-step:last-child { border-bottom:0; }
+.fps-dot { width:28px; height:28px; border-radius:999px; display:grid; place-items:center; font-weight:800; flex:none; font-size:13px; background:#f1f5f9; color:#94a3b8; }
+.fps-dot--ok { background:#dcfce7; color:#166534; } .fps-dot--ora { background:#f97316; color:#fff; } .fps-dot--no { background:#fee2e2; color:#991b1b; }
+.fps-step b { display:block; font-size:13px; }
+.fps-step small { color:var(--text-light); display:block; margin-top:2px; font-size:12px; }
+.fps-step .sig { margin-top:6px; display:flex; align-items:center; gap:6px; background:#fff; border-radius:8px; padding:2px 6px; width:max-content; max-width:100%; }
+.fps-step .sig img { max-height:38px; max-width:150px; }
+.fps-pill { border-radius:999px; padding:1px 8px; font-size:11px; font-weight:700; background:#fef3c7; color:#92400e; }
+</style>

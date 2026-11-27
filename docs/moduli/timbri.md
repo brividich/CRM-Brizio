@@ -29,6 +29,16 @@ Registro dei timbri (fisici e digitali), delle firme e delle sigle assegnati al 
 - **Registro** con correzione manuale auditata (creazione, modifica, archiviazione)
 - **Timbri inline nella scheda dipendente**: dal tab «Timbri» di `/anagrafica/dipendenti/<id>/` i record (attivi con sub-tab timbri/firme/sigle + storico, immagini, copia, link al report) si vedono **dentro la scheda** senza uscire dal modulo anagrafica. Frammento reso da `timbri:operatore_embed` (`/timbri/anagrafica/<legacy_id>/embed/`) e caricato in **lazy via HTMX** al primo click sul tab; ACL `timbri_view` autoritativa lato server
 
+## Firma su portale (27/11/2026)
+
+`timbri/firme.py` + modelli `ImpostazioneFirma`, `DocumentoFirma`, `CasellaFirma` (migrazione **0008**): firma di documenti del portale con le immagini del registro, oggi per l'organigramma ufficiale (Redazione di chi invia + Approvazione RDD, MT CN 08 §7.2.1).
+
+- Ognuno firma solo con le **proprie** immagini (`immagini_proprie`: operatore collegato alla propria persona in anagrafica, record attivo, non sospeso, non archiviato, data di ritiro non passata); varianti Firma, Timbro, Timbro + firma, Sigla secondo la casella.
+- Conferma con TOTP (`twofa`, se la 2FA con app è attiva) o password (`authenticate`, passa da Axes); la stessa persona non firma due caselle; contenuto congelato con impronta SHA-256 ricontrollata a ogni firma.
+- Le immagini usate vengono **copiate** nella casella (storage privato cifrato `PrivateTimbriStorage`, cartella `firme_documenti/`): i documenti firmati non cambiano se il timbro viene sostituito.
+- Non è una firma digitale qualificata (PAdES): firma interna con traccia (chi, quando, IP, metodo di conferma, impronta).
+- Nuovi tipi di documento: `firme.registra_tipo(chiave, TipoDocumento(nome, caselle_di_serie, al_firmato))`.
+
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) modifica e configurazione richiedono «modificare» su «Registro timbri MOD.130»; i nomi dei ruoli legacy e gli override per utente valgono solo a sistema spento.

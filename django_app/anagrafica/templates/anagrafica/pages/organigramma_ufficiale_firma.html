@@ -1,0 +1,129 @@
+{% extends "core/base.html" %}
+
+{% block title %}In firma · {{ org.nome }} | Organigramma ufficiale{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/partials/_org_uff_render.html" %}
+{% include "anagrafica/partials/_firma_stile.html" %}
+<style>
+.content:has(> .ouf-firma) { width:100%; max-width:none; }
+.ouf-firma { display:flex; flex-direction:column; gap:14px; }
+.off-grid { display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:14px; }
+.off-tela { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius, 14px);
+  overflow:auto; height:calc(calc(100 * var(--vh, 1vh)) - 290px); min-height:420px; padding:10px; }
+.off-side { display:flex; flex-direction:column; gap:14px; }
+.off-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius, 14px); padding:14px 16px; }
+.off-card h2 { font-size:14px; margin:0 0 8px; }
+.off-riga { display:flex; gap:10px; align-items:flex-start; padding:6px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
+.off-riga:last-child { border-bottom:0; }
+.off-riga small { color:var(--text-light); display:block; }
+.off-k { font-size:10px; font-weight:800; border-radius:6px; padding:3px 6px; min-width:78px; text-align:center; text-transform:uppercase; flex:none;
+  background:#f1f5f9; color:#475569; }
+.off-k--aggiunto { background:#dcfce7; color:#166534; } .off-k--tolto { background:#fee2e2; color:#991b1b; }
+.off-k--spostato { background:#e0e7ff; color:#3730a3; } .off-k--rinominato, .off-k--modificato { background:#fef3c7; color:#92400e; }
+.off-badge { border-radius:999px; padding:3px 10px; font-size:12px; font-weight:700; background:#fef3c7; color:#92400e; vertical-align:middle; }
+.off-meta { color:var(--text-light); font-size:12.5px; margin-top:4px; }
+.off-meta code { background:var(--surface-alt, #f1f5f9); border-radius:5px; padding:1px 5px; font-size:11.5px; }
+@media (max-width:1000px) { .off-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="ouf-firma">
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow"><a href="{% url 'anagrafica:organigramma_ufficiale' %}" style="color:inherit">Organigrammi ufficiali</a> · in firma</div>
+      <h1 class="hr-pagehead-title">{{ org.nome }} <span class="off-badge">Rev.{{ doc.numero_revisione }} in firma</span></h1>
+      <div class="off-meta">
+        {% if in_vigore %}In vigore: Rev.{{ in_vigore.numero }} del {{ in_vigore.data_emissione|date:"d/m/Y" }} · {% endif %}la Rev.{{ doc.numero_revisione }} entra in vigore dopo l'ultima firma
+        · inviata da {{ mittente_nome }} il {{ doc.creato_il|date:"d/m/Y H:i" }}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="hr-btn hr-btn-outline" href="{{ guida_url }}#organigramma-ufficiale-firma">? Guida</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_ufficiale_stampa' org.pk %}?firma=1" target="_blank" rel="noopener">⬇ Anteprima PDF</a>
+      {% if puo_ritirare %}<button type="button" class="hr-btn hr-btn-ghost" data-apri="offRitira">Ritira</button>{% endif %}
+      {% if puo_respingere %}<button type="button" class="hr-btn hr-btn-outline" style="color:#b91c1c;border-color:#fca5a5" data-apri="offRespingi">Respingi…</button>{% endif %}
+      {% if mia %}<button type="button" class="hr-btn hr-btn-primary" data-apri="offFirma">✍ Firma come {{ corrente.etichetta }}</button>{% endif %}
+    </div>
+  </div>
+
+  <div class="off-grid">
+    <div class="off-tela">{% include "anagrafica/partials/_org_uff_disegno.html" with p=pacchetto only %}</div>
+    <div class="off-side">
+      <div class="off-card">
+        <h2>Firme richieste</h2>
+        {% include "anagrafica/partials/_firma_passi.html" with caselle=caselle %}
+      </div>
+      <div class="off-card">
+        <h2>Cosa cambia{% if in_vigore %} dalla Rev.{{ in_vigore.numero }}{% endif %}</h2>
+        {% for r in righe %}
+          <div class="off-riga"><span class="off-k off-k--{{ r.tipo }}">{% if r.tipo == "grafica" %}solo grafica{% else %}{{ r.tipo }}{% endif %}</span><div><b>{{ r.titolo }}</b>{% if r.dettaglio %}<small>{{ r.dettaglio }}</small>{% endif %}</div></div>
+        {% empty %}<div class="off-riga">{% if in_vigore %}Nessuna differenza.{% else %}Prima emissione.{% endif %}</div>{% endfor %}
+        {% if doc.nota %}<div class="off-meta" style="margin-top:8px">Nota di revisione: {{ doc.nota }}</div>{% endif %}
+        <div class="off-meta" style="margin-top:8px">Data di emissione {{ data_emissione }} · codice verifica <code>{{ doc.codice_verifica }}</code> · impronta <code title="{{ doc.impronta }}">SHA-256 {{ doc.impronta|slice:":8" }}…{{ doc.impronta|slice:"-4:" }}</code></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if mia %}
+<dialog class="fps-dlg" id="offFirma">
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="azione" value="firma">
+    <header>✍ Firma la Rev.{{ doc.numero_revisione }} come {{ corrente.etichetta }}<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      {% include "anagrafica/partials/_firma_campi.html" with opzioni=opzioni usa_totp=usa_totp etichetta=corrente.etichetta numero=doc.numero_revisione %}
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary" style="background:#15803d;border-color:#15803d">✍ Firma</button>
+    </footer>
+  </form>
+</dialog>
+{% endif %}
+
+{% if puo_respingere %}
+<dialog class="fps-dlg" id="offRespingi">
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="azione" value="respingi">
+    <header>Respingi la Rev.{{ doc.numero_revisione }}<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      <label>Motivo (lo legge chi ha inviato il documento)<textarea name="motivo" maxlength="1000" required placeholder="es. Manca il preposto del reparto Verniciatura"></textarea></label>
+      <div class="fps-nota">La bozza torna modificabile; dopo le correzioni va inviata di nuovo in firma. La Rev.{{ in_vigore.numero|default:"—" }} resta in vigore.</div>
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary" style="background:#b91c1c;border-color:#b91c1c">Respingi</button>
+    </footer>
+  </form>
+</dialog>
+{% endif %}
+
+{% if puo_ritirare %}
+<dialog class="fps-dlg" id="offRitira">
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="azione" value="ritira">
+    <header>Ritira la richiesta di firma<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      <label>Motivo (facoltativo)<input name="motivo" maxlength="1000" placeholder="es. Devo aggiungere un reparto"></label>
+      <div class="fps-nota">Le firme già apposte su questa richiesta decadono: la bozza torna modificabile e andrà rinviata in firma.</div>
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary">Ritira</button>
+    </footer>
+  </form>
+</dialog>
+{% endif %}
+
+<script>
+document.querySelectorAll("[data-apri]").forEach(function (b) { b.addEventListener("click", function () { document.getElementById(b.dataset.apri).showModal(); }); });
+document.querySelectorAll("dialog [data-chiudi]").forEach(function (b) { b.addEventListener("click", function () { b.closest("dialog").close(); }); });
+</script>
+{% endblock %}
