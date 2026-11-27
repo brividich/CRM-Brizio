@@ -79,6 +79,15 @@ class Asset(models.Model):
     asset_tag = models.CharField(max_length=32, unique=True)
     internal_number = models.CharField(max_length=64, blank=True, default="", db_index=True)
     name = models.CharField(max_length=255)
+    # Sigla con cui l'asset e' riconosciuto in azienda («DM11», «AGV1», «MK2»): testo libero, non univoco.
+    acronimo = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        db_index=True,
+        verbose_name="Acronimo",
+        help_text="Sigla con cui l'asset è riconosciuto in azienda (es. DM11, AGV1, MK2).",
+    )
     asset_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_OTHER)
     # Link 1:1 all'anagrafica chimica (fonte unica in schede_sicurezza) per gli asset
     # di tipo "Prodotto chimico". String-ref per evitare cicli di import.

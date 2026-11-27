@@ -9,6 +9,11 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Asset: campo «Acronimo»
+
+- Nuovo campo testuale facoltativo **Acronimo** su tutti gli asset (la sigla di riconoscimento: DM11, AGV1, MK2…), non univoco. Si compila in «Nuovo/Modifica asset» e nel form macchina; compare in testa alla scheda e nel sottotitolo dell'elenco; la ricerca (elenco, ricerca del modulo, dispositivi IT) lo trova. Migrazione `assets 0176`.
+- File: `assets/models.py`, `assets/migrations/0176_asset_acronimo.py`, `assets/forms.py`, `assets/views/asset_crud.py`, `assets/views/it.py`, `assets/services/module_search.py`, `assets/templates/assets/pages/asset_detail.html`, `asset_list.html`, `guida.html`, `core/guide_moduli/contenuti/assets.py`, `docs/moduli/assets.md`, `assets/tests_acronimo.py`.
+
 ### Organigramma ufficiale: firma su portale con il Registro timbri (MT CN 08 §7.2.1)
 
 - «Pubblica» diventa «✍ Invia in firma»: la bozza si congela (copia + impronta SHA-256 + codice di verifica), chi invia firma la casella Redazione e RDD (ruolo con sigla RDD) firma l'Approvazione; la revisione nasce dopo l'ultima firma con «Approvato da» compilato dal portale. Respingi con motivo, Ritira, notifiche `firma_da_apporre` / `firma_respinta` / `firma_completata`.

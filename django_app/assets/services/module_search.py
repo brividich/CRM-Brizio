@@ -105,7 +105,7 @@ def _asset_label(asset) -> str:
 
 def _asset_q(term: str, prefix: str = "asset__") -> Q:
     # Elastica: «dixi 80» trova anche «DIXI80» e «80 dixi» (vedi ricerca_flessibile).
-    return testo_q(term, (f"{prefix}asset_tag", f"{prefix}name", f"{prefix}internal_number"))
+    return testo_q(term, (f"{prefix}asset_tag", f"{prefix}name", f"{prefix}internal_number", f"{prefix}acronimo"))
 
 
 def _occurrence_state(occ: MaintenanceOccurrence, today: date) -> tuple[str, str]:
@@ -148,9 +148,9 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
             filtra_visibili(request, Asset.objects).filter(
                 testo_q(
                     term,
-                    ("asset_tag", "name", "internal_number", "serial_number", "manufacturer", "model",
+                    ("asset_tag", "name", "internal_number", "acronimo", "serial_number", "manufacturer", "model",
                      "reparto", "assignment_to"),
-                    compatti=("asset_tag", "name", "internal_number", "serial_number", "model"),
+                    compatti=("asset_tag", "name", "internal_number", "acronimo", "serial_number", "model"),
                 )
             )
             .select_related("asset_category")
