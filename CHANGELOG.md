@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: nuova sessione passo passo
+- Dopo «Crea sessione» (in aula, misto, online in diretta, ente esterno) si apre «Prepara la sessione» (`formazione/sessioni/<id>/prepara/`): passi Dati · Giornate · Iscritti · Pronta (ente esterno senza Giornate), ognuno con le azioni che già esistono (genera giornate, giornata singola, candidati del corso con iscrizione in blocco, aggiungi persona, togli) e ritorno al percorso dopo ogni azione. Nessuno stato salvato: un passo è fatto quando i dati ci sono. Le online «slide + test» restano sul loro percorso.
+- Nella fase «Prima» della sessione «Riprendi la preparazione» finché mancano giornate o iscritti.
+- `next` sicuro (stesso host) su aggiungi/elimina lezione, genera giornate, aggiungi/elimina iscrizione (`_dopo_azione`).
+- File: `anagrafica/views_sessione_prepara.py` (nuovo), `anagrafica/views/formazione.py`, `anagrafica/urls.py`, `templates/anagrafica/pages/formazione_sessione_prepara.html` (nuovo), `components/_aula_fasi.html`, `pages/formazione_guida.html`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`, `anagrafica/tests_sessione_prepara.py` (nuovo), `anagrafica/migrations/0268_sessione_prepara_binding.py` (solo dati: permesso copiato da «Modifica sessione», voce di menu attiva).
+
 ### Formazione: niente assegnazione e-learning doppia per chi è iscritto all'edizione online
 - L'assegnazione automatica notturna salta chi è già iscritto a un'edizione aperta dello stesso corso (es. «Online: slide + test»): il corso si fa dall'edizione (`services/elearning_assegnazioni.iscritti_edizioni_aperte`).
 - Migrazione `0267`: toglie le assegnazioni automatiche «Obbligo: …» ancora «Assegnato» doppie rispetto a un'iscrizione aperta.

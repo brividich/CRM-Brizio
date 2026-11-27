@@ -46,8 +46,9 @@ body.theme-dark .af-t,body.theme-dark .af-body h3{color:#e2e8f0}
       <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}">Iscritti</a>
     </div>
   {% elif aula_fase == "prima" %}
-    <div><h3>Prepara la sessione</h3><p>Iscrivi i partecipanti e genera le giornate; il giorno della lezione qui compaiono presenze e QR d'aula.</p></div>
+    <div><h3>Prepara la sessione</h3><p>{% if preparazione %}Mancano ancora {% for p in preparazione.mancanti %}{% if p == "giornate" %}le giornate{% else %}gli iscritti{% endif %}{% if not forloop.last %} e {% endif %}{% endfor %}: riprendi da dove eri.{% else %}Iscrivi i partecipanti e genera le giornate; il giorno della lezione qui compaiono presenze e QR d'aula.{% endif %}</p></div>
     <div class="af-az">
+      {% if preparazione and is_editor %}<a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:formazione_sessione_prepara' sessione.pk %}">Riprendi la preparazione</a>{% endif %}
       <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}">Iscritti</a>
       {% if lezioni %}<a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_lezione_registro' sessione.pk lezioni.0.pk %}">Foglio firme</a>{% endif %}
       {% if is_editor %}<a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_aula_qr' sessione.pk %}">QR d'aula</a>
