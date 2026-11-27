@@ -232,6 +232,25 @@ class AssegnazioniAutomaticheTests(_Pro):
         self.assertEqual(esito["rinnovi"], 1)
         self.assertTrue(TrainingAssignment.objects.filter(corso=self.corso, legacy_anagrafica_id=self.lid, ciclo=2).exists())
 
+    def test_iscritto_a_edizione_aperta_niente_assegnazione_doppia(self):
+        # 27/11/2026: chi è iscritto all'edizione online del corso non riceve anche l'assegnazione.
+        from .models_formazione import TrainingEnrollment, TrainingSession
+        TrainingAssignment.objects.all().delete()
+        self.corso.obbligatorio = True
+        self.corso.save()
+        s = TrainingSession.objects.create(corso=self.corso, codice_sessione="EL-E1", modalita="ONLINE",
+                                           data_inizio=timezone.localdate(), data_fine=timezone.localdate() + timedelta(days=30), stato="PIANIFICATA")
+        TrainingEnrollment.objects.create(sessione=s, legacy_anagrafica_id=self.lid, stato="ISCRITTO")
+        esito = elearning_assegnazioni.sincronizza([self.lid], notifica=False)
+        self.assertEqual(esito["assegnate"], 0)
+        self.assertEqual(esito["gia_iscritti"], 1)
+        self.assertFalse(TrainingAssignment.objects.filter(corso=self.corso).exists())
+        # Edizione annullata: l'obbligo torna un'assegnazione.
+        s.stato = "ANNULLATA"
+        s.save()
+        esito = elearning_assegnazioni.sincronizza([self.lid], notifica=False)
+        self.assertEqual(esito["assegnate"], 1)
+
 
 class CruscottoRegistroTests(_Pro):
     def test_pagine_ed_export(self):
