@@ -105,7 +105,7 @@
     var o = dati.op;
     var riga = el("p", "", "fai-op-riga");
     var nome = el(o.url_scheda ? "a" : "span", o.op, "fai-op-nome");
-    if (o.url_scheda) { nome.href = o.url_scheda; nome.title = "Scheda dell'OP in Ordini di produzione"; }
+    if (o.url_scheda) { nome.href = o.url_scheda; nome.title = "Scheda dell'OP in Controllo dimensionale"; }
     riga.appendChild(nome);
     if (o.pn) riga.appendChild(voce("P/N", o.pn));
     if (o.capocommessa) riga.appendChild(voce("Capocommessa", o.capocommessa));

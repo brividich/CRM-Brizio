@@ -116,7 +116,7 @@ GUIDA = {
                       "proporre da uno screenshot delle righe del protocollo ZEISS incollato con Ctrl+V nel riquadro "
                       "«Dal report ZEISS» (l'immagine non viene allegata; le righe proposte si confermano a mano). Con «📄 Dal report CMM (PDF)» "
                       "si caricano invece i report completi in PDF (uno per S/N), oppure si sceglie uno dei report dell'OP già letti "
-                      "dalla cartella Collaudo (elencati nel pannello; da Ordini di produzione «Apri segnalazione anomalia» lo apre "
+                      "dalla cartella Collaudo (elencati nel pannello; da Controllo dimensionale «Apri segnalazione anomalia» lo apre "
                       "già pronto): un pannello laterale mostra tutte le righe lette "
                       "dal testo del PDF, con le fuori tolleranza già spuntate, e «Inserisci N anomalie» crea un'anomalia per riga sul "
                       "S/N del report; se il report è di un altro OP o di un altro P/N compare un avviso. Le righe sono raggruppate per "

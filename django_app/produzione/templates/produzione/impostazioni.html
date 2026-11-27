@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Impostazioni · Ordini di produzione{% endblock %}
+{% block title %}Impostazioni · Controllo dimensionale{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127a">{% endblock %}
 
 {% block content %}
@@ -42,6 +42,18 @@
         </tr>
       </tbody>
     </table>
+  </section>
+
+  <section class="prod-card" id="finestra-quote">
+    <div class="prod-card-head"><h2>Analisi delle quote CMM</h2></div>
+    <form method="post" class="prod-avvisi">
+      {% csrf_token %}<input type="hidden" name="azione" value="finestra">
+      <label class="prod-avvisi-campo">Cpk e Ppk si calcolano su
+        <select name="finestra">{% for v, nome in finestre %}<option value="{{ v }}"{% if v == avvisi.finestra %} selected{% endif %}>{{ nome }}</option>{% endfor %}</select>
+      </label>
+      <p class="prod-nota">Vale per catalogo, scheda P/N, report, Quote CMM, Analisi quote e PDF di capacità. Capace da 1,33, al limite da 1,00, sotto 25 pezzi «pochi dati».</p>
+      <div class="prod-form-azioni"><button class="prod-btn prod-btn-primary" type="submit">Salva</button></div>
+    </form>
   </section>
 
   <section class="prod-card" id="avvisi-quote">

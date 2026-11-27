@@ -1,4 +1,4 @@
-"""Ordini di produzione: elenco degli OP, scheda con i documenti di produzione, impostazioni."""
+"""Controllo dimensionale: elenco degli OP, scheda con i documenti di produzione, impostazioni."""
 from __future__ import annotations
 
 import logging
@@ -44,8 +44,9 @@ def _richiede(request, codice: str) -> None:
 
 def _ctx(request, corrente: str, **extra) -> dict:
     return {
-        "page_title": "Ordini di produzione",
+        "page_title": "Controllo dimensionale",
         "prod_corrente": corrente,
+        "prod_finestra": cmm.finestra(),
         "prod_puo_documenti": request_has_permission_code(request, PERM_DOCUMENTI),
         "prod_puo_impostazioni": request_has_permission_code(request, PERM_IMPOSTAZIONI),
         "prod_puo_quote": request_has_permission_code(request, PERM_QUOTE),
@@ -174,7 +175,7 @@ def pn_scheda(request, pn: str | None = None):
         if periodo:
             qs = qs.filter(data__gte=periodo[0], data__lte=periodo[1])
             dati["periodo"] = periodo
-        dati["report_cmm"]["ultimi"] = list(qs.order_by("-data", "-id")[:60])
+        dati["report_cmm"]["ultimi"] = list(qs.order_by("-data", "-modificato", "-id")[:60])
         dati["programmi_cmm"] = cmm.programmi_del_pn(dati["pn"])
     if sezione == "qualita":
         dati["qualita"] = pagine_cmm.qualita_pn(dati["pn"], request.GET.get("q", ""))
@@ -202,6 +203,7 @@ def pn_quote(request):
         prog = programmi[0]["programma_base"] if programmi else ""
     stato = {k: (request.GET.get(k) or "").strip()[:2000] for k in ("q", "nom", "r", "tab", "per", "da", "a", "op", "cmp", "f", "ord",
                                                                    "rs", "tutte", "esclusi")}
+    stato["fin"] = cmm.finestra()
     stato["prog"] = prog
     return render(request, "produzione/quote.html", _ctx(
         request, "pn", pn=pn, programmi=programmi, prog=prog, stato=stato,
@@ -437,6 +439,11 @@ def quote_pdf(request):
     if scelti:
         ids = set(scelti)
         tieni = {i for i in (tieni if tieni is not None else range(len(dati["report"]))) if dati["report"][i][0] in ids}
+    fin = request.GET.get("fin") or ""
+    if fin.isdigit() and int(fin) > 0:      # finestra di riferimento: gli ultimi N pezzi fra quelli dei filtri
+        validi = [i for i in (tieni if tieni is not None else range(len(dati["report"])))
+                  if not dati["report"][i][6] and (not op or (dati["report"][i][2] or "—") in op)]
+        tieni = set(sorted(validi)[-int(fin):])
     quote = {x for x in (request.GET.get("quote") or "").split("~") if x}
     righe = pdf_capacita.righe_capacita(dati, quote or None, op, tieni)
     date_rep = [r[3] for r in dati["report"] if r[3]]
@@ -445,6 +452,7 @@ def quote_pdf(request):
         f"OP {', '.join(sorted(op))}" if op else "tutti gli OP",
         (f"{len(quote)} quote scelte" if len(quote) > 1 else "1 quota scelta") if quote else f"{len(righe)} quote",
         "ultima misura per S/N" if request.GET.get("tutte") != "1" else "tutte le misure",
+        f"ultimi {fin} pezzi" if fin.isdigit() and int(fin) > 0 else "",
     ]))
     contenuto = pdf_capacita.genera(pn, dati, righe, filtri, request.user.get_full_name() or request.user.get_username())
     log_action(request, "produzione_quote_pdf", "produzione", {"pn": pn, "prog": prog, "quote": len(righe)})
@@ -686,6 +694,10 @@ def impostazioni(request):
             else:
                 TipoDocumento.objects.create(etichetta=etichetta, descrizione=descrizione, ordine=ordine)
                 messages.success(request, f"Tipo «{etichetta}» aggiunto.")
+        elif azione == "finestra":
+            n = int(request.POST["finestra"]) if (request.POST.get("finestra") or "").isdigit() else 0
+            if cmm.imposta_finestra(n):
+                messages.success(request, f"Indici calcolati sugli ultimi {n} pezzi: i numeri si aggiornano al prossimo giro dei report.")
         elif azione == "avvisi":
             imp = ImpostazioniQuoteCMM.attuali()
             imp.avvisa_fuori = request.POST.get("avvisa_fuori") == "1"
@@ -713,7 +725,7 @@ def impostazioni(request):
     persone = [{"id": u.pk, "nome": etichetta_utente(u), "scelto": u.pk in scelti}
                for u in ordina_persone(utenti_in_forza(), etichetta_utente)]
     return render(request, "produzione/impostazioni.html", _ctx(
-        request, "impostazioni", tipi=TipoDocumento.objects.all(), avvisi=imp, persone=persone,
+        request, "impostazioni", tipi=TipoDocumento.objects.all(), avvisi=imp, persone=persone, finestre=imp._meta.get_field("finestra").choices,
     ))
 
 
@@ -742,7 +754,7 @@ def guida(request):
             generato_da=request.user.get_username(), generato_il=timezone.localdate().strftime("%d-%m-%Y"),
         )
         resp = HttpResponse(contenuto, content_type="application/pdf")
-        resp["Content-Disposition"] = 'attachment; filename="Guida_Ordini_di_produzione.pdf"'
+        resp["Content-Disposition"] = 'attachment; filename="Guida_Controllo_dimensionale.pdf"'
         return resp
     return render(request, "produzione/guida.html", _ctx(
         request, "guida", sezioni=guida_mod.SEZIONI, titolo=guida_mod.TITOLO, sottotitolo=guida_mod.SOTTOTITOLO,

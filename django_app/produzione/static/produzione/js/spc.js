@@ -1,4 +1,4 @@
-/* NOVICROM HUB — Ordini di produzione: statistica di processo per Analisi quote.
+/* NOVICROM HUB — Controllo dimensionale: statistica di processo per Analisi quote.
    Stesse formule di produzione/spc.py (tests_spc.py controlla che diano gli stessi numeri): σ di breve periodo
    (MR̄/1,128) per Cp/Cpk, σ totale per Pp/Ppk, percentili Weibull per le quote di forma e posizione, intervallo
    di confidenza del Cpk, regole di Nelson 1-8, EWMA, rischio del prossimo pezzo, punti di cambio. */
@@ -59,11 +59,47 @@ var SPC = (function () {
     var se = Math.sqrt(1 / (9 * n) + cpk * cpk / (2 * (n - 1)));
     return [cpk - 1.96 * se, cpk + 1.96 * se];
   }
-  function verdetto(indice, basso, n) {
+  /* L'unico giudizio di capacita: indice (peggiore fra Cpk e Ppk) contro 1,33 e 1,00; «pochi dati» sotto 25 pezzi. */
+  function verdetto(indice, n) {
     if (indice === null || indice === undefined) return null;
     if (n < POCHI_DATI) return "pochi dati";
-    var v = basso !== null && basso !== undefined ? basso : indice;
-    return v >= CAPACE ? "capace" : (v >= AL_LIMITE ? "al limite" : "non capace");
+    return indice >= CAPACE ? "capace" : (indice >= AL_LIMITE ? "al limite" : "non capace");
+  }
+  function sottoObiettivo(v) { return v === "al limite" || v === "non capace"; }
+  function daGuardare(fuoriUltimo, deriva, v) { return !!(fuoriUltimo || deriva || sottoObiettivo(v)); }
+  /* Tolleranza usata: 0 = ideale, +-1 = limite. Unilaterali: rilevato / limite superiore; le altre dal centro. */
+  function usata(x, nom, lsl, usl) {
+    if (unilaterale(nom, lsl, usl)) return x / usl;
+    var banda = usl - lsl;
+    return banda > 0 ? (x - (usl + lsl) / 2) / (banda / 2) : null;
+  }
+  function pezziAlLimite(b, seB, fine) {
+    if (!b) return [null, null];
+    var verso = b > 0 ? 1 : -1;
+    function pezzi(pend) {
+      if (pend * verso <= 0) return null;
+      var p = Math.max(0, Math.ceil((verso - fine) / pend));
+      return p <= 200 ? p : null;
+    }
+    return [pezzi(b + 1.96 * seB * verso), pezzi(b - 1.96 * seB * verso)];
+  }
+  /* Tendenza degli ultimi 20 valori di tolleranza usata: stessa regola di spc.deriva. */
+  function deriva(us, ultimi) {
+    ultimi = ultimi || 20;
+    var v = us.filter(function (u) { return u !== null && u !== undefined && isFinite(u); }).slice(-ultimi);
+    var n = v.length;
+    if (n < 10) return null;
+    var mx = (n - 1) / 2, my = media(v), num = 0, den = 0, i;
+    for (i = 0; i < n; i++) { num += (i - mx) * (v[i] - my); den += (i - mx) * (i - mx); }
+    var b = num / den, fine = my + b * (n - 1 - mx);
+    if (Math.abs(b * n) < 0.2 || b * fine <= 0 || Math.abs(fine) < 0.5) return null;
+    var pezzi = Math.max(0, Math.ceil(((b > 0 ? 1 : -1) - fine) / b));
+    if (pezzi > 50) return null;
+    var res = 0;
+    for (i = 0; i < n; i++) { var d = v[i] - (my + b * (i - mx)); res += d * d; }
+    var seB = n > 2 ? Math.sqrt(res / (n - 2) / den) : 0;
+    var f = pezziAlLimite(b, seB, fine);
+    return { pendenza: b, pezzi: pezzi, verso: b > 0 ? "sup" : "inf", pezzi_min: f[0], pezzi_max: f[1], n: n, my: my, mx: mx };
   }
   function capacita(xs, lsl, usl, nom) {
     var n = xs.length;
@@ -90,7 +126,7 @@ var SPC = (function () {
     var valori = [out.cpk, out.ppk].filter(function (v) { return v !== null && v !== undefined; });
     out.indice = valori.length ? Math.min.apply(null, valori) : null;
     var ic = intervalloCpk(out.indice, n); out.cpk_basso = ic[0]; out.cpk_alto = ic[1];
-    out.verdetto = verdetto(out.indice, out.cpk_basso, n);
+    out.verdetto = verdetto(out.indice, n);
     return out;
   }
 
@@ -226,6 +262,7 @@ var SPC = (function () {
 
   return { media: media, dev_std: devStd, sigma_breve: sigmaBreve, unilaterale: unilaterale, phi: phi, weibull: weibull,
     capacita: capacita, intervallo_cpk: intervalloCpk, verdetto: verdetto, limiti_controllo: limitiControllo, ewma: ewma,
-    segnali: segnali, testi: TESTI, rischio_prossimo: rischioProssimo, punti_cambio: puntiCambio, CAPACE: CAPACE };
+    segnali: segnali, testi: TESTI, rischio_prossimo: rischioProssimo, punti_cambio: puntiCambio, CAPACE: CAPACE,
+    usata: usata, deriva: deriva, sotto_obiettivo: sottoObiettivo, da_guardare: daGuardare, TOLLERANZA_AL_LIMITE: 0.8 };
 })();
 if (typeof window !== "undefined") window.SPC = SPC;

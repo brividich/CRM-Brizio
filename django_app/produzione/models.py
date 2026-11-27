@@ -102,7 +102,7 @@ class ReportCMM(models.Model):
     lettore = models.PositiveSmallIntegerField(default=1)
 
     class Meta:
-        ordering = ["-data", "-id"]
+        ordering = ["-data", "-modificato", "-id"]
         # Le letture del modulo filtrano per P/N (e programma) o per data: indici di copertura con le colonne che
         # leggono, senza tornare alla tabella (SQL Server; altrove «include» è ignorato).
         indexes = [
@@ -190,6 +190,10 @@ class ImpostazioniQuoteCMM(models.Model):
     avvisa_fuori = models.BooleanField(default=True, verbose_name="Avvisa quando un report nuovo ha quote fuori tolleranza")
     avvisa_deriva = models.BooleanField(default=True, verbose_name="Avvisa quando una quota va in deriva")
     destinatari = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="+", verbose_name="Chi riceve gli avvisi")
+    finestra = models.PositiveSmallIntegerField(
+        default=30, choices=[(30, "Ultimi 30 pezzi"), (50, "Ultimi 50 pezzi"), (100, "Ultimi 100 pezzi")],
+        verbose_name="Pezzi su cui si calcolano Cpk e Ppk",
+        help_text="La stessa finestra in catalogo, scheda P/N, report, Quote CMM, Analisi quote e PDF di capacità.")
 
     class Meta:
         verbose_name = "Impostazioni avvisi quote CMM"
@@ -232,7 +236,7 @@ class ArticoloPN(models.Model):
     fuori_30g = models.PositiveIntegerField(default=0, help_text="Report degli ultimi 30 giorni con quote fuori.")
     ultimo_report = models.DateField(null=True, blank=True)
     cpk_peggiore = models.FloatField(null=True, blank=True)
-    quote_non_capaci = models.PositiveIntegerField(default=0, help_text="Quote con Cpk sotto 1,33 sugli ultimi 30 pezzi.")
+    quote_non_capaci = models.PositiveIntegerField(default=0, help_text="Quote «al limite» o «non capaci» (spc.verdetto) sulla finestra di riferimento.")
     quote_deriva = models.PositiveIntegerField(default=0, help_text="Quote in deriva verso un limite.")
     quote_fuori_ultimo = models.PositiveIntegerField(default=0, help_text="Quote fuori nell'ultimo report di ogni programma.")
     analisi_il = models.DateTimeField(null=True, blank=True, help_text="Quando Cpk, deriva e fuori sono stati calcolati.")

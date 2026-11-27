@@ -29,7 +29,7 @@ class ModuloHub:
 MODULI_HUB: tuple[ModuloHub, ...] = (
     ModuloHub("anomalie", "Gestione anomalie", "/anomalie-menu", ("/anomalie", "/gestione-anomalie")),
     ModuloHub("registro_ofi", "Registro OFI", "/ofi-registro/", ("/ofi-registro/",)),
-    ModuloHub("produzione", "Ordini di produzione", "/produzione/", ("/produzione/",)),
+    ModuloHub("produzione", "Controllo dimensionale", "/produzione/", ("/produzione/",)),
     ModuloHub("kickoff", "KICK-OFF commesse", "/tasks/projects/", ("/tasks/",)),
     ModuloHub("gestione_specifiche", "Gestione specifiche", "/gestione-specifiche/", ("/gestione-specifiche/",)),
     ModuloHub("fornitori", "Fornitori", "/fornitori/", ("/fornitori/",)),

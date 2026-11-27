@@ -7,6 +7,7 @@ from xml.sax.saxutils import escape
 from django.utils import timezone
 
 from . import report_cmm_indice as cmm
+from . import spc
 
 
 def _fmt(v, d=4):
@@ -79,8 +80,8 @@ def genera(pn: str, dati: dict, righe: list[dict], filtri: str, utente: str) -> 
              ("LINEBELOW", (0, 0), (-1, -1), 0.25, colors.HexColor("#e3e7ee"))]
     for k, r in enumerate(righe, start=1):
         cpk = r["s"].get("cpk")
-        if cpk is not None and cpk < 1.33:
-            stile.append(("TEXTCOLOR", (8, k), (8, k), colors.HexColor("#d03b3b" if cpk < 1 else "#9a6700")))
+        if cpk is not None and cpk < spc.CAPACE:
+            stile.append(("TEXTCOLOR", (8, k), (8, k), colors.HexColor("#d03b3b" if cpk < spc.AL_LIMITE else "#9a6700")))
         if r["n_fuori"]:
             stile.append(("TEXTCOLOR", (9, k), (9, k), colors.HexColor("#d03b3b")))
     t.setStyle(TableStyle(stile))

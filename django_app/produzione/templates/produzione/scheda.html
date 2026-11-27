@@ -1,15 +1,15 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}{{ op.op }} · Ordini di produzione{% endblock %}
+{% block title %}{{ op.op }} · Controllo dimensionale{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261127a">{% endblock %}
 
 {% block content %}
 <div class="prod">
-  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:elenco' %}">Ordini di produzione</a>{% if op.pn %}<a href="{% url 'produzione:pn' op.pn %}">{{ op.pn }}</a>{% endif %}</template>
+  <template data-hub-percorso-gerarchia><a href="{% url 'produzione:elenco' %}">Controllo dimensionale</a>{% if op.pn %}<a href="{% url 'produzione:pn' op.pn %}">{{ op.pn }}</a>{% endif %}</template>
   <div class="prod-head">
     <div>
-      <span class="prod-eyebrow"><a href="{% url 'produzione:elenco' %}">Ordini di produzione</a>{% if op.pn %} › <a href="{% url 'produzione:pn' op.pn %}">{{ op.pn }}</a>{% endif %} › OP{% if op.capocommessa %} · Capocommessa {{ op.capocommessa }}{% endif %}{% if op.car %} · CAR {{ op.car }}{% endif %}</span>
+      <span class="prod-eyebrow"><a href="{% url 'produzione:elenco' %}">Controllo dimensionale</a>{% if op.pn %} › <a href="{% url 'produzione:pn' op.pn %}">{{ op.pn }}</a>{% endif %} › OP{% if op.capocommessa %} · Capocommessa {{ op.capocommessa }}{% endif %}{% if op.car %} · CAR {{ op.car }}{% endif %}</span>
       <h1>{{ op.op }}{% if op.stato %} <span class="prod-stato prod-badge">{{ op.stato }}</span>{% endif %}</h1>
     </div>
     <div class="prod-filtri">
