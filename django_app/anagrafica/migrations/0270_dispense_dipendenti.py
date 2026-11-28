@@ -4,7 +4,7 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
-NOTA = "[FORMAZIONE_0268] copiato dalla rotta sorella"
+NOTA = "[FORMAZIONE_0270] copiato dalla rotta sorella"
 ROTTE = {"anagrafica:formazione_allegato_delete": ("anagrafica:formazione_allegato_dispensa",)}
 
 
@@ -42,7 +42,7 @@ def indietro(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0267_togli_assegnazioni_doppie_edizione'),
+        ('anagrafica', '0269_sessione_sala_gruppi'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('core', '0034_permissiondefinition_rolepermissiongrant_and_more'),
     ]

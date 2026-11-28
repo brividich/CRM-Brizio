@@ -1,0 +1,437 @@
+{% extends "core/base.html" %}
+{% load static anagrafica_extras %}
+
+{% block title %}Prepara {{ sessione.codice_sessione }} | Formazione HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+{% include "anagrafica/components/_fmd_form_style.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.sp-main .fm-f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.sp-main .fm-f label{font-size:12px;font-weight:600;color:var(--text-mid,#4a5568)}
+.sp-main .fm-f input,.sp-main .fm-f select{width:100%;box-sizing:border-box}
+.sp-steps{display:flex;align-items:center;gap:0;overflow-x:auto;padding:12px 16px;border-bottom:1px solid var(--border,#d7e0ea)}
+.sp-st{display:flex;align-items:center;gap:8px;white-space:nowrap;color:var(--text-mid,#4a5568);font-size:13px;text-decoration:none;padding:2px 10px 2px 0}
+.sp-st+.sp-st::before{content:"";width:24px;height:2px;background:var(--border,#d7e0ea);margin-right:2px}
+.sp-n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:#eef2f7;color:#475569;flex:none}
+.sp-st.fatto .sp-n{background:#16a34a;color:#fff}
+.sp-st.on{color:var(--fmd-navy,#0c2545);font-weight:700}
+.sp-st.on .sp-n{background:var(--accent,#ff6b00);color:#fff}
+.sp-st:hover{text-decoration:underline}
+.sp-body{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;padding:16px}
+@media (max-width:860px){.sp-body{grid-template-columns:1fr}}
+.sp-main{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sp-main h2{margin:0;font-size:17px;color:var(--fmd-navy,#0c2545)}
+.sp-side{display:flex;flex-direction:column;gap:10px}
+.sp-box{border:1px solid var(--border,#d7e0ea);border-radius:12px;padding:12px 14px;background:var(--surface,#fff);font-size:12.5px;display:flex;flex-direction:column;gap:6px}
+.sp-kv{display:flex;justify-content:space-between;gap:8px}.sp-kv b{font-variant-numeric:tabular-nums;text-align:right}
+.sp-hint{font-size:12.5px;border-radius:9px;padding:8px 11px;background:#eef3f8;color:#4a5568}
+.sp-hint.ok{background:#e8f7ee;color:#15803d}.sp-hint.warn{background:#fff6e0;color:#b45309}
+.sp-foot{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid var(--border,#d7e0ea);padding:12px 16px}
+.sp-foot .sp-sp{flex:1;font-size:12px;color:var(--text-mid,#4a5568)}
+.sp-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.sp-grid{grid-template-columns:1fr}}
+.sp-giorni{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.sp-giorni label{display:flex;align-items:center;gap:4px;font-weight:400}
+.sp-tbl{overflow-x:auto;border:1px solid var(--border,#d7e0ea);border-radius:10px}
+.sp-tbl table{margin:0}
+.fmd .sp-main .sp-tbl table.hr-table th,.fmd .sp-main .sp-tbl table.hr-table td{padding:4px 10px!important;line-height:1.3;height:auto!important}
+.sp-main .sp-tbl .hr-table th{padding-top:6px;padding-bottom:6px}
+.sp-main .sp-tbl .hr-btn-sm{padding:2px 10px;min-height:0;font-size:12px}
+.sp-main .sp-tbl .fm-pill{padding:1px 8px}
+.fmd .sp-main .sp-tbl input[type=checkbox]{margin:0;width:15px!important;height:15px!important;min-height:0!important;padding:0!important}
+.fmd .sp-main select.sp-mini{height:26px!important;min-height:0!important;padding:1px 6px!important;font-size:12.5px!important}
+.sp-tbl.alto{max-height:380px;overflow-y:auto}
+.sp-pronta{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.sp-pronta li{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid var(--border,#d7e0ea);border-radius:10px;padding:9px 12px}
+.sp-pronta .sp-ic{font-weight:700;width:18px;text-align:center}
+.sp-pronta .ok .sp-ic,.sp-pronta li.ok .sp-ic{color:#16a34a}
+.sp-pronta li.no .sp-ic{color:#b45309}
+.sp-az{display:flex;gap:8px;flex-wrap:wrap}
+details.sp-agg>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--fmd-navy,#0c2545)}
+.sp-st small{font-weight:400;font-size:11px;opacity:.75}
+.sp-av{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.sp-av span{font-size:11px;border-radius:999px;padding:1px 8px;background:#fff1d6;color:#9a4b00}
+.sp-card{border:1px solid var(--border,#d7e0ea);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--surface,#fff)}
+.sp-card.tenue{background:#f3f7fb}
+.sp-card .sp-sp{flex:1;min-width:200px;font-size:13px}
+.sp-card select{max-width:260px}
+.sp-mini{font:inherit;font-size:12.5px;padding:4px 8px;border:1px solid var(--border,#d7e0ea);border-radius:8px;background:var(--surface,#fff);color:inherit;max-width:160px}
+.sp-prog{border-collapse:collapse;font-size:12.5px;width:100%}
+.sp-prog th,.sp-prog td{border-bottom:1px solid var(--border,#d7e0ea);padding:5px 8px;text-align:center}
+.sp-prog th:first-child,.sp-prog td:first-child{text-align:left}
+.sp-prog td.no{color:#b45309}
+.sp-seg{display:inline-flex;border:1px solid var(--border,#d7e0ea);border-radius:999px;padding:3px;gap:3px}
+.sp-seg button{border:0;background:none;border-radius:999px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer;color:var(--text-mid,#4a5568)}
+.sp-seg button.on{background:var(--fmd-navy,#0c2545);color:#fff}
+.sp-modi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-width:720px){.sp-modi{grid-template-columns:1fr}}
+.sp-modo{border:1px solid var(--border,#d7e0ea);border-radius:12px;padding:10px 12px;cursor:pointer;display:flex;gap:8px;align-items:flex-start;font-size:12.5px}
+.sp-modo:has(input:checked){border:2px solid var(--accent,#ff6b00);padding:9px 11px;background:var(--accent-light,#fffaf6)}
+.sp-modo b{display:block;font-size:13px;color:var(--fmd-navy,#0c2545)}
+.sp-tool{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+.sp-num{display:inline-flex;align-items:center;border:1px solid var(--border,#d7e0ea);border-radius:10px;overflow:hidden}
+.sp-num button{border:0;background:#eef2f7;width:30px;height:30px;font-size:16px;cursor:pointer}
+.sp-num b{min-width:30px;text-align:center}
+.sp-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.sp-col{border:1px dashed var(--border,#cbd5e1);border-radius:12px;background:#f7f9fc;display:flex;flex-direction:column;min-height:140px;transition:background .15s,border-color .15s}
+.sp-col.drop{background:#fff4ea;border-color:var(--accent,#ff6b00)}
+.sp-col-h{padding:8px 10px;border-bottom:1px solid var(--border,#e2e8f0);font-size:12px;display:flex;flex-direction:column;gap:2px}
+.sp-col-h b{font-size:13px;color:var(--fmd-navy,#0c2545);display:flex;justify-content:space-between;gap:6px}
+.sp-col-h .over{color:#b91c1c}
+.sp-col-b{padding:8px;display:flex;flex-direction:column;gap:6px;flex:1}
+.sp-chip{background:var(--surface,#fff);border:1px solid var(--border,#d7e0ea);border-radius:9px;padding:6px 9px;font-size:12.5px;cursor:grab;display:flex;justify-content:space-between;gap:6px;align-items:center;box-shadow:0 1px 1px rgba(15,23,42,.04)}
+.sp-chip small{color:var(--text-mid,#64748b);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+.sp-chip.sel{outline:2px solid var(--accent,#ff6b00)}
+.sp-chip.lock{cursor:not-allowed;opacity:.6}
+.sp-chip.drag{opacity:.4}
+.sp-vuoto{font-size:12px;color:var(--text-mid,#94a3b8);text-align:center;padding:14px 0}
+body.theme-dark .sp-col{background:#0f1a2e;border-color:#334155}
+body.theme-dark .sp-col.drop{background:rgba(255,107,0,.12)}
+body.theme-dark .sp-chip,body.theme-dark .sp-card{background:#111c33;border-color:#334155}
+body.theme-dark .sp-card.tenue{background:#17233d}
+body.theme-dark .sp-col-h b,body.theme-dark .sp-modo b{color:#e2e8f0}
+body.theme-dark .sp-av span{background:rgba(251,191,36,.15);color:#fbbf24}
+body.theme-dark .sp-modo:has(input:checked){background:rgba(255,107,0,.1)}
+body.theme-dark .sp-num button{background:#1e2b45;color:#e2e8f0}
+body.theme-dark .sp-n{background:#1e2b45;color:#cbd5e1}
+body.theme-dark .sp-st.on,body.theme-dark .sp-main h2,body.theme-dark details.sp-agg>summary{color:#e2e8f0}
+body.theme-dark .sp-box{background:#111c33;border-color:#334155}
+body.theme-dark .sp-hint{background:#17233d;color:#cbd5e1}
+body.theme-dark .sp-hint.ok{background:rgba(22,163,74,.15);color:#4ade80}
+body.theme-dark .sp-hint.warn{background:rgba(251,191,36,.12);color:#fbbf24}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap" style="max-width:none;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <template data-hub-percorso-gerarchia>
+          <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_sessioni_list' %}">Sessioni</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}">{{ sessione.codice_sessione }}</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">Prepara</span>
+        </template>
+        <h1>
+          <svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cal-clock"/></svg>
+          Prepara la sessione
+        </h1>
+        <div class="fmd-muted" style="font-size:13px;">{{ sessione.corso.titolo }} · <b>{{ sessione.codice_sessione }}</b> · {{ sessione.get_modalita_display }}</div>
+      </div>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_guida' %}#sessione-prepara" title="Guida">? Guida</a>
+    </div>
+
+    <section class="fmd-panel" style="padding:0;">
+      <nav class="sp-steps" aria-label="Passi della preparazione">
+        {% for p in passi %}
+        <a class="sp-st{% if p.attivo %} on{% elif p.fatto %} fatto{% endif %}" href="?passo={{ p.codice }}"{% if p.attivo %} aria-current="step"{% endif %}>
+          <span class="sp-n">{% if p.fatto and not p.attivo %}✓{% else %}{{ p.n }}{% endif %}</span>{{ p.etichetta }}{% if p.facoltativo %} <small>se serve</small>{% endif %}
+        </a>
+        {% endfor %}
+      </nav>
+
+      <div class="sp-body">
+        <div class="sp-main">
+
+        {% if passo == "dati" %}
+          <h2>{{ n_passo }} · Dati della sessione</h2>
+          <div class="sp-hint ok">✓ Sessione creata: programma e materiale scelti sono stati copiati dal corso.</div>
+          <div class="sp-tbl" data-table-enhanced="0"><table class="hr-table">
+            <tbody>
+              <tr><th style="width:150px;">Corso</th><td>{{ sessione.corso.titolo }}</td></tr>
+              <tr><th>Periodo</th><td>{{ sessione.data_inizio|date:"d-m-Y" }}{% if sessione.data_fine and sessione.data_fine != sessione.data_inizio %} → {{ sessione.data_fine|date:"d-m-Y" }}{% endif %}</td></tr>
+              <tr><th>Sede</th><td>{{ sessione.sede|default:"—" }}</td></tr>
+              {% if sessione.sala %}<tr><th>Sala</th><td>{{ sessione.sala.nome }}{% if sessione.sala.capienza %} · {{ sessione.sala.capienza }} posti{% endif %}</td></tr>{% endif %}
+              <tr><th>Docente</th><td>{% if sessione.docente %}{{ sessione.docente.nome }}{% elif sessione.docente_ente %}{{ sessione.docente_ente.nome }}{% else %}{{ sessione.docente_nome|default:"—" }}{% endif %}</td></tr>
+            </tbody>
+          </table></div>
+          <div><a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_sessione_edit' sessione.pk %}">Modifica i dati</a></div>
+
+        {% elif passo == "giornate" %}
+          <h2>{{ n_passo }} · Giornate</h2>
+          {% if in_aula %}
+          <div class="sp-card">
+            <form method="post" action="{{ azione_url }}sala/" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+              <label for="sp-sala" style="font-size:13px;font-weight:600;">Sala</label>
+              <select id="sp-sala" name="sala" data-no-search class="sp-mini" style="max-width:280px;" onchange="this.form.submit()">
+                <option value="">— nessuna sala aziendale —</option>
+                {% for s in sale %}<option value="{{ s.pk }}"{% if s.pk == sessione.sala_id %} selected{% endif %}>{{ s.nome }}{% if s.capienza %} · {{ s.capienza }} posti{% endif %}</option>{% endfor %}
+              </select>
+              <noscript><button type="submit" class="hr-btn hr-btn-sm hr-btn-outline">Scegli</button></noscript>
+              <a href="{% url 'reception:sale' %}" style="font-size:12px;" title="Reception → Configurazione → Sale: nome, posti e casella Microsoft 365">Gestisci le sale</a>
+            </form>
+            <span class="sp-sp">
+              {% if sessione.sala %}
+                {% if prenotazione.tutte %}<span style="color:#15803d;">✓ Prenotata in Outlook per tutte le giornate</span>
+                {% elif prenotazione.prenotate %}Prenotata in Outlook per {{ prenotazione.prenotate }} giornate su {{ prenotazione.n }}
+                {% elif lezioni %}Non ancora prenotata{% else %}Si prenota dopo aver messo le giornate{% endif %}
+              {% else %}Sceglila per vedere se è libera e prenotarla.{% endif %}
+            </span>
+            {% if sessione.sala and lezioni and not prenotazione.tutte %}
+            <form method="post" action="{{ azione_url }}prenota/">{% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+              <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Prenota la sala</button></form>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% if precedente %}
+          <div class="sp-card tenue">
+            <span class="sp-sp"><b>Come l'ultima edizione?</b> {{ precedente.sessione.codice_sessione }} aveva {{ precedente.n }} giornat{{ precedente.n|pluralize:"a,e" }} ({{ precedente.ore|floatformat:"-2" }} ore, {{ precedente.orario }}): le rimetto uguali a partire dal {{ sessione.data_inizio|date:"d-m-Y" }}.</span>
+            <form method="post" action="{{ azione_url }}copia/">{% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+              <input type="hidden" name="sorgente" value="{{ precedente.sessione.pk }}">
+              <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Copia le giornate</button></form>
+          </div>
+          {% endif %}
+          {% if lezioni %}
+          <div class="sp-tbl" data-table-enhanced="0"><table class="hr-table">
+            <thead><tr><th>#</th><th>Data</th><th>Orario</th><th>Pausa</th><th>Ore</th><th></th></tr></thead>
+            <tbody>
+              {% for lz in lezioni %}
+              <tr>
+                <td>{{ lz.numero }}</td>
+                <td>{{ lz.data|date:"D d-m-Y" }}{% if lz.avvisi %}<div class="sp-av">{% for a in lz.avvisi %}<span>{{ a }}</span>{% endfor %}</div>{% endif %}</td>
+                <td>{{ lz.ora_inizio|time:"H:i" }}–{{ lz.ora_fine|time:"H:i" }}</td>
+                <td>{{ lz.pausa_minuti|default:0 }}′</td>
+                <td>{{ lz.durata_ore|floatformat:"-2" }}</td>
+                <td style="text-align:right;">
+                  <form method="post" action="{% url 'anagrafica:formazione_lezione_delete' sessione.pk lz.pk %}" style="display:inline;"
+                        data-hub-confirm="Togliere la giornata {{ lz.numero }} del {{ lz.data|date:'d-m-Y' }}?">
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+                    <button type="submit" class="hr-btn hr-btn-sm hr-btn-ghost">Togli</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table></div>
+          {% else %}
+          <p class="fmd-muted" style="margin:0;font-size:13px;">Ancora nessuna giornata. Indica l'orario-tipo: si crea una giornata per ogni giorno scelto fra il {{ sessione.data_inizio|date:"d-m-Y" }} e il {{ sessione.data_fine|date:"d-m-Y" }}.</p>
+          {% endif %}
+
+          {% if ore_teoriche %}
+            {% if not lezioni %}<div class="sp-hint">Il corso prevede {{ ore_teoriche|floatformat:"-2" }} ore.</div>
+            {% elif ore_scostamento == 0 %}<div class="sp-hint ok">✓ {{ ore_pianificate|floatformat:"-2" }} ore pianificate su {{ ore_teoriche|floatformat:"-2" }} del corso.</div>
+            {% elif ore_scostamento < 0 %}<div class="sp-hint warn">{{ ore_pianificate|floatformat:"-2" }} ore pianificate su {{ ore_teoriche|floatformat:"-2" }} del corso: mancano giornate o ore.</div>
+            {% else %}<div class="sp-hint warn">{{ ore_pianificate|floatformat:"-2" }} ore pianificate su {{ ore_teoriche|floatformat:"-2" }} del corso: ci sono ore in più (pausa dimenticata?).</div>{% endif %}
+          {% endif %}
+
+          {% if programma %}
+          <details class="sp-agg"{% if programma_scoperti %} open{% endif %}>
+            <summary>Programma per giornata {% if programma_scoperti %}<span class="fm-pill fm-pill-warning" style="font-size:10px;">{{ programma_scoperti }} argoment{{ programma_scoperti|pluralize:"o,i" }} senza giornata</span>{% else %}<span class="fm-pill fm-pill-ok" style="font-size:10px;">tutto assegnato</span>{% endif %}</summary>
+            <form method="post" action="{{ azione_url }}programma/" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+              <div class="sp-tbl" data-table-enhanced="0"><table class="sp-prog">
+                <thead><tr><th>Argomento</th>{% for lz in lezioni %}<th title="{{ lz.data|date:'d-m-Y' }}">G{{ lz.numero }}<br><small style="font-weight:400;">{{ lz.data|date:"d/m" }}</small></th>{% endfor %}</tr></thead>
+                <tbody>
+                  {% for r in programma %}
+                  <tr><td class="{% if not r.coperto %}no{% endif %}">{{ r.voce.argomento }}{% if r.voce.ore_previste %} <small>({{ r.voce.ore_previste|floatformat:"-2" }} h)</small>{% endif %}</td>
+                    {% for c in r.celle %}<td><input type="checkbox" name="p_{{ c.lz.pk }}_{{ r.voce.pk }}" aria-label="{{ r.voce.argomento }} giornata {{ c.lz.numero }}"{% if c.on %} checked{% endif %}></td>{% endfor %}
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table></div>
+              <div><button type="submit" class="hr-btn hr-btn-sm hr-btn-outline">Salva il programma</button></div>
+            </form>
+          </details>
+          {% endif %}
+
+          <details class="sp-agg"{% if not lezioni %} open{% endif %}>
+            <summary>{% if lezioni %}Genera altre giornate{% else %}Genera le giornate{% endif %}</summary>
+            <form method="post" action="{% url 'anagrafica:formazione_lezioni_genera' sessione.pk %}" style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+              <div class="sp-grid">
+                <div class="fm-f"><label>Ora inizio *</label>{{ genera_form.ora_inizio }}</div>
+                <div class="fm-f"><label>Ora fine *</label>{{ genera_form.ora_fine }}</div>
+                <div class="fm-f"><label>Pausa (minuti)</label>{{ genera_form.pausa_minuti }}</div>
+              </div>
+              <div class="fm-f">
+                <label>{{ genera_form.giorni_settimana.label }}</label>
+                <div class="sp-giorni">{% for scelta in genera_form.giorni_settimana %}<label>{{ scelta.tag }}{{ scelta.choice_label }}</label>{% endfor %}</div>
+              </div>
+              <div class="fmd-muted" style="font-size:12px;">La pausa si scala dalle ore: 08:00–17:00 con 60′ vale 8 ore. I giorni che hanno già una giornata vengono saltati.</div>
+              <div><button type="submit" class="hr-btn hr-btn-primary">Genera le giornate</button></div>
+            </form>
+          </details>
+          <details class="sp-agg">
+            <summary>Aggiungi una giornata singola</summary>
+            <form method="post" action="{% url 'anagrafica:formazione_lezione_add' sessione.pk %}" style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+              <input type="hidden" name="argomento" value="{{ sessione.corso.titolo|truncatechars:500 }}">
+              <div class="sp-grid">
+                <div class="fm-f"><label for="sp-data">Data *</label><input id="sp-data" type="date" name="data" required class="fm-input"></div>
+                <div class="fm-f"><label for="sp-oi">Ora inizio *</label><input id="sp-oi" type="time" name="ora_inizio" required class="fm-input" value="{{ genera_form.ora_inizio.value|time:'H:i'|default:'08:00' }}"></div>
+                <div class="fm-f"><label for="sp-of">Ora fine *</label><input id="sp-of" type="time" name="ora_fine" required class="fm-input" value="{{ genera_form.ora_fine.value|time:'H:i'|default:'17:00' }}"></div>
+              </div>
+              <div class="fm-f" style="max-width:200px;"><label for="sp-pa">Pausa (minuti)</label><input id="sp-pa" type="number" name="pausa_minuti" min="0" max="480" step="15" value="{{ genera_form.pausa_minuti.value|default:0 }}" class="fm-input"></div>
+              <div><button type="submit" class="hr-btn hr-btn-outline">Aggiungi la giornata</button></div>
+            </form>
+          </details>
+
+        {% elif passo == "iscritti" %}
+          <h2>{{ n_passo }} · Iscritti</h2>
+          {% if oltre_posti %}<div class="sp-hint warn">{{ iscrizioni|length }} iscritti, la sala {{ sessione.sala.nome }} ha {{ posti }} posti: al passo successivo li dividi in {{ gruppi_suggeriti }} gruppi.</div>{% endif %}
+          {% if n_iscritti_conflitto %}<div class="sp-hint warn">{{ n_iscritti_conflitto }} iscritt{{ n_iscritti_conflitto|pluralize:"o,i" }} in quei giorni risulta assente o in un altro corso: vedi sotto.</div>{% endif %}
+          {% if iscrizioni %}
+          <div class="sp-tbl" data-table-enhanced="0"><table class="hr-table">
+            <thead><tr><th>Iscritto</th><th>Stato</th><th></th></tr></thead>
+            <tbody>
+              {% for isc in iscrizioni %}
+              <tr>
+                <td>{{ isc.nome }}{% with av=conflitti|dictlookup:isc.legacy_anagrafica_id %}{% if av %}<div class="sp-av">{% for a in av %}<span>{{ a }}</span>{% endfor %}</div>{% endif %}{% endwith %}</td>
+                <td style="font-size:12px;">{{ isc.get_stato_display }}</td>
+                <td style="text-align:right;">
+                  <form method="post" action="{% url 'anagrafica:formazione_iscrizione_delete' sessione.pk isc.pk %}" style="display:inline;"
+                        data-hub-confirm="Togliere {{ isc.nome }} dagli iscritti?">
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+                    <button type="submit" class="hr-btn hr-btn-sm hr-btn-ghost">Togli</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table></div>
+          {% endif %}
+
+          {% if candidati.idonei %}
+          <form method="post" action="{% url 'anagrafica:formazione_iscrizione_bulk' sessione.pk %}" style="display:flex;flex-direction:column;gap:8px;">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+            <div style="font-size:13px;"><b>Da formare per questo corso</b> · {{ candidati.idonei|length }} person{{ candidati.idonei|length|pluralize:"a,e" }}{% if candidati.n_preselect %}, {{ candidati.n_preselect }} da rinnovare già spuntat{{ candidati.n_preselect|pluralize:"a,e" }}{% endif %}{% if candidati.pool_filtrato %} · solo chi ha l'obbligo del corso{% endif %}</div>
+            <div class="sp-tbl alto" data-table-enhanced="0"><table class="hr-table">
+              <thead><tr>
+                <th style="width:40px;text-align:center;"><input type="checkbox" id="sp-tutti" aria-label="Seleziona tutti"></th>
+                <th>Persona</th><th>Situazione</th><th>Scadenza</th>
+              </tr></thead>
+              <tbody>
+                {% for c in candidati.idonei %}
+                <tr>
+                  <td style="text-align:center;"><input type="checkbox" class="sp-cb" name="dipendenti_selezionati" value="{{ c.legacy_id }}" aria-label="{{ c.nome }}"{% if c.preselect %} checked{% endif %}></td>
+                  <td>{{ c.nome }}{% if c.gia_iscritto_altrove %} <span class="fm-pill fm-pill-warning" style="font-size:10px;">altra edizione</span>{% endif %}{% with av=conflitti|dictlookup:c.legacy_id %}{% if av %}<div class="sp-av">{% for a in av %}<span>{{ a }}</span>{% endfor %}</div>{% endif %}{% endwith %}</td>
+                  <td style="font-size:12px;">
+                    {% if c.stato == "SCADUTO" %}<span class="fm-pill fm-pill-expired">Scaduto</span>
+                    {% elif c.stato == "IN_SCADENZA_30" %}<span class="fm-pill fm-pill-warning">In scadenza ≤30gg</span>
+                    {% elif c.stato == "IN_SCADENZA_90" %}<span class="fm-pill fm-pill-warning">In scadenza ≤90gg</span>
+                    {% else %}<span class="fm-pill fm-pill-missing">Mai frequentato</span>{% endif %}
+                  </td>
+                  <td style="font-size:12px;">{{ c.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table></div>
+            <div><button type="submit" class="hr-btn hr-btn-primary">Iscrivi i selezionati</button></div>
+          </form>
+          {% elif not iscrizioni %}
+          <div class="sp-hint">Nessuno risulta da formare per questo corso: aggiungi le persone qui sotto.</div>
+          {% endif %}
+          {% if candidati.non_idonei %}
+          <div class="sp-hint warn">{{ candidati.non_idonei|length }} person{{ candidati.non_idonei|length|pluralize:"a,e" }} senza i prerequisiti del corso: si iscrivono forzando dalla <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}">pagina iscritti</a>, con traccia.</div>
+          {% endif %}
+
+          <form method="post" action="{% url 'anagrafica:formazione_iscrizione_add' sessione.pk %}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ qui }}">
+            <div class="fm-f" style="flex:1;min-width:240px;">
+              <label for="sp-pers">Aggiungi un'altra persona</label>
+              <select id="sp-pers" name="legacy_anagrafica_id" required class="fm-input fm-select">
+                <option value="">— Seleziona —</option>
+                {% for lid, lnome in dipendenti_attivi %}<option value="{{ lid }}">{{ lnome }}</option>{% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="hr-btn hr-btn-outline">Iscrivi</button>
+          </form>
+
+        {% elif passo == "gruppi" %}
+          {% include "anagrafica/components/_prepara_gruppi.html" %}
+
+        {% else %}
+          <h2>{{ n_passo }} · {% if stato.completa %}Sessione pronta{% else %}Quasi pronta{% endif %}</h2>
+          {% if not stato.completa %}<div class="sp-hint warn">Manca: {{ mancanti_etichette|join:", " }}. Puoi completarlo ora o più tardi: la pagina della sessione ti ricorda dove eri.</div>{% endif %}
+          <ul class="sp-pronta">
+            {% if "giornate" in stato.passi %}
+            <li class="{% if lezioni %}ok{% else %}no{% endif %}"><span><span class="sp-ic">{% if lezioni %}✓{% else %}!{% endif %}</span>
+              {% if lezioni %}{{ lezioni|length }} giornat{{ lezioni|length|pluralize:"a,e" }} · {{ ore_pianificate|floatformat:"-2" }} ore{% else %}Nessuna giornata{% endif %}</span>
+              {% if not lezioni %}<a class="hr-btn hr-btn-sm hr-btn-outline" href="?passo=giornate">Aggiungi</a>{% endif %}</li>
+            {% endif %}
+            <li class="{% if iscrizioni %}ok{% else %}no{% endif %}"><span><span class="sp-ic">{% if iscrizioni %}✓{% else %}!{% endif %}</span>
+              {% if iscrizioni %}{{ iscrizioni|length }} iscritt{{ iscrizioni|length|pluralize:"o,i" }}{% else %}Nessun iscritto{% endif %}</span>
+              {% if not iscrizioni %}<a class="hr-btn hr-btn-sm hr-btn-outline" href="?passo=iscritti">Aggiungi</a>{% endif %}</li>
+            {% if n_iscritti_conflitto %}
+            <li class="no"><span><span class="sp-ic">!</span>{{ n_iscritti_conflitto }} iscritt{{ n_iscritti_conflitto|pluralize:"o,i" }} assent{{ n_iscritti_conflitto|pluralize:"e,i" }} o in un altro corso in quei giorni</span>
+              <a class="hr-btn hr-btn-sm hr-btn-outline" href="?passo=iscritti">Vedi</a></li>
+            {% endif %}
+            {% if in_aula %}
+            <li class="{% if sessione.sala and prenotazione.tutte and not n_avvisi_giornate %}ok{% elif sessione.sala %}no{% endif %}"><span><span class="sp-ic">{% if sessione.sala and prenotazione.tutte and not n_avvisi_giornate %}✓{% elif sessione.sala %}!{% else %}·{% endif %}</span>
+              {% if sessione.sala %}Sala {{ sessione.sala.nome }}{% if n_avvisi_giornate %}: {{ n_avvisi_giornate }} giornat{{ n_avvisi_giornate|pluralize:"a,e" }} con sala o docente occupati{% elif prenotazione.tutte %} prenotata in Outlook{% else %} non ancora prenotata in Outlook{% endif %}{% else %}Nessuna sala aziendale scelta{% endif %}</span>
+              {% if not prenotazione.tutte or n_avvisi_giornate or not sessione.sala %}<a class="hr-btn hr-btn-sm hr-btn-outline" href="?passo=giornate">{% if sessione.sala %}Vedi{% else %}Scegli{% endif %}</a>{% endif %}</li>
+            {% endif %}
+          </ul>
+          {% if riepilogo_gruppi %}
+          <div style="font-size:13px;font-weight:600;">Gruppi dell'edizione</div>
+          <ul class="sp-pronta">
+            {% for g in riepilogo_gruppi %}
+            <li class="{% if g.n and g.lezioni %}ok{% else %}no{% endif %}"><span><span class="sp-ic">{% if g.n and g.lezioni %}✓{% else %}!{% endif %}</span>
+              <b>Gruppo {{ forloop.counter }}</b> · {{ g.sessione.codice_sessione }} · {{ g.n }} person{{ g.n|pluralize:"a,e" }} · {{ g.lezioni }} giornat{{ g.lezioni|pluralize:"a,e" }}{% if g.attuale %} <small>(questa)</small>{% endif %}</span>
+              {% if not g.attuale %}<a class="hr-btn hr-btn-sm hr-btn-outline" href="{% url 'anagrafica:formazione_sessione_prepara' g.sessione.pk %}">Apri</a>{% endif %}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          {% if in_aula %}
+          <div style="font-size:13px;font-weight:600;">Per il giorno della lezione</div>
+          <div class="sp-az">
+            {% if lezioni %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_lezione_registro' sessione.pk lezioni.0.pk %}">Foglio firme</a>{% endif %}
+            <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_aula_qr' sessione.pk %}">QR d'aula</a>
+            <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_sessione_locandina' sessione.pk %}">Locandina</a>
+          </div>
+          {% elif sessione.modalita == "ESTERNO" %}
+          <div class="sp-hint">A corso finito carica l'attestato di ogni iscritto dalla pagina iscritti e chiudi l'esito.</div>
+          {% elif sessione.modalita == "REMOTO" %}
+          <div class="sp-hint">Il link della diretta va nel campo «Sede» della sessione{% if sessione.sede %}: {{ sessione.sede }}{% endif %}.</div>
+          {% endif %}
+        {% endif %}
+        </div>
+
+        <aside class="sp-side">
+          <div class="sp-box">
+            <b style="font-size:13px;">Riepilogo</b>
+            <div class="sp-kv"><span>Periodo</span><b>{{ sessione.data_inizio|date:"d/m" }}{% if sessione.data_fine and sessione.data_fine != sessione.data_inizio %}–{{ sessione.data_fine|date:"d/m/Y" }}{% else %}/{{ sessione.data_inizio|date:"Y" }}{% endif %}</b></div>
+            {% if "giornate" in stato.passi %}<div class="sp-kv"><span>Giornate</span><b>{{ lezioni|length }} ({{ ore_pianificate|floatformat:"-2" }} h)</b></div>{% endif %}
+            {% if ore_teoriche %}<div class="sp-kv"><span>Ore del corso</span><b>{{ ore_teoriche|floatformat:"-2" }} h</b></div>{% endif %}
+            <div class="sp-kv"><span>Iscritti</span><b>{{ iscrizioni|length }}{% if posti %} / {{ posti }} posti{% endif %}</b></div>
+            {% if sessione.sala %}<div class="sp-kv"><span>Sala</span><b>{{ sessione.sala.nome }}</b></div>{% endif %}
+            {% if n_gruppi_edizione > 1 %}<div class="sp-kv"><span>Gruppi</span><b>{{ n_gruppi_edizione }}</b></div>{% endif %}
+          </div>
+          <div class="sp-hint">Tutto si salva subito: puoi uscire e riprendere dalla pagina della sessione.</div>
+        </aside>
+      </div>
+
+      <div class="sp-foot">
+        <span class="sp-sp">Passo {{ n_passo }} di {{ n_passi }}</span>
+        {% if passo_prec %}<a class="hr-btn hr-btn-ghost" href="?passo={{ passo_prec }}">← Indietro</a>{% endif %}
+        {% if passo_succ %}
+          <a class="hr-btn hr-btn-primary" href="?passo={{ passo_succ }}">{% if passo == "dati" or passo == "gruppi" or passo == "giornate" and lezioni or passo == "iscritti" and iscrizioni %}Avanti{% else %}Salta per ora{% endif %} →</a>
+        {% else %}
+          <a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}">Vai alla sessione</a>
+        {% endif %}
+      </div>
+    </section>
+
+  </div>
+</div>
+<script>
+(function(){
+  var tutti=document.getElementById("sp-tutti");
+  if(!tutti) return;
+  tutti.addEventListener("change",function(){
+    document.querySelectorAll(".sp-cb").forEach(function(c){c.checked=tutti.checked;});
+  });
+})();
+</script>
+{% include "anagrafica/components/_select_search.html" %}
+{% endblock %}

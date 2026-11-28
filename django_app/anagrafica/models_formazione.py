@@ -1041,6 +1041,12 @@ class TrainingSession(models.Model):
     data_inizio     = models.DateField()
     data_fine       = models.DateField()
     sede            = models.CharField(max_length=200, blank=True, help_text="Aula, indirizzo o link remoto")
+    # Sala riunioni aziendale (le stesse di KICK-OFF e reception): dà i posti, fa
+    # vedere se è già occupata e permette di prenotarla in Outlook giornata per giornata.
+    sala            = models.ForeignKey(
+        "tasks.MeetingRoom", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="sessioni_formazione", verbose_name="Sala",
+    )
     edizione        = models.CharField(
         max_length=80, blank=True, default="", db_index=True,
         help_text="Etichetta libera che collega più sessioni della stessa erogazione del corso: "
@@ -1241,6 +1247,10 @@ class TrainingLesson(models.Model):
     docente_nome = models.CharField(max_length=200, blank=True, help_text="Snapshot nome docente per stabilità storica")
     note         = models.TextField(blank=True)
     created_at   = models.DateTimeField(auto_now_add=True)
+    # Prenotazione della sala della sessione in Outlook per questa giornata
+    # (evento nel calendario di chi l'ha prenotata, sala invitata come risorsa).
+    outlook_event_id = models.CharField(max_length=255, blank=True, default="")
+    outlook_organizer_email = models.CharField(max_length=255, blank=True, default="")
     updated_by   = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="+",
