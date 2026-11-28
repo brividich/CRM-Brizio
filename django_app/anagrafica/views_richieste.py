@@ -143,6 +143,42 @@ def _schede(request, righe) -> None:
         x["scheda"] = {"campi": campi, "livello": esplora_semplice.livello(r.livello), "dopo": dopo, "collegate": collegate}
 
 
+def _da(request) -> str:
+    """Pagina da cui si è partiti (``?da=``), solo se interna al portale; '' altrimenti."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    da = (request.POST.get("da") or request.GET.get("da") or "").strip()
+    if da.startswith("/") and not da.startswith("//") and url_has_allowed_host_and_scheme(da, allowed_hosts={request.get_host()}):
+        return da
+    return ""
+
+
+def _nome_da(da: str) -> str:
+    """Testo del collegamento di ritorno, dal percorso della pagina di partenza."""
+    if "/struttura/esplora" in da:
+        return "Torna a Esplora la struttura"
+    if "/dipendenti/" in da or "/dipendente/" in da:
+        return "Torna alla scheda della persona"
+    if "/mansionario/" in da:
+        return "Torna al Mansionario"
+    return "Torna alla pagina di partenza"
+
+
+def _situazione_ctx(request, a, persona_id, mansione_id) -> dict:
+    from .views_mansionario import _puo_valutare
+
+    sit = svc.situazione(a, persona_id, mansione_id)
+    parole = {x["codice"]: x["parola"] for x in esplora_semplice.LEGENDA}
+    if sit:
+        for m in sit["mansioni"]:
+            m["parola"] = parole.get(m["livello"], "")
+        if sit["scelta"]:
+            sit["scelta"]["parola"] = parole.get(sit["scelta"]["livello"], "")
+            sit["scelta"]["parola_proposto"] = parole.get(sit["scelta"]["livello_proposto"], "")
+    return {"sit": sit, "puo_correggere": bool(sit) and _puo_valutare(request),
+            "tipi_ok": svc.tipi_ammessi(a, persona_id) if sit else []}
+
+
 def _contesto_nuova(a, dati: dict, errore: str = "") -> dict:
     from .models import CompetenzaCatalogo
 
@@ -171,17 +207,29 @@ def nuova(request):
             "livello": (sorgente.get("livello") or "").upper(), "motivazione": sorgente.get("motivazione") or "",
             "altre": [i for i in (_int(x) for x in sorgente.getlist("altre_persone")) if i],
             "onboarding": sorgente.get("onboarding") == "1", "inquadramento": sorgente.get("inquadramento") or ""}
+    da = _da(request)
+    if request.method != "POST" and request.GET.get("parziale") == "stato":
+        # Pannello «Situazione della persona», ricaricato quando cambiano persona o mansione.
+        return render(request, "anagrafica/partials/_richiesta_situazione.html",
+                      _situazione_ctx(request, a, dati["persona"], dati["mansione"]))
     if request.method != "POST":
+        ctx_sit = _situazione_ctx(request, a, dati["persona"], dati["mansione"])
         if not dati["livello"]:
-            dati["livello"] = "U"
-        return render(request, "anagrafica/pages/richiesta_nuova.html", _contesto_nuova(a, dati))
+            # Il livello parte da quello appena sopra l'attuale; senza mansione da «U» come prima.
+            scelta = (ctx_sit["sit"] or {}).get("scelta") or {}
+            dati["livello"] = scelta.get("livello_proposto") or "U" if scelta.get("ha") else "U"
+        ctx = _contesto_nuova(a, dati)
+        ctx.update(ctx_sit, da=da, nome_da=_nome_da(da))
+        return render(request, "anagrafica/pages/richiesta_nuova.html", ctx)
     try:
         richiesta = svc.crea(a, tipo=dati["tipo"], persona_id=dati["persona"], mansione_id=dati["mansione"],
                              competenza_id=dati["competenza"], livello=dati["livello"], motivazione=dati["motivazione"],
                              altre_persone=dati["altre"], onboarding=dati["onboarding"],
                              inquadramento=dati["inquadramento"])
     except svc.RichiestaNonValida as exc:
-        return render(request, "anagrafica/pages/richiesta_nuova.html", _contesto_nuova(a, dati, str(exc)))
+        ctx = _contesto_nuova(a, dati, str(exc))
+        ctx.update(_situazione_ctx(request, a, dati["persona"], dati["mansione"]), da=da, nome_da=_nome_da(da))
+        return render(request, "anagrafica/pages/richiesta_nuova.html", ctx)
     url = reverse("anagrafica:richiesta", args=[richiesta.pk])
     log_action(request, "richiesta_competenze_creata", MODULE, {
         "richiesta": richiesta.codice, "tipo": richiesta.tipo, "persona": richiesta.legacy_anagrafica_id,
@@ -190,6 +238,10 @@ def nuova(request):
     sigla = svc.sigla_approva(richiesta)
     _notifica(svc.titolari(sigla) - {a.legacy_id}, f"{richiesta.codice}: richiesta da approvare ({sigla}).", url)
     messages.success(request, f"Richiesta {richiesta.codice} inviata: ora tocca a {sigla}.")
+    if da:
+        from urllib.parse import urlencode
+
+        return redirect(f"{url}?{urlencode({'da': da})}")
     return redirect(url)
 
 
@@ -215,6 +267,7 @@ def dettaglio(request, pk: int):
         "livello": esplora_semplice.livello(richiesta.livello), "legenda": esplora_semplice.LEGENDA,
         "sigla": svc.sigla_approva(richiesta), "motivo_non_decide": svc.motivo_non_decide(a, richiesta),
         "eventi": list(richiesta.eventi.all()),
+        "da": _da(request), "nome_da": _nome_da(_da(request)),
     })
 
 

@@ -16,7 +16,7 @@
   <div class="rq-testa">
     <h1>Richiesta {{ r.codice }}</h1>
     {% include "anagrafica/partials/_richiesta_stato.html" %}
-    <div class="rq-azioni"><a class="rq-btn" href="{% url 'anagrafica:richieste' %}">Tutte le richieste</a></div>
+    <div class="rq-azioni">{% if da %}<a class="rq-btn rq-btn-p" href="{{ da }}">← {{ nome_da }}</a>{% endif %}<a class="rq-btn" href="{% url 'anagrafica:richieste' %}">Tutte le richieste</a></div>
   </div>
 
   <div class="rq-passi">

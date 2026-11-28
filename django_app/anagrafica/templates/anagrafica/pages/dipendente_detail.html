@@ -1026,6 +1026,7 @@
     <div class="dp-card-head">
       <div class="dp-card-title">🧭 Posizione nella struttura</div>
       <span class="dp-pos-azioni">
+        {% if legacy_id and puo_chiedere_richiesta %}<a class="dp-btn dp-btn-primary dp-btn-sm" href="{% url 'anagrafica:richiesta_nuova' %}?persona={{ legacy_id }}&amp;da={{ request.path|urlencode }}%23posizione-struttura">Nuova richiesta per questa persona</a>{% endif %}
         {% if legacy_id %}<a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:mansionario_persona' legacy_id %}">Competenze e lacune →</a>
         {% if posizione.abilitazioni %}<a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:mansioni_coefficienti' legacy_id %}">Classificazione e coefficienti →</a>{% endif %}{% endif %}
         <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa →</a>

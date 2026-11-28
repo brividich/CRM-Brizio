@@ -8,6 +8,8 @@ resta a un clic.
 """
 from __future__ import annotations
 
+from urllib.parse import urlencode
+
 from django.urls import reverse
 
 from ..models import SkillMatrixConfig
@@ -207,7 +209,8 @@ def costruisci(ctx: dict, *, puo_gestire: bool = False, puo_chiedere: bool = Fal
         if rischi:
             campi.append(_campo("Mansioni di rischio", ", ".join(rischi)))
         persone_mansione = _persone_mansione(d, m)
-        url_nuova = f"{reverse('anagrafica:richiesta_nuova')}?mansione={m.pk}"
+        # «da»: dopo l'invio la richiesta offre il ritorno a Esplora la struttura, aperta su questa mansione.
+        url_nuova = f"{reverse('anagrafica:richiesta_nuova')}?{urlencode({'mansione': m.pk, 'da': es.url(centro=s.get('centro'), area=s.get('area'), ruolo=s.get('ruolo'), mansione=m.pk)})}"
         azioni = []
         if puo_chiedere:
             # Con una sola persona sulla mansione la richiesta parte già su di lei; con più persone

@@ -12,6 +12,28 @@
 .rq-cerca-persone { width:100%; max-width:320px; padding:7px 10px; border:1px solid #d7e0ea; border-radius:9px; font-size:13px; }
 body.theme-dark .rq-altre, body.theme-dark .rq-cerca-persone { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
 body.theme-dark .rq-altre label { color:var(--text); }
+.rq-due { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:16px; align-items:start; }
+@media (max-width:980px){ .rq-due { grid-template-columns:1fr; } }
+.rq-sit-card { position:sticky; top:12px; }
+.rq-sit .es-s-h { margin-top:0; }
+.rq-avviso { border:1px solid #f5c26b; background:#fff8eb; border-radius:10px; padding:10px 12px; margin:0 0 10px; }
+.rq-avviso p { margin:0 0 8px; font-size:13px; color:#7a4b00; font-weight:600; }
+.rq-avviso-aperta { border-color:#93c5fd; background:#eff6ff; } .rq-avviso-aperta p { color:#1e3a8a; }
+.rq-avviso-azioni { display:flex; flex-wrap:wrap; gap:6px; }
+.rq-sit-dati { display:grid; gap:4px; margin:0 0 10px; font-size:13px; }
+.rq-sit-dati div { display:flex; gap:8px; } .rq-sit-dati dt { color:#64748b; min-width:120px; } .rq-sit-dati dd { margin:0; }
+.rq-sit-tab { max-height:240px; overflow:auto; }
+.rq-sit-tab small { display:block; color:#b45309; font-size:11.5px; }
+.rq-sit-manca td:first-child { font-weight:600; }
+.rq-sit-h3 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin:14px 0 6px; }
+.rq-sit-h3 span { font-weight:400; }
+.rq-sit-mansioni { display:grid; gap:4px; max-height:260px; overflow:auto; }
+.rq-sit-m { display:flex; justify-content:space-between; gap:10px; align-items:baseline; text-align:left; width:100%; border:1px solid #e2e8f0; background:#fff; border-radius:8px; padding:7px 10px; cursor:pointer; font:inherit; font-size:13px; color:#0f172a; }
+.rq-sit-m:hover { border-color:#1f87cd; } .rq-sit-m.is-scelta { border-color:#1f87cd; background:rgba(31,135,205,.08); }
+.rq-sit-m-liv { color:#64748b; font-size:12px; white-space:nowrap; }
+body.theme-dark .rq-avviso { background:rgba(245,158,11,.12); border-color:rgba(245,158,11,.45); } body.theme-dark .rq-avviso p { color:#fcd34d; }
+body.theme-dark .rq-avviso-aperta { background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.45); } body.theme-dark .rq-avviso-aperta p { color:#bfdbfe; }
+body.theme-dark .rq-sit-m { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
 </style>
 {% endblock %}
 
@@ -21,15 +43,17 @@ body.theme-dark .rq-altre label { color:var(--text); }
 <div class="hr-shell">
   <div class="rq-testa">
     <h1>Nuova richiesta</h1>
-    <div class="rq-azioni"><a class="rq-btn" href="{% url 'anagrafica:richieste_da_fare' %}">Annulla</a></div>
+    <div class="rq-azioni"><a class="rq-btn" href="{% if da %}{{ da }}{% else %}{% url 'anagrafica:richieste_da_fare' %}{% endif %}">Annulla</a></div>
   </div>
 
   {% if errore %}<p class="rq-errore" role="alert">{{ errore }}</p>{% endif %}
 
+  <div class="rq-due">
   <section class="es-s-card">
     <h2 class="es-s-h">Che cosa chiedi</h2>
     <form method="post" class="rq-form" id="rq-form">
       {% csrf_token %}
+      {% if da %}<input type="hidden" name="da" value="{{ da }}">{% endif %}
       <fieldset>
         <legend>Tipo di richiesta:</legend>
         <div class="rq-scelte">
@@ -88,6 +112,10 @@ body.theme-dark .rq-altre label { color:var(--text); }
       <div><button type="submit" class="rq-btn rq-btn-p">Invia la richiesta</button></div>
     </form>
   </section>
+  <section class="es-s-card rq-sit-card" id="rq-sit-box" aria-live="polite">
+    {% include "anagrafica/partials/_richiesta_situazione.html" %}
+  </section>
+  </div>
 </div>
 {{ tipi_mansione|json_script:"rq-tipi-mansione" }}
 {{ tipi_senza_livello|json_script:"rq-tipi-senza-livello" }}
@@ -115,6 +143,42 @@ body.theme-dark .rq-altre label { color:var(--text); }
   function aggiornaIngresso() { if (inq) inq.hidden = !(ingresso && ingresso.checked); }
   if (ingresso) ingresso.addEventListener('change', aggiornaIngresso);
   aggiornaIngresso();
+  // Situazione della persona: si ricarica quando cambiano persona o mansione.
+  var box = document.getElementById('rq-sit-box'), selP = form.querySelector('#rq-persona'), selM = form.querySelector('#rq-mansione');
+  var urlBase = window.location.pathname, giro = 0;
+  function tipoScelto() { var s = form.querySelector('input[name="tipo"]:checked'); return s ? s.value : ''; }
+  function ricarica() {
+    if (!box) return;
+    var q = new URLSearchParams({ parziale: 'stato', persona: selP ? selP.value : '', mansione: selM ? selM.value : '' });
+    var mio = ++giro;
+    fetch(urlBase + '?' + q.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (html) {
+        if (mio !== giro || !html) return;
+        box.innerHTML = html;
+        var sit = box.querySelector('[data-rq-sit]'), proposto = sit && sit.getAttribute('data-livello-proposto');
+        var t = tipoScelto();
+        if (proposto && (!t || t === 'aggiunta')) {
+          var r = form.querySelector('input[name="livello"][value="' + proposto + '"]');
+          if (r) r.checked = true;
+        }
+      }).catch(function () { /* resta il pannello di prima */ });
+  }
+  if (selP) selP.addEventListener('change', ricarica);
+  if (selM) selM.addEventListener('change', ricarica);
+  if (box) box.addEventListener('click', function (e) {
+    var bt = e.target.closest('[data-rq-metti-tipo]');
+    if (bt) {
+      var radio = form.querySelector('input[name="tipo"][value="' + bt.getAttribute('data-rq-metti-tipo') + '"]');
+      if (radio) { radio.checked = true; aggiorna(); var mot = form.querySelector('#rq-motivo'); if (mot) mot.focus(); }
+      return;
+    }
+    var bm = e.target.closest('[data-rq-metti-mansione]');
+    if (bm && selM) {
+      selM.value = bm.getAttribute('data-rq-metti-mansione');
+      selM.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
   var cerca = form.querySelector('[data-rq-cerca-altre]');
   if (cerca) cerca.addEventListener('input', function () {
     var t = cerca.value.trim().toLowerCase();

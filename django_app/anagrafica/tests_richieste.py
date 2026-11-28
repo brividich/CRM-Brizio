@@ -207,6 +207,85 @@ class PagineTests(_Scenario):
         with self._come(self.hr):
             self.assertContains(self.client.get(reverse("anagrafica:richieste"), {"stato": "approvata"}), richiesta.codice)
 
+    def test_situazione_della_persona_e_avvisi(self):
+        # rossi ha «Fresa F1» a livello U: avviso, livello proposto O, mansione tra le sue.
+        sit = svc.situazione(self.capo, self.rossi, self.fresa.pk)
+        self.assertIn(self.fresa.pk, [m["id"] for m in sit["mansioni"]])
+        self.assertEqual(sit["scelta"]["livello"], "U")
+        self.assertEqual(sit["scelta"]["livello_proposto"], "O")
+        self.assertEqual([x["chiave"] for x in sit["scelta"]["avvisi"]], ["ha_gia"])
+        # Mansione che non ha: nessun avviso, competenze tutte da colmare.
+        nuova = svc.situazione(self.capo, self.rossi, self.torno.pk)
+        self.assertFalse(nuova["scelta"]["ha"])
+        self.assertEqual(nuova["scelta"]["avvisi"], [])
+        # Richiesta già aperta sulla stessa mansione: avviso col codice.
+        aperta = self._ram()
+        self.assertIn(aperta.codice, svc.situazione(self.capo, self.rossi, self.torno.pk)["scelta"]["avvisi"][0]["testo"])
+        # Chi non può chiedere per la persona non vede niente.
+        self.assertIsNone(svc.situazione(self.estraneo, self.rossi, self.fresa.pk))
+        self.assertEqual(svc.livello_successivo(""), "I")
+        self.assertEqual(svc.livello_successivo("O"), "")
+
+    def test_pannello_parziale_livello_proposto_e_ritorno(self):
+        da = reverse("anagrafica:esplora_struttura") + f"?mansione={self.fresa.pk}"
+        with self._come(self.capo):
+            pannello = self.client.get(reverse("anagrafica:richiesta_nuova"),
+                                       {"parziale": "stato", "persona": self.rossi, "mansione": self.fresa.pk})
+            self.assertContains(pannello, "ha già questa mansione a livello U")
+            self.assertContains(pannello, 'data-livello-proposto="O"')
+            self.assertContains(pannello, 'data-rq-metti-tipo="sospensione"')
+            self.assertNotContains(pannello, "{#")
+            pagina = self.client.get(reverse("anagrafica:richiesta_nuova"),
+                                     {"persona": self.rossi, "mansione": self.fresa.pk, "da": da})
+            self.assertContains(pagina, 'name="livello" value="O" checked')
+            self.assertContains(pagina, f'name="da" value="{da}"'.replace("&", "&amp;"))
+            # Indirizzi esterni non valgono come pagina di partenza.
+            esterna = self.client.get(reverse("anagrafica:richiesta_nuova"), {"persona": self.rossi, "da": "https://esempio.test/x"})
+            self.assertNotContains(esterna, 'name="da"')
+            r = self.client.post(reverse("anagrafica:richiesta_nuova"), {
+                "tipo": R.TIPO_AGGIUNTA, "persona": self.rossi, "mansione": self.torno.pk, "livello": "U", "da": da})
+            richiesta = R.objects.get()
+            self.assertTrue(r["Location"].startswith(reverse("anagrafica:richiesta", args=[richiesta.pk]) + "?da="))
+            self.assertContains(self.client.get(r["Location"]), "Torna a Esplora la struttura")
+        with self._come(self.estraneo):
+            # Chi non può chiedere non arriva neppure al pannello.
+            self.assertEqual(self.client.get(reverse("anagrafica:richiesta_nuova"),
+                                             {"parziale": "stato", "persona": self.rossi}).status_code, 302)
+
+    def test_correzione_diretta_in_blocco_dei_livelli(self):
+        from .models import AbilitazioneMacchinaStorico
+        from .services import mansionario_struttura as mstr
+
+        mstr.assegna(self.torno, legacy_anagrafica_id=self.rossi, livello="O", user=None)
+        ab = AbilitazioneMacchina.objects.get(competenza=self.torno, legacy_anagrafica_id=self.rossi, in_lista=True)
+        url = reverse("anagrafica:mansionario_correggi_livelli", args=[self.torno.pk])
+        with self._come(self.capo), mock.patch("anagrafica.views_mansionario._puo_valutare", return_value=True):
+            pagina = self.client.get(url, {"persona": self.rossi})
+            self.assertContains(pagina, "Allineamento nuovo gestionale")
+            self.assertContains(pagina, f'name="livello_{ab.pk}"')
+            self.assertNotContains(pagina, "{#")
+            # Senza motivo non si scrive niente.
+            self.client.post(url, {f"livello_{ab.pk}": "U", "motivo": ""})
+            ab.refresh_from_db()
+            self.assertEqual(ab.livello, "O")
+            r = self.client.post(url, {f"livello_{ab.pk}": "U", "motivo": "Allineamento nuovo gestionale"})
+            self.assertEqual(r.status_code, 302)
+        ab.refresh_from_db()
+        self.assertEqual(ab.livello, "U")
+        nota = AbilitazioneMacchinaStorico.objects.filter(competenza=self.torno, legacy_anagrafica_id=self.rossi).latest("pk").note
+        self.assertIn("O → U", nota)
+        self.assertIn("Allineamento nuovo gestionale", nota)
+        # Mansione con competenze: il livello lo calcola «Valuta», la correzione diretta non scrive.
+        with self.assertRaisesMessage(ValueError, "motivo"):
+            mstr.correggi_livelli(self.fresa, {}, motivo="")
+        esito = mstr.correggi_livelli(self.fresa, {AbilitazioneMacchina.objects.get(competenza=self.fresa, legacy_anagrafica_id=self.rossi, in_lista=True).pk: "I"},
+                                      motivo="prova")
+        self.assertEqual(esito["cambiate"], [])
+        self.assertTrue(esito["errori"])
+        # Chi non valuta non entra.
+        with self._come(self.estraneo):
+            self.assertEqual(self.client.get(url).status_code, 302)
+
     def test_errore_di_compilazione_torna_sul_modulo(self):
         with self._come(self.capo):
             r = self.client.post(reverse("anagrafica:richiesta_nuova"), {

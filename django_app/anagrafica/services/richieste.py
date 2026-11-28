@@ -133,6 +133,69 @@ def persone_ammesse(a: Attore) -> list[dict]:
     return righe
 
 
+def livello_successivo(livello: str) -> str:
+    """Il livello appena sopra (I → L → U → O); '' se è già il massimo. Senza livello: «I»."""
+    codici = [c for c, _ in sorted(LivelloSkm.choices, key=lambda x: ordinale_livello(x[0]))]
+    if not livello:
+        return codici[0]
+    sopra = [c for c in codici if ordinale_livello(c) > ordinale_livello(livello)]
+    return sopra[0] if sopra else ""
+
+
+def situazione(a: Attore, persona_id: int | None, mansione_id: int | None) -> dict | None:
+    """Che cosa sa il portale della persona scelta nella nuova richiesta: le sue mansioni con livello
+    ed esito e, sulla mansione scelta, livello attuale, competenze mancanti e gli avvisi prima di inviare
+    (ha già la mansione, è già al massimo, c'è già una richiesta aperta). Solo per chi può chiedere per lei."""
+    if not persona_id or persona_id not in {p["id"] for p in persone_ammesse(a)}:
+        return None
+    scheda = mc.scheda_persona(persona_id)
+    nome = struttura_vista._nomi([persona_id]).get(persona_id) or f"#{persona_id}"
+    mansioni = [{
+        "id": r["mansione"].pk, "nome": r["mansione"].nome, "livello": r["abilitazione"].livello or "",
+        "sospesa": r["abilitazione"].stato == AbilitazioneMacchina.STATO_SOSPESA,
+        "esito": r["valutazione"].esito_label, "esito_chiave": r["valutazione"].esito,
+    } for r in scheda["righe"]]
+    out = {"persona_id": persona_id, "nome": nome, "mansioni": mansioni, "scelta": None}
+    mansione = (CompetenzaSkm.objects.filter(pk=mansione_id, tipo__in=mstr.TIPI_MANSIONE, attiva=True).first()
+                if mansione_id else None)
+    if mansione is None:
+        return out
+    riga = next((r for r in scheda["righe"] if r["mansione"].pk == mansione.pk), None)
+    ab = riga["abilitazione"] if riga else None
+    val = riga["valutazione"] if riga else None
+    avvisi = []
+    livello = (ab.livello or "") if ab else ""
+    if ab is not None and ab.stato == AbilitazioneMacchina.STATO_SOSPESA:
+        avvisi.append({"chiave": "sospesa", "testo": f"{nome} ha questa mansione sospesa (livello {livello or '—'})."})
+    elif ab is not None:
+        if livello_successivo(livello):
+            avvisi.append({"chiave": "ha_gia", "testo": f"{nome} ha già questa mansione a livello {livello or '—'}: "
+                                                        f"un'assegnazione serve solo per un livello più alto."})
+        else:
+            avvisi.append({"chiave": "massimo", "testo": f"{nome} ha già questa mansione al livello massimo ({livello}): "
+                                                         f"non c'è un livello più alto da chiedere."})
+    aperta = (R.objects.filter(mansione=mansione, stato__in=R.STATI_APERTI)
+              .filter(Q(legacy_anagrafica_id=persona_id) | Q(partecipanti__legacy_anagrafica_id=persona_id)).first())
+    if aperta is not None:
+        avvisi.append({"chiave": "aperta", "testo": f"C'è già una richiesta aperta su questa mansione: {aperta.codice} "
+                                                    f"({aperta.get_tipo_display().lower()}, {aperta.get_stato_display().lower()}).",
+                       "richiesta": aperta})
+    if val is not None:
+        competenze = [{"nome": v["voce"].nome, "livello": v["livello"], "minimo": v["minimo"], "sotto": v["sotto"],
+                       "requisito": v["requisito"]} for v in val.voci]
+    else:
+        competenze = [{"nome": v.nome, "livello": "", "minimo": v.livello_minimo, "sotto": True, "requisito": ""}
+                      for v in mc.competenze(mansione)]
+    out["scelta"] = {
+        "mansione": mansione, "ha": ab is not None, "livello": livello, "sospesa": bool(ab and ab.stato == AbilitazioneMacchina.STATO_SOSPESA),
+        "esito": val.esito_label if val else "", "competenze": competenze,
+        "mancanti": sum(1 for c in competenze if c["sotto"] or c["requisito"]),
+        "livello_proposto": livello_successivo(livello) if not (ab and ab.stato == AbilitazioneMacchina.STATO_SOSPESA) else "",
+        "avvisi": avvisi, "abilitazione": ab,
+    }
+    return out
+
+
 def abilitazione(mansione: CompetenzaSkm, legacy_id: int) -> AbilitazioneMacchina | None:
     """La riga di skill matrix della persona sulla mansione, se è in lista."""
     chiave = {"asset_id": mansione.asset_id} if mansione.asset_id else {"competenza": mansione}

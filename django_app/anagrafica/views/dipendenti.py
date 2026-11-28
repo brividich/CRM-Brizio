@@ -1853,6 +1853,12 @@ def _posizione_struttura_ctx(request, legacy_id: int, is_admin: bool) -> dict:
         from ..services.struttura_persona import posizione
 
         ctx = {"posizione": posizione(legacy_id), "puo_assegnare_mansioni": puo_valutare}
+        # «Nuova richiesta per questa persona»: solo a chi può chiedere per lei (decide poi la pagina della richiesta).
+        from ..services import richieste as svc_richieste
+
+        attore = svc_richieste.attore(request)
+        ctx["puo_chiedere_richiesta"] = bool(svc_richieste.tipi_ammessi(attore, legacy_id)) and any(
+            p["id"] == legacy_id for p in svc_richieste.persone_ammesse(attore))
         from ..views_centri_costo import carico_oggi
 
         carico = carico_oggi()

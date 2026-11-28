@@ -1,0 +1,53 @@
+{# Pannello «Situazione della persona» della nuova richiesta (views_richieste.nuova, ?parziale=stato). #}
+<div class="rq-sit" data-rq-sit{% if sit.scelta %} data-livello-proposto="{{ sit.scelta.livello_proposto }}"{% endif %}>
+{% if not sit %}
+  <p class="rq-nota" style="margin:0">Scegli la persona: qui compaiono le sue mansioni, il livello di oggi e che cosa le manca.</p>
+{% else %}
+  <h2 class="es-s-h">Situazione di {{ sit.nome }}</h2>
+  {% with s=sit.scelta %}
+  {% if s %}
+    {% for av in s.avvisi %}
+    <div class="rq-avviso rq-avviso-{{ av.chiave }}" role="alert">
+      <p>{{ av.testo }}</p>
+      <div class="rq-avviso-azioni">
+        {% if av.chiave == "aperta" %}
+          <a class="rq-btn" href="{% url 'anagrafica:richiesta' av.richiesta.pk %}">Apri {{ av.richiesta.codice }}</a>
+        {% else %}
+          {% if "sospensione" in tipi_ok and not s.sospesa %}<button type="button" class="rq-btn" data-rq-metti-tipo="sospensione">Chiedi la sospensione</button>{% endif %}
+          {% if "rimozione" in tipi_ok %}<button type="button" class="rq-btn" data-rq-metti-tipo="rimozione">Chiedi la rimozione</button>{% endif %}
+          {% if puo_correggere %}{% url 'anagrafica:richiesta_nuova' as url_qui %}<a class="rq-btn" href="{% url 'anagrafica:mansionario_correggi_livelli' s.mansione.pk %}?persona={{ sit.persona_id }}&amp;da={{ url_qui|urlencode }}%3Fpersona%3D{{ sit.persona_id }}%26mansione%3D{{ s.mansione.pk }}" title="Il livello registrato è sbagliato? Correggilo subito, anche per più persone: resta nello storico con il motivo">Correggi il livello registrato</a>{% endif %}
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    <dl class="rq-sit-dati">
+      <div><dt>Mansione:</dt><dd>{{ s.mansione.nome }}</dd></div>
+      <div><dt>Livello di oggi:</dt><dd>{% if s.ha %}<b>{{ s.livello|default:"—" }}</b> {{ s.parola }}{% if s.sospesa %} · sospesa{% endif %}{% else %}Non assegnata{% endif %}</dd></div>
+      {% if s.esito %}<div><dt>Stato:</dt><dd>{{ s.esito }}</dd></div>{% endif %}
+      {% if s.livello_proposto %}<div><dt>Livello proposto:</dt><dd><b>{{ s.livello_proposto }}</b> {{ s.parola_proposto }}</dd></div>{% endif %}
+    </dl>
+    {% if s.competenze %}
+    <div class="rq-sit-tab" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
+      <thead><tr><th>Competenza della mansione</th><th>Richiesto</th><th>Oggi</th></tr></thead>
+      <tbody>{% for c in s.competenze %}<tr{% if c.sotto or c.requisito %} class="rq-sit-manca"{% endif %}>
+        <td>{{ c.nome }}{% if c.requisito %}<small>Manca: {{ c.requisito }}</small>{% endif %}</td>
+        <td>{{ c.minimo }}</td><td>{{ c.livello|default:"—" }}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    <p class="rq-nota" style="margin:6px 0 0">{% if s.mancanti %}{{ s.mancanti }} competenz{{ s.mancanti|pluralize:"a,e" }} da colmare.{% else %}Nessuna competenza da colmare.{% endif %}</p>
+    {% else %}
+    <p class="rq-nota" style="margin:6px 0 0">La mansione non ha competenze caricate: vale il livello assegnato.</p>
+    {% endif %}
+  {% endif %}
+  {% endwith %}
+  <h3 class="rq-sit-h3">Mansioni di {{ sit.nome }} <span>{{ sit.mansioni|length }}</span></h3>
+  {% if sit.mansioni %}
+  <div class="rq-sit-mansioni">
+    {% for m in sit.mansioni %}<button type="button" class="rq-sit-m{% if sit.scelta and sit.scelta.mansione.pk == m.id %} is-scelta{% endif %}" data-rq-metti-mansione="{{ m.id }}" title="Parti da questa mansione">
+      <span class="rq-sit-m-nome">{{ m.nome }}</span>
+      <span class="rq-sit-m-liv"><b>{{ m.livello|default:"—" }}</b> {{ m.parola }}{% if m.sospesa %} · sospesa{% else %} · {{ m.esito|lower }}{% endif %}</span>
+    </button>{% endfor %}
+  </div>
+  {% else %}<p class="rq-nota" style="margin:0">Nessuna mansione assegnata.</p>{% endif %}
+{% endif %}
+</div>

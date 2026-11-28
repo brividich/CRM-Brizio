@@ -261,8 +261,23 @@ GUIDA = {
                       "competenza parte da una richiesta approvata: resta scritto chi ha chiesto, perché e chi ha "
                       "approvato."),
                 ("ul", [
-                    "«Nuova richiesta» (anche da «Il mio team» e dalla mansione in «Esplora la struttura»): scegli il "
-                    "tipo, la persona, la mansione o la competenza, il livello da raggiungere e il motivo.",
+                    "«Nuova richiesta» (anche da «Il mio team», dalla mansione in «Esplora la struttura» e dalla scheda "
+                    "della persona, «Nuova richiesta per questa persona»): scegli il tipo, la persona, la mansione o la "
+                    "competenza, il livello da raggiungere e il motivo. Da Esplora la struttura, con una sola persona sulla "
+                    "mansione, la persona è già scelta; con più persone ogni riga ha il suo «Nuova richiesta».",
+                    "«Situazione di …», accanto al modulo: le mansioni della persona con livello e stato (un clic ne sceglie "
+                    "una), il livello di oggi sulla mansione scelta, le competenze da colmare e gli avvisi prima di inviare: "
+                    "«ha già questa mansione», «al livello massimo», «mansione sospesa», «c'è già una richiesta aperta». "
+                    "Dall'avviso: «Chiedi la sospensione», «Chiedi la rimozione», «Correggi il livello registrato» (per chi "
+                    "valuta). Il livello da raggiungere parte da quello appena sopra l'attuale.",
+                    "«Correggi i livelli in blocco» (dall'avviso o dalla scheda Persone della mansione): quando il livello "
+                    "registrato è sbagliato, ad esempio dopo l'allineamento al nuovo gestionale. Scegli il livello giusto riga "
+                    "per riga o con «Metti a tutti», scrivi il motivo (obbligatorio) e «Salva N correzioni»: vale subito, "
+                    "senza approvazione, e resta nello storico di ogni persona con il motivo. È una correzione del dato: per "
+                    "un cambio vero (formazione, nuova mansione) si apre una richiesta. Sulle mansioni con competenze il "
+                    "livello si corregge dalla matrice delle competenze.",
+                    "Dopo l'invio la richiesta mostra «← Torna a Esplora la struttura» (o «alla scheda della persona») "
+                    "se eri partito da lì.",
                     "Tipi: «Assegnazione di mansione», «Sospensione di mansione», «Rimozione di mansione», "
                     "«Acquisizione di competenza». Per sospendere o rimuovere il motivo è obbligatorio.",
                     "Chi può chiedere: il responsabile per le persone del suo team; HR e Direzione per assegnazioni e "
