@@ -142,14 +142,16 @@ def dispense_corso(request, corso_id: int):
     ctx = srv.Contesto.da_request(request)
     corso = get_object_or_404(TrainingCourse.objects.select_related("tipo"), pk=corso_id)
     atts = list(srv.visibili(ctx).filter(corso=corso).order_by("tipo", "titolo", "pk"))
-    if not atts:
+    # Senza dispense la pagina serve comunque a chi ha il corso o una sua scadenza (link dallo
+    # scadenzario, da «La mia scheda», da «Le mie attività»): stato e passo da fare.
+    if not atts and not (ctx.tutto or corso.pk in ctx.corsi or srv.ha_scadenza(ctx.legacy_id, corso.pk)):
         raise Http404("Nessuna dispensa per questo corso")
     letture = srv.letture_di(ctx.legacy_id, [a.pk for a in atts])
     schede = [srv.scheda(a, letture=letture) for a in atts]
     scelta = None
     if (request.GET.get("d") or "").isdigit():
         scelta = next((d for d in schede if d["pk"] == int(request.GET["d"])), None)
-    scelta = scelta or schede[0]
+    scelta = scelta or (schede[0] if schede else None)
     pagina = request.GET.get("p") if (request.GET.get("p") or "").isdigit() else ""
     return render(request, "anagrafica/dispense/corso.html", {
         "page_title": f"{corso.codice} · Corsi e dispense", "corso": corso, "scaffale": srv.scaffale_di(corso),

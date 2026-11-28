@@ -372,12 +372,23 @@ def collect_hr(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     except Exception:
         base_url = ""
     schede = {"visita": "#scheda-visite", "contratto": "#scheda-contratto", "formazione": "#scheda-formazione"}
+    # La propria scadenza di formazione apre la pagina del corso («Corsi e dispense»):
+    # stato, corso online o lezione, dispense. Quelle degli altri la scheda della persona.
+    io = None
+    if not ctx.sistema and getattr(ctx, "request", None) is not None:
+        try:
+            from anagrafica.views._helpers import _current_legacy_anagrafica_id
+            io = _current_legacy_anagrafica_id(ctx.request)
+        except Exception:
+            io = None
 
     items: list[ScadenzaItem] = []
     for v in voci:
         kind = v.get("kind") or ""
         url = f"{base_url}?tipo={kind}" if base_url and kind else base_url
-        if v.get("legacy_id"):
+        if kind == "formazione" and io and v.get("legacy_id") == io and v.get("corso_id"):
+            url = reverse("anagrafica:dispense_corso", args=[v["corso_id"]])
+        elif v.get("legacy_id"):
             # La scheda della persona, sulla parte giusta.
             url = reverse("anagrafica:dipendente_detail", args=[v["legacy_id"]]) + schede.get(kind, "")
         items.append(ScadenzaItem(

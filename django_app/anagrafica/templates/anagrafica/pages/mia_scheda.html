@@ -99,16 +99,16 @@
       <section class="hr-card ms-wide" aria-labelledby="ms-formazione">
         <div class="hr-card-head"><div>
           <div class="hr-card-title" id="ms-formazione">Formazione e attestati</div>
-          <div class="hr-card-desc">Corsi completati; «Attestato» apre il PDF.</div>
+          <div class="hr-card-desc">Corsi completati: il nome apre il corso con le dispense, «Attestato» apre il PDF.</div>
         </div></div>
         {% if formazione %}
         <div class="ms-table-wrap"><table class="hr-table">
           <thead><tr><th>Corso</th><th>Completato il</th><th>Valido fino al</th><th></th></tr></thead>
           <tbody>{% for r in formazione %}
             <tr>
-              <td>{{ r.corso.titolo|default:r.corso }}</td>
+              <td>{% if r.corso_id %}<a href="{% url 'anagrafica:dispense_corso' r.corso_id %}">{{ r.corso.titolo|default:r.corso }}</a>{% else %}{{ r.corso.titolo|default:r.corso }}{% endif %}</td>
               <td>{{ r.data_completamento|date:"d/m/Y" }}</td>
-              <td>{{ r.data_scadenza|date:"d/m/Y"|default:"senza scadenza" }}</td>
+              <td>{{ r.data_scadenza|date:"d/m/Y"|default:"senza scadenza" }}{% if r.data_scadenza and r.data_scadenza < oggi %} {% include "anagrafica/components/hr_pill.html" with tone="danger" label="Scaduto" %}{% endif %}</td>
               <td><a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:mio_attestato' r.pk %}" target="_blank" rel="noopener">Attestato</a></td>
             </tr>
           {% endfor %}</tbody>

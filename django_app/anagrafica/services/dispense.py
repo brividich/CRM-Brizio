@@ -76,6 +76,33 @@ class Contesto:
         return self._corsi
 
 
+def url_corso(corso_id: int) -> str:
+    """La pagina del corso per il dipendente («Corsi e dispense»): stato, passo da fare, dispense."""
+    from django.urls import reverse
+    return reverse("anagrafica:dispense_corso", args=[corso_id])
+
+
+def scadenze_della_persona(legacy_id: int | None, *, oggi=None) -> list:
+    """Scadenze di formazione obbligatoria della persona, scadute o entro il preavviso (90 giorni):
+    stessa fonte dello scadenzario (``TrainingDeadline``)."""
+    if not legacy_id:
+        return []
+    from ..models_formazione import TrainingDeadline
+    from ..scadenze_soglie import GIORNI_PREAVVISO
+    oggi = oggi or timezone.localdate()
+    return list(TrainingDeadline.objects.filter(legacy_anagrafica_id=legacy_id, is_required=True,
+                                                data_scadenza__isnull=False,
+                                                data_scadenza__lte=oggi + timedelta(days=GIORNI_PREAVVISO))
+                .select_related("corso").order_by("data_scadenza"))
+
+
+def ha_scadenza(legacy_id: int | None, corso_id: int) -> bool:
+    if not legacy_id:
+        return False
+    from ..models_formazione import TrainingDeadline
+    return TrainingDeadline.objects.filter(legacy_anagrafica_id=legacy_id, corso_id=corso_id).exists()
+
+
 def visibili(ctx: Contesto):
     """Dispense che chi guarda può aprire."""
     qs = base()
@@ -147,16 +174,29 @@ def stato_corsi(legacy_id: int | None, corsi_ids) -> dict[int, dict]:
                         else f"Fatto il {r.data_completamento:%d/%m/%Y}"}
         elif r.data_scadenza:
             out[cid] = {"tono": "bad", "etichetta": f"Scaduto il {r.data_scadenza:%d/%m/%Y}"}
+    # Stessa scadenza dello scadenzario e di «Le mie attività» (TrainingDeadline): se è passata e il
+    # corso non è valido, il corso è scaduto anche senza un completamento con scadenza.
+    from ..models_formazione import TrainingDeadline
+    for d in TrainingDeadline.objects.filter(legacy_anagrafica_id=legacy_id, corso_id__in=corsi_ids, is_required=True,
+                                             data_scadenza__lt=oggi):
+        if out.get(d.corso_id, {}).get("tono") != "ok":
+            out[d.corso_id] = {"tono": "bad", "etichetta": f"Scaduto il {d.data_scadenza:%d/%m/%Y}"}
     for e in (TrainingEnrollment.objects.filter(legacy_anagrafica_id=legacy_id, sessione__corso_id__in=corsi_ids,
                                                 stato__in=("ISCRITTO", "IN_CORSO"))
               .exclude(sessione__stato__in=("COMPLETATA", "ANNULLATA"))
               .select_related("sessione").order_by("sessione__data_inizio")):
-        if out.get(e.sessione.corso_id, {}).get("tono") != "ok":
+        prima = out.get(e.sessione.corso_id)
+        if prima is None:
             out[e.sessione.corso_id] = {"tono": "warn", "etichetta": f"Iscritto all'edizione del {e.sessione.data_inizio:%d/%m/%Y}"}
+        elif prima["tono"] == "bad" and "edizione" not in prima["etichetta"]:
+            prima["etichetta"] += f" · iscritto all'edizione del {e.sessione.data_inizio:%d/%m/%Y}"
     for a in (TrainingAssignment.objects.filter(legacy_anagrafica_id=legacy_id, corso_id__in=corsi_ids,
                                                 stato__in=STATI_ASSEGNAZIONE_APERTI).order_by("ciclo")):
-        if out.get(a.corso_id, {}).get("tono") in (None, "bad"):
+        prima = out.get(a.corso_id)
+        if prima is None:
             out[a.corso_id] = {"tono": "warn", "etichetta": f"Da fare entro il {a.due_date:%d/%m/%Y}" if a.due_date else "Da fare"}
+        elif prima["tono"] == "bad" and a.due_date and "edizione" not in prima["etichetta"]:
+            prima["etichetta"] += f" · da rifare entro il {a.due_date:%d/%m/%Y}"
     return out
 
 
