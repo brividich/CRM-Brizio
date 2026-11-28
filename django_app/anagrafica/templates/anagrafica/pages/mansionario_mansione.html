@@ -289,7 +289,7 @@
           <div class="mns-corso-row">
             <select name="corso" class="fm-input fm-select js-searchable" data-placeholder="Cerca il corso per titolo o codice…" required>
               <option value="">— Cerca il corso —</option>
-              {% for c in corsi_opzioni %}<option value="{{ c.pk }}">[{{ c.codice }}] {{ c.titolo }}</option>{% endfor %}
+              {% regroup corsi_opzioni by tipo as gruppi_corsi %}{% for g in gruppi_corsi %}<optgroup label="{{ g.grouper|default:'Senza tipo' }}">{% for c in g.list %}<option value="{{ c.pk }}">[{{ c.codice }}] {{ c.titolo }}</option>{% endfor %}</optgroup>{% endfor %}
             </select>
             <span class="mns-corso-tipo">
               <label><input type="radio" name="tipo" value="obbligatorio" checked> Obbligatorio</label>

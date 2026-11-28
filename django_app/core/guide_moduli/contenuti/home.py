@@ -253,6 +253,10 @@ GUIDA = {
                     ("«11 voci» / «2 su 11 voci»", "sotto la ricerca: quante voci ha la tendina e quante ne trova quello che hai scritto."),
                     ("Codice in colonna", "le voci «[codice] titolo» (corsi, articoli) mostrano il codice in una colonna a sinistra; "
                      "nelle voci «Nome — reparto» il reparto sta a destra."),
+                    ("×", "nelle tendine non obbligatorie la × accanto alla freccia svuota la scelta e torna alla voce vuota."),
+                    ("Gruppi", "dove le voci hanno una categoria (es. i corsi in «Collega un corso», per tipo) la lista mostra il "
+                     "titolo del gruppo, che resta in vista mentre scorri."),
+                    ("Smartphone", "sotto i 640 px la lista si apre dal basso a tutto schermo; tocca fuori per chiuderla."),
                     ("Più voci", "dove si sceglie più di una voce ogni riga ha la sua casella; le voci scelte restano sotto il campo "
                      "come etichette, con la × per toglierle. In fondo alla lista «Seleziona i trovati» spunta tutte le voci "
                      "trovate dalla ricerca, «Togli tutti» le toglie."),

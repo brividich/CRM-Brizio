@@ -254,5 +254,38 @@ body.theme-dark .ts-dropdown [data-selectable] .highlight { background: #5b4a12;
 body .ts-dropdown .option .ts-dopo { flex: 0 0 auto; margin-left: auto; color: var(--text-light, #64748b); font-size: 12.5px; white-space: nowrap; }
 @media (max-width: 640px) { body .ts-dropdown .option .ts-dopo { display: none; } }
 body .ts-dropdown.plugin-checkbox_options:not(.rtl) .option input { width: 16px; height: 16px; margin: 0; accent-color: #1f87cd; align-self: center; flex: 0 0 auto; }
+/* Voce scelta nel campo chiuso: codice a parte come nella lista (render.item). */
+.ts-wrapper.hub-ts.single .ts-control .ts-scelta { display: flex; align-items: baseline; gap: 8px; min-width: 0; max-width: 100%; }
+.ts-wrapper.hub-ts .ts-scelta .ts-cod { flex: 0 0 auto; font: 500 11.5px/1.35 ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--text-light, #64748b); }
+.ts-wrapper.hub-ts .ts-scelta .ts-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-wrapper.hub-ts .ts-scelta .ts-dopo { flex: 0 0 auto; color: var(--text-light, #64748b); font-size: 12.5px; }
+.ts-wrapper.hub-ts.multi .ts-scelta { display: inline-flex; gap: 6px; align-items: baseline; }
+/* × per svuotare (plugin clear_button): resta a sinistra della freccia. */
+.ts-wrapper.hub-ts.plugin-clear_button .clear-button { right: 30px !important; font-size: 16px; color: var(--text-light, #64748b); padding: 0 4px; }
+.ts-wrapper.hub-ts.plugin-clear_button .clear-button:hover { color: #b91c1c; }
+/* Con la voce vuota scelta («— scegli —») non c'è niente da svuotare: la × si nasconde. */
+.ts-wrapper.hub-ts.plugin-clear_button .ts-control:has(.item:not([data-value=""])) { padding-right: 52px !important; }
+.ts-wrapper.hub-ts.plugin-clear_button:not(:has(.item:not([data-value=""]))) .clear-button { display: none; }
+.ts-wrapper.hub-ts .ts-control:focus, .ts-wrapper.hub-ts .ts-control:focus-visible { outline: none; }
+/* Gruppi (<optgroup>): intestazione che resta in vista mentre si scorre. */
+body .ts-dropdown .optgroup-header {
+  position: sticky; top: -6px; z-index: 1; margin: 0 -6px; padding: 8px 16px 4px;
+  background: var(--surface, #fff); color: var(--text-light, #64748b);
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+}
+body .ts-dropdown .optgroup + .optgroup { border-top: 1px solid var(--border, #e2e8f0); margin-top: 4px; }
+/* Smartphone (tomselect-init.js, posiziona(): sotto 640 px): la lista si apre dal basso a tutto schermo. */
+body .hub-foglio.hub-foglio {
+  position: fixed !important; left: 0 !important; right: 0 !important; bottom: 0 !important; top: auto !important;
+  width: auto !important; margin: 0; border-radius: 16px 16px 0 0; border-bottom: 0;
+  max-height: 82vh; display: flex; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 0 0 100vmax rgba(15, 23, 42, .45), 0 -8px 30px rgba(15, 30, 60, .25);
+}
+body .hub-foglio::before { content: ""; display: block; flex: 0 0 auto; width: 40px; height: 4px; border-radius: 4px; background: var(--border, #cbd5e1); margin: 8px auto 0; }
+body .hub-foglio .ts-dropdown-content, body .hub-foglio .msp-list { max-height: none; flex: 1 1 auto; min-height: 0; }
+body .hub-foglio .dropdown-input, body .hub-foglio .msp-search { font-size: 16px; padding-top: 10px; padding-bottom: 10px; } /* 16px: iOS non ingrandisce la pagina */
+body .hub-foglio .option, body .hub-foglio .msp-opt { padding-top: 11px; padding-bottom: 11px; }
+body .hub-foglio .ts-testa { flex-wrap: wrap; }
 body .ts-dropdown .no-results { padding: 18px; text-align: center; color: var(--text-light, #64748b); }
 body.theme-dark .ts-dropdown .ts-ordina-btn.is-on { background: #1f87cd; border-color: #1f87cd; }

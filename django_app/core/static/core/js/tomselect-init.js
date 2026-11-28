@@ -22,6 +22,9 @@
       // in testa alla lista (il campo mostra solo il valore scelto); nella multipla ogni voce
       // ha la sua casella e le voci scelte restano nel campo con la × per toglierle.
       var plugins = el.multiple ? ["checkbox_options", "remove_button"] : ["dropdown_input"];
+      // × per svuotare la scelta singola, solo se la tendina ha la voce vuota e non è obbligatoria.
+      var svuotabile = !el.multiple && !el.required && !!el.querySelector("option[value='']");
+      if (svuotabile) plugins.push({ name: "clear_button", options: { title: "Svuota la scelta" } });
       // eslint-disable-next-line no-undef
       var ts = new TomSelect(el, {
         create: false, // niente opzioni inventate: solo quelle esistenti
@@ -40,17 +43,15 @@
         render: {
           option: function (data, escape) {
             var nascosta = data.$option && data.$option.hidden;
-            var testo = String(data.text == null ? "" : data.text);
-            var m = /^\[([^\]]{1,24})\]\s*(.+)$/.exec(testo);
-            var dentro = m
-              ? '<span class="ts-cod">' + escape(m[1]) + '</span><span class="ts-txt">' + escape(m[2]) + "</span>"
-              : '<span class="ts-txt">' + escape(testo) + "</span>";
-            // «Nome — reparto»: la parte dopo « — » va in colonna a destra, come nel picker multiplo.
-            var trattino = !m ? testo.indexOf(" — ") : -1;
-            if (trattino > 0) {
-              dentro = '<span class="ts-txt">' + escape(testo.slice(0, trattino)) + '</span><span class="ts-dopo">' + escape(testo.slice(trattino + 3)) + "</span>";
-            }
-            return '<div class="ts-voce"' + (nascosta ? ' style="display:none"' : "") + ">" + dentro + "</div>";
+            return '<div class="ts-voce"' + (nascosta ? ' style="display:none"' : "") + ">" + contenuto(data, escape) + "</div>";
+          },
+          // Il campo chiuso mostra la voce scelta come nella lista: codice a parte, poi il testo.
+          item: function (data, escape) {
+            return '<div class="ts-scelta">' + contenuto(data, escape) + "</div>";
+          },
+          // Gruppi (<optgroup>): intestazione che resta in vista mentre si scorre.
+          optgroup_header: function (data, escape) {
+            return '<div class="optgroup-header">' + escape(data.label || "") + "</div>";
           },
         },
       });
@@ -72,6 +73,22 @@
     }
   }
 
+  // Testo di una voce: «[codice] titolo» mette il codice in una colonna fissa, «Nome — reparto»
+  // mette il reparto a destra (come nel picker multiplo di Anagrafica).
+  function contenuto(data, escape) {
+    var testo = String(data.text == null ? "" : data.text);
+    var m = /^\[([^\]]{1,24})\]\s*(.+)$/.exec(testo);
+    if (m) return '<span class="ts-cod">' + escape(m[1]) + '</span><span class="ts-txt">' + escape(m[2]) + "</span>";
+    var trattino = testo.indexOf(" — ");
+    if (trattino > 0) {
+      return '<span class="ts-txt">' + escape(testo.slice(0, trattino)) + '</span><span class="ts-dopo">' + escape(testo.slice(trattino + 3)) + "</span>";
+    }
+    return '<span class="ts-txt">' + escape(testo) + "</span>";
+  }
+
+  // Smartphone: sotto FOGLIO_MAX px la lista si apre dal basso a tutto schermo (classe hub-foglio).
+  var FOGLIO_MAX = 640;
+
   // Lista larga quanto serve: almeno LARGA_MIN e al massimo LARGA_MAX px, mai meno del campo
   // e mai oltre lo schermo; allineata al campo, si sposta a sinistra se a destra non c'è
   // spazio. Con lo zoom CSS di theme.css (schermi 4K: :root{zoom:1.5}) le coordinate di
@@ -80,6 +97,12 @@
   // di Anagrafica (window.hubPosizionaLista).
   var LARGA_MIN = 480, LARGA_MAX = 640, MARGINE = 12;
   function posiziona(campo, lista) {
+    var foglio = (document.documentElement.clientWidth || window.innerWidth) <= FOGLIO_MAX;
+    lista.classList.toggle("hub-foglio", foglio);
+    if (foglio) {
+      lista.style.width = lista.style.top = lista.style.left = "";
+      return;
+    }
     var r = campo.getBoundingClientRect();
     var a = document.createElement("div"), b = document.createElement("div");
     a.style.cssText = b.style.cssText = "position:absolute;width:0;height:0;left:0;top:0;pointer-events:none;";

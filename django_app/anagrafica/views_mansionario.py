@@ -524,7 +524,8 @@ def _formazione_mansione(request, mansione, competenze, persone) -> dict:
         "puo_collegare_corsi": _puo_collegare_corsi(request),
         "puo_iscrivere": _helpers._can_edit_formazione(request),
         "corsi_opzioni": list(TrainingCourse.objects.filter(is_active=True).exclude(pk__in=gia)
-                              .order_by("titolo").only("pk", "codice", "titolo")),
+                              .select_related("tipo").order_by("tipo__ordine", "tipo__nome", "titolo")
+                              .only("pk", "codice", "titolo", "tipo__nome", "tipo__ordine")),
     }
 
 
