@@ -25,6 +25,7 @@
       </div>
       <div class="fmd-pagehead-actions">
         {% include "anagrafica/partials/_elearning_guida_link.html" with ancora="discente" %}
+        <a href="{% url 'anagrafica:dispense_libreria' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-book"/></svg>Corsi e dispense</a>
         <a href="{% url 'anagrafica:formazione_verifica_attestato' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-shield"/></svg>Verifica un attestato</a>
       </div>
     </div>

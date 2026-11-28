@@ -600,7 +600,7 @@
       </div>
 
 {# ── Materiale del corso ────────────────────────────────────────────── #}
-<div class="hr-card fm-section">
+<div class="hr-card fm-section" id="materiale-corso">
   <div class="fm-section-head">
     <div class="fm-section-title">📎 Materiale del corso
       <span class="fm-count">{{ allegati_corso|length }}</span>
@@ -608,23 +608,37 @@
     <span class="muted" style="font-size:11px;">Dispense, programma, modulistica</span>
   </div>
   <div style="padding:8px 16px 4px;font-size:12px;color:#64748b;">
-    È il materiale «madre» del corso: alla creazione di ogni nuova edizione viene
-    riproposto in copia, pre-spuntato, e si deseleziona quello non pertinente. La copia
-    vive sull’edizione e resta modificabile — così l’edizione documenta ciò che ha
-    davvero consegnato anche quando il corso, mesi dopo, cambia dispensa.
+    È il materiale «madre» del corso: ogni nuova edizione ne riceve una copia. Le dispense
+    «Visibili ai dipendenti» si leggono in <a class="fm-link" href="{% url 'anagrafica:dispense_libreria' %}">Corsi e dispense</a>,
+    nel corso online e nella lezione online.
   </div>
   {% if allegati_corso %}
   <div class="fm-table-wrap">
     <table class="fm-table">
-      <thead><tr><th>File</th><th>Tipo</th><th class="nowrap">Nuove edizioni</th><th class="nowrap">Caricato</th><th class="nowrap"></th></tr></thead>
+      <thead><tr><th>File</th><th>Tipo</th><th class="nowrap">Dipendenti</th><th class="nowrap">Letture · aperture</th><th class="nowrap">Nuove edizioni</th><th class="nowrap">Caricato</th><th class="nowrap"></th></tr></thead>
       <tbody>
         {% for a in allegati_corso %}
         <tr>
           <td>
-            <a class="fm-link" href="{% url 'anagrafica:formazione_allegato_download' a.pk %}">{{ a.nome_originale }}</a>
+            <a class="fm-link" href="{% if a.visibile_dipendenti and a.is_pdf %}{% url 'anagrafica:dispense_corso' corso.pk %}?d={{ a.pk }}{% else %}{% url 'anagrafica:formazione_allegato_download' a.pk %}{% endif %}">{{ a.titolo|default:a.nome_originale }}</a>
+            {% if a.titolo %}<div class="muted" style="font-size:11px;">{{ a.nome_originale }}</div>{% endif %}
             {% if a.descrizione %}<div class="muted" style="font-size:11px;">{{ a.descrizione }}</div>{% endif %}
+            {% if is_editor and a.tipo != "REGISTRO_FIRMATO" %}
+            <details style="margin-top:4px;"><summary class="muted" style="font-size:11px;cursor:pointer;">Impostazioni per i dipendenti</summary>
+              <form method="post" action="{% url 'anagrafica:formazione_allegato_dispensa' a.pk %}" class="fm-inline-form" style="align-items:flex-end;margin-top:6px;">
+                {% csrf_token %}
+                <div class="fm-f" style="min-width:200px;"><label>Titolo per i dipendenti</label><input type="text" name="titolo" maxlength="200" value="{{ a.titolo }}" placeholder="{{ a.nome_originale }}"></div>
+                <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;"><input type="checkbox" name="visibile" value="1"{% if a.visibile_dipendenti %} checked{% endif %}><span style="font-size:12px;">Visibile ai dipendenti</span></label>
+                <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;"><input type="checkbox" name="solo_chi_ha_corso" value="1"{% if a.solo_chi_ha_corso %} checked{% endif %}><span style="font-size:12px;">Solo a chi ha il corso</span></label>
+                <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;"><input type="checkbox" name="richiedi_lettura" value="1"{% if a.richiedi_lettura %} checked{% endif %}><span style="font-size:12px;">Chiedi «Ho letto»</span></label>
+                <button type="submit" class="hr-btn hr-btn-sm">Salva</button>
+              </form>
+            </details>
+            {% endif %}
           </td>
           <td class="muted">{{ a.get_tipo_display }}</td>
+          <td class="nowrap">{% if a.tipo == "REGISTRO_FIRMATO" %}<span class="muted">Mai</span>{% elif a.visibile_dipendenti %}<span class="fm-pill fm-pill-attivo">Visibile{% if a.solo_chi_ha_corso %} · chi ha il corso{% endif %}</span>{% else %}<span class="muted">Solo HR</span>{% endif %}</td>
+          <td class="nowrap muted">{% if a.richiedi_lettura %}{{ a.n_letture }}{% else %}—{% endif %} · {{ a.n_aperture }}</td>
           <td class="nowrap muted">{% if a.proponi_a_nuova_edizione %}Proposto{% else %}—{% endif %}</td>
           <td class="nowrap muted">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display|upper }}{% endif %}</td>
           <td class="nowrap">
@@ -660,9 +674,25 @@
       </select>
     </div>
     <div class="fm-f" style="min-width:200px;">
+      <label>Titolo per i dipendenti (facoltativo)</label>
+      <input type="text" name="titolo" maxlength="200" placeholder="es. Dispensa del corso">
+    </div>
+    <div class="fm-f" style="min-width:200px;">
       <label>Descrizione (facoltativa)</label>
       <input type="text" name="descrizione" maxlength="300" placeholder="es. dispensa rev. B">
     </div>
+    <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;">
+      <input type="checkbox" name="visibile" value="1" checked>
+      <span style="font-size:12px;">Visibile ai dipendenti</span>
+    </label>
+    <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;">
+      <input type="checkbox" name="solo_chi_ha_corso" value="1">
+      <span style="font-size:12px;">Solo a chi ha il corso</span>
+    </label>
+    <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;">
+      <input type="checkbox" name="richiedi_lettura" value="1">
+      <span style="font-size:12px;">Chiedi «Ho letto»</span>
+    </label>
     <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;">
       <input type="checkbox" name="proponi" value="1" checked>
       <span style="font-size:12px;">Proponi alle nuove edizioni</span>

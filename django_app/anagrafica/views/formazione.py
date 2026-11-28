@@ -601,11 +601,20 @@ def formazione_corso_allegato_upload(request, corso_id: int):
         tipo_mime=mime,
         dimensione_bytes=uploaded.size,
         descrizione=(request.POST.get("descrizione") or "").strip()[:300],
+        titolo=(request.POST.get("titolo") or "").strip()[:200],
+        # Dispense e programmi visibili ai dipendenti se spuntato (mai i registri firme).
+        visibile_dipendenti=(tipo != TrainingAttachment.Tipo.REGISTRO_FIRMATO
+                             and request.POST.get("visibile") in ("1", "on")),
+        solo_chi_ha_corso=request.POST.get("solo_chi_ha_corso") in ("1", "on"),
+        richiedi_lettura=request.POST.get("richiedi_lettura") in ("1", "on"),
         created_by=request.user,
         created_by_display=request.user.get_full_name() or request.user.username,
     )
     att.file = uploaded
     att.save()
+    if att.is_pdf:
+        from ..services.dispense import estrai_testo
+        estrai_testo(att)
     try:
         from core.audit import log_action
         log_action(request, "FORMAZIONE_ALLEGATO_UPLOAD", "anagrafica", {
@@ -1798,7 +1807,9 @@ def formazione_corso_detail(request, corso_id: int):
         "sessioni_sub": sessioni_sub,
         # Materiale del corso: e' la base che ogni nuova edizione si ritrova
         # proposta in copia (vedi TrainingSessionForm.allegati_dal_corso).
-        "allegati_corso": list(corso.allegati.order_by("tipo", "-created_at")),
+        "allegati_corso": list(corso.allegati.annotate(
+            n_letture=Count("letture", distinct=True), n_aperture=Count("aperture", distinct=True),
+        ).order_by("tipo", "-created_at")),
         "tipi_allegato": TrainingAttachment.Tipo.choices,
         "prerequisiti": prerequisiti,
         "programma": list(corso.programma.all()),

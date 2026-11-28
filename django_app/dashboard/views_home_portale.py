@@ -1388,6 +1388,15 @@ def home_portale(request: HttpRequest) -> HttpResponse:
             sapere_cataloghi = [catalogo_sapere(), *sapere_cataloghi]
     except Exception:
         logger.exception("home: riquadro CN-SGI non disponibile")
+    # «Corsi e dispense» (formazione) tra i cataloghi, se ci sono dispense da leggere.
+    try:
+        from anagrafica.services.dispense import catalogo_sapere as catalogo_dispense
+
+        scheda_dispense = catalogo_dispense(request)
+        if scheda_dispense is not None:
+            sapere_cataloghi = [*sapere_cataloghi[:1], scheda_dispense, *sapere_cataloghi[1:]] if sapere_sgi else [scheda_dispense, *sapere_cataloghi]
+    except Exception:
+        logger.exception("home: catalogo «Corsi e dispense» non disponibile")
     sicurezza = _sicurezza(legacy_user)
     home_prefs = _home_prefs(request.user)
     riquadri = _riquadri_offerti(request)

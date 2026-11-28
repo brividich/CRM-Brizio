@@ -1,0 +1,73 @@
+{% extends "anagrafica/dispense/_base.html" %}
+{% block dsp_body %}
+<section class="cn-hero">
+  <div>
+    <form class="cn-search" role="search" method="get" action="{% url 'anagrafica:dispense_libreria' %}">
+      <span aria-hidden="true">⌕</span>
+      <input name="q" type="search" value="{{ q }}" aria-label="Cerca nelle dispense" placeholder="Cerca un corso o una frase nelle dispense…" autocomplete="off"{% if cerca %} autofocus{% endif %}>
+      <button class="cn-btn pri" type="submit">Cerca</button>
+    </form>
+    {% if cerca %}<div class="cn-hints"><a href="{% url 'anagrafica:dispense_libreria' %}">← Tutti i corsi</a></div>{% endif %}
+  </div>
+  {% if not cerca %}
+  <div class="cn-stats">
+    <a class="cn-stat kpi-link" href="#dsp-scaffali"><b>{{ n_corsi }}</b><span>cors{{ n_corsi|pluralize:"o,i" }} con dispense</span></a>
+    <a class="cn-stat kpi-link" href="#dsp-nuove"><b>{{ n_dispense }}</b><span>dispens{{ n_dispense|pluralize:"a,e" }}</span></a>
+    {% if n_da_leggere %}<a class="cn-stat kpi-link" href="#dsp-da-leggere"><b>{{ n_da_leggere }}</b><span>da leggere per te</span></a>{% endif %}
+  </div>
+  {% endif %}
+</section>
+
+{% if cerca %}
+  <div class="cn-sec"><h2>Risultati</h2><span>{{ risultati|length }} dispens{{ risultati|length|pluralize:"a,e" }} per «{{ q }}»</span></div>
+  {% for r in risultati %}
+  <div class="cn-res" style="--col:{{ r.d.scaffale.colore }}">
+    <span class="mini" aria-hidden="true"></span>
+    <div style="min-width:0">
+      <p class="cn-res-t"><a href="{% url 'anagrafica:dispense_corso' r.a.corso_id %}?d={{ r.a.pk }}"><span class="mono">{{ r.a.corso.codice }}</span> {{ r.d.title }}</a></p>
+      <p class="cn-res-m"><span>{{ r.a.corso.titolo }}</span><span class="cn-pill">{{ r.d.sezione_label }}</span>{% if r.d.letta %}<span class="cn-pill ok">✓ letta</span>{% endif %}</p>
+      {% for e in r.estratti %}
+      <p style="margin:2px 0;font-size:13px;color:var(--text-mid)">{{ e.prima }}<mark>{{ e.trovato }}</mark>{{ e.dopo }}{% if e.pagina %} · <a href="{% url 'anagrafica:dispense_corso' r.a.corso_id %}?d={{ r.a.pk }}&amp;p={{ e.pagina }}">pag. {{ e.pagina }}</a>{% endif %}</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% empty %}
+  <p class="cn-empty">Nessuna dispensa contiene «{{ q }}». Prova con meno parole o con il codice del corso.</p>
+  {% endfor %}
+{% else %}
+  <div class="cn-sec" id="dsp-scaffali"><h2>Scaffali</h2><span>Uno per tipo di corso</span></div>
+  {% if scaffali %}
+  <div class="cn-shelves cn-carosello">
+    {% for s in scaffali %}
+    <a class="cn-vol" href="{% url 'anagrafica:dispense_scaffale' s.id %}">
+      <span class="cn-vol-cover" style="--col:{{ s.colore }}">
+        <span class="cn-vol-k">Formazione</span>
+        <span class="cn-vol-n">{{ s.sigla }}<small>{{ s.nome }}</small></span>
+        <span class="cn-vol-f"><span>{{ s.n_corsi }} cors{{ s.n_corsi|pluralize:"o,i" }} · {{ s.dispense }} dispens{{ s.dispense|pluralize:"a,e" }}{% if s.nuove %}<br><span class="cn-vol-badge">{{ s.nuove }} nuov{{ s.nuove|pluralize:"a,e" }}</span>{% endif %}</span></span>
+      </span>
+      <span class="cn-vol-meta"><span class="cn-dot"></span>{{ s.nome }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="cn-empty">Non ci sono ancora dispense da leggere. Le carica chi gestisce la formazione, nella scheda del corso.</p>
+  {% endif %}
+
+  {% if da_leggere %}
+  <div class="cn-sec" id="dsp-da-leggere"><h2>Da leggere per te</h2><span>Dispense dei tuoi corsi con «Ho letto»</span></div>
+  <div class="cn-row">{% for d in da_leggere %}{% include "anagrafica/dispense/_dispensa.html" %}{% endfor %}</div>
+  {% endif %}
+  {% if miei %}
+  <div class="cn-sec"><h2>I miei corsi</h2><span>Assegnati, iscritti o già fatti: le dispense restano consultabili</span></div>
+  <div class="cn-row">{% for d in miei %}{% include "anagrafica/dispense/_corso.html" %}{% endfor %}</div>
+  {% endif %}
+  {% if nuove %}
+  <div class="cn-sec" id="dsp-nuove"><h2>Nuove dispense</h2><span>Caricate negli ultimi 30 giorni</span></div>
+  <div class="cn-row">{% for d in nuove %}{% include "anagrafica/dispense/_dispensa.html" %}{% endfor %}</div>
+  {% endif %}
+  {% if consultate %}
+  <div class="cn-sec"><h2>Più consultate</h2><span>Aperture degli ultimi 90 giorni</span></div>
+  <div class="cn-row">{% for d in consultate %}{% include "anagrafica/dispense/_dispensa.html" %}{% endfor %}</div>
+  {% endif %}
+{% endif %}
+{% endblock %}

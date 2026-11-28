@@ -2926,6 +2926,15 @@ def dipendente_libretto_formativo(request, legacy_id: int):
     except Exception:
         logger.exception("Errore registrazione TrainingExportLog per libretto formativo")
 
+    # «Ho letto la dispensa»: conferme del dipendente (nel periodo, se indicato).
+    from ..models_formazione import TrainingDispensaLettura
+    dispense_lette = TrainingDispensaLettura.objects.filter(legacy_anagrafica_id=legacy_id).select_related(
+        "allegato", "allegato__corso").order_by("-letta_il")
+    if dal:
+        dispense_lette = dispense_lette.filter(letta_il__date__gte=dal)
+    if al:
+        dispense_lette = dispense_lette.filter(letta_il__date__lte=al)
+
     from ..services.attestato_pdf import RIFERIMENTO_LIBRETTO
     doc_libretto = (
         DocumentoDipendente.objects
@@ -2940,6 +2949,7 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         "obblighi": obblighi,
         "qualifiche_libretto": qualifiche_libretto,
         "processi_libretto": processi_libretto,
+        "dispense_lette": list(dispense_lette),
         "oggi": oggi,
         "dal": dal,
         "al": al,

@@ -1,0 +1,17 @@
+{% if voci %}
+<section class="{% if stile == 'so' %}so-card{% else %}fmd-panel{% endif %}" style="padding:14px 16px;margin-top:14px;" aria-label="Dispense del corso">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+    <strong>Dispense del corso <span style="font-weight:500;color:var(--text-light,#64748b);">· {{ voci|length }}</span></strong>
+    <a href="{% url 'anagrafica:dispense_corso' corso.pk %}" style="font-size:13px;">Leggi nel portale →</a>
+  </div>
+  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;">
+    {% for d in voci %}
+    <li style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px;">
+      <a href="{% url 'anagrafica:dispense_corso' corso.pk %}?d={{ d.pk }}">{{ d.title }}</a>
+      <span style="font-size:12px;color:var(--text-light,#64748b);">{{ d.sezione_label }}{% if d.a.n_pagine %} · {{ d.a.n_pagine }} pag.{% endif %}</span>
+      {% if d.letta %}<span class="fmd-badge fmd-b-green">letta</span>{% elif d.da_leggere %}<span class="fmd-badge fmd-b-amber">da leggere</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

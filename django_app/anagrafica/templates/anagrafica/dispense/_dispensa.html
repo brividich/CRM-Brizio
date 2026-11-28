@@ -1,0 +1,6 @@
+{# Una dispensa in una fila o in una griglia. Variabile: d (services/dispense.scheda). #}
+<a class="cn-doc" href="{% url 'anagrafica:dispense_corso' d.a.corso_id %}?d={{ d.pk }}" title="{{ d.code }} · {{ d.title }}">
+  {% include "procedure_refresh/libreria/_foglio.html" with d=d senza_fascia=True %}
+  <span class="cn-doc-t">{{ d.title }}</span>
+  <span class="cn-doc-s">{% if d.letta %}<span class="cn-pill ok" title="Hai confermato la lettura">✓ letta</span>{% elif d.da_leggere %} <span class="cn-pill warn">da leggere</span>{% elif d.nuova %} <span class="cn-pill nuova">nuova</span>{% endif %}{% if d.aperture %} <span>{{ d.aperture }} apertur{{ d.aperture|pluralize:"a,e" }}</span>{% endif %}</span>
+</a>

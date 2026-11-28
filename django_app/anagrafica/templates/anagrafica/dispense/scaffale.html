@@ -1,0 +1,23 @@
+{% extends "anagrafica/dispense/_base.html" %}
+{% block dsp_crumb %}<a href="{% url 'anagrafica:dispense_libreria' %}">Corsi e dispense</a> › {{ scaffale.nome }}{% endblock %}
+{% block dsp_h1 %}{{ scaffale.nome }} <small>Corsi e dispense</small>{% endblock %}
+{% block dsp_body %}
+<div class="cn-split" style="--col:{{ scaffale.colore }}">
+  <aside class="cn-side" aria-label="Scaffali">
+    {% for s in scaffali %}<a class="{% if s.id == scaffale.id %}on{% endif %}" href="{% url 'anagrafica:dispense_scaffale' s.id %}">{{ s.nome }} <span>{{ s.n_corsi }}</span></a>{% endfor %}
+  </aside>
+  <div style="min-width:0">
+    <div class="cn-band" style="--col:{{ scaffale.colore }}">
+      <div class="n">{{ scaffale.sigla }}</div>
+      <div class="t"><h2>{{ scaffale.nome }}</h2><p>{{ scaffale.n_corsi }} cors{{ scaffale.n_corsi|pluralize:"o,i" }} · {{ scaffale.dispense }} dispens{{ scaffale.dispense|pluralize:"a,e" }}</p></div>
+    </div>
+    <form class="cn-toolbar" method="get">
+      <input class="cn-input" type="search" name="q" value="{{ filtro }}" placeholder="Filtra per codice o titolo del corso" aria-label="Filtra i corsi">
+      {% if filtro %}<a class="cn-chip" href="?">Togli il filtro</a>{% endif %}
+    </form>
+    {% if corsi %}
+    <div class="cn-grid">{% for d in corsi %}{% include "anagrafica/dispense/_corso.html" %}{% endfor %}</div>
+    {% else %}<p class="cn-empty">Nessun corso corrisponde al filtro.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -9,6 +9,14 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: dispense dei corsi leggibili dai dipendenti + «Corsi e dispense» in Sapere
+- Dispense per i dipendenti: sul materiale del corso «Visibile ai dipendenti», «Solo a chi ha il corso» (assegnato, iscritto o già fatto), «Chiedi «Ho letto»» e titolo; mai i registri firme. Il materiale di corso già caricato (dispense e programmi) diventa visibile (migrazione `0268`).
+- Nuova libreria «Corsi e dispense» (stanza Sapere e menu Formazione), stesso impianto di CN-SGI: ricerca anche dentro i PDF con estratto e pagina, scaffali per tipo di corso, «Da leggere per te», «I miei corsi», «Nuove dispense» (30 giorni), «Più consultate» (90 giorni).
+- Pagina del corso per il dipendente: stato (da fare, iscritto, valido fino al, scaduto), «Fai il corso online» / «Vai alla lezione online», lettore PDF nel portale, «Scarica», «Ho letto la dispensa» (nel libretto formativo, sezione «Dispense lette»).
+- Riquadro «Dispense del corso» nel corso online, in «Materiale del corso» e nella lezione online dell'edizione; link «Corsi e dispense» in «I miei corsi online».
+- Scheda corso (HR): impostazioni per i dipendenti su ogni file, colonne «Dipendenti» e «Letture · aperture»; al caricamento si estrae il testo dei PDF (anche cifrati sul disco). La copia sull'edizione porta il titolo.
+- File: `models_formazione.py` (campi su `TrainingAttachment`, `TrainingDispensaLettura`, `TrainingDispensaApertura`), `services/dispense.py`, `views_dispense.py`, `templatetags/dispense_tags.py`, `templates/anagrafica/dispense/*`, `views/formazione.py`, `views/dipendenti.py`, `services/formazione_pianificazione.py`, `dashboard/views_sapere.py`, `dashboard/views_home_portale.py`, `urls.py`, migrazione `0268` (anche binding ACL da `formazione_allegato_delete` e voce di menu). Test: `tests_dispense.py`.
+
 ### Organigramma ufficiale: linee di collegamento trascinabili
 - Nella tela (`…/ufficiale/<id>/disegna/`) il tronco del superiore e le discese verso i riquadri si spostano di lato, le barre comuni e le linee che entrano dal fianco in su e in giù; doppio clic o «Rimetti automatiche» le riporta alla posizione calcolata. Valgono anche in stampa, in pagina e nella revisione pubblicata (`templates/anagrafica/partials/_org_uff_render.html` `percorsi()`/`svgLinee()`, `templates/anagrafica/pages/organigramma_ufficiale_disegna.html`).
 - Nuovi campi facoltativi del disegno `tronco_x`, `linea_y`, `bus_y`, `entra_x`, puliti dal server e contati come modifica grafica nel riepilogo (`services/organigramma_ufficiale.py`, `tests_organigramma_ufficiale.py`). Nessuna migrazione.
