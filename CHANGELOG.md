@@ -9,6 +9,9 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Esplora la struttura: «Nuova richiesta per questa mansione» parte dalla persona
+- Con una sola persona sulla mansione il pulsante apre la nuova richiesta con mansione **e persona** già scelte; con più persone ogni riga di «Persone con questa mansione» ha il suo «Nuova richiesta» (`anagrafica/services/esplora_semplice.py`, `partials/_esplora_semplice.html`). Test in `tests_esplora_struttura.py`.
+
 ### Formazione: niente assegnazione e-learning doppia per chi è iscritto all'edizione online
 - L'assegnazione automatica notturna salta chi è già iscritto a un'edizione aperta dello stesso corso (es. «Online: slide + test»): il corso si fa dall'edizione (`services/elearning_assegnazioni.iscritti_edizioni_aperte`).
 - Migrazione `0267`: toglie le assegnazioni automatiche «Obbligo: …» ancora «Assegnato» doppie rispetto a un'iscrizione aperta.

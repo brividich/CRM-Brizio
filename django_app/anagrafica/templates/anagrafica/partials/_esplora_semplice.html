@@ -60,7 +60,7 @@
       <div class="es-tab-wrap es-s-scorre" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
         <thead><tr><th>Persona</th><th>Livello</th><th>Stato</th></tr></thead>
         <tbody>{% for p in semplice.persone_mansione %}<tr>
-          <td><a href="{{ p.url }}">{{ p.nome }}</a></td>
+          <td><a href="{{ p.url }}">{{ p.nome }}</a>{% if p.url_richiesta %}<small><a href="{{ p.url_richiesta }}">Nuova richiesta</a></small>{% endif %}</td>
           <td>{% include "anagrafica/partials/_esplora_livello.html" with l=p.livello %}</td>
           <td><span class="es-s-stato es-s-stato-{{ p.tono }}">{{ p.stato }}</span></td>
         </tr>{% endfor %}</tbody>

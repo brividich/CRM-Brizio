@@ -359,6 +359,18 @@ class VistaSempliceTests(_Base):
         self.assertIn(str(self.rossi), riga["url"])
         self.assertEqual([x["codice"] for x in s["legenda"]], ["I", "L", "U", "O"])
 
+    def test_nuova_richiesta_parte_dalla_persona_della_mansione(self):
+        s = self._mansione().context["semplice"]
+        azione = next(a for a in s["scheda"]["azioni"] if a["nome"] == "Nuova richiesta per questa mansione")
+        self.assertIn(f"mansione={self.fresa.pk}", azione["url"])
+        persone = s["persone_mansione"]
+        if len(persone) == 1:
+            self.assertIn(f"persona={persone[0]['persona_id']}", azione["url"])
+        else:
+            self.assertNotIn("persona=", azione["url"])
+            for p in persone:
+                self.assertIn(f"persona={p['persona_id']}", p["url_richiesta"])
+
     def test_la_competenza_nell_indirizzo_evidenzia_la_riga(self):
         r = self._mansione(competenza=self.voce.pk)
         s = r.context["semplice"]

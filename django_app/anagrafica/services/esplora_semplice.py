@@ -129,7 +129,7 @@ def _persone_mansione(d, m) -> list[dict]:
         else:
             esito = mc.valuta(p["abilitazione"], voci=voci, config=config, requisiti=requisiti).esito
             stato, tono = mc.ESITI_LABEL[esito], _TONI[esito]
-        righe.append({"nome": p["nome"], "url": _url_scheda(p["legacy_id"]), "livello": livello(p["livello"]),
+        righe.append({"nome": p["nome"], "persona_id": p["legacy_id"], "url": _url_scheda(p["legacy_id"]), "livello": livello(p["livello"]),
                       "stato": stato, "tono": tono})
     return righe
 
@@ -206,17 +206,25 @@ def costruisci(ctx: dict, *, puo_gestire: bool = False, puo_chiedere: bool = Fal
         rischi = [x.nome for x in m.mansioni_rischio.all()]
         if rischi:
             campi.append(_campo("Mansioni di rischio", ", ".join(rischi)))
+        persone_mansione = _persone_mansione(d, m)
+        url_nuova = f"{reverse('anagrafica:richiesta_nuova')}?mansione={m.pk}"
         azioni = []
         if puo_chiedere:
+            # Con una sola persona sulla mansione la richiesta parte già su di lei; con più persone
+            # ogni riga dell'elenco ha il suo collegamento.
+            sola = persone_mansione[0]["persona_id"] if len(persone_mansione) == 1 else None
             azioni.append({"nome": "Nuova richiesta per questa mansione", "principale": True,
-                           "url": f"{reverse('anagrafica:richiesta_nuova')}?mansione={m.pk}"})
+                           "url": f"{url_nuova}&persona={sola}" if sola else url_nuova})
+            if len(persone_mansione) > 1:
+                for p in persone_mansione:
+                    p["url_richiesta"] = f"{url_nuova}&persona={p['persona_id']}"
         azioni.append({"nome": "Persone e valutazioni", "url": reverse("anagrafica:mansionario_mansione", args=[m.pk])})
         if puo_gestire:
             azioni.append({"nome": "Modifica la mansione",
                            "url": reverse("anagrafica:mansionario_struttura_mansione", args=[m.pk])})
         out["scheda"] = {"titolo": "Mansione scelta", "campi": campi, "azioni": azioni}
         out["competenze"] = _competenze(m, voce)
-        out["persone_mansione"] = _persone_mansione(d, m)
+        out["persone_mansione"] = persone_mansione
         out["altre"] = _altre_mansione(m, out["persone_mansione"])
         url_richieste = f"{reverse('anagrafica:richieste')}?mansione={m.pk}"
         out["collegate"].insert(0, {"nome": "Richieste su questa mansione", "url": url_richieste,
