@@ -2889,6 +2889,14 @@ def _iscrivi_preselezione(request, sessione) -> int:
     return n_new
 
 
+def _dopo_azione(request, nome_url: str, sessione_id: int):
+    """Dopo un'azione sulla sessione: torna al percorso guidato se è partita da lì
+    (``next`` nel POST, stesso host), altrimenti alla pagina di sempre."""
+    from core.redirects import safe_next
+    return redirect(safe_next(request, request.POST.get("next"),
+                              reverse(nome_url, args=[sessione_id])))
+
+
 def _agli_iscritti(sessione, back: str):
     """Pagina iscritti della sessione, con «Torna a dove eri» se l'azione era partita altrove."""
     return redirect(_helpers.con_back(
@@ -2914,6 +2922,33 @@ def formazione_rinnovo_in_sessione(request, sessione_id: int):
     return _agli_iscritti(sessione, pre.get("back") or "")
 
 
+def _ultime_edizioni_per_corso() -> dict:
+    """``{corso_id: dati}`` dell'edizione più recente di ogni corso attivo, per il
+    pulsante «Come l'ultima edizione» del form di creazione."""
+    esito: dict[str, dict] = {}
+    righe = (
+        TrainingSession.objects.exclude(stato="ANNULLATA").filter(corso__is_active=True)
+        .order_by("corso_id", "-data_inizio", "-pk")
+        .values("pk", "corso_id", "codice_sessione", "data_inizio", "modalita", "sede",
+                "docente_id", "docente_ente_id", "docente_nome", "sala__nome")
+    )
+    oggi = django_timezone.localdate()
+    for r in righe:
+        chiave = str(r["corso_id"])
+        # Vince l'edizione più recente già partita; una futura solo se non ce ne sono.
+        if chiave in esito and (esito[chiave]["_passata"] or not (r["data_inizio"] and r["data_inizio"] <= oggi)):
+            continue
+        esito[chiave] = {
+            "id": r["pk"], "codice": r["codice_sessione"],
+            "data": r["data_inizio"].strftime("%d-%m-%Y") if r["data_inizio"] else "",
+            "modalita": r["modalita"] if r["modalita"] != "ONLINE" else "", "sede": r["sede"] or "",
+            "docente": r["docente_id"] or "", "docente_ente": r["docente_ente_id"] or "",
+            "docente_nome": r["docente_nome"] or "", "sala": r["sala__nome"] or "",
+            "_passata": bool(r["data_inizio"] and r["data_inizio"] <= oggi),
+        }
+    return esito
+
+
 @login_required
 def formazione_sessione_create(request):
     if not _helpers._can_edit_formazione(request):
@@ -2931,6 +2966,13 @@ def formazione_sessione_create(request):
             copia_programma_dal_corso(sessione)
             # Materiale del corso spuntato nel form: copiato sull\'edizione (copia,
             # non collegamento, come il programma qui sopra).
+            # «Come l'ultima edizione»: la sala non è nel form, arriva dall'edizione scelta.
+            come = str(request.POST.get("come_edizione") or "")
+            if come.isdigit() and not sessione.sala_id:
+                origine = TrainingSession.objects.filter(pk=int(come), corso_id=sessione.corso_id).first()
+                if origine is not None and origine.sala_id:
+                    sessione.sala_id = origine.sala_id
+                    sessione.save(update_fields=["sala"])
             n_allegati = form.copia_allegati(user=request.user)
             if n_allegati:
                 messages.info(
@@ -2949,8 +2991,10 @@ def formazione_sessione_create(request):
             if sessione.modalita == "ONLINE":
                 messages.success(request, f'Sessione "{sessione.codice_sessione}" creata: ora slide, test e invio.')
                 return redirect("anagrafica:sessione_online_prepara", sessione_id=sessione.pk)
-            messages.success(request, f'Sessione "{sessione.codice_sessione}" creata.')
-            return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
+            # Percorso guidato: giornate, iscritti e «pronta» uno dopo l'altro,
+            # senza ripartire ogni volta dalla pagina della sessione.
+            messages.success(request, f'Sessione "{sessione.codice_sessione}" creata: ora giornate e iscritti.')
+            return redirect("anagrafica:formazione_sessione_prepara", sessione_id=sessione.pk)
     else:
         initial = {}
         if request.GET.get("corso"):
@@ -2974,6 +3018,7 @@ def formazione_sessione_create(request):
         "modalita_aiuto": TrainingSession.MODALITA_AIUTO,
         "form": form,
         "modo": "crea",
+        "ultime_edizioni": _ultime_edizioni_per_corso(),
         "rinnovo": rinnovo,
     })
 
@@ -3099,8 +3144,20 @@ def formazione_sessione_detail(request, sessione_id: int):
         "pannello":       request.GET.get("pannello", ""),
         "risposte_di":    _risposte_lezione_online(request, sessione),
         "guestportal_ok": _guestportal_ok(),
+        "preparazione":   _preparazione(sessione, len(lezioni), n_iscritti),
         **_contesto_aula(sessione),
     })
+
+
+def _preparazione(sessione, n_lezioni: int, n_iscritti: int) -> dict | None:
+    """Percorso «Prepara la sessione» ancora a metà (mancano giornate o iscritti):
+    la fase «Prima» mostra «Riprendi la preparazione». None per le online, che
+    hanno il proprio percorso, e per le edizioni chiuse o annullate."""
+    if sessione.modalita == "ONLINE" or sessione.stato not in ("PIANIFICATA", "IN_CORSO") or sessione.is_approvata:
+        return None
+    from ..views_sessione_prepara import stato_preparazione
+    stato = stato_preparazione(sessione, n_lezioni=n_lezioni, n_iscritti=n_iscritti)
+    return None if stato["completa"] else stato
 
 
 def _guestportal_ok() -> bool:
@@ -3221,7 +3278,7 @@ def formazione_sessione_delete(request, sessione_id: int):
 def formazione_lezione_add(request, sessione_id: int):
     if not _helpers._can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per modificare sessioni formative.")
-        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+        return _dopo_azione(request, "anagrafica:formazione_sessione_detail", sessione_id)
     if (blocco := _redirect_se_edizione_chiusa(request, sessione_id, "detail", livello="chiusa")) is not None:
         return blocco
     sessione = get_object_or_404(TrainingSession, pk=sessione_id)
@@ -3236,7 +3293,7 @@ def formazione_lezione_add(request, sessione_id: int):
         for field_errors in form.errors.values():
             for err in field_errors:
                 messages.error(request, err)
-    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    return _dopo_azione(request, "anagrafica:formazione_sessione_detail", sessione_id)
 
 
 @login_required
@@ -3267,20 +3324,22 @@ def formazione_lezione_edit(request, sessione_id: int, lezione_id: int):
 def formazione_lezione_delete(request, sessione_id: int, lezione_id: int):
     if not _helpers._can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per modificare sessioni formative.")
-        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+        return _dopo_azione(request, "anagrafica:formazione_sessione_detail", sessione_id)
     if (blocco := _redirect_se_edizione_chiusa(request, sessione_id, "detail", livello="chiusa")) is not None:
         return blocco
     lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione_id=sessione_id)
     num = lezione.numero
     n_presenze = lezione.presenze.count()
     data = lezione.data.isoformat() if lezione.data else ""
+    from ..services.formazione_preparazione import libera_giornata
+    libera_giornata(lezione)  # la sala prenotata in Outlook per quel giorno torna libera
     lezione.delete()
     _audit_formazione(request, "lezione_eliminata", {
         "sessione_id": sessione_id, "lezione_id": lezione_id,
         "numero": num, "data": data, "presenze_eliminate": n_presenze,
     })
     messages.success(request, f'Lezione {num} eliminata.')
-    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    return _dopo_azione(request, "anagrafica:formazione_sessione_detail", sessione_id)
 
 
 @login_required
@@ -3294,7 +3353,7 @@ def formazione_lezioni_genera(request, sessione_id: int):
     rilanciare dopo aver allungato la sessione."""
     if not _helpers._can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per modificare sessioni formative.")
-        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+        return _dopo_azione(request, "anagrafica:formazione_sessione_detail", sessione_id)
     if (blocco := _redirect_se_edizione_chiusa(request, sessione_id, "detail", livello="chiusa")) is not None:
         return blocco
     sessione = get_object_or_404(TrainingSession.objects.select_related("corso"), pk=sessione_id)
@@ -3303,7 +3362,7 @@ def formazione_lezioni_genera(request, sessione_id: int):
         for field_errors in form.errors.values():
             for err in field_errors:
                 messages.error(request, err)
-        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+        return _dopo_azione(request, "anagrafica:formazione_sessione_detail", sessione_id)
 
     from ..services.formazione_pianificazione import genera_lezioni, giorni_da_pianificare
     cd = form.cleaned_data
@@ -3355,7 +3414,7 @@ def formazione_lezioni_genera(request, sessione_id: int):
             "Nessuna giornata da generare: i giorni scelti hanno già una lezione "
             "(o non cadono nei giorni della settimana selezionati).",
         )
-    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    return _dopo_azione(request, "anagrafica:formazione_sessione_detail", sessione_id)
 
 
 @login_required
@@ -3809,7 +3868,7 @@ def _contesto_iscrivi_massa(sessione, attivo: bool) -> dict:
 def formazione_iscrizione_add(request, sessione_id: int):
     if not _helpers._can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per gestire le iscrizioni.")
-        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+        return _dopo_azione(request, "anagrafica:formazione_sessione_iscritti", sessione_id)
     if (blocco := _redirect_se_edizione_chiusa(request, sessione_id, "iscritti", livello="chiusa")) is not None:
         return blocco
     sessione = get_object_or_404(TrainingSession, pk=sessione_id)
@@ -3820,7 +3879,7 @@ def formazione_iscrizione_add(request, sessione_id: int):
         legacy_id = 0
     if not legacy_id:
         messages.error(request, "Selezionare un dipendente valido.")
-        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+        return _dopo_azione(request, "anagrafica:formazione_sessione_iscritti", sessione_id)
 
     # Enforcement *soft* dei prerequisiti: se mancano e non c'è forzatura esplicita,
     # blocca con avviso; con force=1 procede ma traccia la deroga in audit.
@@ -3834,7 +3893,7 @@ def formazione_iscrizione_add(request, sessione_id: int):
             f'"{nome}" non soddisfa i prerequisiti del corso '
             f'(manca: {", ".join(mancanti)}). Per iscriverlo comunque, conferma la forzatura.',
         )
-        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+        return _dopo_azione(request, "anagrafica:formazione_sessione_iscritti", sessione_id)
     if mancanti and force:
         _helpers._audit_safe(request, "formazione_iscrizione_forzata", "formazione", {
             "sessione_id": sessione.pk, "legacy_id": legacy_id, "prerequisiti_mancanti": mancanti,
@@ -3861,7 +3920,7 @@ def formazione_iscrizione_add(request, sessione_id: int):
         messages.success(request, f'Dipendente "{nome}" iscritto alla sessione.')
     else:
         messages.warning(request, "Dipendente già iscritto a questa sessione.")
-    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    return _dopo_azione(request, "anagrafica:formazione_sessione_iscritti", sessione_id)
 
 
 @login_required
@@ -4026,7 +4085,7 @@ def formazione_iscrizione_attestato_upload(request, sessione_id: int, iscrizione
 def formazione_iscrizione_delete(request, sessione_id: int, iscrizione_id: int):
     if not _helpers._can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per gestire le iscrizioni.")
-        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+        return _dopo_azione(request, "anagrafica:formazione_sessione_iscritti", sessione_id)
     if (blocco := _redirect_se_edizione_chiusa(request, sessione_id, "iscritti", livello="chiusa")) is not None:
         return blocco
     iscrizione = get_object_or_404(TrainingEnrollment, pk=iscrizione_id, sessione_id=sessione_id)
@@ -4037,7 +4096,7 @@ def formazione_iscrizione_delete(request, sessione_id: int, iscrizione_id: int):
             "Se il completamento è sbagliato annullalo indicando il motivo; se la persona non "
             "ha partecipato usa lo stato «Ritirato».",
         )
-        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+        return _dopo_azione(request, "anagrafica:formazione_sessione_iscritti", sessione_id)
     n_presenze = TrainingLessonAttendance.objects.filter(
         lezione__sessione_id=sessione_id, legacy_anagrafica_id=iscrizione.legacy_anagrafica_id,
     ).count()
@@ -4049,7 +4108,7 @@ def formazione_iscrizione_delete(request, sessione_id: int, iscrizione_id: int):
     iscrizione.delete()
     _audit_formazione(request, "iscrizione_eliminata", dettaglio)
     messages.success(request, "Iscrizione rimossa.")
-    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    return _dopo_azione(request, "anagrafica:formazione_sessione_iscritti", sessione_id)
 
 
 @login_required

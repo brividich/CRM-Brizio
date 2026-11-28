@@ -59,6 +59,43 @@
       <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Corso" icon="i-cap" desc="Quale corso viene erogato e con quale modalità." fields=form|section_fields:"corso" %}
+      {% if modo == "crea" and ultime_edizioni %}
+      <input type="hidden" name="come_edizione" id="sf-come" value="">
+      <div class="fmd-form-sec sf-come" id="sf-come-box" style="display:none;">
+        <span id="sf-come-txt"></span>
+        <button type="button" class="fmd-btn fmd-btn-ghost" id="sf-come-btn">↺ Come l'ultima edizione</button>
+      </div>
+      {{ ultime_edizioni|json_script:"sf-ultime" }}
+      <style>
+      .sf-come{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--text-mid,#4a5568);background:#f3f7fb}
+      .sf-come.fatto{background:#e8f7ee;color:#15803d}
+      body.theme-dark .sf-come{background:#17233d;color:#cbd5e1}
+      body.theme-dark .sf-come.fatto{background:rgba(22,163,74,.15);color:#4ade80}
+      </style>
+      <script>
+      (function(){
+        var dati=JSON.parse(document.getElementById("sf-ultime").textContent);
+        var corso=document.getElementById("id_corso"), box=document.getElementById("sf-come-box");
+        var txt=document.getElementById("sf-come-txt"), btn=document.getElementById("sf-come-btn"), come=document.getElementById("sf-come");
+        if(!corso||!box) return;
+        function metti(id,v){var el=document.getElementById(id); if(el&&v!==undefined){el.value=v; el.dispatchEvent(new Event("change",{bubbles:true}));}}
+        function aggiorna(){
+          var u=dati[corso.value]; box.classList.remove("fatto"); come.value="";
+          if(!u){box.style.display="none"; return;}
+          box.style.display=""; btn.style.display="";
+          txt.textContent="Ultima edizione di questo corso: "+u.codice+(u.data?" del "+u.data:"")+(u.sala?" · sala "+u.sala:"")+(u.sede&&!u.sala?" · "+u.sede:"")+".";
+        }
+        btn.addEventListener("click",function(){
+          var u=dati[corso.value]; if(!u) return;
+          if(u.modalita){var r=document.querySelector('input[name="modalita"][value="'+u.modalita+'"]'); if(r) r.checked=true;}
+          metti("id_sede",u.sede); metti("id_docente",u.docente); metti("id_docente_ente",u.docente_ente); metti("id_docente_nome",u.docente_nome);
+          come.value=u.id; box.classList.add("fatto"); btn.style.display="none";
+          txt.textContent="✓ Ripresi modalità, sede"+(u.sala?", sala":"")+" e docente da "+u.codice+". Le giornate le copi al passo successivo.";
+        });
+        corso.addEventListener("change",aggiorna); aggiorna();
+      })();
+      </script>
+      {% endif %}
       <div class="fmd-form-sec">
         <div class="fmd-form-sec-h"><svg class="fmd-ico"><use href="#i-calendar"/></svg><span class="fmd-form-sec-t">Come si svolge</span></div>
         <div class="sf-modi" role="radiogroup" aria-label="Modalità">

@@ -83,13 +83,31 @@
     <section class="fmd-panel elg-sec" id="ciclo">
       <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Il ciclo di un'edizione</h2>
       <ol>
-        <li><strong>Pianificata</strong>: crei l'edizione dal corso, generi le giornate, iscrivi i partecipanti.</li>
+        <li><strong>Pianificata</strong>: crei l'edizione dal corso e il percorso «Prepara la sessione» ti porta a generare le giornate e iscrivere i partecipanti.</li>
         <li><strong>In corso</strong>: registri le presenze di ogni giornata (a mano o dal registro firme).</li>
         <li><strong>Completata</strong>: da «Modifica sessione» porti lo stato a «Completata». Da questo momento calendario, iscritti e presenze <strong>non si modificano più</strong>; restano aperti solo gli esiti dei partecipanti.</li>
         <li><strong>Approvata</strong>: MSM, o MSO quale delegato, approva il MOD.040 con il pulsante «Approva MOD.040». L'edizione è chiusa del tutto, esiti compresi.</li>
         <li><strong>Verifica NC</strong>: dopo 6 mesi dalla fine dell'edizione si registra l'esito della verifica di assenza NC.</li>
       </ol>
       <p class="elg-nota">Un'edizione chiusa mostra in alto il riquadro 🔒 con il motivo. Per correggerla si usa «Riapri», mai la modifica diretta.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="sessione-prepara">
+      <h2><svg class="fmd-ico"><use href="#i-calendar"/></svg>Nuova sessione passo passo</h2>
+      <ul>
+        <li>Nel form «Nuova sessione», scelto il corso, «↺ Come l'ultima edizione» riprende modalità, sede, sala e docente dall'edizione più recente già partita.</li>
+        <li>Dopo «Crea sessione» si apre «Prepara la sessione»: in alto i passi <strong>Dati · Giornate · Iscritti · Gruppi · Pronta</strong>, dove «Gruppi» si fa solo se serve (presso ente esterno <strong>Dati · Iscritti · Pronta</strong>: il calendario lo tiene l'ente). Le sessioni «Online: slide + test» vanno invece nella pagina «Prepara» della lezione online (slide, test, invio).</li>
+        <li><strong>Giornate</strong>: orario-tipo, pausa e giorni della settimana, poi «Genera le giornate»; «Aggiungi una giornata singola» per una data sparsa; «Togli» su una riga la cancella. Sotto la tabella il confronto fra ore pianificate e ore del corso.</li>
+        <li><strong>Sala</strong> (in aula e misto): la tendina propone le sale aziendali con i posti; si gestiscono in <strong>Reception → Configurazione → Sale</strong> (le stesse del KICK-OFF). «Prenota la sala» crea in Outlook un evento per ogni giornata nel tuo calendario con la sala come risorsa: se è già occupata la sala rifiuta e ti arriva la risposta. Senza casella Microsoft 365 la sala resta segnata solo nel portale. Togliendo una giornata, o cambiando sala, la prenotazione Outlook si cancella. Le giornate con sala risultano occupate anche nella griglia sale di reception e KICK-OFF.</li>
+        <li>Sotto ogni giornata gli <strong>avvisi</strong>: sala già occupata (altra formazione, incontro KICK-OFF, visita ospiti) e docente già in aula in un'altra sessione nelle stesse ore. Sono avvisi, non blocchi.</li>
+        <li>Senza giornate, se il corso ha un'edizione precedente, «Copia le giornate» rimette lo stesso schema (stessi orari e pause, stessa distanza in giorni lavorativi) a partire dall'inizio della nuova.</li>
+        <li><strong>Programma per giornata</strong>: una griglia argomenti × giornate dice cosa si fa quando; in arancio gli argomenti ancora senza giornata. «Salva il programma».</li>
+        <li><strong>Iscritti</strong>: l'elenco «Da formare per questo corso» propone chi ha l'obbligo del corso ed è scaduto, in scadenza o mai formato, con già spuntati quelli da rinnovare; «Iscrivi i selezionati» li iscrive tutti. «Aggiungi un'altra persona» per chi non è nell'elenco. Chi non ha i prerequisiti si iscrive forzando dalla pagina iscritti.</li>
+        <li>Accanto a iscritti e proposti compaiono gli avvisi «Ferie / assenza il …» (assenze approvate o programmate) e «Corso … il … ore …» (iscritto a un altro corso nelle stesse ore). Se gli iscritti superano i posti della sala, il passo lo dice e propone quanti gruppi fare.</li>
+        <li><strong>Gruppi</strong> (facoltativo): «Tutti insieme» o «In più gruppi». Con «−/+» scegli quanti gruppi (2–8); «Proponi» li riempie a rotazione, per reparto o per mansione. Il calendario dei gruppi: <strong>Stesso giorno, orari diversi</strong> (indichi l'ora di inizio di ogni gruppo; durata e pausa restano uguali), <strong>Giorni diversi, stesso orario</strong> (ogni gruppo parte N giorni lavorativi dopo il precedente) o <strong>Calendario libero</strong> (i gruppi nascono senza giornate e le metti tu). Le persone si spostano trascinandole nella <strong>Lavagna</strong> (clic su più nomi per spostarli insieme) o nella <strong>Tabella</strong> (spunta e «Sposta i selezionati in»). «Dividi in gruppi» crea una sessione per gruppo, collegata dalla stessa edizione. Dopo la divisione la lavagna sposta le persone fra i gruppi con «Salva gli spostamenti»; chi ha già firmato una giornata resta nel suo gruppo.</li>
+        <li><strong>Pronta</strong>: cosa c'è e cosa manca (anche avvisi su persone e sala, prenotazione Outlook, riepilogo dei gruppi); in aula i collegamenti a foglio firme, QR d'aula e locandina.</li>
+        <li>Ogni azione si salva subito e «Salta per ora» passa avanti senza perdere niente. Finché mancano giornate o iscritti, nella fase «Prima» della sessione compare «Riprendi la preparazione», che riapre il primo passo mancante.</li>
+      </ul>
     </section>
 
     <section class="fmd-panel elg-sec" id="edizione">

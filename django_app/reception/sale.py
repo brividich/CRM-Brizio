@@ -6,8 +6,9 @@
   con la sala invitata come risorsa (come gli incontri KICK-OFF). Senza casella resta segnata
   solo nel portale.
 - ``libera``: alla cancellazione dell'invito l'evento Outlook si cancella e la sala torna libera.
-- ``blocchi_giorno``: le visite con sala di un giorno, per la griglia della reception (il KICK-OFF
-  non le vede: per lui la sala risulta occupata da Outlook).
+- ``blocchi_visite``: le visite con sala di un giorno, per la griglia della reception (il KICK-OFF
+  non le vede: per lui la sala risulta occupata da Outlook). Le giornate di formazione con sala le
+  aggiunge la griglia stessa (``tasks.services.sale``) e le controlla ``verifica``.
 """
 from __future__ import annotations
 
@@ -47,7 +48,16 @@ def _visite_con_sala(giorno: date, *, escludi_pk=None):
     return qs.exclude(pk=escludi_pk) if escludi_pk else qs
 
 
-def blocchi_giorno(giorno: date) -> list[dict]:
+def _blocchi_formazione(giorno: date) -> list[dict]:
+    try:
+        from anagrafica.services.formazione_preparazione import blocchi_formazione
+        return blocchi_formazione(giorno)
+    except Exception:  # noqa: BLE001 - la griglia resta con le sole visite
+        logger.warning("Reception: giornate di formazione non lette per %s", giorno, exc_info=True)
+        return []
+
+
+def blocchi_visite(giorno: date) -> list[dict]:
     """``{sala_id, inizio, fine, titolo}`` delle visite con sala: nel titolo solo il referente, mai l'ospite."""
     righe = []
     for p in _visite_con_sala(giorno):
@@ -68,6 +78,9 @@ def verifica(sala, giorno: date | None, inizio: time | None, fine: time | None, 
         altro = finestra_incontro(m)
         if altro and f[0] < altro[1] and altro[0] < f[1]:
             return f"La sala {sala.nome} è già prenotata dalle {altro[0]:%H:%M} alle {altro[1]:%H:%M} per un incontro KICK-OFF."
+    for b in _blocchi_formazione(giorno):
+        if b["sala_id"] == sala.pk and f[0] < b["fine"] and b["inizio"] < f[1]:
+            return f"La sala {sala.nome} è già prenotata dalle {b['inizio']:%H:%M} alle {b['fine']:%H:%M} per una giornata di formazione."
     for p in _visite_con_sala(giorno, escludi_pk=escludi_pk).filter(sala_id=sala.pk):
         altro = finestra(p.data_visita, p.ora_inizio, p.ora_fine)
         if altro and f[0] < altro[1] and altro[0] < f[1]:

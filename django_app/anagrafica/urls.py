@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from . import views_coefficienti
 from . import views_sessioni
+from . import views_sessione_prepara
 from . import views_mpq
 from . import views_mpq_qualifiche as views_mpq_q
 from . import views_mpq_utensili as views_mpq_u
@@ -762,6 +763,8 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/", views.formazione_sessione_detail, name="formazione_sessione_detail"),
     # Lezione online della sessione (slide + test): preparazione e gestione
     path("formazione/sessioni/<int:sessione_id>/online/", views_sessione_online.sessione_online_prepara, name="sessione_online_prepara"),
+    path("formazione/sessioni/<int:sessione_id>/prepara/", views_sessione_prepara.formazione_sessione_prepara, name="formazione_sessione_prepara"),
+    path("formazione/sessioni/<int:sessione_id>/prepara/<slug:azione>/", views_sessione_prepara.formazione_sessione_prepara_azione, name="formazione_sessione_prepara_azione"),
     path("formazione/sessioni/<int:sessione_id>/online/impostazioni", views_sessione_online.sessione_online_impostazioni, name="sessione_online_impostazioni"),
     path("formazione/sessioni/<int:sessione_id>/online/slide/importa", views_sessione_online.sessione_online_slide_importa, name="sessione_online_slide_importa"),
     path("formazione/sessioni/<int:sessione_id>/online/slide/dal-corso", views_sessione_online.sessione_online_slide_corso, name="sessione_online_slide_corso"),

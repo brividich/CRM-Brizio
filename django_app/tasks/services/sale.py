@@ -82,7 +82,7 @@ def disponibilita_giorno(
             "inizio": _hhmm(finestra[0]), "fine": _hhmm(finestra[1]), "fonte": "portale",
             "titolo": f"Incontro {m.numero} · {m.project.name}",
         })
-    for v in blocchi_extra or []:
+    for v in list(blocchi_extra or []) + _blocchi_formazione(giorno):
         if v["sala_id"] not in righe:
             continue
         finestre_portale.setdefault(v["sala_id"], []).append((v["inizio"], v["fine"]))
@@ -162,6 +162,16 @@ def _nomi_per_email(emails: list[str]) -> dict[str, str]:
     return nomi
 
 
+def _blocchi_formazione(giorno: date) -> list[dict]:
+    """Giornate di formazione con sala (Anagrafica → Formazione): anche loro occupano la sala."""
+    try:
+        from anagrafica.services.formazione_preparazione import blocchi_formazione
+        return blocchi_formazione(giorno)
+    except Exception:  # noqa: BLE001 - la disponibilità resta con gli incontri
+        logger.warning("Sale: giornate di formazione non lette per %s", giorno, exc_info=True)
+        return []
+
+
 def conflitti_portale(meeting) -> list[str]:
     """Incontri del portale nella stessa sala che si sovrappongono a questo."""
     if not meeting.sala_id:
@@ -176,6 +186,12 @@ def conflitti_portale(meeting) -> list[str]:
             messaggi.append(
                 f"La sala {meeting.sala.nome} è già prenotata dalle {_hhmm(f[0])} alle {_hhmm(f[1])} "
                 f"per l'incontro {altro.numero} di {altro.project.name}."
+            )
+    for b in _blocchi_formazione(meeting.data):
+        if b["sala_id"] == meeting.sala_id and _si_sovrappone(finestra, (b["inizio"], b["fine"])):
+            messaggi.append(
+                f"La sala {meeting.sala.nome} è già prenotata dalle {_hhmm(b['inizio'])} alle {_hhmm(b['fine'])} "
+                f"per una giornata di formazione."
             )
     return messaggi
 
