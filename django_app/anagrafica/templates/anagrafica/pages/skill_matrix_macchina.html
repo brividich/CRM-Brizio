@@ -67,6 +67,16 @@
 .sm-exp-m a{display:block;padding:8px 10px;border-radius:8px;color:#0c2545;text-decoration:none;font-weight:600;font-size:13px}
 .sm-exp-m a:hover{background:#f1f5f9}.sm-exp-m small{display:block;font-weight:400;color:#64748b;font-size:11.5px}
 .sm-empty{text-align:center;padding:46px 16px;color:#475569}
+.sm-c.ds{background:#fecaca!important;color:#7f1d1d!important;box-shadow:inset 0 0 0 2px #dc2626}
+.sm-c.ds::before{content:"!";position:absolute;top:-5px;left:-4px;background:#dc2626;color:#fff;border-radius:50%;width:11px;height:11px;line-height:11px;font-size:8.5px}
+.sm-c.rq::before{content:"";position:absolute;bottom:-2px;left:-2px;width:7px;height:7px;border-radius:50%;background:#f59e0b;border:1px solid #fff}
+.sm-rs{display:inline-block;font-size:9.5px;font-weight:700;border-radius:999px;padding:0 6px;margin-left:4px;text-decoration:none;vertical-align:middle}
+.sm-rs.ok{background:#dcfce7;color:#166534}.sm-rs.ko{background:#fee2e2;color:#991b1b}.sm-rs.wa{background:#fef3c7;color:#92400e}.sm-rs.in{background:#e0e7ff;color:#3730a3}
+.sm-emi{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:8px 12px;margin:8px 0;font-size:12.5px}
+.sm-emi.in{background:#eef2ff;border-color:#c7d2fe;color:#3730a3}
+.sm-emi a{color:inherit;font-weight:700}
+body.theme-dark .sm-emi{background:rgba(255,107,0,.1);border-color:#9a3412;color:#fdba74}
+body.theme-dark .sm-emi.in{background:rgba(99,102,241,.12);border-color:#4338ca;color:#c7d2fe}
 body.theme-dark .sm-tool,body.theme-dark .sm-wrap,body.theme-dark .sm-pan,body.theme-dark .sm-exp-m{background:var(--surface);border-color:var(--border)}
 body.theme-dark .sm-chip{background:var(--surface);border-color:var(--border);color:var(--text-mid)}
 body.theme-dark .sm-chip.on{background:#1f87cd;border-color:#1f87cd;color:#fff}
@@ -102,6 +112,8 @@ body.theme-dark .sm-c.vu{border-color:#334155}
       {% if can_impostazioni %}<a href="{% url 'anagrafica:skm_impostazioni' %}" class="hr-btn hr-btn-outline" title="Soglia operativa, CAR, uomo-solo, etichette">⚙ Impostazioni</a>{% endif %}
       <a href="{% url 'anagrafica:skm_copertura' %}" class="hr-btn hr-btn-outline" title="Verifica copertura minima (AS/EN 9100)">Copertura minima</a>
       <a href="{% url 'anagrafica:skm_match_validazione' %}" class="hr-btn hr-btn-outline" title="Abbinamento competenza → macchina">Validazione match</a>
+      <a href="{% url 'scadenze_globali' %}?sorgente=qualifiche" class="hr-btn hr-btn-outline" title="Verifiche semestrali, emissioni da approvare, abilitazioni da sospendere">Scadenzario</a>
+      <a href="{% url 'anagrafica:skm_emissioni' %}" class="hr-btn hr-btn-outline" title="Emissioni del MOD.187 approvate e firmate (MT CN 06 §8.5)">Emissioni MOD.187</a>
       <details class="sm-exp">
         <summary class="hr-btn hr-btn-primary">⬇ Esporta ▾</summary>
         <div class="sm-exp-m">
@@ -114,6 +126,14 @@ body.theme-dark .sm-c.vu{border-color:#334155}
     </div>
   </div>
 
+  {% for e in in_firma %}
+  <div class="sm-emi in">MOD.187 n.{{ e.numero }} ({{ e.ambito }}) in firma dal {{ e.creata_il|date:"d/m/Y" }}: vale come emissione dopo l'approvazione di Direzione/RDD. <a href="{% url 'anagrafica:skm_emissione' e.pk %}">Apri</a></div>
+  {% endfor %}
+  {% if da_emettere %}
+  <div class="sm-emi"><span>Matrice cambiata dopo l'ultima emissione approvata in <b>{{ da_emettere|join:", " }}</b>: va emessa e firmata (MT CN 06 §8.4-8.5).</span>
+    {% if can_manage %}<button type="button" class="hr-btn hr-btn-primary hr-btn-sm" data-apri="skmEmetti">✍ Emetti MOD.187</button>{% endif %}
+    <a href="{% url 'anagrafica:skm_emissioni' %}">Emissioni</a></div>
+  {% endif %}
   <div class="sm-tabs">
     <span class="sm-tab active">Abilitazioni</span>
     <a class="sm-tab" href="{% url 'anagrafica:matrice_competenze' %}">Matrice qualifiche</a>
@@ -136,6 +156,10 @@ body.theme-dark .sm-c.vu{border-color:#334155}
       <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-refresh"/></svg></span><span class="fmd-mtr-val">{{ kpi.rivalutare }}</span></div>
       <div class="fmd-mtr-lbl">Da rivalutare</div><div class="fmd-mtr-sub">rivalutazione scaduta, non bloccante</div>
     </a>
+    <a class="fmd-mtr fmd-t-{{ kpi.sospendere|yesno:'orange,green' }} kpi-link" href="{% url 'anagrafica:skill_matrix_macchina' %}?solo=sospendere{% if kpi_qs_reparto %}&amp;{{ kpi_qs_reparto }}{% endif %}#sm-matrice" title="Abilitazioni attive da L in su con un requisito formale scaduto o mancante (corso qualificante, qualifica, MOD.128/CND)">
+      <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi.sospendere }}</span></div>
+      <div class="fmd-mtr-lbl">Da sospendere</div><div class="fmd-mtr-sub">requisito scaduto o mancante</div>
+    </a>
     {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.continuita_persa|yesno:"orange,green" icona="i-refresh" valore=kpi.continuita_persa label="Continuità persa" %}
   </section>
 
@@ -149,13 +173,14 @@ body.theme-dark .sm-c.vu{border-color:#334155}
     <input type="search" class="sm-cerca" id="sm-cerca" placeholder="Cerca persona o colonna" aria-label="Cerca persona o colonna">
     <a class="sm-chip{% if solo == 'rivalutare' %} on{% endif %}" href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&amp;{% endif %}{% if solo != 'rivalutare' %}solo=rivalutare&amp;{% endif %}{% if solo_macchine %}tipo=macchine&amp;{% endif %}data={{ data_sel|date:'Y-m-d' }}#sm-matrice">Solo da rivalutare</a>
     <a class="sm-chip{% if solo == 'sospese' %} on{% endif %}" href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&amp;{% endif %}{% if solo != 'sospese' %}solo=sospese&amp;{% endif %}{% if solo_macchine %}tipo=macchine&amp;{% endif %}data={{ data_sel|date:'Y-m-d' }}#sm-matrice">Solo sospese</a>
+    <a class="sm-chip{% if solo == 'sospendere' %} on{% endif %}" href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&amp;{% endif %}{% if solo != 'sospendere' %}solo=sospendere&amp;{% endif %}{% if solo_macchine %}tipo=macchine&amp;{% endif %}data={{ data_sel|date:'Y-m-d' }}#sm-matrice">Da sospendere</a>
     <a class="sm-chip{% if solo_macchine %} on{% endif %}" href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&amp;{% endif %}{% if solo %}solo={{ solo }}&amp;{% endif %}{% if not solo_macchine %}tipo=macchine&amp;{% endif %}data={{ data_sel|date:'Y-m-d' }}#sm-matrice">Solo macchine</a>
     <label class="sm-info" for="sm-data">Disponibili il</label>
     <input type="date" id="sm-data" name="data" value="{{ data_sel|date:'Y-m-d' }}" onchange="this.form.submit()">
     <span class="sm-info">{{ totale_persone }} persone · {{ n_macchine }} colonne{% if n_assenti %} · <b style="color:#991b1b;">{{ n_assenti }} assenti</b>{% endif %}{% if n_da_confermare %} · <b style="color:#854d0e;">{{ n_da_confermare }} da confermare</b>{% endif %}</span>
     <div class="sm-leg">
       {% for k, etichetta, testo in legenda %}<span><span class="sm-c {{ k }}">{{ k }}</span> {{ etichetta }}</span>{% endfor %}
-      <span><span class="sm-c U ar"></span> da rivalutare</span><span><span class="sm-c U st"></span> sotto il richiesto</span>
+      <span><span class="sm-c U ar"></span> da rivalutare</span><span><span class="sm-c U st"></span> sotto il richiesto</span><span><span class="sm-c U ds"></span> da sospendere</span><span><span class="sm-c U rq"></span> requisito in scadenza</span>
     </div>
   </form>
 
@@ -184,7 +209,7 @@ body.theme-dark .sm-c.vu{border-color:#334155}
           <thead>
             <tr class="g">
               <th class="nm" rowspan="1"></th>
-              {% for g in dati.gruppi_colonne %}<th colspan="{{ g.colonne|length }}" title="{{ g.reparto }}{% if g.car %} · CAR {{ g.car }}{% endif %}">{{ g.reparto }}{% if g.car %} <small>· {{ g.car }}</small>{% endif %}</th>{% endfor %}
+              {% for g in dati.gruppi_colonne %}<th colspan="{{ g.colonne|length }}" title="{{ g.reparto }}{% if g.car %} · CAR {{ g.car }}{% endif %}">{{ g.reparto }}{% if g.car %} <small>· {{ g.car }}</small>{% endif %}{% with st=g.stato %}{% if st %}{% if st.verifica %}{% if st.verifica.stato == "scaduto" %}<a class="sm-rs ko" href="{% url 'anagrafica:skm_scadenzario' %}" title="Verifica semestrale (refresh del CAR) scaduta: {{ st.verifica.n_scadute }} rivalutazioni arretrate">verifica scaduta</a>{% else %}<a class="sm-rs {% if st.verifica.stato == 'in_arrivo' %}wa{% else %}ok{% endif %}" href="{% url 'anagrafica:skm_scadenzario' %}" title="Verifica semestrale (refresh del CAR)">verifica entro {{ st.verifica.prossima_revisione|date:"d/m" }}</a>{% endif %}{% endif %}{% if st.in_firma %}<a class="sm-rs in" href="{% url 'anagrafica:skm_emissione' st.in_firma.pk %}">in firma</a>{% elif st.modificata %}<a class="sm-rs ko" href="{% url 'anagrafica:skm_emissioni' %}" title="{% if st.ultima %}Cambiata dopo l'emissione n.{{ st.ultima.numero }} del {{ st.ultima.data_emissione|date:'d/m/Y' }}{% else %}Mai emessa{% endif %}">da emettere</a>{% else %}<a class="sm-rs ok" href="{% url 'anagrafica:skm_emissione' st.ultima.pk %}" title="Come l'emissione n.{{ st.ultima.numero }}">emessa {{ st.ultima.data_emissione|date:"d/m/y" }}</a>{% endif %}{% endif %}{% endwith %}</th>{% endfor %}
             </tr>
             <tr class="v">
               <th class="nm" style="vertical-align:bottom;">Persona</th>
@@ -205,7 +230,7 @@ body.theme-dark .sm-c.vu{border-color:#334155}
                 {% if r.disp_stato == 'assente' %}<span class="sm-disp ass" title="{% for a in r.disp_assenze %}{{ a.tipo }} {{ a.data_inizio|date:'d/m' }}–{{ a.data_fine|date:'d/m' }}{% if not forloop.last %}; {% endif %}{% endfor %}">assente</span>{% elif r.disp_stato == 'da_confermare' %}<span class="sm-disp dub">da confermare</span>{% endif %}
               </label></td>
               {% for cell, cid in r.celle_ui %}
-              <td>{% if cell %}<button type="button" class="sm-c {{ cell.livello }}{% if cell.arretrata %} ar{% endif %}{% if cell.sospesa %} so{% endif %}{% if cell.sotto %} st{% endif %}" data-k="{{ r.lid }}-{{ cid }}" title="{{ cell.livello }}{% if cell.sospesa %} · sospesa{% endif %}{% if cell.arretrata %} · da rivalutare{% endif %}{% if cell.sotto %} · sotto il richiesto ({{ cell.richiesto }}){% endif %}">{{ cell.livello }}</button>{% elif can_manage %}<button type="button" class="sm-c vu" data-k="{{ r.lid }}-{{ cid }}" title="Non in lista: clic per abilitare" aria-label="Abilita"></button>{% endif %}</td>
+              <td>{% if cell %}<button type="button" class="sm-c {{ cell.livello }}{% if cell.arretrata %} ar{% endif %}{% if cell.sospesa %} so{% endif %}{% if cell.sotto %} st{% endif %}{% if cell.da_sospendere %} ds{% elif cell.req_in_scadenza %} rq{% endif %}" data-k="{{ r.lid }}-{{ cid }}" title="{{ cell.livello }}{% if cell.da_sospendere %} · DA SOSPENDERE: {{ cell.req_ko|join:', ' }} scaduto o mancante{% elif cell.req_in_scadenza %} · requisito in scadenza{% endif %}{% if cell.sospesa %} · sospesa{% endif %}{% if cell.arretrata %} · da rivalutare{% endif %}{% if cell.sotto %} · sotto il richiesto ({{ cell.richiesto }}){% endif %}">{{ cell.livello }}</button>{% elif can_manage %}<button type="button" class="sm-c vu" data-k="{{ r.lid }}-{{ cid }}" title="Non in lista: clic per abilitare" aria-label="Abilita"></button>{% endif %}</td>
               {% endfor %}
             </tr>
             {% endfor %}
@@ -220,7 +245,10 @@ body.theme-dark .sm-c.vu{border-color:#334155}
   {% endif %}
 
 </div>
+{% if can_manage %}{% include "anagrafica/partials/_firma_stile.html" %}{% include "anagrafica/partials/_skm_emetti_dialog.html" with reparti=reparti_emissione reparto_scelto=filtro_reparto next=request.get_full_path %}{% endif %}
 <script>
+document.querySelectorAll("[data-apri]").forEach(function(b){b.addEventListener("click",function(){var d=document.getElementById(b.dataset.apri); if(d) d.showModal();});});
+document.querySelectorAll("dialog [data-chiudi]").forEach(function(b){b.addEventListener("click",function(){b.closest("dialog").close();});});
 (function(){
   var t=document.getElementById("sm-t"); if(!t) return;
   var pan=document.getElementById("sm-pannello");

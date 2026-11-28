@@ -13,9 +13,11 @@ Fonti e tipi (chiavi del pannello «Gestione»):
   delle CAR, verifica di efficacia, qualifica degli auditor, azioni della SoA,
   scenari di rischio OT;
 - ``qualifiche`` MOD.128 e skill matrix: scadenza e revisione dei processi
-  qualificati, requisiti, certificazioni individuali, abilitazioni macchina,
-  scadenza della persona qualificata (requisiti per ruolo) e della macchina
-  qualificata (verifica periodica, sospensioni da valutare);
+  qualificati, requisiti, certificazioni individuali, scadenza della persona
+  qualificata (requisiti per ruolo) e della macchina qualificata (verifica
+  periodica, sospensioni da valutare); Skill Matrix MOD.187 (MT CN 06 §8.4-8.5):
+  verifica semestrale per reparto, emissione da approvare, abilitazioni da
+  sospendere per requisito scaduto o mancante;
 - ``formazione``: documenti di enti e docenti, verifica NC a 6 mesi (MOD.040);
 - ``soc``: azioni correttive degli incidenti, accettazioni del rischio;
 - ``gdpr``: revisione periodica degli amministratori di sistema;
@@ -83,7 +85,10 @@ TIPI = {
         "processo_revisione": "Revisione processo qualificato",
         "requisito": "Requisito di qualifica",
         "certificazione_individuale": "Certificazione individuale",
-        "abilitazione_macchina": "Abilitazione macchina",
+        # Chiave storica (regole del pannello): dal 28/11/2026 una voce per reparto, non per persona.
+        "abilitazione_macchina": "Verifica semestrale MOD.187",
+        "skm_emissione": "Emissione MOD.187 da approvare",
+        "skm_sospendere": "Abilitazione da sospendere",
         "persona_processo": "Qualifica persona sul processo",
         "macchina_processo": "Qualifica macchina sul processo",
     },
@@ -338,22 +343,56 @@ def _mod128(ctx) -> list:
 
 
 def _abilitazioni(ctx) -> list:
-    if not _apre(ctx, "anagrafica:skm_scadenzario"):
-        return []
-    from anagrafica.models_skillmatrix import AbilitazioneMacchina
+    """Skill Matrix MOD.187 (MT CN 06 §8.4-8.5, §10.2-10.3; CND MT CN 65 §3.7).
 
-    righe = list(AbilitazioneMacchina.objects.filter(stato="attiva", prossima_revisione__isnull=False,
-                                                     prossima_revisione__lte=ctx.orizzonte).select_related("asset"))
-    nomi = _nomi_anagrafica({a.legacy_anagrafica_id for a in righe})
-    url = _url("anagrafica:skm_scadenzario")
+    - verifica semestrale per reparto: la prima rivalutazione del reparto (refresh del CAR);
+    - emissione da approvare: reparto con la matrice cambiata dopo l'ultima emissione
+      approvata (o mai emesso), o emissione in firma;
+    - abilitazione da sospendere: attiva da L in su con un requisito formale (corso
+      qualificante, qualifica, MOD.128 / approvazione CND) scaduto o mancante.
+    """
+    if not _apre(ctx, "anagrafica:skill_matrix_macchina"):
+        return []
+    from anagrafica.services import skillmatrix_emissioni as em
+    from anagrafica.services import skillmatrix_vista as vista
+
+    dati = vista.costruisci(oggi=ctx.oggi)
+    stati = em.stato_reparti(dati, oggi=ctx.oggi)
+    car = {g["reparto"]: g["car"] for g in dati["gruppi_colonne"]}
+    url_matrice = _url("anagrafica:skill_matrix_macchina")
+    url_refresh = _url("anagrafica:skm_scadenzario")
     items = []
-    for a in righe:
-        nome, reparto = nomi.get(a.legacy_anagrafica_id, ("", ""))
-        macchina = a.asset.name if a.asset_id else ""
-        items.append(_item(ctx, SOURCE_QUALIFICHE, "abilitazione_macchina", f"Abilitazione {macchina}".strip(), nome,
-                           a.prossima_revisione, url, elemento=macchina, reparto=reparto,
-                           extra={"legacy_id": a.legacy_anagrafica_id}))
+    for rep, st in stati.items():
+        v = st["verifica"]
+        if v and v["prossima_revisione"] and v["prossima_revisione"] <= ctx.orizzonte:
+            items.append(_item(ctx, SOURCE_QUALIFICHE, "abilitazione_macchina", f"Verifica semestrale MOD.187 · {rep}",
+                               car.get(rep) or rep, v["prossima_revisione"], url_refresh, elemento=rep, reparto=rep,
+                               extra={"rivalutazioni_arretrate": v["n_scadute"]}))
+        if st["in_firma"]:
+            e = st["in_firma"]
+            items.append(_item(ctx, SOURCE_QUALIFICHE, "skm_emissione", f"MOD.187 n.{e.numero} in firma · {rep}",
+                               "Direzione / RDD", timezone_data(e.creata_il), _url("anagrafica:skm_emissione", e.pk),
+                               elemento=rep, reparto=rep))
+        elif st["modificata"]:
+            quando = "mai emessa" if st["ultima"] is None else f"cambiata dopo la n.{st['ultima'].numero}"
+            items.append(_item(ctx, SOURCE_QUALIFICHE, "skm_emissione", f"Emettere MOD.187 · {rep} ({quando})",
+                               car.get(rep) or rep, ctx.oggi, _url("anagrafica:skm_emissioni"), elemento=rep, reparto=rep))
+    for r in dati["righe"]:
+        for i, cella in enumerate(r["celle"]):
+            if not cella or not cella["da_sospendere"]:
+                continue
+            col = dati["colonne"][i]
+            items.append(_item(ctx, SOURCE_QUALIFICHE, "skm_sospendere",
+                               f"{col['nome']} · manca {', '.join(cella['req_ko'])}", r["nome"],
+                               cella["scadenza_ko"] or ctx.oggi,
+                               f"{url_matrice}?persone={r['lid']}&apri={r['lid']}-{col['id']}#sm-matrice",
+                               elemento=col["nome"], reparto=col["reparto"], extra={"legacy_id": r["lid"]}))
     return items
+
+
+def timezone_data(momento) -> date:
+    from django.utils import timezone
+    return timezone.localtime(momento).date() if momento else date.today()
 
 
 def _persone_macchine_qualificate(ctx) -> list:

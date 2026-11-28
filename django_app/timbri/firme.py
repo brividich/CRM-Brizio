@@ -63,6 +63,8 @@ def tipo(chiave: str) -> TipoDocumento:
         # I tipi si registrano all'import del modulo che li usa.
         if chiave == "organigramma_ufficiale":
             import anagrafica.services.organigramma_firma  # noqa: F401
+        elif chiave == "skill_matrix_mod187":
+            import anagrafica.services.skillmatrix_emissioni  # noqa: F401
     return _TIPI[chiave]
 
 

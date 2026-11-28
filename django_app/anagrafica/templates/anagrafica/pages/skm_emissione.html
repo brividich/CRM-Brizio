@@ -1,0 +1,117 @@
+{% extends "core/base.html" %}
+{% block title %}MOD.187 n.{{ e.numero }} | Skill Matrix{% endblock %}
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/partials/_firma_stile.html" %}
+<style>
+.sx-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start}
+@media (max-width:1000px){.sx-grid{grid-template-columns:1fr}}
+.sx-card{background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:14px;padding:14px 16px}
+.sx-card h2{font-size:14px;margin:0 0 8px}
+.sx-t{width:100%;border-collapse:collapse;font-size:12.5px}
+.sx-t th{text-align:left;font-size:11px;color:#64748b;padding:5px 6px;border-bottom:1px solid var(--border,#e2e8f0)}
+.sx-t td{padding:5px 6px;border-bottom:1px solid var(--border,#eef2f7)}
+.sx-l{display:inline-block;min-width:22px;text-align:center;border-radius:5px;font-weight:800;font-size:11.5px;padding:1px 4px;background:#f1f5f9}
+.sx-badge{border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;vertical-align:middle}
+.sx-emessa{background:#dcfce7;color:#166534}.sx-in_firma{background:#e0e7ff;color:#3730a3}.sx-respinta,.sx-ritirata{background:#f1f5f9;color:#475569}
+.sx-meta{color:#64748b;font-size:12.5px;margin-top:4px}
+.sx-meta code{background:#f1f5f9;border-radius:5px;padding:1px 5px;font-size:11.5px}
+.sx-num{display:flex;gap:18px;flex-wrap:wrap;margin:4px 0 10px}.sx-num div{font-size:12px;color:#64748b}.sx-num b{display:block;font-size:20px;color:var(--text,#0c2545)}
+</style>
+{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div class="hr-shell" style="max-width:none">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow"><a href="{% url 'anagrafica:skill_matrix_macchina' %}" style="color:inherit">Skill Matrix</a> · <a href="{% url 'anagrafica:skm_emissioni' %}" style="color:inherit">emissioni</a></div>
+      <h1 class="hr-pagehead-title">MOD.187 n.{{ e.numero }} · {{ e.ambito }} <span class="sx-badge sx-{{ e.stato }}">{{ e.get_stato_display }}</span></h1>
+      <div class="sx-meta">Data di emissione {{ e.data_emissione|date:"d/m/Y" }}{% if mittente_nome %} · emessa da {{ mittente_nome }}{% elif e.creata_da %} · emessa da {{ e.creata_da.get_full_name|default:e.creata_da.username }}{% endif %} il {{ e.creata_il|date:"d/m/Y H:i" }}{% if e.approvata_da %} · approvata da {{ e.approvata_da }} il {{ e.emessa_il|date:"d/m/Y H:i" }}{% endif %}</div>
+      {% if e.nota %}<div class="sx-meta">Motivo: {{ e.nota }}</div>{% endif %}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <a class="hr-btn hr-btn-outline" href="{% url 'guida_modulo' 'anagrafica' %}#skill-matrix">? Guida</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:skm_emissione_pdf' e.pk %}" target="_blank" rel="noopener">⬇ PDF MOD.187</a>
+      {% if puo_ritirare %}<button type="button" class="hr-btn hr-btn-ghost" data-apri="sxRitira">Ritira</button>{% endif %}
+      {% if puo_respingere %}<button type="button" class="hr-btn hr-btn-outline" style="color:#b91c1c;border-color:#fca5a5" data-apri="sxRespingi">Respingi…</button>{% endif %}
+      {% if mia %}<button type="button" class="hr-btn hr-btn-primary" data-apri="sxFirma">✍ Firma come {{ corrente.etichetta }}</button>{% endif %}
+    </div>
+  </div>
+
+  <div class="sx-grid">
+    <div class="sx-card">
+      <div class="sx-num"><div><b>{{ n_persone }}</b>persone</div><div><b>{{ n_colonne }}</b>colonne</div>{% if precedente %}<div><b>{{ n_cambi }}</b>celle cambiate dalla n.{{ precedente.numero }}</div>{% endif %}</div>
+      <h2>Cosa cambia{% if precedente %} dalla n.{{ precedente.numero }} del {{ precedente.data_emissione|date:"d/m/Y" }}{% else %} (prima emissione){% endif %}</h2>
+      {% if not precedente %}<div class="sx-meta">Prima emissione: contiene tutta la matrice, la trovi nel PDF.</div>
+      {% elif cambi %}
+      <table class="sx-t" data-table-enhanced="0">
+        <thead><tr><th>Persona</th><th>Colonna</th><th>Prima</th><th>Ora</th></tr></thead>
+        <tbody>{% for c in cambi %}<tr><td>{{ c.persona }}</td><td>{{ c.colonna }}</td><td>{% if c.da %}<span class="sx-l">{{ c.da }}</span>{% else %}—{% endif %}</td><td>{% if c.a %}<span class="sx-l">{{ c.a }}</span>{% else %}<span style="color:#b91c1c">tolta</span>{% endif %}</td></tr>{% endfor %}</tbody>
+      </table>
+      {% if n_cambi > cambi|length %}<div class="sx-meta">… e altre {{ n_cambi|add:"-300" }}: le trovi nel PDF.</div>{% endif %}
+      {% else %}<div class="sx-meta">Nessuna cella cambiata: l'emissione conferma la precedente (verifica semestrale).</div>{% endif %}
+    </div>
+    <div class="sx-card">
+      <h2>Firme</h2>
+      {% if doc %}
+        {% include "anagrafica/partials/_firma_passi.html" with caselle=caselle %}
+        <div class="sx-meta" style="margin-top:8px">Codice verifica <code>{{ doc.codice_verifica }}</code> · impronta <code title="{{ doc.impronta }}">SHA-256 {{ doc.impronta|slice:":8" }}…{{ doc.impronta|slice:"-4:" }}</code></div>
+        {% if doc.motivo %}<div class="sx-meta">Motivo: {{ doc.motivo }}</div>{% endif %}
+      {% else %}
+        <div class="sx-meta">Emessa con la firma su portale spenta: la firma CEO va apposta a mano sul PDF stampato.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if mia %}
+<dialog class="fps-dlg" id="sxFirma">
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="azione" value="firma">
+    <header>✍ Firma il MOD.187 n.{{ e.numero }} come {{ corrente.etichetta }}<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      {% url 'anagrafica:skm_mia_immagine' 0 as img_zero %}
+      {% include "anagrafica/partials/_firma_campi.html" with opzioni=opzioni usa_totp=usa_totp etichetta=corrente.etichetta cosa="la Skill Matrix" img_base=img_zero|slice:":-2" %}
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary" style="background:#15803d;border-color:#15803d">✍ Firma</button>
+    </footer>
+  </form>
+</dialog>
+{% endif %}
+{% if puo_respingere %}
+<dialog class="fps-dlg" id="sxRespingi">
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="azione" value="respingi">
+    <header>Respingi il MOD.187 n.{{ e.numero }}<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      <label>Motivo (lo legge chi l'ha emesso)<textarea name="motivo" maxlength="1000" required placeholder="es. Manca il nuovo operatore della DM12"></textarea></label>
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary" style="background:#b91c1c;border-color:#b91c1c">Respingi</button>
+    </footer>
+  </form>
+</dialog>
+{% endif %}
+{% if puo_ritirare and doc.stato == "IN_FIRMA" %}
+<dialog class="fps-dlg" id="sxRitira">
+  <form method="post">
+    {% csrf_token %}<input type="hidden" name="azione" value="ritira">
+    <header>Ritira l'emissione<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo"><label>Motivo (facoltativo)<input name="motivo" maxlength="1000"></label>
+      <div class="fps-nota">Le firme già apposte decadono; per emettere di nuovo si riparte da «Emetti MOD.187».</div></div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary">Ritira</button>
+    </footer>
+  </form>
+</dialog>
+{% endif %}
+<script>
+document.querySelectorAll("[data-apri]").forEach(function (b) { b.addEventListener("click", function () { var d=document.getElementById(b.dataset.apri); if (d) d.showModal(); }); });
+document.querySelectorAll("dialog [data-chiudi]").forEach(function (b) { b.addEventListener("click", function () { b.closest("dialog").close(); }); });
+</script>
+{% endblock %}

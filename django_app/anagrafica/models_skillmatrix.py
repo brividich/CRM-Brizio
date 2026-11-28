@@ -864,3 +864,54 @@ class SogliaCopertura(models.Model):
         if self.processo_id:
             return f"Processo: {self.processo}"
         return self.descrizione_ambito or "—"
+
+
+# ---------------------------------------------------------------------------
+# Emissioni del MOD.187 (MT CN 06 §8.4-8.5, 28/11/2026)
+# ---------------------------------------------------------------------------
+class EmissioneSkm(models.Model):
+    """Un'emissione della Skill Matrix MOD.187: copia congelata, approvata e firmata.
+
+    ``contenuto`` è la matrice com'era al momento dell'emissione (stessa struttura
+    del PDF); ``impronte`` ha l'impronta di ogni reparto, per sapere se la matrice
+    è cambiata dopo l'ultima emissione. Con la firma su portale accesa l'emissione
+    nasce «in firma» (Redazione + Approvazione Direzione/RDD, ``timbri.firme``) e
+    vale solo dopo l'ultima firma; con la firma spenta vale subito.
+    """
+
+    STATO_IN_FIRMA = "in_firma"
+    STATO_EMESSA = "emessa"
+    STATO_RESPINTA = "respinta"
+    STATO_RITIRATA = "ritirata"
+    STATO_CHOICES = [
+        (STATO_IN_FIRMA, "In firma"),
+        (STATO_EMESSA, "Emessa"),
+        (STATO_RESPINTA, "Respinta"),
+        (STATO_RITIRATA, "Ritirata"),
+    ]
+
+    numero = models.PositiveIntegerField(help_text="Progressivo delle emissioni.")
+    reparto = models.CharField(max_length=120, blank=True, default="", help_text="Vuoto = tutti i reparti.")
+    data_emissione = models.DateField()
+    nota = models.TextField(blank=True, default="")
+    contenuto = models.JSONField(default=dict)
+    impronte = models.JSONField(default=dict, help_text="{reparto: SHA-256 della sua parte di matrice}.")
+    stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=STATO_IN_FIRMA, db_index=True)
+    documento_firma_id = models.PositiveIntegerField(null=True, blank=True)
+    approvata_da = models.CharField(max_length=200, blank=True, default="")
+    emessa_il = models.DateTimeField(null=True, blank=True)
+    creata_il = models.DateTimeField(auto_now_add=True)
+    creata_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name="+")
+
+    class Meta:
+        ordering = ["-numero"]
+        verbose_name = "Emissione MOD.187"
+        verbose_name_plural = "Emissioni MOD.187"
+
+    def __str__(self) -> str:
+        return f"MOD.187 n.{self.numero} {self.reparto or 'tutti i reparti'} ({self.get_stato_display()})"
+
+    @property
+    def ambito(self) -> str:
+        return self.reparto or "Tutti i reparti"

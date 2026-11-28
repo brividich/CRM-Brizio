@@ -1,0 +1,81 @@
+{% extends "core/base.html" %}
+{% block title %}Emissioni MOD.187 | Skill Matrix{% endblock %}
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/partials/_firma_stile.html" %}
+<style>
+.se-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;align-items:start}
+@media (max-width:1100px){.se-grid{grid-template-columns:1fr}}
+.se-card{background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:14px;padding:14px 16px}
+.se-card h2{font-size:14px;margin:0 0 8px;color:var(--text,#0c2545)}
+.se-t{width:100%;border-collapse:collapse;font-size:12.5px}
+.se-t th{text-align:left;font-size:11px;color:#64748b;font-weight:700;padding:5px 6px;border-bottom:1px solid var(--border,#e2e8f0)}
+.se-t td{padding:6px;border-bottom:1px solid var(--border,#eef2f7);vertical-align:top}
+.se-t td small{display:block;color:#64748b}
+.se-p{display:inline-block;border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.se-ok{background:#dcfce7;color:#166534}.se-ko{background:#fee2e2;color:#991b1b}.se-wa{background:#fef3c7;color:#92400e}.se-in{background:#e0e7ff;color:#3730a3}.se-gr{background:#f1f5f9;color:#475569}
+.se-meta{color:#64748b;font-size:12.5px;margin-top:4px}
+</style>
+{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div class="hr-shell" style="max-width:none">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow"><a href="{% url 'anagrafica:skill_matrix_macchina' %}" style="color:inherit">Skill Matrix</a> · emissioni</div>
+      <h1 class="hr-pagehead-title">Emissioni MOD.187</h1>
+      <div class="se-meta">MT CN 06: verifica ogni sei mesi e aggiornamento a ogni ingresso, cambio di mansione, nuova macchina o fase, non conformità di competenza (§8.4); ogni emissione approvata e firmata da Direzione/RDD (§8.5).</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <a class="hr-btn hr-btn-outline" href="{% url 'guida_modulo' 'anagrafica' %}#skill-matrix">? Guida</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'scadenze_globali' %}?sorgente=qualifiche">Scadenzario</a>
+      {% if can_manage %}<button type="button" class="hr-btn hr-btn-primary" data-apri="skmEmetti">✍ Emetti MOD.187</button>{% endif %}
+    </div>
+  </div>
+
+  <div class="se-grid">
+    <div class="se-card">
+      <h2>Reparti{% if n_da_emettere %} · <span class="se-p se-ko">{{ n_da_emettere }} da emettere</span>{% endif %}</h2>
+      <table class="se-t" data-table-enhanced="0">
+        <thead><tr><th>Reparto</th><th>Ultima emissione</th><th>Matrice</th><th>Verifica semestrale</th></tr></thead>
+        <tbody>
+        {% for rep, s in reparti %}
+          <tr>
+            <td><a href="{% url 'anagrafica:skill_matrix_macchina' %}?reparto={{ rep|urlencode }}#sm-matrice"><b>{{ rep }}</b></a></td>
+            <td>{% if s.ultima %}<a href="{% url 'anagrafica:skm_emissione' s.ultima.pk %}">n.{{ s.ultima.numero }} del {{ s.ultima.data_emissione|date:"d/m/Y" }}</a>{% else %}<span class="se-p se-gr">mai emessa</span>{% endif %}</td>
+            <td>{% if s.in_firma %}<a class="se-p se-in" href="{% url 'anagrafica:skm_emissione' s.in_firma.pk %}">n.{{ s.in_firma.numero }} in firma</a>{% elif s.modificata %}<span class="se-p se-ko">da emettere</span><small>{% if s.ultima %}cambiata dopo l'emissione{% else %}nessuna emissione{% endif %}</small>{% else %}<span class="se-p se-ok">come l'emissione</span>{% endif %}</td>
+            <td>{% if s.verifica %}{% if s.verifica.stato == "scaduto" %}<span class="se-p se-ko">scaduta</span><small>{{ s.verifica.n_scadute }} rivalutazioni arretrate</small>{% elif s.verifica.stato == "in_arrivo" %}<span class="se-p se-wa">entro {{ s.verifica.prossima_revisione|date:"d/m/Y" }}</span>{% else %}<span class="se-p se-ok">entro {{ s.verifica.prossima_revisione|date:"d/m/Y"|default:"—" }}</span>{% endif %}{% if s.verifica.campagna_aperta %}<small>refresh del CAR in corso</small>{% endif %}{% else %}—{% endif %}</td>
+          </tr>
+        {% empty %}<tr><td colspan="4" class="se-meta">Nessun reparto con persone in lista.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      <div class="se-meta" style="margin-top:8px"><a href="{% url 'anagrafica:skm_scadenzario' %}">Verifica semestrale per reparto (refresh del CAR) →</a></div>
+    </div>
+
+    <div class="se-card">
+      <h2>Emissioni</h2>
+      <table class="se-t" data-table-enhanced="0">
+        <thead><tr><th>N.</th><th>Ambito</th><th>Data</th><th>Stato</th><th>Approvata da</th><th></th></tr></thead>
+        <tbody>
+        {% for e in emissioni %}
+          <tr>
+            <td><a href="{% url 'anagrafica:skm_emissione' e.pk %}"><b>{{ e.numero }}</b></a></td>
+            <td>{{ e.ambito }}{% if e.nota %}<small>{{ e.nota|truncatechars:70 }}</small>{% endif %}</td>
+            <td>{{ e.data_emissione|date:"d/m/Y" }}</td>
+            <td><span class="se-p {% if e.stato == 'emessa' %}se-ok{% elif e.stato == 'in_firma' %}se-in{% else %}se-gr{% endif %}">{{ e.get_stato_display }}</span></td>
+            <td>{{ e.approvata_da|default:"—" }}</td>
+            <td><a href="{% url 'anagrafica:skm_emissione_pdf' e.pk %}" target="_blank" rel="noopener">PDF</a></td>
+          </tr>
+        {% empty %}<tr><td colspan="6" class="se-meta">Nessuna emissione: la prima nasce da «Emetti MOD.187».</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% if can_manage %}{% url 'anagrafica:skm_emissioni' as qui %}{% include "anagrafica/partials/_skm_emetti_dialog.html" with reparti=reparti_nomi next=qui %}{% endif %}
+<script>
+document.querySelectorAll("[data-apri]").forEach(function (b) { b.addEventListener("click", function () { document.getElementById(b.dataset.apri).showModal(); }); });
+document.querySelectorAll("dialog [data-chiudi]").forEach(function (b) { b.addEventListener("click", function () { b.closest("dialog").close(); }); });
+</script>
+{% endblock %}

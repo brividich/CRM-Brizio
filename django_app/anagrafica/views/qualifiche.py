@@ -1515,7 +1515,7 @@ def skill_matrix_macchina(request):
     oggi = timezone.localdate()
     filtro_reparto = (request.GET.get("reparto") or "").strip()
     solo = (request.GET.get("solo") or "").strip()
-    solo = solo if solo in ("rivalutare", "sospese") else ""
+    solo = solo if solo in ("rivalutare", "sospese", "sospendere") else ""
     solo_macchine = request.GET.get("tipo") == "macchine"
     formato = (request.GET.get("format") or "").strip()
     persone_sel = [int(x) for x in (request.GET.get("persone") or "").split(",") if x.strip().isdigit()] or None
@@ -1609,12 +1609,16 @@ def skill_matrix_macchina(request):
         "continuita_persa": sum(1 for co in ContinuitaOperativa.objects.all()
                                 if co.stato() == ContinuitaOperativa.STATO_PERSA),
         "rivalutare": dati["n_rivalutare"],
+        "sospendere": dati["n_sospendere"],
     }
 
     if formato in ("pdf_hub", "pdf_mod"):
         from ..services import skillmatrix_pdf as pdf
         if formato == "pdf_mod":
-            contenuto = pdf.pdf_mod187(dati, data_documento=data_sel, reparto=filtro_reparto)
+            contenuto = pdf.pdf_mod187(
+                dati, data_documento=data_sel, reparto=filtro_reparto,
+                piede=f"Situazione al {timezone.localtime():%d/%m/%Y %H:%M}: copia di lavoro, non è un'emissione approvata "
+                      "(le emissioni firmate sono in Skill Matrix → Emissioni MOD.187)")
             nome_file = "MOD.187_skill_matrix.pdf"
         else:
             pct = prontezza.get("percentuale") if isinstance(prontezza, dict) else None
@@ -1633,6 +1637,20 @@ def skill_matrix_macchina(request):
 
     for r in righe:
         r["celle_ui"] = list(zip(r["celle"], [col["id"] for col in dati["colonne"]]))
+
+    # Emissioni MOD.187 e verifica semestrale per reparto (MT CN 06 §8.4-8.5): sulla
+    # matrice completa, così l'impronta è quella che usa l'emissione.
+    from ..services import skillmatrix_emissioni as em
+    from ..views_skm import contesto_invio
+    filtrata = bool(filtro_reparto or solo or solo_macchine or persone_sel or macchine_ids is not None)
+    stato_reparti = em.stato_reparti(vista.costruisci(oggi=oggi) if filtrata else dati, oggi=oggi)
+    for g in dati["gruppi_colonne"]:
+        g["stato"] = stato_reparti.get(g["reparto"])
+    da_emettere = [rep for rep, st in stato_reparti.items()
+                   if st["modificata"] and not st["in_firma"]
+                   and (not filtro_reparto or rep.casefold() == filtro_reparto.casefold())]
+    in_firma = sorted({st["in_firma"].pk: st["in_firma"] for st in stato_reparti.values() if st["in_firma"]}.values(),
+                      key=lambda e: e.numero)
     qs = request.GET.copy()
     for k in ("format", "persone", "apri"):
         qs.pop(k, None)
@@ -1660,6 +1678,10 @@ def skill_matrix_macchina(request):
         "qs_base": qs_base,
         "apri": (request.GET.get("apri") or "").strip(),
         "legenda": [(k, config.etichetta(k), vista.LEGENDA[k]) for k in vista.LIVELLI],
+        "da_emettere": sorted(da_emettere, key=str.casefold),
+        "in_firma": in_firma,
+        "invio": contesto_invio(request) if _check_skm_permission(request, PERM_SKM_MANAGE) else {},
+        "reparti_emissione": sorted(stato_reparti, key=str.casefold),
     })
 
 
@@ -1669,6 +1691,8 @@ def _filtri_testo(reparto: str, solo: str, solo_macchine: bool, persone) -> str:
         parti.append("solo da rivalutare")
     elif solo == "sospese":
         parti.append("solo sospese")
+    elif solo == "sospendere":
+        parti.append("solo da sospendere (requisito scaduto o mancante)")
     if solo_macchine:
         parti.append("solo macchine")
     if persone:

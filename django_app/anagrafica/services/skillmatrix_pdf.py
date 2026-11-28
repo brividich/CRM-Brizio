@@ -89,7 +89,22 @@ def _gruppi_di(dati: dict, indici: list[int]) -> list[tuple[dict, list[int]]]:
 
 # ── MOD.187 ─────────────────────────────────────────────────────────────
 
-def pdf_mod187(dati: dict, *, data_documento, reparto: str = "") -> bytes:
+def _immagine(c, dati_img: bytes | None, x: float, y: float, w: float, h: float) -> None:
+    if not dati_img:
+        return
+    from reportlab.lib.utils import ImageReader
+    try:
+        img = ImageReader(io.BytesIO(dati_img))
+        iw, ih = img.getSize()
+        k = min(w / iw, h / ih)
+        c.drawImage(img, x + (w - iw * k) / 2, y + (h - ih * k) / 2, iw * k, ih * k, mask="auto")
+    except Exception:  # noqa: BLE001 - un'immagine illeggibile non deve fermare il PDF
+        return
+
+
+def pdf_mod187(dati: dict, *, data_documento, reparto: str = "", firma: dict | None = None, piede: str = "") -> bytes:
+    """``firma``: {"firma": bytes, "timbro": bytes} dell'Approvazione, nella casella «Firma CEO»;
+    ``piede``: riga in fondo a ogni pagina (emissione, firme, codice di verifica o «non emessa»)."""
     W, H = PAGINA
     mx, top, bottom = 34, 34, 30
     w_ruolo, w_orario, w_nome = 92, 15, 128
@@ -135,6 +150,10 @@ def pdf_mod187(dati: dict, *, data_documento, reparto: str = "") -> bytes:
             c.rect(x0, y - h_car - h_rep, w_ruolo + w_orario, h_rep)
             c.rect(x0 + w_ruolo + w_orario, y - h_car - h_rep, w_nome, h_rep)
             c.drawRightString(x0 + w_ruolo + w_orario - 3, y - h_car - h_rep + 6, "Firma CEO")
+            if firma:
+                meta = (w_nome - 4) / 2
+                _immagine(c, firma.get("firma"), x0 + w_ruolo + w_orario + 2, y - h_car - h_rep + 1, meta, h_rep - 2)
+                _immagine(c, firma.get("timbro"), x0 + w_ruolo + w_orario + 2 + meta, y - h_car - h_rep + 1, meta, h_rep - 2)
             for g, idx in _gruppi_di(dati, foglio):
                 gw = cw * len(idx)
                 c.rect(xc, y - h_car, gw, h_car)
@@ -220,6 +239,11 @@ def pdf_mod187(dati: dict, *, data_documento, reparto: str = "") -> bytes:
             c.drawRightString(W - mx, bottom - 14, f"Pag. {n_pag}/{totale_pagine}")
             if reparto:
                 c.drawString(mx, bottom - 14, f"Reparto: {reparto}")
+            if piede:
+                c.setFont("Helvetica", 6.5)
+                c.setFillColor(GRIGIO)
+                c.drawCentredString(W / 2, bottom - 14, _taglia(piede, "Helvetica", 6.5, W - 2 * mx - 200))
+                c.setFillColor(black)
             c.showPage()
     c.save()
     return buf.getvalue()

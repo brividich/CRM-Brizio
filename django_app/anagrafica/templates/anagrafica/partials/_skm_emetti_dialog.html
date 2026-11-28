@@ -1,0 +1,40 @@
+{% comment %}
+Dialogo «Emetti MOD.187» (MT CN 06 §8.5): congela la matrice e la manda in firma.
+Contesto: invio (views_skm.contesto_invio), reparti (elenco), reparto_scelto, next.
+{% endcomment %}
+<dialog class="fps-dlg" id="skmEmetti">
+  <form method="post" action="{% url 'anagrafica:skm_emetti' %}">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+    <header>Emetti MOD.187<button type="button" class="hr-btn hr-btn-ghost hr-btn-sm" data-chiudi>✕</button></header>
+    <div class="corpo">
+      <label>Cosa emetti
+        <select name="reparto">
+          <option value="">Tutti i reparti</option>
+          {% for r in reparti %}<option value="{{ r }}"{% if r == reparto_scelto %} selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Data di emissione<input type="date" name="data_emissione" value="{% now 'Y-m-d' %}" required></label>
+      <label>Perché si aggiorna (va nell'emissione)<input name="nota" maxlength="500" placeholder="es. verifica semestrale; nuovo ingresso; nuova macchina DM12"></label>
+      {% if invio.attiva %}
+        <div class="fps-tit">Firme richieste</div>
+        {% for c in invio.caselle %}
+          <div class="fps-nota"{% if c.problema %} style="background:#fff7ed;border-color:#fed7aa;color:#9a3412"{% endif %}>
+            <b>{{ forloop.counter }}. {{ c.etichetta }}</b> ·
+            {% if c.mittente %}tu, adesso{% elif c.problema %}nessun utente ricopre il ruolo {% if c.ruolo_sigla %}{{ c.ruolo_sigla }}{% elif c.ruolo_obj %}{{ c.ruolo_obj.nome }}{% endif %}: assegnalo in anagrafica{% else %}{{ c.persone|join:", " }}{% endif %}
+          </div>
+        {% endfor %}
+        {% if invio.firma_subito %}
+          {% url 'anagrafica:skm_mia_immagine' 0 as img_zero %}
+          {% include "anagrafica/partials/_firma_campi.html" with opzioni=invio.opzioni usa_totp=invio.usa_totp etichetta="Redazione" cosa="la matrice" img_base=img_zero|slice:":-2" %}
+        {% endif %}
+        <div class="fps-nota">La matrice si congela adesso: vale come emissione solo dopo la firma di Approvazione. Le modifiche fatte dopo finiscono nella prossima emissione.</div>
+      {% else %}
+        <div class="fps-nota">Firma su portale spenta per il MOD.187: l'emissione vale subito, con il tuo nome come approvatore.</div>
+      {% endif %}
+    </div>
+    <footer>
+      <button type="button" class="hr-btn hr-btn-ghost" data-chiudi>Annulla</button>
+      <button type="submit" class="hr-btn hr-btn-primary">{% if invio.attiva %}✍ Firma e invia in approvazione{% else %}Emetti{% endif %}</button>
+    </footer>
+  </form>
+</dialog>

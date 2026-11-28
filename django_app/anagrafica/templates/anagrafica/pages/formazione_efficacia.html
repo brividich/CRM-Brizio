@@ -45,7 +45,7 @@ body.theme-dark .ef-f select,body.theme-dark .ef-f textarea,body.theme-dark .ef-
   <div class="hr-card" style="padding:12px 18px;">
     {% for v in elenco %}
     {% if v.puo_salvare %}<form method="post" class="ef-row">{% csrf_token %}<input type="hidden" name="id" value="{{ v.pk }}">{% else %}<div class="ef-row">{% endif %}
-      <div><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#scheda-formazione" title="Apri la scheda della persona"><strong>{{ v.nome }}</strong></a><div class="ef-muted">{{ v.record.course_title_snapshot|default:v.record.corso.titolo }}{% if v.reparto %} · {{ v.reparto }}{% endif %}</div></div>
+      <div><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#scheda-formazione" title="Apri la scheda della persona"><strong>{{ v.nome }}</strong></a><div class="ef-muted">{{ v.record.course_title_snapshot|default:v.record.corso.titolo }}{% if v.reparto %} · {{ v.reparto }}{% endif %}{% if v.link_skm %} · <a href="{{ v.link_skm }}" title="L'esito conferma o aggiorna il livello nel MOD.187 (MT CN 06 §9.5)">livello nella Skill Matrix →</a>{% endif %}</div></div>
       <div class="ef-muted">Completato il {{ v.record.data_completamento|date:"d/m/Y" }}<br>{{ v.record.session_code_snapshot }}</div>
       <div>{% if v.dovuta %}<span class="fm-pill fm-pill-expired">scaduta dal {{ v.attesa_dal|date:"d/m/Y" }}</span>{% else %}<span class="fm-pill fm-pill-warning">entro {{ v.attesa_dal|date:"d/m/Y" }}</span>{% endif %}</div>
       {% if v.puo_salvare %}
@@ -72,7 +72,7 @@ body.theme-dark .ef-f select,body.theme-dark .ef-f textarea,body.theme-dark .ef-
     <div style="overflow-x:auto;"><table class="hr-table"><thead><tr><th>Persona</th><th>Corso</th><th>Esito</th><th>Valutata</th><th>Azione</th></tr></thead><tbody>
       {% for v in fatte %}<tr><td>{{ v.nome }}</td><td>{{ v.record.course_title_snapshot|default:v.record.corso.titolo }}</td>
         <td><span class="fm-pill {% if v.esito == 'EFFICACE' %}fm-pill-valid{% elif v.esito == 'PARZIALE' %}fm-pill-warning{% else %}fm-pill-expired{% endif %}">{{ v.get_esito_display }}</span></td>
-        <td>{{ v.valutata_il|date:"d/m/Y" }} · {{ v.valutatore_nome }}</td><td style="font-size:12.5px;">{{ v.azione|default:"—" }}</td></tr>{% endfor %}
+        <td>{{ v.valutata_il|date:"d/m/Y" }} · {{ v.valutatore_nome }}</td><td style="font-size:12.5px;">{{ v.azione|default:"—" }}{% if v.link_skm %}<br><a href="{{ v.link_skm }}">livello nella Skill Matrix →</a>{% endif %}</td></tr>{% endfor %}
     </tbody></table></div>
   </div>
   {% endif %}

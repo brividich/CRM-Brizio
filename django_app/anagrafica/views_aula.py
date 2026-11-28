@@ -288,6 +288,12 @@ def efficacia(request):
                      .order_by("-valutata_il", "-id")[:30])
         for v in fatte:
             v.nome = nomi.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
+    # MT CN 06 §9.5: l'esito conferma o aggiorna il livello nel MOD.187 → link alla cella.
+    from .services.skillmatrix_requisiti import link_skill_matrix
+    _tutte_le_righe = list(elenco) + list(fatte)
+    _link = link_skill_matrix({(v.legacy_anagrafica_id, v.record.corso_id) for v in _tutte_le_righe if v.record.corso_id})
+    for v in _tutte_le_righe:
+        v.link_skm = _link.get((v.legacy_anagrafica_id, v.record.corso_id), "")
     return render(request, "anagrafica/pages/formazione_efficacia.html", {
         "elenco": elenco, "fatte": fatte, "tutte": tutte, "METODI": METODI_EFFICACIA,
         "ESITI": TrainingEfficacia.ESITO_CHOICES, "puo_tutte": _helpers._can_view_formazione(request),

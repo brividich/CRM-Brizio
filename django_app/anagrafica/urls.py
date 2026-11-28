@@ -504,6 +504,12 @@ urlpatterns = [
     path("skill-matrix/", views.skill_matrix_macchina, name="skill_matrix_macchina"),
     path("skill-matrix/scheda/", views_skm.skm_scheda, name="skm_scheda"),
     path("skill-matrix/azione/", views_skm.skm_azione, name="skm_azione"),
+    path("skill-matrix/emissioni/", views_skm.skm_emissioni, name="skm_emissioni"),
+    path("skill-matrix/emissioni/emetti/", views_skm.skm_emetti, name="skm_emetti"),
+    path("skill-matrix/emissioni/<int:pk>/", views_skm.skm_emissione, name="skm_emissione"),
+    path("skill-matrix/emissioni/<int:pk>/pdf/", views_skm.skm_emissione_pdf, name="skm_emissione_pdf"),
+    path("skill-matrix/emissioni/firme/<int:casella_id>/<str:variante>/", views_skm.skm_emissione_immagine, name="skm_emissione_immagine"),
+    path("skill-matrix/emissioni/mia-immagine/<int:image_id>/", views_skm.skm_mia_immagine, name="skm_mia_immagine"),
     path("skill-matrix/match/", views.skm_match_validazione, name="skm_match_validazione"),
     path("skill-matrix/refresh/", views.skm_refresh, name="skm_refresh"),
     # Mansionario (fase 2): ruolo → mansione (colonna macchina/processo) → persone

@@ -58,7 +58,8 @@ def costruisci(*, reparto: str = "", solo: str = "", solo_macchine: bool = False
     """La matrice filtrata.
 
     - ``reparto``: solo le colonne di quel reparto (e chi vi è in lista);
-    - ``solo``: ``rivalutare`` (revisione passata) o ``sospese``: solo le righe che ne hanno;
+    - ``solo``: ``rivalutare`` (revisione passata), ``sospese`` o ``sospendere`` (requisito
+      formale scaduto o mancante su un'abilitazione attiva): solo le righe che ne hanno;
     - ``solo_macchine``: niente colonne dei processi;
     - ``persone``: solo questi ``legacy_anagrafica_id`` (selezione multipla);
     - ``macchine_ids``: solo queste macchine (filtri «scoperte» / «uomo solo»).
@@ -113,6 +114,9 @@ def costruisci(*, reparto: str = "", solo: str = "", solo_macchine: bool = False
         per_persona = {lid: v for lid, v in per_persona.items() if lid in voluti}
     car_ids = {v for v in car_per_reparto.values() if v}
     anag = _persone(set(per_persona) | car_ids)
+    from . import skillmatrix_requisiti as req
+    req_colonne = req.requisiti_colonne(ids_colonne)
+    req_stati = req.stati(set(per_persona), req_colonne, oggi=oggi)
     orari = dict(ProfiloMansioniPersona.objects.filter(legacy_anagrafica_id__in=list(per_persona))
                  .values_list("legacy_anagrafica_id", "orario"))
 
@@ -121,7 +125,7 @@ def costruisci(*, reparto: str = "", solo: str = "", solo_macchine: bool = False
         rep = Counter(c.rep for c in comps).most_common(1)[0][0]
         car = car_per_reparto.get(rep) == lid
         celle_riga = []
-        flag = {"rivalutare": False, "sospese": False}
+        flag = {"rivalutare": False, "sospese": False, "sospendere": False}
         for c in competenze:
             ab = celle.get((lid, c.pk))
             if ab is None:
@@ -131,11 +135,15 @@ def costruisci(*, reparto: str = "", solo: str = "", solo_macchine: bool = False
             sospesa = ab.stato == AbilitazioneMacchina.STATO_SOSPESA
             flag["rivalutare"] |= arretrata
             flag["sospese"] |= sospesa
+            esito = req.esito_cella(lid, ab.livello or "", not sospesa, req_colonne.get(c.pk, []), req_stati)
+            flag["sospendere"] |= esito["da_sospendere"]
             celle_riga.append({
                 "id": ab.pk, "comp": c.pk, "livello": ab.livello or "", "richiesto": ab.livello_richiesto or "",
                 "operativa": ab.is_operativa(soglia) and not sospesa, "sotto": ab.sotto_livello_richiesto,
                 "arretrata": arretrata, "sospesa": sospesa,
                 "revisione": ab.prossima_revisione,
+                "da_sospendere": esito["da_sospendere"], "req_in_scadenza": esito["req_in_scadenza"],
+                "req_ko": [r["nome"] for r in esito["req_ko"]], "scadenza_ko": esito["scadenza_ko"],
             })
         if solo in flag and not flag[solo]:
             continue
@@ -175,6 +183,7 @@ def costruisci(*, reparto: str = "", solo: str = "", solo_macchine: bool = False
         "reparti": sorted({c.rep for c in comp_qs_reparti()}, key=str.casefold),
         "n_rivalutare": sum(1 for r in righe for x in r["celle"] if x and x["arretrata"]),
         "n_sospese": sum(1 for r in righe for x in r["celle"] if x and x["sospesa"]),
+        "n_sospendere": sum(1 for r in righe for x in r["celle"] if x and x["da_sospendere"]),
         "oggi": oggi, "config": config,
     }
 
