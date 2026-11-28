@@ -432,6 +432,24 @@
       {% endif %}
     </section>
 
+    {% if dispense_lette %}
+    <section class="pb-section" id="libretto-dispense">
+      <h2 class="pb-section-title">📖 Dispense lette</h2>
+      <table class="lb-table">
+        <thead><tr><th>Letta il</th><th>Dispensa</th><th>Corso</th></tr></thead>
+        <tbody>
+          {% for l in dispense_lette %}
+          <tr>
+            <td class="mono">{{ l.letta_il|date:"d-m-Y" }}</td>
+            <td>{{ l.allegato.nome_visibile }}</td>
+            <td>{{ l.allegato.corso.titolo }}<span class="lb-muted" style="font-size:10.5px;"> · {{ l.allegato.corso.codice }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
     <!-- Footer -->
     <div class="pb-footer">
       <span>NOVICROM HUB — Libretto formativo dipendente</span>

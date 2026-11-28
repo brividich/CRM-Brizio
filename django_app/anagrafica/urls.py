@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import views_dispense
 from . import views_coefficienti
 from . import views_sessioni
 from . import views_sessione_prepara
@@ -709,6 +710,12 @@ urlpatterns = [
     path("formazione/corsi/<int:corso_id>/elearning/opzioni/<int:option_id>/elimina", views.formazione_option_delete, name="formazione_option_delete"),
     # Discente (fruizione)
     path("formazione/corsi-online/", views_elearning.formazione_online_catalog, name="formazione_online_catalog"),
+    # «Corsi e dispense» (stanza Sapere): libreria delle dispense per i dipendenti, filtrata in-view.
+    path("formazione/corsi-online/dispense/", views_dispense.dispense_libreria, name="dispense_libreria"),
+    path("formazione/corsi-online/dispense/scaffale/<int:tipo_id>/", views_dispense.dispense_scaffale, name="dispense_scaffale"),
+    path("formazione/corsi-online/dispense/corso/<int:corso_id>/", views_dispense.dispense_corso, name="dispense_corso"),
+    path("formazione/corsi-online/dispense/<int:attachment_id>/file", views_dispense.dispensa_file, name="dispensa_file"),
+    path("formazione/corsi-online/dispense/<int:attachment_id>/letta", views_dispense.dispensa_letta, name="dispensa_letta"),
     # Verifica attestato (QR/codice): sotto il prefisso shared, aperta a ogni utente autenticato.
     # Guida d'uso dell'e-learning: discenti e HR (sotto il prefisso shared, aperta agli autenticati).
     path("formazione/corsi-online/guida/", views_elearning.formazione_online_guida, name="formazione_online_guida"),
@@ -825,6 +832,7 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/allegati/upload", views.formazione_allegato_upload, name="formazione_allegato_upload"),
     path("formazione/corsi/<int:corso_id>/allegati/upload", views.formazione_corso_allegato_upload, name="formazione_corso_allegato_upload"),
     path("formazione/allegati/<int:attachment_id>/elimina", views.formazione_allegato_delete, name="formazione_allegato_delete"),
+    path("formazione/allegati/<int:attachment_id>/dispensa", views_dispense.formazione_allegato_dispensa, name="formazione_allegato_dispensa"),
     path("formazione/allegati/<int:attachment_id>/download", views.formazione_allegato_download, name="formazione_allegato_download"),
 
     # ── Formazione HR — Iscritti ────────────────────────────────────────────

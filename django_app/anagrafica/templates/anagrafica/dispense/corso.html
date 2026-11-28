@@ -1,0 +1,60 @@
+{% extends "anagrafica/dispense/_base.html" %}
+{% block dsp_crumb %}<a href="{% url 'anagrafica:dispense_libreria' %}">Corsi e dispense</a> › <a href="{% url 'anagrafica:dispense_scaffale' scaffale.id %}">{{ scaffale.nome }}</a> › {{ corso.codice }}{% endblock %}
+{% block dsp_h1 %}{{ corso.titolo }} <small>{{ corso.codice }}</small>{% endblock %}
+{% block dsp_body %}
+<div class="dsp-corso" style="--col:{{ scaffale.colore }}">
+  <aside class="cn-panel">
+    {% if stato %}<span class="cn-pill {{ stato.tono }}">{{ stato.etichetta }}</span>{% endif %}
+    <dl class="dsp-facts">
+      <dt>Tipo</dt><dd>{{ scaffale.nome }}</dd>
+      {% if corso.durata_ore_teorica %}<dt>Durata</dt><dd>{{ corso.durata_ore_teorica|floatformat:"-1" }} h</dd>{% endif %}
+      {% if corso.validita_mesi %}<dt>Validità</dt><dd>{{ corso.validita_mesi }} mesi</dd>{% endif %}
+      <dt>Dispense</dt><dd>{{ dispense|length }}</dd>
+    </dl>
+    {% if azioni or is_gestore %}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+      {% for a in azioni %}<a class="cn-btn{% if a.pri %} acc{% endif %}" href="{{ a.url }}">{{ a.label }}</a>{% endfor %}
+      {% if is_gestore %}<a class="cn-btn sm" href="{% url 'anagrafica:formazione_corso_detail' corso.pk %}#materiale-corso">Gestisci il materiale</a>{% endif %}
+    </div>{% endif %}
+    <div class="dsp-list">
+      {% for d in dispense %}
+      <a class="dsp-li{% if d.pk == scelta.pk %} on{% endif %}" href="?d={{ d.pk }}"{% if d.pk == scelta.pk %} aria-current="true"{% endif %}>
+        <span class="mini" aria-hidden="true"></span>
+        <span style="min-width:0"><b>{{ d.title }}</b><small>{{ d.sezione_label }}{% if d.a.n_pagine %} · {{ d.a.n_pagine }} pag.{% endif %} · {{ d.a.created_at|date:"d/m/Y" }}</small></span>
+        {% if d.letta %}<span class="cn-pill ok">✓ letta</span>{% elif d.da_leggere %}<span class="cn-pill warn">da leggere</span>{% elif d.nuova %}<span class="cn-pill nuova">nuova</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </aside>
+  <section class="dsp-viewer">
+    {% if not scelta %}
+    <p class="cn-empty">Per questo corso non ci sono ancora dispense da leggere.</p>
+    {% else %}
+    <div class="dsp-vh">
+      <h2>{{ scelta.title }}</h2>
+      {% if scelta.a.is_pdf %}<a class="cn-btn" href="{% url 'anagrafica:dispensa_file' scelta.pk %}{% if pagina %}#page={{ pagina }}{% endif %}" target="_blank" rel="noopener">Apri il PDF ↗</a>{% endif %}
+      <a class="cn-btn" href="{% url 'anagrafica:dispensa_file' scelta.pk %}?scarica=1">Scarica</a>
+    </div>
+    {% if scelta.a.descrizione and scelta.a.descrizione != scelta.title %}<p style="margin:0;color:var(--text-mid);font-size:13px">{{ scelta.a.descrizione }}</p>{% endif %}
+    {% if scelta.a.is_pdf %}
+      <iframe class="cn-anteprima" title="{{ scelta.title }}" src="{% url 'anagrafica:dispensa_file' scelta.pk %}#page={{ pagina|default:1 }}"></iframe>
+    {% elif scelta.a.tipo_mime|slice:":6" == "image/" %}
+      <img class="dsp-img" src="{% url 'anagrafica:dispensa_file' scelta.pk %}" alt="{{ scelta.title }}">
+    {% else %}
+      <p class="cn-empty">Questo file ({{ scelta.a.nome_originale }}) non si legge nel browser: scaricalo e aprilo con Word o Excel.</p>
+    {% endif %}
+    {% if scelta.a.richiedi_lettura %}
+    <div class="dsp-read cn-panel">
+      {% if scelta.letta %}
+        <span class="cn-pill ok">✓ Letta il {{ scelta.letta|date:"d/m/Y" }}</span><span>Registrata nel tuo libretto formativo.</span>
+      {% elif puo_confermare %}
+        <form method="post" action="{% url 'anagrafica:dispensa_letta' scelta.pk %}">{% csrf_token %}<button class="cn-btn pri" type="submit">Ho letto la dispensa</button></form>
+        <span>La conferma va nel tuo libretto formativo.</span>
+      {% else %}
+        <span>Il tuo profilo non è collegato a un'anagrafica dipendente: la lettura non si può confermare.</span>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

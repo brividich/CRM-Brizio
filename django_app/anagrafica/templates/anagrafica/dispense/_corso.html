@@ -1,0 +1,6 @@
+{# Un corso con dispense. Variabile: d (views_dispense._schede_corsi). #}
+<a class="cn-doc" href="{% url 'anagrafica:dispense_corso' d.pk %}" title="{{ d.code }} · {{ d.title }}">
+  {% include "procedure_refresh/libreria/_foglio.html" with d=d senza_fascia=True %}
+  <span class="cn-doc-t">{{ d.title }}</span>
+  <span class="cn-doc-s">{% if d.stato %}<span class="cn-pill {{ d.stato.tono }}">{{ d.stato.etichetta }}</span>{% endif %}<span>{{ d.n }} dispens{{ d.n|pluralize:"a,e" }}</span></span>
+</a>

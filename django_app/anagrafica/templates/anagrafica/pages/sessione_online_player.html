@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load dispense_tags %}
 
 {% block title %}{{ sessione.corso.titolo }} · slide {{ ordine }} | Lezione online{% endblock %}
 
@@ -50,6 +51,7 @@
       Puoi interrompere quando vuoi: riprendi dalla stessa slide.
       {% if test_pronto and not anteprima %}<a href="{% url 'anagrafica:sessione_online_test' sessione.pk %}">Il test è pronto</a>{% if rimasti is not None %} ({{ rimasti }} tentativ{{ rimasti|pluralize:"o,i" }} rimast{{ rimasti|pluralize:"o,i" }}){% endif %}.{% endif %}
     </p>
+    {% dispense_del_corso sessione.corso "so" %}
   </div>
 </div>
 {% if attesa %}
