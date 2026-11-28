@@ -26,6 +26,9 @@
     </div>
   </aside>
   <section class="dsp-viewer">
+    {% if not scelta %}
+    <p class="cn-empty">Per questo corso non ci sono ancora dispense da leggere.</p>
+    {% else %}
     <div class="dsp-vh">
       <h2>{{ scelta.title }}</h2>
       {% if scelta.a.is_pdf %}<a class="cn-btn" href="{% url 'anagrafica:dispensa_file' scelta.pk %}{% if pagina %}#page={{ pagina }}{% endif %}" target="_blank" rel="noopener">Apri il PDF ↗</a>{% endif %}
@@ -50,6 +53,7 @@
         <span>Il tuo profilo non è collegato a un'anagrafica dipendente: la lettura non si può confermare.</span>
       {% endif %}
     </div>
+    {% endif %}
     {% endif %}
   </section>
 </div>

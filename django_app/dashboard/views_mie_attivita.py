@@ -357,6 +357,7 @@ def _my_elearning(request) -> list[dict]:
             continue
         out.append({
             "code": a.corso.codice,
+            "corso_id": a.corso_id,
             "title": a.corso.titolo,
             "meta": ("Entro il " + a.due_date.strftime("%d/%m/%Y")) if a.due_date else "Da completare",
             "status": a.get_stato_display(),
@@ -369,6 +370,7 @@ def _my_elearning(request) -> list[dict]:
         scad = lz["cfg"].scadenza
         out.append({
             "code": lz["sessione"].corso.codice,
+            "corso_id": lz["sessione"].corso_id,
             "title": lz["sessione"].corso.titolo,
             "meta": ("Entro il " + scad.strftime("%d/%m/%Y")) if scad else "Da completare",
             "status": lz["stato_label"],
@@ -377,6 +379,30 @@ def _my_elearning(request) -> list[dict]:
         })
     out.sort(key=lambda r: (r["due"] is None, r["due"] or 0))
     return out
+
+
+def _mia_formazione_in_scadenza(request, gia_corsi: set[int]) -> list[dict]:
+    """Corsi obbligatori della persona scaduti o in scadenza (90 giorni, come lo scadenzario):
+    aprono la pagina del corso in «Corsi e dispense». Esclusi quelli già fra i corsi online."""
+    try:
+        from anagrafica.services.dispense import scadenze_della_persona, url_corso
+        oggi = timezone.localdate()
+        out = []
+        for d in scadenze_della_persona(_anagrafica_id(request), oggi=oggi):
+            if d.corso_id in gia_corsi:
+                continue
+            out.append({
+                "code": d.corso.codice,
+                "title": d.corso.titolo,
+                "meta": ("Scaduto il " if d.data_scadenza < oggi else "Scade il ") + d.data_scadenza.strftime("%d/%m/%Y"),
+                "status": "Scaduto" if d.data_scadenza < oggi else "In scadenza",
+                "due": d.data_scadenza,
+                "url": url_corso(d.corso_id),
+            })
+        return out[:MAX_ELEARNING]
+    except Exception:
+        logger.exception("Le mie attività: formazione in scadenza non calcolabile")
+        return []
 
 
 def _my_procedure(request_user) -> list[dict]:
@@ -625,6 +651,7 @@ def _build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     ticket = nuovi + ticket
     ticket_totale += del_team["total"] - (len(del_team["items"]) - len(nuovi))
     assenze_squadra = _assenze_squadra(legacy_user, is_admin)
+    elearning = _my_elearning(request)
     sections = [
         {
             "key": "kickoff",
@@ -721,9 +748,18 @@ def _build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "label": "Corsi e-learning da completare",
             "tone": "info",
             "icon": "🎓",
-            "items": _my_elearning(request),
+            "items": elearning,
             "all_url": _safe_url("anagrafica:formazione_online_catalog"),
             "empty": "Nessun corso e-learning da completare.",
+        },
+        {
+            "key": "formazione_scadenza",
+            "label": "Formazione in scadenza",
+            "tone": "warning",
+            "icon": "📚",
+            "items": _mia_formazione_in_scadenza(request, {it.get("corso_id") for it in elearning}),
+            "all_url": _safe_url("anagrafica:dispense_libreria"),
+            "empty": "Nessun corso obbligatorio scaduto o in scadenza.",
         },
         {
             "key": "efficacia",

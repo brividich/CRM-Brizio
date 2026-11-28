@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Formazione: la propria scadenza apre la pagina del corso
+- Scadenzario generale: sulla propria scadenza di formazione la riga apre la pagina del corso in «Corsi e dispense» (stato, corso online o lezione, dispense); lo stato della pagina usa la stessa scadenza («Scaduto il … · da rifare entro il …»); quelle degli altri restano sulla scheda della persona (`dashboard/scadenze_providers.collect_hr`).
+- Le mie attività: nuova sezione «Formazione in scadenza» con i corsi obbligatori della persona scaduti o entro 90 giorni (stessa fonte dello scadenzario, esclusi quelli già fra i corsi online), link alla pagina del corso (`dashboard/views_mie_attivita.py`).
+- La mia scheda: il nome del corso apre la sua pagina; «Scaduto» accanto alla data passata (`views_mia_scheda.py`, `mia_scheda.html`).
+- La pagina del corso si apre anche senza dispense per chi ha il corso o una sua scadenza (`views_dispense.dispense_corso`, `services/dispense.url_corso`/`scadenze_della_persona`). Test in `tests_dispense.py`.
+
 ### Formazione: dispense dei corsi leggibili dai dipendenti + «Corsi e dispense» in Sapere
 - Dispense per i dipendenti: sul materiale del corso «Visibile ai dipendenti», «Solo a chi ha il corso» (assegnato, iscritto o già fatto), «Chiedi «Ho letto»» e titolo; mai i registri firme. Il materiale di corso già caricato (dispense e programmi) diventa visibile (migrazione `0270`).
 - Nuova libreria «Corsi e dispense» (stanza Sapere e menu Formazione), stesso impianto di CN-SGI: ricerca anche dentro i PDF con estratto e pagina, scaffali per tipo di corso, «Da leggere per te», «I miei corsi», «Nuove dispense» (30 giorni), «Più consultate» (90 giorni).
