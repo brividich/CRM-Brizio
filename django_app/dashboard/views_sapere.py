@@ -29,6 +29,14 @@ def sapere_cataloghi(request):
             cataloghi = [catalogo_sapere(), *cataloghi]
     except Exception:
         pass
+    try:
+        from anagrafica.services.dispense import catalogo_sapere as catalogo_dispense
+
+        scheda_dispense = catalogo_dispense(request)
+        if scheda_dispense is not None:
+            cataloghi.append(scheda_dispense)
+    except Exception:
+        pass
     return render(request, "dashboard/pages/sapere_cataloghi.html", {
         "page_title": "Cataloghi",
         "cataloghi": cataloghi,

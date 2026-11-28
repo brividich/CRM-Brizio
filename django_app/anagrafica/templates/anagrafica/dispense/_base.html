@@ -1,0 +1,43 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}{{ page_title }} · NOVICROM HUB{% endblock %}
+{% block body_class %}{{ block.super }} cn-page{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'procedure_refresh/css/libreria.css' %}?v=6">
+<style>
+.cn{width:100%}
+.dsp-corso{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:18px;align-items:start}
+.dsp-list{display:flex;flex-direction:column;gap:2px;margin-top:10px}
+.dsp-li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;text-decoration:none;color:var(--text)}
+.dsp-li:hover{background:var(--surface)}
+.dsp-li.on{background:var(--surface);box-shadow:inset 3px 0 0 var(--col,var(--accent))}
+.dsp-li .mini{aspect-ratio:210/270;background:var(--cn-paper);border:1px solid var(--cn-paper-line);border-top:5px solid var(--col,#1f4f86);border-radius:2px}
+.dsp-li b{font-size:13px;display:block;line-height:1.25}
+.dsp-li small{font-size:11.5px;color:var(--text-light)}
+.dsp-viewer{display:flex;flex-direction:column;gap:10px;min-width:0}
+.dsp-vh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dsp-vh h2{flex:1;min-width:200px;margin:0;font-size:16px}
+.dsp-img{max-width:100%;border:1px solid var(--border);border-radius:8px;background:#fff}
+.dsp-read{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+.dsp-facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 12px;font-size:12.5px;margin:8px 0}
+.dsp-facts dt{color:var(--text-light)}.dsp-facts dd{margin:0}
+@media (max-width:900px){.dsp-corso{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div class="cn">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="cn-head">
+    <div>
+      <template data-hub-percorso-gerarchia><a href="{% url 'sapere_cataloghi' %}">Sapere</a> › {% block dsp_crumb %}Corsi e dispense{% endblock %}</template>
+      <h1 class="cn-title">{% block dsp_h1 %}Corsi e dispense <small>Formazione</small>{% endblock %}</h1>
+    </div>
+    <div class="cn-actions">
+      <a class="cn-btn sm" href="{% url 'anagrafica:formazione_online_catalog' %}">I miei corsi online</a>
+      <a class="cn-btn sm" href="{% url 'anagrafica:formazione_online_guida' %}#dispense">? Guida</a>
+    </div>
+  </div>
+  {% block dsp_body %}{% endblock %}
+</div>
+{% endblock %}

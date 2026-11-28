@@ -51,6 +51,8 @@ __all__ = [
     "TrainingDeadline",
     "TrainingExportLog",
     "TrainingAttachment",
+    "TrainingDispensaLettura",
+    "TrainingDispensaApertura",
     # E-learning (micro-corsi interni: slide + quiz)
     "TrainingSlide",
     "TrainingQuizQuestion",
@@ -2178,6 +2180,24 @@ class TrainingAttachment(models.Model):
     tipo_mime        = models.CharField(max_length=100, blank=True, default="")
     dimensione_bytes = models.PositiveIntegerField(default=0)
     descrizione      = models.CharField(max_length=300, blank=True, default="")
+    # Dispense per i dipendenti (solo materiale del corso, mai registri firme): libreria
+    # «Corsi e dispense», corso online, lezione online (services/dispense.py).
+    titolo = models.CharField(max_length=200, blank=True, default="",
+                              help_text="Nome mostrato ai dipendenti; vuoto = nome del file.")
+    visibile_dipendenti = models.BooleanField(
+        default=False, verbose_name="Visibile ai dipendenti",
+        help_text="Leggibile dai dipendenti nella libreria «Corsi e dispense» e nel corso online.")
+    solo_chi_ha_corso = models.BooleanField(
+        default=False, verbose_name="Solo a chi ha il corso",
+        help_text="Solo a chi ha il corso assegnato, è iscritto a un'edizione o l'ha già fatto.")
+    richiedi_lettura = models.BooleanField(
+        default=False, verbose_name="Chiedi «Ho letto»",
+        help_text="Il dipendente conferma la lettura; la conferma va nel libretto formativo.")
+    # Testo estratto dei PDF per la ricerca (stessa estrazione di CN-SGI).
+    testo = models.TextField(blank=True, default="")
+    offset_pagine = models.JSONField(default=list, blank=True)
+    n_pagine = models.PositiveIntegerField(null=True, blank=True)
+    testo_estratto_il = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
@@ -2222,11 +2242,47 @@ class TrainingAttachment(models.Model):
             return "lezione"
         return "edizione" if self.sessione_id else "corso"
 
+    @property
+    def nome_visibile(self) -> str:
+        return self.titolo or self.descrizione or self.nome_originale or f"Dispensa {self.pk}"
+
+    @property
+    def is_pdf(self) -> bool:
+        return (self.tipo_mime or "").lower() == "application/pdf" or (self.nome_originale or "").lower().endswith(".pdf")
+
     def __str__(self) -> str:
         if self.corso_id:
             return f"[{self.get_tipo_display()}] {self.corso.codice} — corso"
         liv = f"lezione {self.lezione.numero}" if self.lezione_id else "edizione"
         return f"[{self.get_tipo_display()}] {self.sessione.codice_sessione} — {liv}"
+
+
+class TrainingDispensaLettura(models.Model):
+    """«Ho letto la dispensa»: conferma del dipendente, mostrata nel libretto formativo."""
+
+    allegato = models.ForeignKey(TrainingAttachment, on_delete=models.CASCADE, related_name="letture")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    letta_il = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        verbose_name = "Lettura dispensa"
+        verbose_name_plural = "Letture dispense"
+        constraints = [models.UniqueConstraint(fields=["allegato", "legacy_anagrafica_id"], name="dispensa_lettura_unica")]
+
+
+class TrainingDispensaApertura(models.Model):
+    """Un'apertura della dispensa dal lettore (per «Più consultate» e per HR)."""
+
+    allegato = models.ForeignKey(TrainingAttachment, on_delete=models.CASCADE, related_name="aperture")
+    legacy_anagrafica_id = models.IntegerField(null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    aperta_il = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Apertura dispensa"
+        verbose_name_plural = "Aperture dispense"
+        indexes = [models.Index(fields=["allegato", "aperta_il"])]
 
 
 # ═════════════════════════════════════════════════════════════

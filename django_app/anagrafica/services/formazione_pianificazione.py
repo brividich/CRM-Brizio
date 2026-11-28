@@ -144,6 +144,7 @@ def copia_allegati_dal_corso(sessione, allegati=None, user=None) -> int:
             tipo_mime=src.tipo_mime,
             dimensione_bytes=src.dimensione_bytes,
             descrizione=src.descrizione,
+            titolo=src.titolo,
             copiato_da=src,
             created_by=user if getattr(user, "pk", None) else None,
             created_by_display=(
