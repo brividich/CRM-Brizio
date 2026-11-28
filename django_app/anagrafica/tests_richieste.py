@@ -252,40 +252,25 @@ class PagineTests(_Scenario):
             self.assertEqual(self.client.get(reverse("anagrafica:richiesta_nuova"),
                                              {"parziale": "stato", "persona": self.rossi}).status_code, 302)
 
-    def test_correzione_diretta_in_blocco_dei_livelli(self):
-        from .models import AbilitazioneMacchinaStorico
-        from .services import mansionario_struttura as mstr
-
-        mstr.assegna(self.torno, legacy_anagrafica_id=self.rossi, livello="O", user=None)
-        ab = AbilitazioneMacchina.objects.get(competenza=self.torno, legacy_anagrafica_id=self.rossi, in_lista=True)
-        url = reverse("anagrafica:mansionario_correggi_livelli", args=[self.torno.pk])
-        with self._come(self.capo), mock.patch("anagrafica.views_mansionario._puo_valutare", return_value=True):
-            pagina = self.client.get(url, {"persona": self.rossi})
-            self.assertContains(pagina, "Allineamento nuovo gestionale")
-            self.assertContains(pagina, f'name="livello_{ab.pk}"')
-            self.assertNotContains(pagina, "{#")
-            # Senza motivo non si scrive niente.
-            self.client.post(url, {f"livello_{ab.pk}": "U", "motivo": ""})
-            ab.refresh_from_db()
-            self.assertEqual(ab.livello, "O")
-            r = self.client.post(url, {f"livello_{ab.pk}": "U", "motivo": "Allineamento nuovo gestionale"})
-            self.assertEqual(r.status_code, 302)
-        ab.refresh_from_db()
-        self.assertEqual(ab.livello, "U")
-        nota = AbilitazioneMacchinaStorico.objects.filter(competenza=self.torno, legacy_anagrafica_id=self.rossi).latest("pk").note
-        self.assertIn("O → U", nota)
-        self.assertIn("Allineamento nuovo gestionale", nota)
-        # Mansione con competenze: il livello lo calcola «Valuta», la correzione diretta non scrive.
-        with self.assertRaisesMessage(ValueError, "motivo"):
-            mstr.correggi_livelli(self.fresa, {}, motivo="")
-        esito = mstr.correggi_livelli(self.fresa, {AbilitazioneMacchina.objects.get(competenza=self.fresa, legacy_anagrafica_id=self.rossi, in_lista=True).pk: "I"},
-                                      motivo="prova")
-        self.assertEqual(esito["cambiate"], [])
-        self.assertTrue(esito["errori"])
-        # Chi non valuta non entra.
-        with self._come(self.estraneo):
-            self.assertEqual(self.client.get(url).status_code, 302)
-
+    def test_cambia_livello_porta_a_mansioni_in_blocco_gia_compilato(self):
+        url = reverse("anagrafica:ruoli_in_blocco")
+        with self._come(self.capo), mock.patch("anagrafica.views_mansionario._puo_gestire", return_value=True):
+            pannello = self.client.get(reverse("anagrafica:richiesta_nuova"),
+                                       {"parziale": "stato", "persona": self.rossi, "mansione": self.fresa.pk})
+        self.assertContains(pannello, "Cambia il livello registrato")
+        self.assertContains(pannello, f"{url}?cosa=mansione&amp;mansione={self.fresa.pk}")
+        self.assertContains(pannello, f"persone={self.rossi}")
+        # Senza i permessi di amministrazione il collegamento non compare.
+        with self._come(self.capo), mock.patch("anagrafica.views_mansionario._puo_gestire", return_value=False):
+            pannello = self.client.get(reverse("anagrafica:richiesta_nuova"),
+                                       {"parziale": "stato", "persona": self.rossi, "mansione": self.fresa.pk})
+        self.assertNotContains(pannello, "Cambia il livello registrato")
+        # «Ruoli e mansioni in blocco» spunta da indirizzo le persone indicate.
+        with mock.patch("anagrafica.views_struttura._is_admin", return_value=True):
+            self.client.force_login(self.capo.user)
+            pagina = self.client.get(url, {"cosa": "mansione", "mansione": self.fresa.pk, "persone": self.rossi})
+        self.assertIn(self.rossi, pagina.context["scelta"]["persone"])
+        self.assertEqual(pagina.context["scelta"]["cosa"], "mansione")
     def test_errore_di_compilazione_torna_sul_modulo(self):
         with self._come(self.capo):
             r = self.client.post(reverse("anagrafica:richiesta_nuova"), {

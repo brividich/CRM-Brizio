@@ -15,7 +15,7 @@
         {% else %}
           {% if "sospensione" in tipi_ok and not s.sospesa %}<button type="button" class="rq-btn" data-rq-metti-tipo="sospensione">Chiedi la sospensione</button>{% endif %}
           {% if "rimozione" in tipi_ok %}<button type="button" class="rq-btn" data-rq-metti-tipo="rimozione">Chiedi la rimozione</button>{% endif %}
-          {% if puo_correggere %}{% url 'anagrafica:richiesta_nuova' as url_qui %}<a class="rq-btn" href="{% url 'anagrafica:mansionario_correggi_livelli' s.mansione.pk %}?persona={{ sit.persona_id }}&amp;da={{ url_qui|urlencode }}%3Fpersona%3D{{ sit.persona_id }}%26mansione%3D{{ s.mansione.pk }}" title="Il livello registrato è sbagliato? Correggilo subito, anche per più persone: resta nello storico con il motivo">Correggi il livello registrato</a>{% endif %}
+          {% if puo_correggere %}<a class="rq-btn" href="{% url 'anagrafica:ruoli_in_blocco' %}?cosa=mansione&amp;mansione={{ s.mansione.pk }}&amp;modo_mansione=assegna&amp;filtro_mansione={{ s.mansione.pk }}&amp;persone={{ sit.persona_id }}{% if s.livello %}&amp;livello={{ s.livello }}{% endif %}" title="Il livello registrato è sbagliato? Cambialo da «Mansioni in blocco», anche per più persone: anteprima e conferma">Cambia il livello registrato</a>{% endif %}
         {% endif %}
       </div>
     </div>

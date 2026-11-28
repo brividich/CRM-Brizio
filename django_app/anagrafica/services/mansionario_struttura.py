@@ -190,7 +190,7 @@ def _livello_da_competenze(ab: AbilitazioneMacchina, livello: str, *, user=None)
 
 
 @transaction.atomic
-def cambia_livello(abilitazione: AbilitazioneMacchina, livello: str, *, user=None, motivo: str = "") -> str | None:
+def cambia_livello(abilitazione: AbilitazioneMacchina, livello: str, *, user=None) -> str | None:
     """Cambia a mano il livello di chi è in lista e lo storicizza (prima → dopo, chi).
 
     Restituisce il livello di prima, ``None`` se non è cambiato niente. Sulle mansioni
@@ -216,8 +216,7 @@ def cambia_livello(abilitazione: AbilitazioneMacchina, livello: str, *, user=Non
         legacy_anagrafica_id=abilitazione.legacy_anagrafica_id, asset_id=abilitazione.asset_id,
         competenza_id=abilitazione.competenza_id, livello=livello, data_rilevazione=timezone.localdate(),
         fonte=AbilitazioneMacchinaStorico.FONTE_MANUALE,
-        note=(f"Mansionario: livello {prima or '—'} → {livello}" + (f" ({chi})" if chi else "")
-              + (f" · {motivo.strip()}" if (motivo or "").strip() else ""))[:255],
+        note=f"Mansionario: livello {prima or '—'} → {livello}" + (f" ({chi})" if chi else ""),
     )
     return prima
 
@@ -461,37 +460,3 @@ def da_rivedere_dopo_spostamento(legacy_anagrafica_id: int) -> list[dict]:
                         "motivi": motivi})
     out.sort(key=lambda r: r["nome"].casefold())
     return out
-
-
-def correggi_livelli(mansione: CompetenzaSkm, livelli: dict, *, motivo: str, user=None) -> dict:
-    """Correzione diretta in blocco del livello registrato (es. «Allineamento nuovo gestionale»).
-
-    ``livelli`` = {id abilitazione: livello giusto}; le righe uguali a oggi non cambiano niente.
-    Motivo obbligatorio: finisce nello storico di ogni riga. Ogni persona nel suo savepoint, così
-    un errore su una non ferma le altre. Sulle mansioni con competenze il livello lo calcola
-    «Valuta»: lì si corregge dalla matrice delle competenze e qui si rifiuta tutto.
-    """
-    from django.db import DatabaseError
-
-    motivo = (motivo or "").strip()
-    if not motivo:
-        raise ValueError("Scrivi il motivo della correzione: resta nello storico di ogni persona.")
-    abil = {a.pk: a for a in AbilitazioneMacchina.objects.filter(competenza=mansione, in_lista=True,
-                                                                  pk__in=[int(k) for k in livelli])}
-    cambiate, invariate, errori = [], 0, []
-    for pk, livello in livelli.items():
-        ab = abil.get(int(pk))
-        if ab is None:
-            errori.append((int(pk), "non è più in lista su questa mansione"))
-            continue
-        try:
-            with transaction.atomic():
-                prima = cambia_livello(ab, livello, user=user, motivo=motivo)
-        except (ValueError, DatabaseError) as exc:
-            errori.append((ab.legacy_anagrafica_id, str(exc)))
-            continue
-        if prima is None:
-            invariate += 1
-        else:
-            cambiate.append((ab.legacy_anagrafica_id, prima, ab.livello))
-    return {"cambiate": cambiate, "invariate": invariate, "errori": errori}

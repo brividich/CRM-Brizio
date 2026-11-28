@@ -165,7 +165,7 @@ def _nome_da(da: str) -> str:
 
 
 def _situazione_ctx(request, a, persona_id, mansione_id) -> dict:
-    from .views_mansionario import _puo_valutare
+    from .views_mansionario import _puo_gestire
 
     sit = svc.situazione(a, persona_id, mansione_id)
     parole = {x["codice"]: x["parola"] for x in esplora_semplice.LEGENDA}
@@ -175,7 +175,8 @@ def _situazione_ctx(request, a, persona_id, mansione_id) -> dict:
         if sit["scelta"]:
             sit["scelta"]["parola"] = parole.get(sit["scelta"]["livello"], "")
             sit["scelta"]["parola_proposto"] = parole.get(sit["scelta"]["livello_proposto"], "")
-    return {"sit": sit, "puo_correggere": bool(sit) and _puo_valutare(request),
+    # «Cambia il livello registrato» porta a «Ruoli e mansioni in blocco»: è dell'amministrazione dell'anagrafica.
+    return {"sit": sit, "puo_correggere": bool(sit) and _puo_gestire(request),
             "tipi_ok": svc.tipi_ammessi(a, persona_id) if sit else []}
 
 

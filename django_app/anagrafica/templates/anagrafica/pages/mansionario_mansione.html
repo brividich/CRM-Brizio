@@ -91,7 +91,7 @@
 
         {% if filtro_stato %}<p class="mns-filtro">Filtro: <strong>{{ filtro_stato_label }}</strong> · {{ persone|length }} su {{ n_persone }} · <a href="{{ u_mns }}#persone">Mostra tutte</a></p>{% endif %}
         {% if persone %}
-        {% if puo_valutare and not competenze %}<p style="margin:0 0 8px;text-align:right;"><a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="{% url 'anagrafica:mansionario_correggi_livelli' mansione.pk %}" title="Livelli registrati sbagliati (es. allineamento nuovo gestionale): correggili insieme, con il motivo nello storico">Correggi i livelli in blocco</a></p>{% endif %}
+        {% if is_admin %}<p style="margin:0 0 8px;text-align:right;"><a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="{% url 'anagrafica:ruoli_in_blocco' %}?cosa=mansione&amp;mansione={{ mansione.pk }}&amp;modo_mansione=assegna&amp;filtro_mansione={{ mansione.pk }}" title="Più persone insieme (es. allineamento nuovo gestionale): «Mansioni in blocco» già aperto su questa mansione, con anteprima e conferma">Cambia il livello in blocco</a></p>{% endif %}
         <div class="fmd-tablewrap">
           <table class="fmd-table">
             <thead><tr><th>Persona</th><th>Livello</th><th>Esito</th><th>Cosa manca</th><th class="fmd-nowrap">In lista dal</th>{% if puo_valutare %}<th class="fmd-r">Azioni</th>{% endif %}</tr></thead>

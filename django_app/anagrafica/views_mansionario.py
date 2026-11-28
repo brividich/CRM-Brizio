@@ -692,62 +692,6 @@ def mansionario_livello(request, mansione_id: int, abilitazione_id: int):
     return _torna_a_next(request) or redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
 
 
-MOTIVI_CORREZIONE = ["Allineamento nuovo gestionale", "Errore di caricamento", "Verifica sul campo"]
-
-
-@login_required
-def mansionario_correggi_livelli(request, mansione_id: int):
-    """Correzione diretta in blocco del livello registrato su una mansione, con motivo nello storico.
-
-    Ci si arriva dall'avviso della nuova richiesta («ha già questa mansione») e dalla scheda Persone
-    della mansione. Solo per chi valuta; niente approvazione: è una correzione del dato, non un cambio."""
-    from .services.richieste import in_forza
-    from .views_richieste import _da, _nome_da
-
-    if not _puo_valutare(request):
-        return _nega(request, "Correggere i livelli è di chi valuta il Mansionario.")
-    mansione = get_object_or_404(CompetenzaSkm, pk=mansione_id)
-    con_competenze = VoceMacchinaCatalogo.objects.filter(mansione=mansione, attiva=True).exists()
-    da = _da(request)
-    torna = da or reverse("anagrafica:mansionario_mansione", args=[mansione.pk]) + "#persone"
-    persone = [p for p in svc.persone(mansione) if p["legacy_id"] in in_forza()]
-    if request.method == "POST" and not con_competenze:
-        livelli = {}
-        for p in persone:
-            nuovo = (request.POST.get(f"livello_{p['abilitazione'].pk}") or "").strip().upper()
-            if nuovo and nuovo != (p["livello"] or ""):
-                livelli[p["abilitazione"].pk] = nuovo
-        motivo = (request.POST.get("motivo") or "").strip()
-        if not livelli:
-            messages.info(request, "Nessun livello cambiato: niente da correggere.")
-            return redirect(torna)
-        try:
-            esito = svc.correggi_livelli(mansione, livelli, motivo=motivo, user=request.user)
-        except ValueError as exc:
-            messages.error(request, str(exc))
-        else:
-            log_action(request, "mansionario_correggi_livelli", MODULE, {
-                "mansione": mansione.pk, "motivo": motivo[:200],
-                "cambiate": [{"persona": pid, "prima": prima, "dopo": dopo} for pid, prima, dopo in esito["cambiate"]],
-                "errori": len(esito["errori"]),
-            }, oggetto=mansione)
-            n = len(esito["cambiate"])
-            if n:
-                messages.success(request, f"{n} livell{'o corretto' if n == 1 else 'i corretti'} su «{mansione.nome}» "
-                                          f"(motivo: {motivo}).")
-            for pid, errore in esito["errori"]:
-                messages.error(request, f"#{pid}: {errore}")
-            return redirect(torna)
-    scelta = request.GET.get("persona")
-    return render(request, "anagrafica/pages/mansionario_correggi_livelli.html", {
-        "mansione": mansione, "persone": persone, "con_competenze": con_competenze,
-        "livelli_label": list(LivelloSkm.choices), "motivi": MOTIVI_CORREZIONE,
-        "motivo": (request.POST.get("motivo") or "") if request.method == "POST" else "",
-        "scelta": int(scelta) if (scelta or "").isdigit() else None, "da": da, "nome_da": _nome_da(da) if da else "",
-        "torna": torna,
-    })
-
-
 @login_required
 @require_POST
 def mansionario_togli(request, mansione_id: int, abilitazione_id: int):

@@ -268,14 +268,11 @@ GUIDA = {
                     "«Situazione di …», accanto al modulo: le mansioni della persona con livello e stato (un clic ne sceglie "
                     "una), il livello di oggi sulla mansione scelta, le competenze da colmare e gli avvisi prima di inviare: "
                     "«ha già questa mansione», «al livello massimo», «mansione sospesa», «c'è già una richiesta aperta». "
-                    "Dall'avviso: «Chiedi la sospensione», «Chiedi la rimozione», «Correggi il livello registrato» (per chi "
-                    "valuta). Il livello da raggiungere parte da quello appena sopra l'attuale.",
-                    "«Correggi i livelli in blocco» (dall'avviso o dalla scheda Persone della mansione): quando il livello "
-                    "registrato è sbagliato, ad esempio dopo l'allineamento al nuovo gestionale. Scegli il livello giusto riga "
-                    "per riga o con «Metti a tutti», scrivi il motivo (obbligatorio) e «Salva N correzioni»: vale subito, "
-                    "senza approvazione, e resta nello storico di ogni persona con il motivo. È una correzione del dato: per "
-                    "un cambio vero (formazione, nuova mansione) si apre una richiesta. Sulle mansioni con competenze il "
-                    "livello si corregge dalla matrice delle competenze.",
+                    "Dall'avviso: «Chiedi la sospensione», «Chiedi la rimozione» e, per l'amministrazione dell'anagrafica, "
+                    "«Cambia il livello registrato»: apre «Ruoli e mansioni in blocco» → Mansioni già compilato con mansione, "
+                    "persona e livello di oggi; scegli il livello giusto, guarda l'anteprima e conferma. Per più persone insieme "
+                    "(es. allineamento nuovo gestionale) usa «Cambia il livello in blocco» nella scheda Persone della mansione. "
+                    "Il livello da raggiungere parte da quello appena sopra l'attuale.",
                     "Dopo l'invio la richiesta mostra «← Torna a Esplora la struttura» (o «alla scheda della persona») "
                     "se eri partito da lì.",
                     "Tipi: «Assegnazione di mansione», «Sospensione di mansione», «Rimozione di mansione», "

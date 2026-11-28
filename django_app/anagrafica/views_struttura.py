@@ -455,7 +455,10 @@ def ruoli_in_blocco(request):
         "classificazione": (sorgente.get("classificazione") or "").strip().upper(),
         "data": sorgente.get("data") or timezone.localdate().isoformat(),
         "note": (sorgente.get("note") or "").strip()[:500],
-        "persone": set(_ids(request, "persone")) if request.method == "POST" else set(),
+        # Da indirizzo (?persone=…) arrivano già spuntate: ci si arriva dall'avviso della nuova richiesta
+        # («Cambia il livello registrato») e dalla scheda Persone della mansione.
+        "persone": set(_ids(request, "persone")) if request.method == "POST" else {
+            i for i in (_int_o_none(x) for x in request.GET.getlist("persone")) if i},
     }
     esiti, applicato = None, False
     if request.method == "POST" and scelta["cosa"] == "mansione":
