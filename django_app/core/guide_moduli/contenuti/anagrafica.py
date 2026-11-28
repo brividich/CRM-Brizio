@@ -586,6 +586,7 @@ GUIDA = {
                     "I dipendenti le leggono in Sapere → «Corsi e dispense» (anche dal menu Formazione), nel corso online e nella lezione online.",
                     "Ricerca anche dentro i PDF; scaffali per tipo di corso; «Nuove dispense» 30 giorni, «Più consultate» 90 giorni.",
                     "«Ho letto la dispensa» va nel libretto formativo («Dispense lette»). I registri firme non sono mai visibili.",
+                    "La propria scadenza di formazione (scadenzario, «Le mie attività» → «Formazione in scadenza», «La mia scheda») apre la pagina del corso.",
                 ]),
             ],
         },

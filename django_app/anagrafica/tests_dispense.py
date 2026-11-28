@@ -176,3 +176,72 @@ class GestioneHrTests(_Base):
             self.client.post(reverse("anagrafica:formazione_allegato_dispensa", args=[self.aperta.pk]), {})
         self.aperta.refresh_from_db()
         self.assertTrue(self.aperta.visibile_dipendenti)
+
+
+class ScadenzePaginaCorsoTests(_Base):
+    """27-28/11/2026: la propria scadenza di formazione apre la pagina del corso («Corsi e dispense»)."""
+
+    def _scadenza(self, lid=PID, giorni=20, corso=None):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models_formazione import TrainingDeadline
+        return TrainingDeadline.objects.create(corso=corso or self.corso, legacy_anagrafica_id=lid, is_required=True,
+                                               data_scadenza=timezone.localdate() + timedelta(days=giorni))
+
+    def _corso_senza_dispense(self):
+        return TrainingCourse.objects.create(piano=self.corso.piano, codice="DSP2", titolo="Corso senza dispense",
+                                             durata_ore_teorica=Decimal("1"), is_active=True, stato="ATTIVO")
+
+    def test_pagina_corso_senza_dispense_per_chi_ha_la_scadenza(self):
+        c2 = self._corso_senza_dispense()
+        with self.come_dipendente():
+            self.assertEqual(self.client.get(reverse("anagrafica:dispense_corso", args=[c2.pk])).status_code, 404)
+            self._scadenza(corso=c2)
+            r = self.client.get(reverse("anagrafica:dispense_corso", args=[c2.pk]))
+        self.assertContains(r, "non ci sono ancora dispense")
+
+    def test_scadenzario_generale_propria_scadenza_apre_il_corso(self):
+        from dashboard.scadenze_providers import ScadenzeContext, collect_hr
+        from django.test import RequestFactory
+        self._scadenza(lid=PID)
+        self._scadenza(lid=PID + 1)
+        req = RequestFactory().get("/")
+        req.user = self.hr
+        with mock.patch(LEGACY, return_value=PID):
+            voci = [v for v in collect_hr(ScadenzeContext.build(req)) if v.kind == "formazione"]
+        urls = {v.extra["legacy_id"]: v.url for v in voci}
+        self.assertEqual(urls[PID], reverse("anagrafica:dispense_corso", args=[self.corso.pk]))
+        self.assertTrue(urls[PID + 1].startswith(reverse("anagrafica:dipendente_detail", args=[PID + 1])))
+
+    def test_le_mie_attivita_formazione_in_scadenza(self):
+        from dashboard import views_mie_attivita as vma
+        from django.test import RequestFactory
+        self._scadenza(giorni=-3)
+        req = RequestFactory().get("/")
+        req.user = self.dip
+        with mock.patch("dashboard.views_mie_attivita._anagrafica_id", return_value=PID):
+            righe = vma._mia_formazione_in_scadenza(req, set())
+            self.assertEqual(vma._mia_formazione_in_scadenza(req, {self.corso.pk}), [])
+        self.assertEqual(righe[0]["url"], reverse("anagrafica:dispense_corso", args=[self.corso.pk]))
+        self.assertEqual(righe[0]["status"], "Scaduto")
+
+    def test_la_mia_scheda_il_corso_apre_la_pagina(self):
+        from django.utils import timezone
+        from .models_formazione import TrainingEmployeeRecord
+        TrainingEmployeeRecord.objects.create(corso=self.corso, legacy_anagrafica_id=PID, idoneo=True,
+                                              data_completamento=timezone.localdate())
+        self.client.force_login(self.dip)
+        with mock.patch("anagrafica.views_mia_scheda._io", return_value=PID):
+            r = self.client.get(reverse("anagrafica:mia_scheda"))
+        self.assertContains(r, reverse("anagrafica:dispense_corso", args=[self.corso.pk]))
+
+    def test_stato_della_pagina_coerente_con_la_scadenza(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        self._scadenza(giorni=-12)
+        due = timezone.localdate() + timedelta(days=60)
+        TrainingAssignment.objects.create(corso=self.corso, legacy_anagrafica_id=PID, due_date=due)
+        st = srv.stato_corsi(PID, [self.corso.pk])[self.corso.pk]
+        self.assertEqual(st["tono"], "bad")
+        self.assertTrue(st["etichetta"].startswith("Scaduto il "))
+        self.assertIn(f"da rifare entro il {due:%d/%m/%Y}", st["etichetta"])

@@ -112,6 +112,7 @@ def mia_scheda(request):
         "saldo": _ratei(lid),
         "visite": _visite(lid),
         "formazione": _formazione(lid),
+        "oggi": timezone.localdate(),
         "cedolino_mesi": mesi,
         "cedolino_voci": voci,
         "cedolino_competenza": competenza,
