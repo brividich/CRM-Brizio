@@ -241,14 +241,21 @@ GUIDA = {
             "id": "tendine",
             "titolo": "Tendine: cercare scrivendo e ordinare",
             "blocchi": [
-                ("p", "Ogni menu a tendina con almeno due voci si cerca scrivendo: apri la tendina e digita una parte "
-                      "del testo, la lista si restringe mentre scrivi (più parole valgono in qualunque ordine, gli "
-                      "accenti non contano). Invio o clic sceglie la voce."),
+                ("p", "Ogni menu a tendina con almeno due voci si cerca scrivendo: apri la tendina e digita nella casella "
+                      "«Scrivi per cercare…» in cima alla lista, che si restringe mentre scrivi (più parole valgono in "
+                      "qualunque ordine, gli accenti non contano) ed evidenzia il testo trovato. Invio o clic sceglie la "
+                      "voce, Esc chiude. La lista è larga almeno 480 px anche se il campo è stretto."),
                 ("def", [
-                    ("Ordina: Come arriva · A→Z · Z→A", "barra in cima alle tendine con almeno 6 voci. «Come arriva» è "
+                    ("Come arriva · A→Z · Z→A", "pulsante accanto alla ricerca nelle tendine con almeno 6 voci. «Come arriva» è "
                      "l'ordine della pagina (stati, priorità e mesi hanno un ordine voluto), «A→Z» e «Z→A» l'ordine "
                      "alfabetico. Il portale ricorda la scelta per quella tendina di quella pagina. La voce vuota "
                      "(«— scegli —») resta sempre in cima; mentre cerchi vengono prima le voci più pertinenti."),
+                    ("«11 voci» / «2 su 11 voci»", "sotto la ricerca: quante voci ha la tendina e quante ne trova quello che hai scritto."),
+                    ("Codice in colonna", "le voci «[codice] titolo» (corsi, articoli) mostrano il codice in una colonna a sinistra; "
+                     "nelle voci «Nome — reparto» il reparto sta a destra."),
+                    ("Più voci", "dove si sceglie più di una voce ogni riga ha la sua casella; le voci scelte restano sotto il campo "
+                     "come etichette, con la × per toglierle. In fondo alla lista «Seleziona i trovati» spunta tutte le voci "
+                     "trovate dalla ricerca, «Togli tutti» le toglie."),
                     ("Persone", "nelle tendine di persone il nominativo è sempre COGNOME NOME, in ordine di cognome, e "
                      "compare solo chi è in forza: account attivo e nessuna data di cessazione in Anagrafica. "
                      "Chi è già scelto su un record resta visibile anche se nel frattempo ha lasciato l'azienda."),

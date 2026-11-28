@@ -9,6 +9,12 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Tendine del portale: lista larga, ricerca in testa, voci leggibili
+- Tutte le tendine (Tom Select, `core/static/core/js/tomselect-init.js`): lista larga 480-640 px (mai meno del campo né oltre lo schermo, si sposta a sinistra se a destra non c'è spazio), ricerca «Scrivi per cercare…» in testa alla lista con «Come arriva · A→Z · Z→A» sulla stessa riga, conteggio «N voci / N su M voci», codice delle voci «[codice] titolo» in colonna, reparto delle voci «Nome — reparto» a destra, testo trovato evidenziato, spunta sulla voce scelta, lista alta 340 px. Scelta multipla con caselle ed etichette con la ×.
+- Niente più doppia cornice attorno al campo (il wrapper ereditava `fm-input`) e campo che occupa la riga in Mansionario → Formazione → «Collega un corso» (`mansionario_mansione.html`).
+- Picker multiplo di Anagrafica (`components/_multiselect_picker.html`, es. Mansionario → Persone → «Aggiungi persone»): stesso aspetto, con campo «N voci scelte», etichette sotto il campo e lista a comparsa con «Seleziona i trovati» / «Togli tutti». La select nativa resta la fonte del valore inviato.
+- Stile in `core/static/core/css/components.css`; versioni in `core/templates/core/base.html`; guida «Tendine» nel Centro guide (`core/guide_moduli/contenuti/home.py`).
+
 ### Formazione: niente assegnazione e-learning doppia per chi è iscritto all'edizione online
 - L'assegnazione automatica notturna salta chi è già iscritto a un'edizione aperta dello stesso corso (es. «Online: slide + test»): il corso si fa dall'edizione (`services/elearning_assegnazioni.iscritti_edizioni_aperte`).
 - Migrazione `0267`: toglie le assegnazioni automatiche «Obbligo: …» ancora «Assegnato» doppie rispetto a un'iscrizione aperta.

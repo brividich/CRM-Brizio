@@ -18,12 +18,17 @@
       (el.querySelector("option[value='']") || {}).textContent ||
       "Cerca…";
     try {
+      // Aspetto unico (proposta tendine del 28/11/2026): nella scelta singola la ricerca sta
+      // in testa alla lista (il campo mostra solo il valore scelto); nella multipla ogni voce
+      // ha la sua casella e le voci scelte restano nel campo con la × per toglierle.
+      var plugins = el.multiple ? ["checkbox_options", "remove_button"] : ["dropdown_input"];
       // eslint-disable-next-line no-undef
       var ts = new TomSelect(el, {
         create: false, // niente opzioni inventate: solo quelle esistenti
         allowEmptyOption: true,
         maxOptions: null, // niente cap: liste lunghe (dipendenti, asset...) intere
         placeholder: placeholder,
+        plugins: plugins,
         // La lista si appende al body: dentro una card con overflow nascosto
         // (hr-card, fm-section, modali) altrimenti resta tagliata e invisibile.
         dropdownParent: "body",
@@ -31,45 +36,107 @@
         searchField: ["text"],
         // Le voci che la pagina nasconde (option.hidden, es. il ruolo stesso in «Riporta a»)
         // non si mostrano nella ricerca: sono anche disattivate, quindi non si scelgono.
+        // Le voci «[codice] testo» (corsi, articoli…) mettono il codice in una colonna fissa.
         render: {
           option: function (data, escape) {
             var nascosta = data.$option && data.$option.hidden;
-            return "<div" + (nascosta ? ' style="display:none"' : "") + ">" + escape(data.text) + "</div>";
+            var testo = String(data.text == null ? "" : data.text);
+            var m = /^\[([^\]]{1,24})\]\s*(.+)$/.exec(testo);
+            var dentro = m
+              ? '<span class="ts-cod">' + escape(m[1]) + '</span><span class="ts-txt">' + escape(m[2]) + "</span>"
+              : '<span class="ts-txt">' + escape(testo) + "</span>";
+            // «Nome — reparto»: la parte dopo « — » va in colonna a destra, come nel picker multiplo.
+            var trattino = !m ? testo.indexOf(" — ") : -1;
+            if (trattino > 0) {
+              dentro = '<span class="ts-txt">' + escape(testo.slice(0, trattino)) + '</span><span class="ts-dopo">' + escape(testo.slice(trattino + 3)) + "</span>";
+            }
+            return '<div class="ts-voce"' + (nascosta ? ' style="display:none"' : "") + ">" + dentro + "</div>";
           },
         },
       });
+      ts.wrapper.classList.add("hub-ts");
       collega(el, ts);
+      testaLista(ts);
       ordinamento(el, ts);
-      // Scelta singola: mentre si digita il valore già scelto (es. «Io stesso»)
-      // resterebbe accanto al testo cercato e si sovrapporrebbe: si nasconde
-      // finché c'è testo nella ricerca (CSS .ts-digita in components.css).
-      if (!el.multiple) {
-        var digita = function (testo) { ts.wrapper.classList.toggle("ts-digita", !!testo); };
-        ts.on("type", digita);
-        ts.on("dropdown_close", function () { digita(""); });
-        ts.on("change", function () { digita(""); });
-      }
+      conteggio(ts);
       // Con lo zoom CSS di theme.css (schermi 4K: :root{zoom:1.5}) le
       // coordinate di getBoundingClientRect e quelle assolute del body non
       // coincidono e la lista finiva mezza pagina più in basso. Si misura la
       // mappa reale con due sonde invece di fidarsi di scrollY.
       ts.positionDropdown = function () {
-        var r = this.control.getBoundingClientRect();
-        var a = document.createElement("div"), b = document.createElement("div");
-        a.style.cssText = b.style.cssText = "position:absolute;width:0;height:0;left:0;top:0;pointer-events:none;";
-        b.style.top = "1000px";
-        document.body.appendChild(a); document.body.appendChild(b);
-        var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-        document.body.removeChild(a); document.body.removeChild(b);
-        var k = (rb.top - ra.top) / 1000 || 1;
-        this.dropdown.style.width = (r.width / k) + "px";
-        this.dropdown.style.top = ((r.bottom - ra.top) / k) + "px";
-        this.dropdown.style.left = ((r.left - ra.left) / k) + "px";
+        posiziona(this.control, this.dropdown);
       };
     } catch (e) {
       // Fail-safe: in caso di errore resta il select nativo.
       el.dataset.tsInit = "";
     }
+  }
+
+  // Lista larga quanto serve: almeno LARGA_MIN e al massimo LARGA_MAX px, mai meno del campo
+  // e mai oltre lo schermo; allineata al campo, si sposta a sinistra se a destra non c'è
+  // spazio. Con lo zoom CSS di theme.css (schermi 4K: :root{zoom:1.5}) le coordinate di
+  // getBoundingClientRect e quelle assolute del body non coincidono: si misura la mappa
+  // reale con due sonde invece di fidarsi di scrollY. Serve anche al picker multiplo
+  // di Anagrafica (window.hubPosizionaLista).
+  var LARGA_MIN = 480, LARGA_MAX = 640, MARGINE = 12;
+  function posiziona(campo, lista) {
+    var r = campo.getBoundingClientRect();
+    var a = document.createElement("div"), b = document.createElement("div");
+    a.style.cssText = b.style.cssText = "position:absolute;width:0;height:0;left:0;top:0;pointer-events:none;";
+    b.style.top = "1000px";
+    document.body.appendChild(a); document.body.appendChild(b);
+    var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    document.body.removeChild(a); document.body.removeChild(b);
+    var k = (rb.top - ra.top) / 1000 || 1;
+    var schermo = document.documentElement.clientWidth || window.innerWidth;
+    var larga = Math.max(r.width, Math.min(LARGA_MAX, Math.max(LARGA_MIN, r.width)));
+    larga = Math.min(larga, schermo - 2 * MARGINE);
+    var sinistra = Math.min(r.left, schermo - MARGINE - larga);
+    sinistra = Math.max(MARGINE, sinistra);
+    lista.style.width = (larga / k) + "px";
+    lista.style.top = ((r.bottom - ra.top) / k) + "px";
+    lista.style.left = ((sinistra - ra.left) / k) + "px";
+  }
+  window.hubPosizionaLista = posiziona;
+
+  // Testa della lista: nella scelta singola è la riga della ricerca (plugin dropdown_input),
+  // nella multipla una riga propria; lì si aggiunge poi la barra «Ordina».
+  function testaLista(ts) {
+    var testa = ts.dropdown.querySelector(".dropdown-input-wrap");
+    if (!testa) {
+      testa = document.createElement("div");
+      ts.dropdown.insertBefore(testa, ts.dropdown.firstChild);
+    }
+    testa.classList.add("ts-testa");
+    if (!ts.settings.mode || ts.settings.mode === "single") {
+      var metti = function () { ts.control_input.placeholder = "Scrivi per cercare…"; };
+      metti();
+      ts.on("dropdown_open", metti);
+    }
+    ts.hubTesta = testa;
+    return testa;
+  }
+
+  // Sotto la testa: quante voci ci sono e, mentre si cerca, quante ne trova.
+  function conteggio(ts) {
+    var riga = document.createElement("div");
+    riga.className = "ts-conta";
+    ts.hubTesta.parentNode.insertBefore(riga, ts.hubTesta.nextSibling);
+    var aggiorna = function () {
+      var tutte = Object.keys(ts.options).filter(function (v) { return v !== ""; }).length;
+      riga.hidden = tutte < ORDINA_MIN;
+      if (riga.hidden) return;
+      var q = (ts.lastQuery || "").trim();
+      var trovate = ((ts.currentResults && ts.currentResults.items) || []).filter(function (x) { return x.id !== ""; }).length;
+      riga.textContent = q ? trovate + " su " + tutte + " voci" : tutte + " voci";
+    };
+    var refresh = ts.refreshOptions;
+    ts.refreshOptions = function () {
+      var esito = refresh.apply(this, arguments);
+      aggiorna();
+      return esito;
+    };
+    ts.on("dropdown_open", aggiorna);
   }
 
   // Il <select> nativo resta la fonte del valore inviato col modulo: quando una pagina lo
@@ -203,7 +270,8 @@
       ts.refreshOptions(false);
       ts.focus();
     });
-    ts.dropdown.insertBefore(barra, ts.dropdown.firstChild);
+    // Sulla stessa riga della ricerca (o in testa alla lista nella scelta multipla).
+    (ts.hubTesta || ts.dropdown).appendChild(barra);
     var mostra = function () {
       barra.hidden = Object.keys(ts.options).length < ORDINA_MIN;
     };

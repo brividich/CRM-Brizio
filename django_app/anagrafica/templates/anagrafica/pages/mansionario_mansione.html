@@ -299,7 +299,7 @@
           </div>
         </form>
         <style>
-          .mns-corso-row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;margin-top:8px;}
+          .mns-corso-row{flex:1 1 100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;margin-top:8px;}
           .mns-corso-tipo{display:inline-flex;gap:14px;font-size:12.5px;white-space:nowrap;}
           .mns-corso-tipo label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
           @media(max-width:700px){.mns-corso-row{grid-template-columns:1fr;}}

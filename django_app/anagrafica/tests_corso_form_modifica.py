@@ -95,6 +95,23 @@ class TendineRicercabiliTests(TestCase):
         self.assertIn("data-no-search", src)
         self.assertIn('select:not(.js-searchable)', src)
 
+    def test_lista_larga_ricerca_in_testa_e_picker_uguale(self):
+        """Proposta tendine del 28/11/2026: lista 480-640 px, ricerca in testa, picker multiplo con lo stesso aspetto."""
+        from django.contrib.staticfiles import finders
+        from django.template.loader import get_template
+
+        src = open(finders.find("core/js/tomselect-init.js"), encoding="utf-8").read()
+        self.assertIn("LARGA_MIN = 480, LARGA_MAX = 640", src)
+        self.assertIn('["dropdown_input"]', src)
+        self.assertIn("window.hubPosizionaLista = posiziona;", src)
+        css = open(finders.find("core/css/components.css"), encoding="utf-8").read()
+        self.assertIn(".ts-wrapper.hub-ts { padding: 0; border: 0;", css)
+        self.assertNotIn("var(--accent", css.split("Tendine (Tom Select")[1])  # --accent del portale è arancione
+        picker = get_template("anagrafica/components/_multiselect_picker.html").template.source
+        self.assertIn("hubPosizionaLista", picker)
+        self.assertIn("Seleziona i trovati", picker)
+        self.assertIn("msp-src-hidden", picker)  # senza JS resta la select nativa
+
 
 class VersioniAutomaticheTests(TestCase):
     """Le versioni del corso d'aula nascono da sole (services/corso_versioni.py)."""

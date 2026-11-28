@@ -187,24 +187,72 @@ a.kpi-link * { cursor: pointer; }
   margin-top: var(--hub-space-2);
 }
 
-/* Tom Select a scelta singola: mentre si digita la ricerca il valore già scelto
-   si nasconde, altrimenti il testo cercato gli si accoda e si sovrappone. */
-.ts-wrapper.single.ts-digita .ts-control > .item { position: absolute; visibility: hidden; pointer-events: none; }
-/* La lista dei risultati si appende al body: deve stare sopra finestre e pannelli laterali (z-index fino a 10000),
+/* ── Tendine (Tom Select, tomselect-init.js): aspetto unico del portale, proposta del 28/11/2026 ──
+   Il campo mostra il valore scelto; la lista, larga 480-640 px e allineata al campo, ha in testa
+   la ricerca con l'ordine sulla stessa riga, sotto il conteggio, poi le voci (codice in colonna). */
+/* Il wrapper eredita le classi del <select> (fm-input, form-control…): niente doppia cornice. */
+.ts-wrapper.hub-ts { padding: 0; border: 0; background: transparent; box-shadow: none; height: auto; min-height: 0; }
+body .ts-wrapper.hub-ts .ts-control, body .ts-wrapper.hub-ts.single.input-active .ts-control {
+  border: 1px solid var(--border, #d1d9e4); border-radius: 8px; padding: 7px 30px 7px 11px;
+  background: var(--surface, #fff); color: var(--text, #14213a); font-size: 13.5px; line-height: 20px; min-height: 36px; align-items: center;
+}
+.ts-wrapper.hub-ts.single .ts-control::after {
+  content: ""; position: absolute; right: 12px; top: 50%; width: 6px; height: 6px;
+  border-right: 2px solid var(--text-light, #64748b); border-bottom: 2px solid var(--text-light, #64748b);
+  transform: translateY(-70%) rotate(45deg); pointer-events: none;
+}
+.ts-wrapper.hub-ts.focus .ts-control, .ts-wrapper.hub-ts.dropdown-active .ts-control {
+  border-color: #1f87cd; box-shadow: 0 0 0 3px rgba(31, 135, 205, .16);
+}
+.ts-wrapper.hub-ts .ts-control .item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.ts-wrapper.hub-ts .items-placeholder { color: var(--text-light, #64748b); }
+.ts-wrapper.hub-ts.multi .ts-control > div {
+  background: var(--surface-alt, #f1f5f9); border: 1px solid var(--border, #d1d9e4); border-radius: 999px;
+  color: var(--text, #14213a); padding: 1px 4px 1px 10px; margin: 2px 4px 2px 0;
+}
+.ts-wrapper.hub-ts.plugin-remove_button .item .remove { border-left: 0; margin-left: 4px; padding: 0 5px; border-radius: 999px; color: var(--text-light, #64748b); }
+.ts-wrapper.hub-ts.plugin-remove_button .item .remove:hover { background: rgba(220, 38, 38, .12); color: #b91c1c; }
+
+/* La lista si appende al body: deve stare sopra finestre e pannelli laterali (z-index fino a 10000),
    altrimenti dentro una finestra la ricerca sembra non trovare niente (24/11/2026). */
 body .ts-dropdown.ts-dropdown { z-index: 100000; }
-/* Barra «Ordina» in cima alla lista (tomselect-init.js, ordinamento()). */
-.ts-dropdown .ts-ordina {
-  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
-  padding: 6px 8px; border-bottom: 1px solid var(--border, #e2e8f0);
-  background: var(--surface-alt, #f8fafc); font-size: 12px;
+body .ts-dropdown {
+  margin-top: 6px; border: 1px solid var(--border, #d1d9e4); border-radius: 12px; overflow: hidden;
+  background: var(--surface, #fff); color: var(--text, #14213a); font-size: 13.5px;
+  box-shadow: 0 18px 40px -12px rgba(15, 30, 60, .28), 0 2px 6px rgba(15, 30, 60, .08);
 }
+.ts-dropdown .ts-testa { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border, #e2e8f0); }
+.ts-dropdown .ts-testa:empty { display: none; }
+.ts-dropdown .ts-testa .dropdown-input {
+  flex: 1 1 auto; min-width: 0; border: 1px solid var(--border, #d1d9e4); border-radius: 8px;
+  padding: 7px 10px 7px 32px; font: inherit; color: var(--text, #14213a);
+  background: var(--surface-alt, #f6f8fc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.4'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 10px center;
+}
+.ts-dropdown .ts-testa .dropdown-input:focus { outline: none; border-color: #1f87cd; }
+/* Ordine: un pulsante a tre segmenti sulla riga della ricerca (tomselect-init.js, ordinamento()). */
+.ts-dropdown .ts-ordina { display: inline-flex; flex: 0 0 auto; margin-left: auto; border: 1px solid var(--border, #d1d9e4); border-radius: 8px; overflow: hidden; }
 .ts-dropdown .ts-ordina[hidden] { display: none; }
-.ts-dropdown .ts-ordina-lbl { color: var(--text-light, #64748b); margin-right: 2px; }
-.ts-dropdown .ts-ordina-btn {
-  border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fff); color: var(--text, #0f172a);
-  border-radius: 999px; padding: 2px 10px; font: inherit; line-height: 1.5; cursor: pointer;
-}
-.ts-dropdown .ts-ordina-btn:hover { border-color: var(--primary, #002b5c); }
-.ts-dropdown .ts-ordina-btn.is-on { background: var(--primary, #002b5c); border-color: var(--primary, #002b5c); color: #fff; }
+.ts-dropdown .ts-ordina-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.ts-dropdown .ts-ordina-btn { border: 0; background: transparent; color: var(--text-light, #64748b); font-family: inherit; font-size: 12px; font-weight: 500; line-height: 1.4; padding: 6px 10px; cursor: pointer; }
+.ts-dropdown .ts-ordina-btn + .ts-ordina-btn { border-left: 1px solid var(--border, #e2e8f0); }
+.ts-dropdown .ts-ordina-btn:hover { color: var(--text, #14213a); }
+.ts-dropdown .ts-ordina-btn.is-on { background: var(--primary, #002b5c); color: #fff; }
+body.theme-dark .ts-dropdown .ts-ordina-btn.is-on { background: #1f87cd; }
+.ts-dropdown .ts-conta { padding: 5px 14px; font-size: 11.5px; color: var(--text-light, #64748b); background: var(--surface-alt, #f6f8fc); border-bottom: 1px solid var(--border, #e2e8f0); }
+.ts-dropdown .ts-conta[hidden] { display: none; }
+/* Voci: righe ariose, codice in colonna fissa, testo trovato evidenziato, spunta sulla scelta. */
+body .ts-dropdown .ts-dropdown-content { max-height: 340px; padding: 6px; }
+body .ts-dropdown .option { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border-radius: 8px; line-height: 1.35; color: inherit; }
+body .ts-dropdown .option .ts-voce { display: contents; }
+body .ts-dropdown .option .ts-cod { flex: 0 0 auto; min-width: 52px; font: 500 11.5px/1.35 ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--text-light, #64748b); font-variant-numeric: tabular-nums; }
+body .ts-dropdown .option .ts-txt { flex: 1 1 auto; min-width: 0; }
+body .ts-dropdown .active { background: var(--surface-alt, #f1f5f9); color: inherit; }
+body .ts-dropdown .option.selected { background: rgba(31, 135, 205, .12); }
+.ts-dropdown:not(.plugin-checkbox_options) .option.selected::after { content: "✓"; margin-left: auto; padding-left: 8px; color: #1f87cd; font-weight: 700; }
+body .ts-dropdown [data-selectable] .highlight { background: #fff3c4; color: inherit; border-radius: 2px; }
+body.theme-dark .ts-dropdown [data-selectable] .highlight { background: #5b4a12; }
+body .ts-dropdown .option .ts-dopo { flex: 0 0 auto; margin-left: auto; color: var(--text-light, #64748b); font-size: 12.5px; white-space: nowrap; }
+@media (max-width: 640px) { body .ts-dropdown .option .ts-dopo { display: none; } }
+body .ts-dropdown.plugin-checkbox_options:not(.rtl) .option input { width: 16px; height: 16px; margin: 0; accent-color: #1f87cd; align-self: center; flex: 0 0 auto; }
+body .ts-dropdown .no-results { padding: 18px; text-align: center; color: var(--text-light, #64748b); }
 body.theme-dark .ts-dropdown .ts-ordina-btn.is-on { background: #1f87cd; border-color: #1f87cd; }
