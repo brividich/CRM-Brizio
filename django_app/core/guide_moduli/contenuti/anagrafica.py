@@ -644,6 +644,19 @@ GUIDA = {
             ],
         },
         {
+            "id": "skill-matrix",
+            "titolo": "Skill Matrix: gestione dalla matrice e PDF MOD.187",
+            "blocchi": [
+                ("ul", [
+                    "Competenze → Abilitazioni → Abilitazioni macchina (/anagrafica/skill-matrix/): colonne = macchine e processi, raggruppate per reparto con il capo reparto (CAR) sopra; persone raggruppate per reparto, il CAR per primo con il segno «CAR», l'orario (N, T1, T2) accanto al nome.",
+                    "Filtri: reparto, «Cerca persona o colonna», «Solo da rivalutare», «Solo sospese», «Solo macchine», «Disponibili il» (assenze del giorno). Le tessere «Macchine scoperte», «Rischio uomo-solo» e «Da rivalutare» aprono la matrice filtrata.",
+                    "Clic su una cella: scheda a destra con livello, livello richiesto, stato, prossima rivalutazione e storico. Con il permesso «Skill Matrix - Gestisci»: «Cambia livello» (motivo obbligatorio), «Sospendi» / «Riattiva», «Togli dalla lista» (motivo obbligatorio), «Rivalutazione al», «Orario della persona»; su una cella vuota «Abilita». Ogni modifica scrive uno scatto nello storico con il motivo. Se la mansione ha le competenze definite il livello si cambia solo da «Valuta» nel Mansionario.",
+                    "Spunta più persone: «Prossima rivalutazione al … Sposta» per tutte le loro abilitazioni, oppure «Esporta solo loro» in Excel, PDF HUB o PDF MOD.187.",
+                    "«⬇ Esporta»: Excel (matrice con totali per livello), PDF · Report HUB (numeri chiave, celle a colori, operativi per colonna e per persona), PDF · MOD.187 (il modulo del sistema di gestione: CAR e reparto sopra le colonne, totali I/L/U/O, Ruolo · Orario · Nome Operatore, casella Firma CEO da firmare a mano), CSV. Tutti seguono i filtri a schermo; A3 orizzontale, se le colonne non stanno si va su più fogli.",
+                ]),
+            ],
+        },
+        {
             "id": "sessioni-aula",
             "titolo": "Sessioni in aula: presenze, QR d'aula, chiusura, efficacia",
             "blocchi": [

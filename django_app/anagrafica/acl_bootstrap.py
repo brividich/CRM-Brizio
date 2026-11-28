@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
 #   mpq_processo_export → view; registrare in officina resta «gestisci», controllato nella view).
 # Bump alla v22: registro SGI nei riferimenti MOD.128 (mpq_riferimento_verificato → gestisci,
 #   mpq_sgi_cerca → view).
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v22"
+# Bump alla v23: scheda e azioni della Skill Matrix (skm_scheda → view, skm_azione → gestisci).
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v23"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -67,6 +68,8 @@ _SKM_CANONICAL = {
 _SKM_ROUTE_BINDINGS = {
     "anagrafica:skill_matrix_macchina": PERM_SKM_VIEW,
     "anagrafica:skm_copertura": PERM_SKM_VIEW,
+    "anagrafica:skm_scheda": PERM_SKM_VIEW,
+    "anagrafica:skm_azione": PERM_SKM_MANAGE,
     "anagrafica:skm_match_validazione": PERM_SKM_MANAGE,
     "anagrafica:skm_refresh": PERM_SKM_MANAGE,
     "anagrafica:skm_scadenzario": PERM_SKM_MANAGE,

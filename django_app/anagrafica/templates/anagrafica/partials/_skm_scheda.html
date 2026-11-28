@@ -1,0 +1,80 @@
+<style>
+.sk-h{margin:0 0 2px;font-size:15px;color:#0c2545}.sk-sub{color:#64748b;font-size:12px;margin-bottom:8px}
+.sk-kv{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed #e2e8f0;padding:4px 0}.sk-kv span{color:#64748b}
+.sk-t{font-weight:700;font-size:12.5px;margin:12px 0 6px;color:#0c2545}
+.sk-seg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.sk-seg label{border:1px solid #cbd5e1;border-radius:8px;padding:5px 0;text-align:center;font-weight:800;cursor:pointer;font-size:13px}
+.sk-seg label small{display:block;font-weight:400;font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
+.sk-seg input{position:absolute;opacity:0;pointer-events:none}
+.sk-seg label:has(input:checked){border:2px solid #ff6b00;background:#fff7ed}
+.sk-in{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;font:inherit;font-size:12.5px;margin-top:6px}
+.sk-az{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.sk-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:5px 11px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;color:#0c2545}
+.sk-btn.p{background:#ff6b00;border-color:#ff6b00;color:#fff}
+.sk-st{margin:0;padding-left:16px;font-size:12px;color:#475569}.sk-st li{margin-bottom:3px}
+.sk-hint{background:#eef3f8;border-radius:9px;padding:7px 10px;font-size:12px;color:#475569;margin-top:8px}
+.sk-warn{background:#fff6e0;color:#b45309}
+.sk-row{display:flex;gap:6px;align-items:center;margin-top:6px}
+.sk-row select,.sk-row input[type=date]{border:1px solid #cbd5e1;border-radius:8px;padding:4px 6px;font:inherit;font-size:12.5px}
+body.theme-dark .sk-h,body.theme-dark .sk-t{color:var(--text)}body.theme-dark .sk-btn{background:var(--surface);color:var(--text);border-color:var(--border)}
+body.theme-dark .sk-hint{background:#17233d;color:#cbd5e1}body.theme-dark .sk-seg label:has(input:checked){background:rgba(255,107,0,.12)}
+</style>
+<h3 class="sk-h">{{ nome }}</h3>
+<div class="sk-sub">{{ comp.nome }}{% if not comp.asset_id %} · processo{% endif %} · {{ reparto }}</div>
+
+{% if ab %}
+<div class="sk-kv"><span>Livello</span><b>{{ ab.livello }} · {{ etichetta }}</b></div>
+<div class="sk-kv"><span>Richiesto dalla mansione</span><b>{% if ab.livello_richiesto %}{{ ab.livello_richiesto }} · {{ etichetta_richiesto }}{% else %}—{% endif %}</b></div>
+<div class="sk-kv"><span>Stato</span><b>{% if ab.stato == "sospesa" %}Sospesa{% else %}Attiva{% endif %}</b></div>
+<div class="sk-kv"><span>Prossima rivalutazione</span><b{% if arretrata %} style="color:#b45309;"{% endif %}>{{ ab.prossima_revisione|date:"d/m/Y"|default:"—" }}{% if arretrata %} · scaduta{% endif %}</b></div>
+<div class="sk-kv"><span>Nel conto operatori</span><b>{{ ab.conteggiabile_nel_carico|yesno:"Sì,No" }}</b></div>
+{% elif ab_fuori %}
+<div class="sk-hint">Non più in lista su questa mansione (era {{ ab_fuori.livello|default:"—" }}).</div>
+{% else %}
+<div class="sk-hint">Non in lista su questa mansione.</div>
+{% endif %}
+
+{% if can_manage %}
+  {% if ab %}
+    {% if con_competenze %}
+    <div class="sk-hint sk-warn">Questa mansione ha le competenze definite: il livello lo calcola «Valuta» nel Mansionario.</div>
+    {% else %}
+    <div class="sk-t">Cambia livello</div>
+    <form method="post" action="{% url 'anagrafica:skm_azione' %}">
+      {% csrf_token %}<input type="hidden" name="azione" value="livello"><input type="hidden" name="lid" value="{{ lid }}"><input type="hidden" name="comp" value="{{ comp.pk }}"><input type="hidden" name="next" value="{{ next }}">
+      <div class="sk-seg">{% for k, et in livelli %}<label><input type="radio" name="livello" value="{{ k }}"{% if k == ab.livello %} checked{% endif %}>{{ k }}<small>{{ et }}</small></label>{% endfor %}</div>
+      <input class="sk-in" name="motivo" required placeholder="Motivo (obbligatorio, va nello storico)">
+      <div class="sk-az"><button type="submit" class="sk-btn p">Salva</button></div>
+    </form>
+    {% endif %}
+    <div class="sk-t">Sospendi o togli</div>
+    <form method="post" action="{% url 'anagrafica:skm_azione' %}" data-hub-confirm="Confermi?">{% csrf_token %}<input type="hidden" name="lid" value="{{ lid }}"><input type="hidden" name="comp" value="{{ comp.pk }}"><input type="hidden" name="next" value="{{ next }}">
+      <input class="sk-in" name="motivo" placeholder="Motivo (obbligatorio per togliere)" style="margin-top:0;">
+      <div class="sk-az">
+        <button type="submit" name="azione" value="{% if ab.stato == 'sospesa' %}riattiva{% else %}sospendi{% endif %}" class="sk-btn">{% if ab.stato == "sospesa" %}Riattiva{% else %}Sospendi{% endif %}</button>
+        <button type="submit" name="azione" value="togli" class="sk-btn">Togli dalla lista</button>
+      </div>
+    </form>
+    <form method="post" action="{% url 'anagrafica:skm_azione' %}" class="sk-row">{% csrf_token %}<input type="hidden" name="azione" value="revisione"><input type="hidden" name="lid" value="{{ lid }}"><input type="hidden" name="comp" value="{{ comp.pk }}"><input type="hidden" name="next" value="{{ next }}">
+      <span style="font-size:12px;">Rivalutazione al</span><input type="date" name="data" required value="{{ ab.prossima_revisione|date:'Y-m-d' }}"><button type="submit" class="sk-btn">Imposta</button></form>
+  {% else %}
+    <div class="sk-t">Abilita</div>
+    <form method="post" action="{% url 'anagrafica:skm_azione' %}">
+      {% csrf_token %}<input type="hidden" name="azione" value="abilita"><input type="hidden" name="lid" value="{{ lid }}"><input type="hidden" name="comp" value="{{ comp.pk }}"><input type="hidden" name="next" value="{{ next }}">
+      <div class="sk-seg">{% for k, et in livelli %}<label><input type="radio" name="livello" value="{{ k }}"{% if forloop.first %} checked{% endif %}>{{ k }}<small>{{ et }}</small></label>{% endfor %}</div>
+      <input class="sk-in" name="motivo" required placeholder="Motivo (obbligatorio, va nello storico)">
+      <div class="sk-az"><button type="submit" class="sk-btn p">Abilita</button></div>
+    </form>
+  {% endif %}
+  <form method="post" action="{% url 'anagrafica:skm_azione' %}" class="sk-row">{% csrf_token %}<input type="hidden" name="azione" value="orario"><input type="hidden" name="lid" value="{{ lid }}"><input type="hidden" name="comp" value="{{ comp.pk }}"><input type="hidden" name="next" value="{{ next }}">
+    <span style="font-size:12px;">Orario della persona</span>
+    <select name="orario"><option value="">—</option>{% for k, et in orari %}<option value="{{ k }}"{% if k == orario %} selected{% endif %}>{{ et }}</option>{% endfor %}</select>
+    <button type="submit" class="sk-btn">Salva</button></form>
+{% elif orario %}
+<div class="sk-kv"><span>Orario</span><b>{{ orario }}</b></div>
+{% endif %}
+
+<div class="sk-t">Storico</div>
+{% if storico %}
+<ul class="sk-st">{% for s in storico %}<li>{{ s.data_rilevazione|date:"d/m/Y" }} · <b>{{ s.livello|default:"—" }}</b> · {{ s.note|default:s.get_fonte_display }}</li>{% endfor %}</ul>
+{% else %}<div class="sk-sub">Nessuno scatto registrato.</div>{% endif %}

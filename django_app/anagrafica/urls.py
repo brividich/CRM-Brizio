@@ -4,6 +4,7 @@ from . import views
 from . import views_coefficienti
 from . import views_sessioni
 from . import views_sessione_prepara
+from . import views_skm
 from . import views_mpq
 from . import views_mpq_qualifiche as views_mpq_q
 from . import views_mpq_utensili as views_mpq_u
@@ -500,6 +501,8 @@ urlpatterns = [
 
     # Skill Matrix MOD.187 — matrice macchina (F4) + validazione match (F2a UI) + refresh CAR (F6)
     path("skill-matrix/", views.skill_matrix_macchina, name="skill_matrix_macchina"),
+    path("skill-matrix/scheda/", views_skm.skm_scheda, name="skm_scheda"),
+    path("skill-matrix/azione/", views_skm.skm_azione, name="skm_azione"),
     path("skill-matrix/match/", views.skm_match_validazione, name="skm_match_validazione"),
     path("skill-matrix/refresh/", views.skm_refresh, name="skm_refresh"),
     # Mansionario (fase 2): ruolo → mansione (colonna macchina/processo) → persone

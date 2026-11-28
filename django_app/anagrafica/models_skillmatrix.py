@@ -433,6 +433,9 @@ class AbilitazioneMacchina(models.Model):
         return self.ordinale < ordinale_livello(self.livello_richiesto)
 
 
+ORARIO_CHOICES = [("N", "N · normale"), ("T1", "T1 · primo turno"), ("T2", "T2 · secondo turno")]
+
+
 class ProfiloMansioniPersona(models.Model):
     """Dati della persona sull'insieme delle sue mansioni (ottobre 2026).
 
@@ -445,6 +448,8 @@ class ProfiloMansioniPersona(models.Model):
     classificazione_prevalente = models.CharField(max_length=3, choices=CLASSIFICAZIONE_CHOICES, blank=True,
                                                   default="")
     coefficienti_da_rivedere = models.BooleanField(default=False)
+    # Orario di lavoro della persona come nel MOD.187 («Orario as is»): normale o turno.
+    orario = models.CharField(max_length=3, choices=ORARIO_CHOICES, blank=True, default="")
     motivo = models.CharField(max_length=200, blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,

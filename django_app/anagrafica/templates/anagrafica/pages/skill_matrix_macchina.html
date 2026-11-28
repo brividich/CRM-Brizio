@@ -2,7 +2,7 @@
 {% load static %}
 {% load anagrafica_extras %}
 
-{% block title %}Skill Matrix — Abilitazioni macchina (MOD.187){% endblock %}
+{% block title %}Skill Matrix — abilitazioni (MOD.187){% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_info_styles.html" %}
@@ -10,77 +10,83 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <style>
-.sm-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:6px 0 18px; }
-.sm-kpi { border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; background:#fff; }
-.sm-kpi .v { font-size:26px; font-weight:800; color:#0c2545; line-height:1; }
-.sm-kpi .l { font-size:11.5px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.03em; margin-top:6px; }
-.sm-kpi.warn { border-color:#fcd34d; background:#fffbeb; } .sm-kpi.warn .v { color:#92400e; }
-.sm-kpi.bad  { border-color:#fca5a5; background:#fef2f2; } .sm-kpi.bad .v  { color:#991b1b; }
-.sm-tabs { display:flex; gap:6px; margin:0 0 14px; border-bottom:2px solid #e2e8f0; }
-.sm-tab { padding:8px 16px; font-size:13px; font-weight:700; color:#64748b; text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-2px; }
-.sm-tab.active { color:#0c2545; border-bottom-color:#1f87cd; }
-.sm-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px; }
-.sm-toolbar select { padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; }
-.sm-legend { display:flex; flex-wrap:wrap; gap:14px; font-size:11.5px; color:#475569; margin:10px 0 4px; }
-.sm-legend b { color:#0c2545; }
-.sm-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:8px; max-height:calc(72 * var(--vh, 1vh)); }
-.sm-table { border-collapse:separate; border-spacing:0; font-size:12px; }
-.sm-table th, .sm-table td { border-bottom:1px solid #eef2f7; border-right:1px solid #eef2f7; padding:6px 8px; text-align:center; white-space:nowrap; }
-.sm-table thead th { background:#0c2545; color:#fff; font-size:10.5px; text-transform:uppercase; letter-spacing:.02em; position:sticky; top:0; z-index:3; }
-.sm-table thead th.rot { height:128px; vertical-align:bottom; }
-.sm-table thead th.rot > div { writing-mode:vertical-rl; transform:rotate(180deg); margin:0 auto; max-height:118px; overflow:hidden; text-overflow:ellipsis; }
-.sm-table th.name, .sm-table td.name { text-align:left; position:sticky; left:0; background:#fff; z-index:2; min-width:200px; font-weight:600; color:#0c2545; }
-.sm-table thead th.name { z-index:4; background:#0c2545; }
-.sm-table tbody tr:hover td { background:#f8fafc; } .sm-table tbody tr:hover td.name { background:#eff6ff; }
-.sm-cell { display:inline-block; min-width:24px; border-radius:5px; padding:2px 6px; font-weight:800; }
-.sm-cell.I { background:#fee2e2; color:#991b1b; }
-.sm-cell.L { background:#fef9c3; color:#854d0e; }
-.sm-cell.U { background:#dcfce7; color:#166534; }
-.sm-cell.O { background:#1f87cd; color:#fff; }
-.sm-cell.susp { opacity:.45; text-decoration:line-through; }
-.sm-flag { font-size:10px; margin-left:2px; }
-.sm-multi { box-shadow:inset 0 -3px 0 #1f87cd; }
-.sm-arr { background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(148,163,184,.35) 3px,rgba(148,163,184,.35) 6px); }
-.sm-rep { color:#94a3b8; font-size:11px; font-weight:400; }
-.sm-disp { display:inline-block; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.02em; border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
-.sm-disp.ass { background:#fee2e2; color:#991b1b; }
-.sm-disp.dub { background:#fef9c3; color:#854d0e; }
-.sm-table td.name.sm-row-ass { box-shadow:inset 3px 0 0 #ef4444; }
-.sm-table td.name.sm-row-dub { box-shadow:inset 3px 0 0 #f59e0b; }
-.sm-empty { text-align:center; padding:46px 16px; color:#475569; }
-body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { background:var(--surface); color:var(--text-light); }
-  
-/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .sm-kpi{border-color:var(--border);background:var(--surface)}
-body.theme-dark .sm-kpi .v{color:var(--text)}
-body.theme-dark .sm-kpi .l{color:var(--text-light)}
-body.theme-dark .sm-kpi.warn{background:rgba(214,158,46,.16)}
-body.theme-dark .sm-kpi.warn .v{color:#fcd34d}
-body.theme-dark .sm-kpi.bad{background:rgba(229,62,62,.16)}
-body.theme-dark .sm-kpi.bad .v{color:#fca5a5}
-body.theme-dark .sm-tabs{border-color:var(--border)}
-body.theme-dark .sm-tab{color:var(--text-light)}
-body.theme-dark .sm-tab.active{color:var(--text)}
-body.theme-dark .sm-toolbar select{border-color:var(--border)}
-body.theme-dark .sm-legend{color:var(--text-mid)}
-body.theme-dark .sm-legend b{color:var(--text)}
-body.theme-dark .sm-wrap{border-color:var(--border)}
-body.theme-dark .sm-table th,body.theme-dark .sm-table td{border-color:var(--border)}
-body.theme-dark .sm-table tbody tr:hover td{background:var(--surface-alt,#0f1b2d)}
-body.theme-dark .sm-table tbody tr:hover td.name{background:rgba(59,130,246,.18)}
-body.theme-dark .sm-cell.I{background:rgba(229,62,62,.16);color:#fca5a5}
-body.theme-dark .sm-cell.L{background:rgba(214,158,46,.16);color:#fcd34d}
-body.theme-dark .sm-cell.U{background:rgba(56,161,105,.18);color:#86efac}
-body.theme-dark .sm-disp.ass{background:rgba(229,62,62,.16);color:#fca5a5}
-body.theme-dark .sm-disp.dub{background:rgba(214,158,46,.16);color:#fcd34d}
-body.theme-dark .sm-empty{color:var(--text-mid)}
+.hr-shell.sm-full{max-width:none}
+.sm-tabs{display:flex;gap:6px;margin:0 0 12px;border-bottom:2px solid #e2e8f0}
+.sm-tab{padding:8px 16px;font-size:13px;font-weight:700;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-2px}
+.sm-tab.active{color:#0c2545;border-bottom-color:#1f87cd}
+.sm-tool{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:8px 10px;margin:10px 0}
+.sm-chip{border:1px solid #d7e0ea;border-radius:999px;padding:3px 11px;font-size:12px;color:#334155;text-decoration:none;background:#fff;white-space:nowrap}
+.sm-chip.on{background:#0c2545;color:#fff;border-color:#0c2545}
+.sm-cerca{border:1px solid #cbd5e1;border-radius:8px;padding:5px 9px;font-size:12.5px;min-width:200px}
+.sm-tool input[type=date]{border:1px solid #cbd5e1;border-radius:8px;padding:4px 8px;font-size:12.5px}
+.sm-info{font-size:12px;color:#64748b}
+.sm-leg{display:flex;flex-wrap:wrap;gap:10px;font-size:11.5px;color:#475569;margin-left:auto;align-items:center}
+.sm-leg .sm-c{cursor:default;width:18px;height:16px;line-height:16px;font-size:10.5px}
+.sm-main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start}
+@media (max-width:1100px){.sm-main{grid-template-columns:1fr}}
+.sm-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px;background:#fff;max-height:calc(74 * var(--vh, 1vh))}
+.sm-t{border-collapse:separate;border-spacing:0;font-size:12px}
+.sm-t th,.sm-t td{border-bottom:1px solid #eef2f7;padding:2px 3px!important;text-align:center;white-space:nowrap;height:auto!important;line-height:1.2}
+.sm-t thead{position:sticky;top:0;z-index:3}
+.sm-t thead th{background:#f8fafc;color:#475569;text-transform:none!important;letter-spacing:0!important}
+.sm-t thead tr.g th{height:24px;font-size:11px;color:#0c2545;border-left:2px solid #fff}
+.sm-t thead tr.g th small{font-weight:400;color:#64748b}
+.sm-t thead tr.v th{height:150px;vertical-align:bottom;font-size:10.5px;font-weight:600}
+.sm-t thead tr.v th>div{writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;max-height:144px;overflow:hidden;text-overflow:ellipsis}
+.sm-t thead tr.o th{font-size:10.5px;color:#16a34a;font-weight:700}
+.sm-t thead tr.o th.zero{color:#dc2626}
+.sm-t .nm{text-align:left;position:sticky;left:0;background:#fff;z-index:2;min-width:230px}
+.sm-t thead .nm{z-index:4;background:#f8fafc;position:sticky;left:0}
+.sm-t td.nm label{display:flex;gap:7px;align-items:center;cursor:pointer}
+.sm-t .nm input[type=checkbox]{width:14px!important;height:14px!important;min-height:0!important;margin:0;padding:0!important}
+.sm-t tr.rep td{background:#f1f5f9;text-align:left;font-weight:700;color:#0c2545;font-size:11.5px;position:sticky;left:0}
+.sm-t tbody tr:hover td{background:#fafcff}.sm-t tbody tr:hover td.nm{background:#eff6ff}
+.sm-t tr.sel td{background:#fff7ed}.sm-t tr.sel td.nm{background:#ffedd5}
+.sm-car{font-size:9.5px;font-weight:800;background:#b4c6e7;color:#0c2545;border-radius:4px;padding:0 4px}
+.sm-or{font-size:10px;color:#64748b;border:1px solid #cbd5e1;border-radius:4px;padding:0 3px}
+.sm-c{display:inline-block;width:24px;height:19px;border-radius:5px;font-weight:800;line-height:19px;font-size:11.5px;border:0;padding:0;cursor:pointer;position:relative;font-family:inherit}
+.sm-c.I{background:#fde68a;color:#78350f}.sm-c.L{background:#bfdbfe;color:#1e3a8a}.sm-c.U{background:#bbf7d0;color:#14532d}.sm-c.O{background:#c7d2fe;color:#312e81}
+.sm-c.ar{outline:2px dashed #b45309;outline-offset:-2px}
+.sm-c.so{background:#e2e8f0!important;color:#94a3b8!important;text-decoration:line-through}
+.sm-c.st::after{content:"";position:absolute;top:-3px;right:-3px;border:4px solid transparent;border-bottom:6px solid #dc2626;border-top:0}
+.sm-c.vu{background:transparent;border:1px dashed #e2e8f0;cursor:pointer}
+.sm-c.vu:hover{border-color:#ff6b00}
+.sm-c.on{box-shadow:0 0 0 3px #ff6b00}
+.sm-disp{display:inline-block;font-size:9.5px;font-weight:800;text-transform:uppercase;border-radius:4px;padding:0 4px}
+.sm-disp.ass{background:#fee2e2;color:#991b1b}.sm-disp.dub{background:#fef9c3;color:#854d0e}
+.sm-pan{position:sticky;top:76px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;font-size:12.5px;min-height:160px}
+.sm-pan .vuoto{color:#64748b}
+.sm-bar{display:none;background:#0c2545;color:#fff;border-radius:12px;padding:8px 12px;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.sm-bar.on{display:flex}
+.sm-bar a,.sm-bar button{color:#fff;border:1px solid #64748b;background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;text-decoration:none;cursor:pointer;font-family:inherit}
+.sm-bar input{border-radius:6px;border:0;padding:3px 6px;font-size:12px}
+.sm-exp{position:relative}
+.sm-exp>summary{list-style:none;cursor:pointer}
+.sm-exp>summary::-webkit-details-marker{display:none}
+.sm-exp-m{position:absolute;right:0;top:38px;background:#fff;border:1px solid #d7e0ea;border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.15);width:300px;padding:6px;z-index:20}
+.sm-exp-m a{display:block;padding:8px 10px;border-radius:8px;color:#0c2545;text-decoration:none;font-weight:600;font-size:13px}
+.sm-exp-m a:hover{background:#f1f5f9}.sm-exp-m small{display:block;font-weight:400;color:#64748b;font-size:11.5px}
+.sm-empty{text-align:center;padding:46px 16px;color:#475569}
+body.theme-dark .sm-tool,body.theme-dark .sm-wrap,body.theme-dark .sm-pan,body.theme-dark .sm-exp-m{background:var(--surface);border-color:var(--border)}
+body.theme-dark .sm-chip{background:var(--surface);border-color:var(--border);color:var(--text-mid)}
+body.theme-dark .sm-chip.on{background:#1f87cd;border-color:#1f87cd;color:#fff}
+body.theme-dark .sm-t thead th,body.theme-dark .sm-t thead .nm{background:#0f1b2d;color:var(--text-mid)}
+body.theme-dark .sm-t thead tr.g th{color:var(--text)}
+body.theme-dark .sm-t .nm{background:var(--surface);color:var(--text)}
+body.theme-dark .sm-t th,body.theme-dark .sm-t td{border-color:var(--border)}
+body.theme-dark .sm-t tr.rep td{background:#17233d;color:var(--text)}
+body.theme-dark .sm-t tbody tr:hover td{background:#13203a}
+body.theme-dark .sm-t tr.sel td,body.theme-dark .sm-t tr.sel td.nm{background:rgba(255,107,0,.14)}
+body.theme-dark .sm-exp-m a{color:var(--text)}body.theme-dark .sm-exp-m a:hover{background:#17233d}
+body.theme-dark .sm-tab.active{color:var(--text)}body.theme-dark .sm-tabs{border-color:var(--border)}
+body.theme-dark .sm-c.vu{border-color:#334155}
 </style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+<div class="hr-shell sm-full">
 
   <div class="hr-pagehead">
     <div>
@@ -88,111 +94,178 @@ body.theme-dark .sm-empty{color:var(--text-mid)}
         <a href="{% url 'anagrafica:index' %}" class="fm-crumb">Anagrafica</a>
         <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
       </template>
-      <h2 class="hr-pagehead-title">🛠️ Skill Matrix — Abilitazioni macchina</h2>
-      <p class="hr-pagehead-desc">Matrice persone × macchine con livelli I/L/U/O {% info_hint "livelli_ilou" %}. Soglia operativa: <b>≥ {{ config.soglia_operativa }}</b> ({{ config.get_soglia_operativa_display }}).</p>
+      <h2 class="hr-pagehead-title">Skill Matrix — abilitazioni</h2>
+      <p class="hr-pagehead-desc">Persone × macchine e processi, livelli I/L/U/O {% info_hint "livelli_ilou" %}. Soglia operativa: <b>≥ {{ config.soglia_operativa }}</b> ({{ config.get_soglia_operativa_display }}). Clic su una cella per la scheda.</p>
     </div>
-    <div style="display:flex;gap:8px;">
-      {% if can_impostazioni %}<a href="{% url 'anagrafica:skm_impostazioni' %}" class="hr-btn hr-btn-outline" title="Soglia operativa, CAR, uomo-solo, etichette">⚙️ Impostazioni</a>{% endif %}
-      <a href="{% url 'anagrafica:skm_copertura' %}" class="hr-btn hr-btn-outline" title="Verifica copertura minima (AS/EN 9100)">🛡️ Copertura minima</a>
-      <a href="{% url 'anagrafica:skm_match_validazione' %}" class="hr-btn hr-btn-outline" title="Valida l'abbinamento competenza→asset (gate F2a)">🔧 Validazione match</a>
-      <a href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&{% endif %}data={{ data_sel|date:'Y-m-d' }}&format=csv" class="hr-btn hr-btn-outline">⬇ CSV</a>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <a href="{% url 'guida_modulo' 'anagrafica' %}#skill-matrix" class="hr-btn hr-btn-outline" title="Come funziona questa pagina">? Guida</a>
+      {% if can_impostazioni %}<a href="{% url 'anagrafica:skm_impostazioni' %}" class="hr-btn hr-btn-outline" title="Soglia operativa, CAR, uomo-solo, etichette">⚙ Impostazioni</a>{% endif %}
+      <a href="{% url 'anagrafica:skm_copertura' %}" class="hr-btn hr-btn-outline" title="Verifica copertura minima (AS/EN 9100)">Copertura minima</a>
+      <a href="{% url 'anagrafica:skm_match_validazione' %}" class="hr-btn hr-btn-outline" title="Abbinamento competenza → macchina">Validazione match</a>
+      <details class="sm-exp">
+        <summary class="hr-btn hr-btn-primary">⬇ Esporta ▾</summary>
+        <div class="sm-exp-m">
+          <a href="?{{ qs_base }}{% if qs_base %}&amp;{% endif %}format=xlsx" data-exp="xlsx">Excel<small>la matrice come a schermo, con totali per livello</small></a>
+          <a href="?{{ qs_base }}{% if qs_base %}&amp;{% endif %}format=pdf_hub" target="_blank" data-exp="pdf_hub">PDF · Report HUB<small>numeri chiave, celle a colori, operativi per colonna e persona</small></a>
+          <a href="?{{ qs_base }}{% if qs_base %}&amp;{% endif %}format=pdf_mod" target="_blank" data-exp="pdf_mod">PDF · MOD.187<small>il modulo SGI: CAR e reparti, totali I/L/U/O, firma CEO</small></a>
+          <a href="?{{ qs_base }}{% if qs_base %}&amp;{% endif %}format=csv" data-exp="csv">CSV<small>testo separato da punto e virgola</small></a>
+        </div>
+      </details>
     </div>
   </div>
 
   <div class="sm-tabs">
-    <span class="sm-tab active">Macchina</span>
+    <span class="sm-tab active">Abilitazioni</span>
     <a class="sm-tab" href="{% url 'anagrafica:matrice_competenze' %}">Matrice qualifiche</a>
   </div>
 
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Skill Matrix in sintesi">
-    <a class="fmd-mtr fmd-t-cyan kpi-link" href="{% url 'anagrafica:skill_matrix_macchina' %}{% if kpi_qs_reparto %}?{{ kpi_qs_reparto }}{% endif %}#sm-matrice" title="Vai alla matrice: abilitazioni in lista e loro livello"><span class="fmd-ribbon"></span>
+    <a class="fmd-mtr fmd-t-cyan kpi-link" href="{% url 'anagrafica:skill_matrix_macchina' %}{% if kpi_qs_reparto %}?{{ kpi_qs_reparto }}{% endif %}#sm-matrice" title="Abilitazioni in lista e loro livello"><span class="fmd-ribbon"></span>
       <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi.prontezza.percentuale }}%</span></div>
-      <div class="fmd-mtr-lbl">Prontezza squadra</div><div class="fmd-mtr-sub">{{ kpi.prontezza.operativi }} abilitazioni operative su {{ kpi.prontezza.totale_in_lista }} in lista</div>
+      <div class="fmd-mtr-lbl">Prontezza squadra</div><div class="fmd-mtr-sub">{{ kpi.prontezza.operativi }} operative su {{ kpi.prontezza.totale_in_lista }} in lista</div>
     </a>
-    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.scoperte|yesno:"orange,green" icona="i-alert-tri" valore=kpi.scoperte label="Macchine scoperte" sub="nessun abilitato in lista" url=kpi_url_scoperte title="Apri la matrice filtrata: macchine senza abilitati in lista" %}
-    <a class="fmd-mtr fmd-t-{{ kpi.uomo_solo|yesno:'amber,green' }} kpi-link" href="{% url 'anagrafica:skill_matrix_macchina' %}?macchine=uomo_solo{% if kpi_qs_reparto %}&amp;{{ kpi_qs_reparto }}{% endif %}#sm-matrice" title="Apri la matrice filtrata: macchine con meno di {{ config.soglia_uomo_solo }} abilitati operativi"><span class="fmd-ribbon"></span>
+    <a class="fmd-mtr fmd-t-{{ kpi.scoperte|yesno:'orange,green' }} kpi-link" href="{% url 'anagrafica:skill_matrix_macchina' %}?macchine=scoperte{% if kpi_qs_reparto %}&amp;{{ kpi_qs_reparto }}{% endif %}#sm-matrice" title="Macchine senza abilitati in lista"><span class="fmd-ribbon"></span>
+      <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi.scoperte }}</span></div>
+      <div class="fmd-mtr-lbl">Macchine scoperte</div><div class="fmd-mtr-sub">nessun abilitato in lista</div>
+    </a>
+    <a class="fmd-mtr fmd-t-{{ kpi.uomo_solo|yesno:'amber,green' }} kpi-link" href="{% url 'anagrafica:skill_matrix_macchina' %}?macchine=uomo_solo{% if kpi_qs_reparto %}&amp;{{ kpi_qs_reparto }}{% endif %}#sm-matrice" title="Macchine con meno di {{ config.soglia_uomo_solo }} abilitati operativi"><span class="fmd-ribbon"></span>
       <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi.uomo_solo }}</span></div>
       <div class="fmd-mtr-lbl">Rischio uomo-solo</div><div class="fmd-mtr-sub">meno di {{ config.soglia_uomo_solo }} abilitati</div>
+    </a>
+    <a class="fmd-mtr fmd-t-{{ kpi.rivalutare|yesno:'orange,green' }} kpi-link" href="{% url 'anagrafica:skill_matrix_macchina' %}?solo=rivalutare{% if kpi_qs_reparto %}&amp;{{ kpi_qs_reparto }}{% endif %}#sm-matrice" title="Abilitazioni con la rivalutazione passata"><span class="fmd-ribbon"></span>
+      <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-refresh"/></svg></span><span class="fmd-mtr-val">{{ kpi.rivalutare }}</span></div>
+      <div class="fmd-mtr-lbl">Da rivalutare</div><div class="fmd-mtr-sub">rivalutazione scaduta, non bloccante</div>
     </a>
     {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.continuita_persa|yesno:"orange,green" icona="i-refresh" valore=kpi.continuita_persa label="Continuità persa" %}
   </section>
 
-  <form method="get" class="sm-toolbar" id="sm-matrice">
-    {% if filtro_macchine %}<input type="hidden" name="macchine" value="{{ filtro_macchine }}"><span class="sm-rep">Solo macchine {% if filtro_macchine == "scoperte" %}scoperte{% else %}a rischio uomo-solo{% endif %} · <a href="{% url 'anagrafica:skill_matrix_macchina' %}{% if kpi_qs_reparto %}?{{ kpi_qs_reparto }}{% endif %}#sm-matrice">mostra tutte</a></span>{% endif %}
-    <label class="sm-rep">Reparto</label>
-    <select name="reparto" onchange="this.form.submit()">
-      <option value="">Tutti i reparti</option>
-      {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
-    </select>
-    <label class="sm-rep" for="sm-data">Disponibilità al</label>
-    <input type="date" id="sm-data" name="data" value="{{ data_sel|date:'Y-m-d' }}" onchange="this.form.submit()"
-           style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
-    <span class="sm-rep">{{ totale_persone }} persone · {{ n_macchine }} macchine</span>
-    {% if n_assenti or n_da_confermare %}
-      <span class="sm-rep">·
-        {% if n_assenti %}<b style="color:#991b1b;">{{ n_assenti }} assenti</b>{% endif %}
-        {% if n_da_confermare %}{% if n_assenti %} · {% endif %}<b style="color:#854d0e;">{{ n_da_confermare }} da confermare</b>{% endif %}
-        il {{ data_sel|date:'d/m' }}
-      </span>
-    {% endif %}
+  <form method="get" class="sm-tool" id="sm-matrice">
+    {% if filtro_macchine %}<input type="hidden" name="macchine" value="{{ filtro_macchine }}"><span class="sm-chip on">Solo macchine {% if filtro_macchine == "scoperte" %}scoperte{% else %}a rischio uomo-solo{% endif %}</span><a class="sm-info" href="{% url 'anagrafica:skill_matrix_macchina' %}#sm-matrice">mostra tutte</a>{% endif %}
+    {% if solo %}<input type="hidden" name="solo" value="{{ solo }}">{% endif %}
+    {% if solo_macchine %}<input type="hidden" name="tipo" value="macchine">{% endif %}
+    {% if filtro_reparto %}<input type="hidden" name="reparto" value="{{ filtro_reparto }}">{% endif %}
+    <a class="sm-chip{% if not filtro_reparto %} on{% endif %}" href="?{% if solo %}solo={{ solo }}&amp;{% endif %}{% if solo_macchine %}tipo=macchine&amp;{% endif %}data={{ data_sel|date:'Y-m-d' }}#sm-matrice">Tutti i reparti</a>
+    {% for r in reparti %}<a class="sm-chip{% if r == filtro_reparto %} on{% endif %}" href="?reparto={{ r|urlencode }}{% if solo %}&amp;solo={{ solo }}{% endif %}{% if solo_macchine %}&amp;tipo=macchine{% endif %}&amp;data={{ data_sel|date:'Y-m-d' }}#sm-matrice">{{ r }}</a>{% endfor %}
+    <input type="search" class="sm-cerca" id="sm-cerca" placeholder="Cerca persona o colonna" aria-label="Cerca persona o colonna">
+    <a class="sm-chip{% if solo == 'rivalutare' %} on{% endif %}" href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&amp;{% endif %}{% if solo != 'rivalutare' %}solo=rivalutare&amp;{% endif %}{% if solo_macchine %}tipo=macchine&amp;{% endif %}data={{ data_sel|date:'Y-m-d' }}#sm-matrice">Solo da rivalutare</a>
+    <a class="sm-chip{% if solo == 'sospese' %} on{% endif %}" href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&amp;{% endif %}{% if solo != 'sospese' %}solo=sospese&amp;{% endif %}{% if solo_macchine %}tipo=macchine&amp;{% endif %}data={{ data_sel|date:'Y-m-d' }}#sm-matrice">Solo sospese</a>
+    <a class="sm-chip{% if solo_macchine %} on{% endif %}" href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&amp;{% endif %}{% if solo %}solo={{ solo }}&amp;{% endif %}{% if not solo_macchine %}tipo=macchine&amp;{% endif %}data={{ data_sel|date:'Y-m-d' }}#sm-matrice">Solo macchine</a>
+    <label class="sm-info" for="sm-data">Disponibili il</label>
+    <input type="date" id="sm-data" name="data" value="{{ data_sel|date:'Y-m-d' }}" onchange="this.form.submit()">
+    <span class="sm-info">{{ totale_persone }} persone · {{ n_macchine }} colonne{% if n_assenti %} · <b style="color:#991b1b;">{{ n_assenti }} assenti</b>{% endif %}{% if n_da_confermare %} · <b style="color:#854d0e;">{{ n_da_confermare }} da confermare</b>{% endif %}</span>
+    <div class="sm-leg">
+      {% for k, etichetta, testo in legenda %}<span><span class="sm-c {{ k }}">{{ k }}</span> {{ etichetta }}</span>{% endfor %}
+      <span><span class="sm-c U ar"></span> da rivalutare</span><span><span class="sm-c U st"></span> sotto il richiesto</span>
+    </div>
   </form>
 
   {% if matrice_vuota %}
     <div class="sm-empty">
       <p style="font-size:15px;font-weight:700;color:#0c2545;">Nessuna abilitazione macchina presente.</p>
-      <p>La baseline MOD.187 non è ancora stata importata (passo F2b, in attesa di conferma del match asset).<br>
-      Completa prima la <a href="{% url 'anagrafica:skm_match_validazione' %}">validazione abbinamento macchine</a>.</p>
+      <p>Nessuna persona è in lista su una macchina o un processo. Le persone si mettono in lista dal Mansionario o dalla <a href="{% url 'anagrafica:skm_match_validazione' %}">validazione abbinamento macchine</a>.</p>
     </div>
   {% else %}
-    <div class="sm-legend">
-      <span><span class="sm-cell I">I</span> {{ config.etichetta_i }}</span>
-      <span><span class="sm-cell L">L</span> {{ config.etichetta_l }}</span>
-      <span><span class="sm-cell U">U</span> {{ config.etichetta_u }}</span>
-      <span><span class="sm-cell O">O</span> {{ config.etichetta_o }}</span>
-      <span><b>▲</b> sotto livello richiesto</span>
-      <span class="sm-arr" style="padding:2px 8px;">rivalutazione arretrata</span>
-      <span class="sm-multi" style="padding:2px 8px;">multivoce</span>
-      <span>vuoto = non in lista</span>
-      <span><span class="sm-disp ass">assente</span> ferie/malattia/permesso confermato il {{ data_sel|date:'d/m' }}</span>
-      <span><span class="sm-disp dub">da confermare</span> richiesta in attesa</span>
+    <div class="sm-bar" id="sm-bar">
+      <b id="sm-bar-n"></b>
+      {% if can_manage %}
+      <form method="post" action="{% url 'anagrafica:skm_azione' %}" style="display:flex;gap:6px;align-items:center;">
+        {% csrf_token %}<input type="hidden" name="azione" value="revisione_blocco"><input type="hidden" name="persone" id="sm-bar-ids">
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <span>Prossima rivalutazione al</span><input type="date" name="data" required><button type="submit">Sposta</button>
+      </form>
+      {% endif %}
+      <span style="opacity:.75;">Esporta solo loro:</span>
+      <a href="#" data-sel="xlsx">Excel</a><a href="#" data-sel="pdf_hub" target="_blank">PDF HUB</a><a href="#" data-sel="pdf_mod" target="_blank">PDF MOD.187</a>
+      <button type="button" id="sm-bar-x" style="margin-left:auto;border:0;opacity:.75;">Annulla</button>
     </div>
-    <div class="sm-wrap">
-      <table class="sm-table">
-        <thead>
-          <tr>
-            <th class="name">Dipendente</th>
-            {% for c in macchine %}<th class="rot" title="{{ c.display }}"><div>{{ c.competenza_key }}</div></th>{% endfor %}
-          </tr>
-          <tr class="sm-counts">
-            <th class="name" style="font-size:9.5px;font-weight:600;text-transform:none;letter-spacing:0;">Operativi ≥ soglia</th>
-            {% for c in macchine %}<th title="Abilitati operativi (≥ {{ config.soglia_operativa }}) su {{ c.display|default:c.competenza_key }}" style="font-size:11px;font-weight:700;{% if c.operativi_count == 0 %}color:#fca5a5;{% endif %}">{{ c.operativi_count }}</th>{% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in righe %}
-          <tr>
-            <td class="name {% if r.disp_stato == 'assente' %}sm-row-ass{% elif r.disp_stato == 'da_confermare' %}sm-row-dub{% endif %}">
-              {% nominativo r %}
-              {% if r.disp_stato == 'assente' %}<span class="sm-disp ass" title="{% for a in r.disp_assenze %}{{ a.tipo }} {{ a.data_inizio|date:'d/m' }}–{{ a.data_fine|date:'d/m' }}{% if a.parziale %} (parziale){% endif %}{% if not forloop.last %}; {% endif %}{% endfor %}">assente</span>
-              {% elif r.disp_stato == 'da_confermare' %}<span class="sm-disp dub" title="Richiesta assenza in attesa di approvazione">da confermare</span>{% endif %}
-              {% if r.reparto %}<div class="sm-rep">{{ r.reparto }}</div>{% endif %}
-            </td>
-            {% for cell in r.celle %}
-              {% if cell.vuota %}
-                <td></td>
-              {% else %}
-                <td class="{% if cell.arretrata %}sm-arr{% endif %}">
-                  <span class="sm-cell {{ cell.livello }}{% if cell.sospesa %} susp{% endif %}{% if cell.multivoce %} sm-multi{% endif %}"
-                        title="{{ cell.etichetta }}{% if cell.sospesa %} — SOSPESA{% endif %}{% if not cell.in_lista %} — non in lista{% endif %}">{{ cell.livello }}{% if cell.sotto %}<span class="sm-flag">▲</span>{% endif %}</span>
-                </td>
-              {% endif %}
+    <div class="sm-main">
+      <div class="sm-wrap" data-table-enhanced="0">
+        <table class="sm-t" id="sm-t">
+          <thead>
+            <tr class="g">
+              <th class="nm" rowspan="1"></th>
+              {% for g in dati.gruppi_colonne %}<th colspan="{{ g.colonne|length }}" title="{{ g.reparto }}{% if g.car %} · CAR {{ g.car }}{% endif %}">{{ g.reparto }}{% if g.car %} <small>· {{ g.car }}</small>{% endif %}</th>{% endfor %}
+            </tr>
+            <tr class="v">
+              <th class="nm" style="vertical-align:bottom;">Persona</th>
+              {% for c in macchine %}<th title="{{ c.nome }}{% if not c.macchina %} (processo){% endif %}" data-col="{{ c.nome|lower }}"><div>{{ c.nome }}</div></th>{% endfor %}
+            </tr>
+            <tr class="o">
+              <th class="nm" style="font-size:10px;font-weight:600;color:#64748b;"><label style="display:flex;gap:7px;align-items:center;"><input type="checkbox" id="sm-tutti" aria-label="Seleziona tutti"> Operativi ≥ {{ config.soglia_operativa }}</label></th>
+              {% for c in macchine %}<th class="{% if not c.operativi %}zero{% endif %}" title="Operativi su {{ c.nome }}">{{ c.operativi }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for g in dati.gruppi_righe %}
+            <tr class="rep"><td class="nm" colspan="1">{{ g.reparto }} · {{ g.righe|length }}</td><td colspan="{{ macchine|length }}" style="position:static;"></td></tr>
+            {% for r in g.righe %}
+            <tr data-lid="{{ r.lid }}" data-nome="{{ r.nome|lower }}">
+              <td class="nm"><label><input type="checkbox" class="sm-sel" value="{{ r.lid }}" aria-label="Seleziona {{ r.nome }}">
+                <span>{{ r.nome }}</span>{% if r.car %}<span class="sm-car" title="Capo reparto">CAR</span>{% endif %}{% if r.orario %}<span class="sm-or" title="Orario">{{ r.orario }}</span>{% endif %}
+                {% if r.disp_stato == 'assente' %}<span class="sm-disp ass" title="{% for a in r.disp_assenze %}{{ a.tipo }} {{ a.data_inizio|date:'d/m' }}–{{ a.data_fine|date:'d/m' }}{% if not forloop.last %}; {% endif %}{% endfor %}">assente</span>{% elif r.disp_stato == 'da_confermare' %}<span class="sm-disp dub">da confermare</span>{% endif %}
+              </label></td>
+              {% for cell, cid in r.celle_ui %}
+              <td>{% if cell %}<button type="button" class="sm-c {{ cell.livello }}{% if cell.arretrata %} ar{% endif %}{% if cell.sospesa %} so{% endif %}{% if cell.sotto %} st{% endif %}" data-k="{{ r.lid }}-{{ cid }}" title="{{ cell.livello }}{% if cell.sospesa %} · sospesa{% endif %}{% if cell.arretrata %} · da rivalutare{% endif %}{% if cell.sotto %} · sotto il richiesto ({{ cell.richiesto }}){% endif %}">{{ cell.livello }}</button>{% elif can_manage %}<button type="button" class="sm-c vu" data-k="{{ r.lid }}-{{ cid }}" title="Non in lista: clic per abilitare" aria-label="Abilita"></button>{% endif %}</td>
+              {% endfor %}
+            </tr>
             {% endfor %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <aside class="sm-pan" id="sm-pannello" aria-live="polite">
+        <div class="vuoto">Clic su una cella: livello, livello richiesto, prossima rivalutazione e storico.{% if can_manage %} Da qui cambi livello, sospendi, togli o abiliti (su una cella vuota), sempre con il motivo.{% endif %}<br><br>Spunta più persone per esportare solo loro{% if can_manage %} o spostarne la rivalutazione{% endif %}.</div>
+      </aside>
     </div>
   {% endif %}
 
 </div>
+<script>
+(function(){
+  var t=document.getElementById("sm-t"); if(!t) return;
+  var pan=document.getElementById("sm-pannello");
+  var url="{% url 'anagrafica:skm_scheda' %}", qui=window.location.pathname+window.location.search;
+  qui=qui.replace(/([?&])apri=[^&]*&?/,"$1").replace(/[?&]$/,"");
+  function apri(k){
+    var p=k.split("-"); t.querySelectorAll(".sm-c.on").forEach(function(b){b.classList.remove("on");});
+    var b=t.querySelector('.sm-c[data-k="'+k+'"]'); if(b) b.classList.add("on");
+    fetch(url+"?lid="+p[0]+"&comp="+p[1]+"&next="+encodeURIComponent(qui),{credentials:"same-origin"})
+      .then(function(r){return r.text();}).then(function(h){pan.innerHTML=h;});
+  }
+  t.addEventListener("click",function(e){var b=e.target.closest(".sm-c[data-k]"); if(b) apri(b.dataset.k);});
+  {% if apri %}apri("{{ apri|escapejs }}");{% endif %}
+  // ricerca persona o colonna
+  var cerca=document.getElementById("sm-cerca");
+  cerca.addEventListener("input",function(){
+    var q=cerca.value.trim().toLowerCase();
+    var cols=[].slice.call(t.querySelectorAll("thead tr.v th[data-col]"));
+    var colMatch=q&&cols.some(function(th){return th.dataset.col.indexOf(q)>=0;});
+    t.querySelectorAll("tbody tr[data-lid]").forEach(function(tr){
+      tr.style.display=(!q||colMatch||tr.dataset.nome.indexOf(q)>=0)?"":"none";
+    });
+    cols.forEach(function(th,i){
+      var vis=!q||!colMatch||th.dataset.col.indexOf(q)>=0;
+      th.style.display=vis?"":"none";
+      t.querySelectorAll("thead tr.o th:nth-child("+(i+2)+"), tbody tr[data-lid] td:nth-child("+(i+2)+")").forEach(function(td){td.style.display=vis?"":"none";});
+    });
+  });
+  // selezione multipla
+  var bar=document.getElementById("sm-bar");
+  function sel(){
+    var ids=[].slice.call(t.querySelectorAll(".sm-sel:checked")).map(function(c){c.closest("tr").classList.add("sel");return c.value;});
+    t.querySelectorAll(".sm-sel:not(:checked)").forEach(function(c){c.closest("tr").classList.remove("sel");});
+    bar.classList.toggle("on",ids.length>0);
+    document.getElementById("sm-bar-n").textContent=ids.length+" person"+(ids.length===1?"a selezionata":"e selezionate");
+    var h=document.getElementById("sm-bar-ids"); if(h) h.value=ids.join(",");
+    bar.querySelectorAll("[data-sel]").forEach(function(a){
+      var base="?{{ qs_base|escapejs }}"; a.href=base+(base.length>1?"&":"")+"format="+a.dataset.sel+"&persone="+ids.join(",");
+    });
+  }
+  t.addEventListener("change",function(e){if(e.target.classList.contains("sm-sel")) sel();});
+  document.getElementById("sm-tutti").addEventListener("change",function(){
+    var on=this.checked; t.querySelectorAll("tbody tr[data-lid]").forEach(function(tr){if(tr.style.display!=="none") tr.querySelector(".sm-sel").checked=on;}); sel();
+  });
+  document.getElementById("sm-bar-x").addEventListener("click",function(){t.querySelectorAll(".sm-sel").forEach(function(c){c.checked=false;}); document.getElementById("sm-tutti").checked=false; sel();});
+})();
+</script>
 {% endblock %}

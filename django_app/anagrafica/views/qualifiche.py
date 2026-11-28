@@ -1488,218 +1488,200 @@ def skm_match_validazione(request):
 
 @login_required
 def skill_matrix_macchina(request):
-    """Matrice **persone × macchine** con livelli I/L/U/O (MOD.187).
+    """Matrice **persone × mansioni** con livelli I/L/U/O (MOD.187).
 
-    Celle = livello (etichetta configurabile); marker ``▲`` sotto livello
-    richiesto; tratteggio = rivalutazione arretrata (NON bloccante); barra blu =
-    multivoce; punto = continuità monitorata. KPI in testa (prontezza squadra,
-    macchine scoperte, rischio uomo-solo, continuità persa) dal resolver F3.
-    Tab gemella "Processi qualificati" rimanda alla matrice qualifiche esistente.
-
-    Sola lettura. Accesso: ``_check_hr_permission`` (ACL formale in F7).
-    Finché la baseline (F2b) non è importata, la matrice è vuota: la pagina
-    mostra comunque struttura e KPI, con rimando alla validazione match (F2a).
+    Colonne raggruppate per reparto con il CAR sopra, persone raggruppate per
+    reparto (CAR per primo), come nel modulo. Clic su una cella: scheda a destra
+    (``skm_scheda``) con livello, storico e, per chi gestisce, modifica
+    (``skm_azione``). Esporta: CSV (storico), Excel, PDF «Report HUB», PDF
+    «MOD.187» (``?format=csv|xlsx|pdf_hub|pdf_mod``), sempre con i filtri a schermo
+    e, se ci sono, solo le persone selezionate (``persone=1,2``).
     """
-    from ..acl_bootstrap import PERM_SKM_VIEW
+    from ..acl_bootstrap import PERM_SKM_MANAGE, PERM_SKM_VIEW
     if not _check_skm_permission(request, PERM_SKM_VIEW):
         messages.error(request, "Non hai i permessi per la Skill Matrix macchine.")
         return redirect("anagrafica:index")
 
+    import datetime as _dt
+    from urllib.parse import quote as _quote
+
     from django.utils import timezone
-    from ..models import (
-        AbilitazioneMacchina, CompetenzaSkm, ContinuitaOperativa, SkillMatrixConfig,
-    )
+
+    from ..models import ContinuitaOperativa, SkillMatrixConfig
     from ..services import skillmatrix_resolver as resolver
+    from ..services import skillmatrix_vista as vista
 
     config = SkillMatrixConfig.get_instance()
-    filtro_reparto = (request.GET.get("reparto") or "").strip()
-    export_csv = request.GET.get("format") == "csv"
     oggi = timezone.localdate()
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    solo = (request.GET.get("solo") or "").strip()
+    solo = solo if solo in ("rivalutare", "sospese") else ""
+    solo_macchine = request.GET.get("tipo") == "macchine"
+    formato = (request.GET.get("format") or "").strip()
+    persone_sel = [int(x) for x in (request.GET.get("persone") or "").split(",") if x.strip().isdigit()] or None
 
-    # Colonne = macchine MOD.187 con asset risolto (catalogo F2a).
-    comp_all = list(
-        CompetenzaSkm.objects
-        .filter(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False)
-        .select_related("asset").order_by("display", "competenza_key")
-    )
-    reparti = sorted({
-        (c.asset.reparto or "").strip() for c in comp_all if (c.asset.reparto or "").strip()
-    })
-    comp_reparto = [
-        c for c in comp_all
-        if not filtro_reparto or (c.asset.reparto or "").strip().casefold() == filtro_reparto.casefold()
+    # Macchine scoperte / a rischio uomo-solo (tessere e filtro ?macchine=).
+    from ..models import CompetenzaSkm
+    macchine_rep = [
+        c for c in CompetenzaSkm.objects.filter(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False,
+                                                attiva=True).select_related("asset", "reparto")
+        if not filtro_reparto or (c.reparto_effettivo or "").casefold() == filtro_reparto.casefold()
     ]
-    # Macchine scoperte e a rischio uomo-solo calcolate una volta sulle colonne del
-    # reparto: le tessere le contano, ?macchine=scoperte|uomo_solo le mostra.
     _scoperte_tutte = set(resolver.macchine_scoperte(None))
-    scoperte_ids = {c.asset_id for c in comp_reparto if c.asset_id in _scoperte_tutte}
-    uomo_solo_ids = {
-        c.asset_id for c in comp_reparto if resolver.kpi_uomo_solo(c.asset, config=config)["a_rischio"]
-    }
+    scoperte_ids = {c.asset_id for c in macchine_rep if c.asset_id in _scoperte_tutte}
+    uomo_solo_ids = {c.asset_id for c in macchine_rep if resolver.kpi_uomo_solo(c.asset, config=config)["a_rischio"]}
     filtro_macchine = (request.GET.get("macchine") or "").strip()
+    macchine_ids = None
     if filtro_macchine == "scoperte":
-        comp_macchine = [c for c in comp_reparto if c.asset_id in scoperte_ids]
+        macchine_ids = scoperte_ids
     elif filtro_macchine == "uomo_solo":
-        comp_macchine = [c for c in comp_reparto if c.asset_id in uomo_solo_ids]
+        macchine_ids = uomo_solo_ids
     else:
-        filtro_macchine, comp_macchine = "", comp_reparto
-    asset_ids = [c.asset_id for c in comp_macchine]
+        filtro_macchine = ""
 
-    # Abilitazioni su quelle macchine (vuoto finché non c'è la baseline F2b).
-    ab_map: dict[tuple[int, int], AbilitazioneMacchina] = {}
-    legacy_ids: set[int] = set()
-    if asset_ids:
-        for ab in AbilitazioneMacchina.objects.filter(asset_id__in=asset_ids).prefetch_related("voci"):
-            ab_map[(ab.legacy_anagrafica_id, ab.asset_id)] = ab
-            legacy_ids.add(ab.legacy_anagrafica_id)
+    dati = vista.costruisci(reparto=filtro_reparto, solo=solo, solo_macchine=solo_macchine or bool(macchine_ids is not None),
+                            persone=persone_sel, macchine_ids=macchine_ids, oggi=oggi)
+    righe = dati["righe"]
 
-    # Nomi dall'anagrafica legacy: solo se servono, fail-safe (la sorgente può
-    # non essere disponibile, es. in test) → fallback "ID <n>".
-    dip_map: dict[int, dict] = {}
-    if legacy_ids:
-        try:
-            dip_map = {int(r["id"]): r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("id")}
-        except Exception:
-            logger.warning("Skill Matrix: anagrafica legacy non disponibile, nomi non risolti", exc_info=True)
-    soglia_ord = config.soglia_operativa_ordinale
-
-    # Disponibilità per una data scelta (Skill Matrix × assenze): chi è in
-    # ferie/malattia/permesso quel giorno. Read-only, fail-safe: se la sorgente
-    # assenze non risponde la matrice resta identica (nessun marker).
-    import datetime as _dt
+    # Disponibilità per una data scelta (Skill Matrix × assenze), fail-safe.
     data_str = (request.GET.get("data") or "").strip()
     try:
         data_sel = _dt.date.fromisoformat(data_str) if data_str else oggi
     except ValueError:
         data_sel = oggi
     disp_map: dict[int, list[dict]] = {}
-    if legacy_ids:
+    if righe:
         try:
             from assenze.availability import disponibilita_per_anagrafica
-            disp_map = disponibilita_per_anagrafica(sorted(legacy_ids), data_sel, data_sel)
+            disp_map = disponibilita_per_anagrafica(sorted(r["lid"] for r in righe), data_sel, data_sel)
         except Exception:
             logger.warning("Skill Matrix: disponibilità assenze non risolta", exc_info=True)
-
-    righe: list[dict] = []
-    for lid in legacy_ids:
-        dip = dip_map.get(lid, {})
-        celle = []
-        for c in comp_macchine:
-            ab = ab_map.get((lid, c.asset_id))
-            if ab is None:
-                celle.append({"vuota": True})
-                continue
-            celle.append({
-                "vuota": False,
-                "livello": ab.livello,
-                "etichetta": config.etichetta(ab.livello),
-                "operativa": ab.is_operativa(soglia_ord),
-                "sotto": ab.sotto_livello_richiesto,
-                "arretrata": bool(ab.prossima_revisione and ab.prossima_revisione < oggi),
-                "multivoce": bool(ab.voci.all()),
-                "sospesa": ab.stato == AbilitazioneMacchina.STATO_SOSPESA,
-                "in_lista": ab.in_lista,
-            })
-        assenze_lid = disp_map.get(lid, [])
+    for r in righe:
+        assenze_lid = disp_map.get(r["lid"], [])
+        r["disp_assenze"] = assenze_lid
         if any(a["stato"] == "confermata" for a in assenze_lid):
-            disp_stato = "assente"
+            r["disp_stato"] = "assente"
         elif any(a["stato"] == "pendente" for a in assenze_lid):
-            disp_stato = "da_confermare"
+            r["disp_stato"] = "da_confermare"
         else:
-            disp_stato = "presente"
-        righe.append({
-            "legacy_id": lid,
-            "cognome": str(dip.get("cognome") or f"ID {lid}").strip(),
-            "nome": str(dip.get("nome") or "").strip(),
-            "reparto": str(dip.get("reparto") or "").strip(),
-            "celle": celle,
-            "disp_stato": disp_stato,
-            "disp_assenze": assenze_lid,
-        })
-    righe.sort(key=lambda r: (r["cognome"].casefold(), r["nome"].casefold()))
+            r["disp_stato"] = "presente"
 
-    if export_csv:
-        def _disp_csv(r):
-            if r["disp_stato"] == "assente":
-                tipi = []
-                for a in r["disp_assenze"]:
-                    if a["stato"] != "confermata":
-                        continue
-                    t = a["tipo"] + (" (parziale)" if a.get("parziale") else "")
-                    if t not in tipi:
-                        tipi.append(t)
-                return "assente (%s)" % ", ".join(tipi) if tipi else "assente"
-            if r["disp_stato"] == "da_confermare":
-                return "da confermare"
-            return ""
+    def _disp_testo(r):
+        if r["disp_stato"] == "assente":
+            tipi = []
+            for a in r["disp_assenze"]:
+                if a["stato"] != "confermata":
+                    continue
+                t = a["tipo"] + (" (parziale)" if a.get("parziale") else "")
+                if t not in tipi:
+                    tipi.append(t)
+            return "assente (%s)" % ", ".join(tipi) if tipi else "assente"
+        return "da confermare" if r["disp_stato"] == "da_confermare" else ""
 
+    if formato in ("csv", "xlsx"):
+        intest = ["Dipendente", "Reparto", "Ruolo", "Orario", f"Disponibilità {data_sel.strftime('%d/%m/%Y')}"] + [
+            col["nome"] for col in dati["colonne"]]
+        corpo = [[r["nome"], r["reparto"], r["ruolo"], r["orario"], _disp_testo(r)]
+                 + [(cella["livello"] if cella else "") for cella in r["celle"]] for r in righe]
+        if formato == "xlsx":
+            from core.excel_export import make_xlsx_response
+            for k in vista.LIVELLI:
+                corpo.append([f"Totale {k} – {vista.LEGENDA[k]}", "", "", "", ""] + [col["conta"][k] for col in dati["colonne"]])
+            corpo.append(["Operativi", "", "", "", ""] + [col["operativi"] for col in dati["colonne"]])
+            _audit_skm(request, "skill_matrix_export", {"formato": "xlsx", "righe": len(righe)})
+            return make_xlsx_response(filename="skill_matrix.xlsx", columns=intest, rows=corpo,
+                                      sheet_title="Skill Matrix", title="Skill Matrix — abilitazioni",
+                                      filters_label=_filtri_testo(filtro_reparto, solo, solo_macchine, persone_sel))
         resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
         resp["Content-Disposition"] = 'attachment; filename="skill_matrix_macchina.csv"'
         resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
-        disp_col = f"Disponibilità {data_sel.strftime('%d/%m/%Y')}"
-        writer.writerow(
-            ["Dipendente", "Reparto", disp_col] + [c.display or c.competenza_key for c in comp_macchine]
-        )
-        for r in righe:
-            cells = []
-            for cell in r["celle"]:
-                cells.append("" if cell["vuota"] else cell["livello"])
-            writer.writerow(
-                [naming.nome_completo(r["nome"], r["cognome"]), r["reparto"], _disp_csv(r)] + cells
-            )
+        writer.writerow(intest)
+        for riga in corpo:
+            writer.writerow(riga)
         return resp
 
-    # KPI dal resolver (rispettano il filtro reparto).
-    from urllib.parse import quote as _quote
-    rep = filtro_reparto or None
-    prontezza = resolver.prontezza_squadra(rep, config=config)
-    # Stesso insieme di colonne della matrice (filtro reparto senza differenze di
-    # maiuscole/spazi): prima «scoperte» usava il confronto esatto del resolver.
-    n_scoperte = len(scoperte_ids)
-    n_uomo_solo = len(uomo_solo_ids)
-    n_cont_persa = sum(
-        1 for co in ContinuitaOperativa.objects.all()
-        if co.stato() == ContinuitaOperativa.STATO_PERSA
-    )
+    prontezza = resolver.prontezza_squadra(filtro_reparto or None, config=config)
+    kpi = {
+        "prontezza": prontezza,
+        "scoperte": len(scoperte_ids),
+        "uomo_solo": len(uomo_solo_ids),
+        "continuita_persa": sum(1 for co in ContinuitaOperativa.objects.all()
+                                if co.stato() == ContinuitaOperativa.STATO_PERSA),
+        "rivalutare": dati["n_rivalutare"],
+    }
 
-    from ..acl_bootstrap import PERM_SKM_MANAGE
-    n_assenti = sum(1 for r in righe if r["disp_stato"] == "assente")
-    n_da_confermare = sum(1 for r in righe if r["disp_stato"] == "da_confermare")
+    if formato in ("pdf_hub", "pdf_mod"):
+        from ..services import skillmatrix_pdf as pdf
+        if formato == "pdf_mod":
+            contenuto = pdf.pdf_mod187(dati, data_documento=data_sel, reparto=filtro_reparto)
+            nome_file = "MOD.187_skill_matrix.pdf"
+        else:
+            pct = prontezza.get("percentuale") if isinstance(prontezza, dict) else None
+            contenuto = pdf.pdf_hub(dati, kpi=[
+                (f"{pct}%".replace(".", ",") if pct is not None else "—", "Prontezza squadra", "#06b6d4"),
+                (kpi["scoperte"], "Macchine scoperte", "#16a34a"),
+                (kpi["uomo_solo"], f"Rischio uomo-solo (meno di {config.soglia_uomo_solo} operativi)", "#f59e0b"),
+                (kpi["rivalutare"], "Abilitazioni da rivalutare", "#dc2626"),
+            ], filtri=_filtri_testo(filtro_reparto, solo, solo_macchine, persone_sel) + f" · disponibilità al {data_sel:%d/%m/%Y}",
+                generato_da=(request.user.get_full_name() or request.user.get_username()), quando=timezone.localtime())
+            nome_file = "skill_matrix_report_hub.pdf"
+        _audit_skm(request, "skill_matrix_export", {"formato": formato, "righe": len(righe)})
+        resp = HttpResponse(contenuto, content_type="application/pdf")
+        resp["Content-Disposition"] = f'inline; filename="{nome_file}"'
+        return resp
 
-    # Contatore abilitati operativi per macchina (header colonna, 1.12).
-    from ..services import skillmatrix_qualifica as skm_q
-    col_counts = skm_q.conta_operativi_per_asset(asset_ids)
-    for c in comp_macchine:
-        c.operativi_count = col_counts.get(c.asset_id, 0)
-
+    for r in righe:
+        r["celle_ui"] = list(zip(r["celle"], [col["id"] for col in dati["colonne"]]))
+    qs = request.GET.copy()
+    for k in ("format", "persone", "apri"):
+        qs.pop(k, None)
+    qs_base = qs.urlencode()
     return render(request, "anagrafica/pages/skill_matrix_macchina.html", {
-        "macchine": comp_macchine,
+        "dati": dati,
+        "macchine": dati["colonne"],
         "righe": righe,
-        "reparti": reparti,
+        "reparti": dati["reparti"],
         "filtro_reparto": filtro_reparto,
+        "solo": solo,
+        "solo_macchine": solo_macchine,
         "totale_persone": len(righe),
         "config": config,
-        "kpi": {
-            "prontezza": prontezza,
-            "scoperte": n_scoperte,
-            "uomo_solo": n_uomo_solo,
-            "continuita_persa": n_cont_persa,
-        },
-        "matrice_vuota": len(righe) == 0 and not filtro_macchine,
-        "n_macchine": len(comp_macchine),
+        "kpi": kpi,
+        "matrice_vuota": len(righe) == 0 and not filtro_macchine and not solo and not filtro_reparto,
+        "n_macchine": len(dati["colonne"]),
         "filtro_macchine": filtro_macchine,
         "kpi_qs_reparto": f"reparto={_quote(filtro_reparto)}" if filtro_reparto else "",
-        "kpi_url_scoperte": (
-            reverse("anagrafica:skill_matrix_macchina") + "?macchine=scoperte"
-            + (f"&reparto={_quote(filtro_reparto)}" if filtro_reparto else "") + "#sm-matrice"
-        ),
         "data_sel": data_sel,
-        "n_assenti": n_assenti,
-        "n_da_confermare": n_da_confermare,
+        "n_assenti": sum(1 for r in righe if r["disp_stato"] == "assente"),
+        "n_da_confermare": sum(1 for r in righe if r["disp_stato"] == "da_confermare"),
         "can_manage": _check_skm_permission(request, PERM_SKM_MANAGE),
         "can_impostazioni": impostazioni_o(request, "anagrafica", lambda r: _check_skm_permission(r, PERM_SKM_MANAGE)),
+        "qs_base": qs_base,
+        "apri": (request.GET.get("apri") or "").strip(),
+        "legenda": [(k, config.etichetta(k), vista.LEGENDA[k]) for k in vista.LIVELLI],
     })
+
+
+def _filtri_testo(reparto: str, solo: str, solo_macchine: bool, persone) -> str:
+    parti = [reparto or "Tutti i reparti"]
+    if solo == "rivalutare":
+        parti.append("solo da rivalutare")
+    elif solo == "sospese":
+        parti.append("solo sospese")
+    if solo_macchine:
+        parti.append("solo macchine")
+    if persone:
+        parti.append(f"{len(persone)} persone scelte")
+    return " · ".join(parti)
+
+
+def _audit_skm(request, azione: str, dettaglio: dict) -> None:
+    try:
+        from core.audit import log_action
+        log_action(request, azione, "anagrafica", dettaglio)
+    except Exception:  # noqa: BLE001 - l'export non si ferma per il registro
+        logger.warning("Skill Matrix: audit non scritto (%s)", azione, exc_info=True)
 
 
 # ---------------------------------------------------------------------------
