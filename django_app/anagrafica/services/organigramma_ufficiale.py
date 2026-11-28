@@ -18,7 +18,9 @@ Il disegno è un dizionario JSON::
          "elenco_sigle": True,                  # sigla del ruolo accanto ai nomi dell'elenco
          "icona": "" | "capo" | ...,            # una di ICONE
          "lato": False,                         # linea che arriva di lato dal tronco del superiore
-         "tronco": "centro" | "sinistra" | "destra"},  # da dove scende la linea verso i sottoposti
+         "tronco": "centro" | "sinistra" | "destra",   # da dove scende la linea verso i sottoposti
+         "tronco_x": None | 40,                 # linee spostate a mano sulla tela (None = automatiche):
+         "linea_y": None, "bus_y": None, "entra_x": None},  # vedi percorsi() in _org_uff_render.html
     ],
      "foglio": {"stile": "hub" | "documento", "titolo": "", "sottotitolo": "", "intestazione": "",
                 "azienda": "", "piede": "", "logo": True, "ruoli_blu": True}}
@@ -63,6 +65,12 @@ def _int(v, minimo: int, massimo: int, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return max(minimo, min(massimo, n))
+
+
+def _int_o_none(v, minimo: int, massimo: int) -> int | None:
+    if v is None or v == "" or isinstance(v, bool):
+        return None
+    return _int(v, minimo, massimo, None)
 
 
 def _id_pos(v) -> int | None:
@@ -158,6 +166,11 @@ def normalizza(raw) -> dict:
             "icona": n.get("icona") if tipo == "box" and n.get("icona") in ICONE else "",
             "lato": bool(n.get("lato")),
             "tronco": n.get("tronco") if n.get("tronco") in TRONCHI else "centro",
+            # Linee spostate a mano (None = posizione calcolata dalla tela).
+            "tronco_x": _int_o_none(n.get("tronco_x"), -4000, 8000),
+            "linea_y": _int_o_none(n.get("linea_y"), 0, 4000),
+            "bus_y": _int_o_none(n.get("bus_y"), 0, 4000),
+            "entra_x": _int_o_none(n.get("entra_x"), 0, 4000),
         })
     per_id = {n["id"]: n for n in nodi}
     for n in nodi:
@@ -363,7 +376,7 @@ def _ruoli_non_disegnati(dati: dict, ambito) -> list[dict]:
 
 _CONTENUTO = ("ruolo", "persona", "mansione", "titolo", "sotto", "reparto", "ruoli_extra", "tutti_titolari",
               "elenco_ruoli", "elenco_righe", "elenco_nascosti", "elenco_sigle")
-_GRAFICA = ("x", "y", "w", "h", "lato", "tronco")
+_GRAFICA = ("x", "y", "w", "h", "lato", "tronco", "tronco_x", "linea_y", "bus_y", "entra_x")
 _ASPETTO = ("colore", "stile", "icona")
 _NOMI_FOGLIO = {"stile": "stile", "titolo": "titolo", "sottotitolo": "sottotitolo", "intestazione": "intestazione",
                 "azienda": "azienda", "piede": "piè di pagina", "logo": "logo", "ruoli_blu": "colore dei ruoli"}
