@@ -10,6 +10,10 @@
 .ouf-st-hub .ouf-linee path { stroke:#94a3b8; stroke-width:1.6; }
 .ouf-st-doc .ouf-linee path { stroke:#111; stroke-width:1; }
 .ouf-linee path.is-staff { stroke-dasharray:6 4; }
+.ouf-linee path.ouf-presa { stroke:transparent !important; stroke-width:11 !important; stroke-dasharray:none; pointer-events:stroke; stroke-linecap:round; }
+.ouf-linee path.ouf-presa.is-x { cursor:ew-resize; }
+.ouf-linee path.ouf-presa.is-y { cursor:ns-resize; }
+.ouf-linee path.ouf-presa:hover, .ouf-linee path.ouf-presa.is-attiva { stroke:rgba(37,99,235,.35) !important; }
 .ouf-b, .ouf-g { position:absolute; box-sizing:border-box; }
 .ouf-b .o-ico svg { display:block; width:100%; height:100%; }
 .ouf-vuoto { color:#64748b; font-size:13px; padding:12px; }
@@ -211,31 +215,50 @@ window.OUF = window.OUF || (function () {
 
   // Linee: dall'alto con una barra comune per ogni riga di sottoposti, di lato dal
   // tronco del superiore («lato»), tratteggiate di fianco («staff»). H = altezza vera.
+  // Linee spostate a mano (tutte facoltative, null = posizione calcolata):
+  //   superiore.tronco_x  ascissa del tronco rispetto al bordo sinistro del superiore
+  //   sottoposto.linea_y  altezza della linea che arriva di lato (lato/staff) dal bordo alto
+  //   sottoposto.bus_y    distanza della barra comune sopra la riga dei sottoposti
+  //   sottoposto.entra_x  punto in cui la linea entra dall'alto, dal bordo sinistro
+  // Ogni linea porta la sua «presa» {k, id, v, asse}: l'editor la trascina e scrive v.
+  function num(v) { return typeof v === "number" && isFinite(v); }
+  function stringi(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function percorsi(nodi, H) {
     var per = {}, figli = {}, out = [];
     nodi.forEach(function (n) { per[n.id] = n; });
     nodi.forEach(function (n) { if (n.padre && per[n.padre]) (figli[n.padre] = figli[n.padre] || []).push(n); });
     function alt(n) { return (H && H[n.id]) || n.h; }
+    function entra(f) { return f.x + (num(f.entra_x) ? stringi(f.entra_x, 8, f.w - 8) : f.w / 2); }
+    function lineaY(f, def) { return f.y + (num(f.linea_y) ? stringi(f.linea_y, 6, alt(f) - 6) : def); }
     Object.keys(figli).forEach(function (pid) {
       var p = per[pid], fs = figli[pid], pb = p.y + alt(p);
-      var tx = p.tronco === "sinistra" ? p.x + 14 : (p.tronco === "destra" ? p.x + p.w - 14 : p.x + p.w / 2);
-      var basso = pb, alto = pb;
+      var tx = num(p.tronco_x) ? p.x + p.tronco_x
+        : (p.tronco === "sinistra" ? p.x + 14 : (p.tronco === "destra" ? p.x + p.w - 14 : p.x + p.w / 2));
+      var pTronco = {k: "tronco_x", id: pid, v: tx - p.x, asse: "x"};
+      // Tronco spostato fuori dal riquadro: esce di lato e poi scende.
+      var fuori = tx < p.x + 4 || tx > p.x + p.w - 4, y0 = pb;
+      if (fuori) {
+        y0 = p.y + Math.min(alt(p) / 2, 30);
+        out.push({d: "M" + (tx < p.x ? p.x : p.x + p.w) + " " + y0 + " H" + tx, staff: false});
+      }
+      var basso = y0, alto = y0;
       fs.filter(function (f) { return f.staff; }).forEach(function (f) {
-        var y = f.y + alt(f) / 2, destra = f.x + f.w / 2 >= p.x + p.w / 2, x2 = destra ? f.x : f.x + f.w;
-        if (y >= p.y && y <= pb) out.push({d: "M" + (destra ? p.x + p.w : p.x) + " " + y + " H" + x2, staff: true});
-        else out.push({d: "M" + (p.x + p.w / 2) + " " + (y > p.y ? pb : p.y) + " V" + y + " H" + x2, staff: true});
+        var y = lineaY(f, alt(f) / 2), destra = f.x + f.w / 2 >= p.x + p.w / 2, x2 = destra ? f.x : f.x + f.w;
+        var pr = {k: "linea_y", id: f.id, v: y - f.y, asse: "y"};
+        if (y >= p.y && y <= pb) out.push({d: "M" + (destra ? p.x + p.w : p.x) + " " + y + " H" + x2, staff: true, presa: pr});
+        else out.push({d: "M" + (p.x + p.w / 2) + " " + (y > p.y ? pb : p.y) + " V" + y + " H" + x2, staff: true, presa: pr});
       });
       fs.filter(function (f) { return !f.staff && f.lato; }).forEach(function (f) {
-        var y = f.y + Math.min(alt(f) / 2, 30), x2 = f.x >= tx ? f.x : f.x + f.w;
-        out.push({d: "M" + tx + " " + y + " H" + x2, staff: false});
+        var y = lineaY(f, Math.min(alt(f) / 2, 30)), x2 = f.x >= tx ? f.x : f.x + f.w;
+        out.push({d: "M" + tx + " " + y + " H" + x2, staff: false, presa: {k: "linea_y", id: f.id, v: y - f.y, asse: "y"}});
         basso = Math.max(basso, y); alto = Math.min(alto, y);
       });
       var sopra = fs.filter(function (f) { return !f.staff && !f.lato; }).sort(function (a, b) { return a.y - b.y; });
       var righe = [];
       sopra.forEach(function (f) {
         if (f.y <= pb + 4) { // sottoposto più in alto del superiore: gomito semplice
-          var x2 = f.x + f.w / 2, m = pb + 14;
-          out.push({d: "M" + tx + " " + pb + " V" + m + " H" + x2 + " V" + f.y, staff: false});
+          var x2 = entra(f), m = y0 + 14;
+          out.push({d: "M" + tx + " " + y0 + " V" + m + " H" + x2 + " V" + f.y, staff: false, presa: {k: "entra_x", id: f.id, v: x2 - f.x, asse: "x"}});
           return;
         }
         var r = null;
@@ -244,14 +267,20 @@ window.OUF = window.OUF || (function () {
       });
       righe.forEach(function (r) {
         var top = Math.min.apply(null, r.map(function (f) { return f.y; }));
-        var bus = Math.max(pb + 8, top - 16);
-        var xs = r.map(function (f) { return f.x + f.w / 2; });
-        if (r.length === 1 && Math.abs(xs[0] - tx) < 2) { out.push({d: "M" + tx + " " + pb + " V" + r[0].y, staff: false}); return; }
-        out.push({d: "M" + Math.min.apply(null, xs.concat([tx])) + " " + bus + " H" + Math.max.apply(null, xs.concat([tx])), staff: false});
-        r.forEach(function (f) { out.push({d: "M" + (f.x + f.w / 2) + " " + bus + " V" + f.y, staff: false}); });
-        basso = Math.max(basso, bus);
+        var su = null;
+        r.forEach(function (f) { if (num(f.bus_y)) su = su == null ? f.bus_y : Math.max(su, f.bus_y); });
+        var bus = su == null ? Math.max(pb + 8, top - 16) : stringi(top - su, Math.min(pb + 8, top - 4), top - 4);
+        var xs = r.map(entra);
+        if (r.length === 1 && Math.abs(xs[0] - tx) < 2 && su == null && !fuori) {
+          out.push({d: "M" + tx + " " + pb + " V" + r[0].y, staff: false, presa: pTronco});
+          return;
+        }
+        out.push({d: "M" + Math.min.apply(null, xs.concat([tx])) + " " + bus + " H" + Math.max.apply(null, xs.concat([tx])), staff: false,
+                  presa: {k: "bus_y", id: r.map(function (f) { return f.id; }).join(","), v: top - bus, asse: "y", top: top}});
+        r.forEach(function (f, i) { out.push({d: "M" + xs[i] + " " + bus + " V" + f.y, staff: false, presa: {k: "entra_x", id: f.id, v: xs[i] - f.x, asse: "x"}}); });
+        basso = Math.max(basso, bus); alto = Math.min(alto, bus);
       });
-      if (basso > pb || alto < pb) out.push({d: "M" + tx + " " + Math.min(alto, pb) + " V" + basso, staff: false});
+      if (basso > y0 || alto < y0) out.push({d: "M" + tx + " " + Math.min(alto, y0) + " V" + basso, staff: false, presa: pTronco});
     });
     return out;
   }
@@ -276,9 +305,14 @@ window.OUF = window.OUF || (function () {
     return out;
   }
 
-  function svgLinee(svg, linee, W, Hh) {
+  // prese = true (solo editor): sopra ogni linea una fascia invisibile da afferrare.
+  function svgLinee(svg, linee, W, Hh, prese) {
     svg.setAttribute("width", W); svg.setAttribute("height", Hh);
-    svg.innerHTML = linee.map(function (l) { return '<path d="' + l.d + '"' + (l.staff ? ' class="is-staff"' : "") + "/>"; }).join("");
+    svg.innerHTML = linee.map(function (l) { return '<path d="' + l.d + '"' + (l.staff ? ' class="is-staff"' : "") + "/>"; }).join("")
+      + (prese ? linee.map(function (l, i) {
+        return l.presa ? '<path class="ouf-presa is-' + l.presa.asse + '" data-i="' + i + '" d="' + l.d + '"/>' : "";
+      }).join("") : "");
+    svg._linee = linee;
   }
 
   function classeTela(foglio) {

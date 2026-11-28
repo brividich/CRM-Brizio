@@ -89,6 +89,7 @@ dialog.oud-dlg::backdrop { background:rgba(15,31,58,.45); }
 .oud-dlg textarea { min-height:70px; resize:vertical; }
 .oud-dlg footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
 .oud-nota { font-size:12px; color:var(--text-light); }
+.oud-link { background:none; border:0; padding:0; color:var(--primary, #2563eb); font:inherit; text-decoration:underline; cursor:pointer; }
 .oux-riga { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
 .oux-riga small { color:var(--text-light); display:block; margin-top:2px; }
 .oux-k { font-size:10.5px; font-weight:800; border-radius:6px; padding:3px 7px; min-width:86px; text-align:center; text-transform:uppercase; flex:none; }
@@ -121,6 +122,15 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
 .oud-stilefoglio button.on { background:var(--hr-navy, #0c2545); color:#fff; }
 .oud-dlg .riga2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .oud-dlg label.chk { flex-direction:row; align-items:center; gap:8px; font-weight:600; }
+.oud-page.is-intero { position:fixed; inset:0; z-index:1500; margin:0; padding:10px 12px 12px; background:var(--bg, #f1f5f9);
+  display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+.oud-page.is-intero > .hr-pagehead, .oud-page.is-intero > .messages, .oud-page.is-intero > .flash-messages { display:none; }
+.oud-page.is-intero .oud-bar { margin:0; }
+.oud-page.is-intero .oud-grid { flex:1 1 auto; height:auto; min-height:0; }
+.oud-page.is-intero .oud-tit-intero { display:inline-flex; }
+.oud-tit-intero { display:none; align-items:center; font-weight:700; font-size:13px; color:var(--text); margin-right:6px; max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+body.oud-intero-aperto { overflow:hidden; }
+body.theme-dark .oud-page.is-intero { background:#0b1424; }
 @media (max-width:1100px) { .oud-grid { grid-template-columns:200px minmax(0,1fr); } .oud-props { grid-column:1 / -1; } }
 </style>
 {% endblock %}
@@ -155,6 +165,7 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
   </div>
 
   <div class="oud-bar" role="toolbar" aria-label="Comandi della tela">
+    <span class="oud-tit-intero" title="{{ org.nome }}">{{ org.nome }}</span>
     <button type="button" class="hr-btn hr-btn-outline" data-act="undo" title="Annulla (Ctrl+Z)">↶</button>
     <button type="button" class="hr-btn hr-btn-outline" data-act="redo" title="Ripeti (Ctrl+Y)">↷</button>
     <button type="button" class="hr-btn hr-btn-outline" data-act="zoom-" title="Riduci">−</button>
@@ -168,6 +179,7 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
       <button type="button" data-act="stile-hub">Stile HUB</button><button type="button" data-act="stile-documento">Stile Documento</button>
     </span>
     <button type="button" class="hr-btn hr-btn-outline" data-act="foglio" title="Titolo, intestazione, logo e piè di pagina della stampa">📄 Foglio</button>
+    <button type="button" class="hr-btn hr-btn-outline" data-act="intero" id="oudBtnIntero" title="Disegna a schermo intero (F per entrare, Esc per uscire)" aria-pressed="false">⛶ Schermo intero</button>
     <span class="sp"></span>
     <span class="oud-stato" id="oudStato"></span>
     <button type="button" class="hr-btn hr-btn-outline oud-btn-avv" data-act="avvisi" id="oudBtnAvv" hidden></button>
@@ -394,7 +406,7 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
       var el = scene.querySelector('.ouf-b[data-id="' + n.id + '"]');
       if (el) el.style.top = n.y + "px";
     });
-    window.OUF.svgLinee(svg, window.OUF.percorsi(nn, H), m.W, m.H);
+    window.OUF.svgLinee(svg, window.OUF.percorsi(nn, H), m.W, m.H, !collega);
   }
 
   function disegna() {
@@ -512,6 +524,9 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
   // ── trascinamenti sulla tela ─────────────────────────────────────────
   scene.addEventListener("pointerdown", function (e) {
     if (e.button !== 0) return;
+    if (e.target.classList && e.target.classList.contains("ouf-presa")) {
+      e.stopPropagation(); e.preventDefault(); spostaLinea(e, svg._linee[+e.target.dataset.i].presa); return;
+    }
     var el = e.target.closest(".ouf-b, .ouf-g");
     if (!el) return; // sfondo: lo gestisce la tela (spostamento della vista)
     e.stopPropagation(); e.preventDefault();
@@ -547,6 +562,52 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     }
     window.addEventListener("pointermove", muovi); window.addEventListener("pointerup", fine);
   }
+
+  // Linee: il tronco e le discese si spostano di lato, le barre e i bracci in su e in giù.
+  // Doppio clic su una linea: torna dove la mette il disegno automatico.
+  function manuale(v) { return typeof v === "number"; }
+  // [nodo, campo] delle linee spostate a mano che toccano n (la sua e quelle verso i sottoposti).
+  function lineeAMano(n) {
+    var out = [];
+    if (manuale(n.tronco_x)) out.push([n, "tronco_x"]);
+    ["linea_y", "bus_y", "entra_x"].forEach(function (k) { if (manuale(n[k])) out.push([n, k]); });
+    D.nodi.forEach(function (m) {
+      if (m.padre === n.id) ["linea_y", "bus_y", "entra_x"].forEach(function (k) { if (manuale(m[k])) out.push([m, k]); });
+    });
+    return out;
+  }
+  function presaNodi(pr) { return pr.id.split(",").map(byId).filter(Boolean); }
+  function spostaLinea(e, pr) {
+    var prima = JSON.stringify(D), sx = e.clientX, sy = e.clientY, mosso = false, nodi = presaNodi(pr);
+    if (!nodi.length) return;
+    function evidenzia() {
+      (svg._linee || []).forEach(function (l, i) {
+        if (l.presa && l.presa.k === pr.k && l.presa.id === pr.id) {
+          var h = svg.querySelector('.ouf-presa[data-i="' + i + '"]'); if (h) h.classList.add("is-attiva");
+        }
+      });
+    }
+    function muovi(ev) {
+      var d = pr.asse === "x" ? (ev.clientX - sx) / zoom : (ev.clientY - sy) / zoom;
+      if (!mosso && Math.abs(d) < 3) return;
+      mosso = true;
+      var v = pr.k === "bus_y" ? pr.v - d : pr.v + d;
+      if (pr.k === "bus_y") v = pr.top - snap(pr.top - v); else v = snap(v);
+      nodi.forEach(function (n) { n[pr.k] = Math.round(v); });
+      disegnaLinee(); evidenzia();
+    }
+    function fine() {
+      window.removeEventListener("pointermove", muovi); window.removeEventListener("pointerup", fine);
+      if (!mosso) return;
+      memorizza(prima); disegna(); salvaPresto();
+    }
+    window.addEventListener("pointermove", muovi); window.addEventListener("pointerup", fine);
+  }
+  scene.addEventListener("dblclick", function (e) {
+    if (!e.target.classList || !e.target.classList.contains("ouf-presa")) return;
+    var pr = svg._linee[+e.target.dataset.i].presa;
+    cambia(function () { presaNodi(pr).forEach(function (n) { n[pr.k] = null; }); });
+  });
 
   function ridimensiona(e, n) {
     var prima = JSON.stringify(D), sx = e.clientX, sy = e.clientY, w0 = n.w, h0 = n.h, mosso = false;
@@ -777,8 +838,12 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     }
     if (D.nodi.some(function (m) { return m.padre === n.id; })) {
       h += '<div class="oud-fl">Linea verso i sottoposti</div><div class="oud-seg">' + [["sinistra", "Da sinistra"], ["centro", "Dal centro"], ["destra", "Da destra"]].map(function (o) {
-        return '<button type="button" data-tronco="' + o[0] + '"' + ((n.tronco || "centro") === o[0] ? ' class="on"' : "") + ">" + o[1] + "</button>"; }).join("") + "</div>";
+        return '<button type="button" data-tronco="' + o[0] + '"' + ((n.tronco || "centro") === o[0] && !manuale(n.tronco_x) ? ' class="on"' : "") + ">" + o[1] + "</button>"; }).join("") + "</div>";
     }
+    if (lineeAMano(n).length)
+      h += '<div class="oud-nota">Linee spostate a mano. <button type="button" class="oud-link" data-act-linee="auto">Rimetti automatiche</button></div>';
+    else if (n.padre || D.nodi.some(function (m) { return m.padre === n.id; }))
+      h += '<div class="oud-nota">Le linee si trascinano sulla tela; doppio clic su una linea la rimette automatica.</div>';
     if (n.tipo !== "gruppo") h += '<div class="oud-fl">Gruppo</div>' + selectHtml("gruppo", gruppi, n.gruppo || "", "");
     var av2 = avvisiDi(n.id);
     if (av2.length) { h += '<div class="oud-fl">Avvisi</div>'; av2.forEach(function (a) { h += '<button type="button" class="oud-avv" disabled>⚠ ' + esc(a.testo) + "</button>"; }); }
@@ -819,7 +884,8 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     else if (b.dataset.stile) cambia(function () { n.stile = b.dataset.stile; });
     else if (b.dataset.icona !== undefined) cambia(function () { n.icona = b.dataset.icona; });
     else if (b.dataset.arrivo) cambia(function () { n.staff = b.dataset.arrivo === "staff"; n.lato = b.dataset.arrivo === "lato"; });
-    else if (b.dataset.tronco) cambia(function () { n.tronco = b.dataset.tronco; });
+    else if (b.dataset.tronco) cambia(function () { n.tronco = b.dataset.tronco; n.tronco_x = null; });
+    else if (b.dataset.actLinee) cambia(function () { lineeAMano(n).forEach(function (c) { c[0][c[1]] = null; }); });
     else if (b.dataset.togliExtra) cambia(function () { n.ruoli_extra = (n.ruoli_extra || []).filter(function (r) { return r !== +b.dataset.togliExtra; }); });
     else if (b.dataset.togliElenco) cambia(function () { n.elenco_ruoli = (n.elenco_ruoli || []).filter(function (r) { return r !== +b.dataset.togliElenco; }); });
     else if (b.dataset.nascondi) cambia(function () { n.elenco_nascosti = (n.elenco_nascosti || []).concat([+b.dataset.nascondi]); });
@@ -854,6 +920,26 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     aggiornaNodo(n);
   });
 
+  // ── schermo intero: la tela occupa tutto lo schermo (API Fullscreen se il browser la
+  // concede, altrimenti la pagina copre la finestra). Esc o lo stesso pulsante per uscire.
+  var pagina = document.querySelector(".oud-page");
+  function segnaIntero(on) {
+    pagina.classList.toggle("is-intero", on);
+    document.body.classList.toggle("oud-intero-aperto", on);
+    var b = document.getElementById("oudBtnIntero");
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.textContent = on ? "✕ Esci" : "⛶ Schermo intero";
+    b.classList.toggle("is-on", on);
+  }
+  function schermoIntero(on) {
+    segnaIntero(on);
+    if (on && pagina.requestFullscreen && !document.fullscreenElement) pagina.requestFullscreen().catch(function () {});
+    if (!on && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {});
+  }
+  document.addEventListener("fullscreenchange", function () {
+    if (!document.fullscreenElement && pagina.classList.contains("is-intero")) segnaIntero(false);
+  });
+
   // ── comandi della barra ──────────────────────────────────────────────
   document.addEventListener("click", function (e) {
     var b = e.target.closest("[data-act]"); if (!b) return;
@@ -863,6 +949,7 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
     else if (a === "zoom+") imposta_zoom(zoom * 1.15);
     else if (a === "zoom-") imposta_zoom(zoom / 1.15);
     else if (a === "adatta") adatta();
+    else if (a === "intero") schermoIntero(!pagina.classList.contains("is-intero"));
     else if (a === "aggancio") { aggancio = !aggancio; aggiornaBarra(); }
     else if (a === "gruppo") { var c = centroVisibile(); aggiungi("gruppo", 0, c.x, c.y); }
     else if (a === "collega") avviaCollega();
@@ -886,11 +973,13 @@ body.theme-dark .oud-badge--info { background:#1e1b4b; color:#c7d2fe; }
   document.addEventListener("keydown", function (e) {
     var t = e.target, campo = t.closest && t.closest("input, textarea, select, [contenteditable]");
     if (document.querySelector("dialog[open]")) return;
+    if (e.key === "Escape" && pagina.classList.contains("is-intero") && !collega && !sel && !document.fullscreenElement) { schermoIntero(false); return; }
     if (e.key === "Escape") { if (collega) { collega = null; mostraSuggerimento(""); disegna(); } else if (sel && !campo) seleziona(null); return; }
     if (campo) return;
     var k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); if (e.shiftKey) ripeti(); else annulla(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); ripeti(); return; }
+    if (k === "f" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); schermoIntero(!pagina.classList.contains("is-intero")); return; }
     var n = sel ? byId(sel) : null; if (!n) return;
     if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); cambia(function () { togli(n.id); }); return; }
     var dx = {ArrowLeft: -10, ArrowRight: 10}[e.key] || 0, dy = {ArrowUp: -10, ArrowDown: 10}[e.key] || 0;

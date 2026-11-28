@@ -177,7 +177,8 @@ GUIDA = {
                       "Formazione). Una richiesta approvata di assegnazione di mansione o di acquisizione di competenza "
                       "diventa una sessione formativa (SF-anno-numero): le competenze da acquisire, come, chi le "
                       "valuta e le firme di chiusura. I livelli nella skill matrix cambiano solo quando la sessione si "
-                      "chiude."),
+                      "chiude. In alto «+ Nuova sessione formativa» (per chi gestisce la formazione) apre "
+                      "direttamente la creazione di un'edizione di corso."),
                 ("def", [
                     ("Aprire", "la Qualità o HR, con «Apri la sessione formativa» nella richiesta approvata (o "
                                "dall'elenco «Richieste approvate senza sessione»). Nasce una riga per ogni competenza "
@@ -388,6 +389,13 @@ GUIDA = {
                     "Collegamento «Dall'alto», «Di lato» (la linea scende lungo il superiore ed entra dal fianco, per i "
                     "sotto-reparti in colonna) o «Staff» (tratteggiata). «Linea verso i sottoposti» la fa partire da "
                     "sinistra, dal centro o da destra del superiore.",
+                    "Le linee si trascinano sulla tela: il tronco e le discese verso un riquadro di lato, le barre "
+                    "comuni e le linee che entrano dal fianco in su e in giù (la linea si colora di azzurro sotto il "
+                    "mouse). Doppio clic su una linea la rimette dove la mette il disegno automatico; «Rimetti "
+                    "automatiche» nel pannello del riquadro lo fa per tutte le sue linee. Lo spostamento resta anche "
+                    "in stampa e nella revisione pubblicata, e nel riepilogo conta come modifica grafica.",
+                    "«⛶ Schermo intero» (o il tasto F) porta la tela a tutto schermo con la barra dei comandi; "
+                    "si esce con «✕ Esci» o con Esc.",
                     "Se un riquadro si allunga (elenco più lungo, stile più alto) i riquadri sotto nella stessa colonna "
                     "scendono da soli e non vengono coperti.",
                 ]),

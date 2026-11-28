@@ -104,6 +104,7 @@ def elenco(request):
         "filtri": [{"chiave": k, "nome": n, "n": conteggi[k]} for k, (n, _) in FILTRI.items()],
         "scelta": next((x for x in righe if x["sessione"].pk == chiesta), righe[0] if righe else None),
         "da_fare": da_fare, "da_aprire": dati["da_aprire"],
+        "puo_nuova": _helpers._can_edit_formazione(request),
     })
 
 
