@@ -10,11 +10,16 @@
 {% include "anagrafica/components/_flusso_dinamico.html" %}
 {% include "anagrafica/components/_scelta_riga.html" %}
 <style>
-.sf-cerca { margin-left:auto; width:300px; max-width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; }
+.sf-cerca { margin-left:auto; width:300px; max-width:100%; height:32px !important; min-height:0 !important; padding:4px 12px !important; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; }
 .sf-tab tbody tr[data-sc-riga] { cursor:pointer; }
 .sf-tab tbody tr[data-sc-riga]:hover td { background:#f8fafc; }
 .sf-tab tbody tr.is-scelta td { background:#e8f3fb; }
 .sf-tab tbody tr:focus-visible { outline:2px solid #1f87cd; outline-offset:-2px; }
+.fx-blocco.fx-pieno { grid-column:1 / -1; }
+.sf-mat input[type=number] { height:32px !important; min-height:0 !important; padding:4px 8px !important; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; }
+.sf-mat .sf-acceso { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; margin:0; font-size:13px; }
+.sf-mat .sf-acceso input { margin:0; }
+.sf-mat td { vertical-align:middle; }
 .sf-fare { display:flex; align-items:center; gap:12px; padding:11px 16px; border-bottom:1px solid #f1f5f9; }
 .sf-fare:last-child { border-bottom:0; }
 .sf-fare > b { flex:0 0 40px; font-size:20px; text-align:center; color:#c2410c; }
@@ -38,10 +43,10 @@ body.theme-dark .sf-fare small { color:var(--text-light); }
   <div class="rq-testa">
     <h1>Sessioni formative</h1>
     <div class="rq-azioni">
+      {% if puo_nuova %}<a class="rq-btn rq-btn-p" href="{% url 'anagrafica:formazione_sessione_create' %}">+ Nuova sessione formativa</a>{% endif %}
       {% url 'guida_modulo' 'anagrafica' as guida_url %}<a class="rq-btn" href="{{ guida_url }}#sessioni-formative">? Guida</a>
     </div>
   </div>
-  <p class="rq-nota" style="margin:-6px 0 14px">Ogni richiesta approvata di assegnazione o di competenza diventa una sessione: le competenze da acquisire, come (pregressa, affiancamento, corso), chi le valuta e le firme di chiusura. I livelli cambiano solo quando la sessione si chiude.</p>
 
   {% url 'anagrafica:sessioni' as u_elenco %}
   <nav class="rq-filtri" aria-label="Filtra per stato">
@@ -51,7 +56,7 @@ body.theme-dark .sf-fare small { color:var(--text-light); }
   </nav>
 
   <div class="fx-flusso">
-    <div class="fx-blocco fx-largo"><section class="es-s-card">
+    <div class="fx-blocco {% if scelta or da_fare %}fx-largo{% else %}fx-pieno{% endif %}"><section class="es-s-card">
       <h2 class="es-s-h">Elenco <span>{{ righe|length }} session{{ righe|length|pluralize:"e,i" }}</span></h2>
       {% if righe %}
       <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab sf-tab">
@@ -81,7 +86,7 @@ body.theme-dark .sf-fare small { color:var(--text-light); }
     {% endif %}
 
     {% if contatori %}
-    <div class="fx-blocco fx-largo"><section class="es-s-card" id="matricole">
+    <div class="fx-blocco fx-pieno"><section class="es-s-card sf-mat" id="matricole">
       <h2 class="es-s-h">Matricole dei nuovi assunti</h2>
       <p class="rq-nota" style="padding:10px 16px 0;margin:0">Alla chiusura di una sessione di formazione in ingresso la persona riceve la matricola del suo inquadramento, se non ne ha già una. Un contatore spento non assegna niente: si accende quando la Qualità ha deciso il numero di partenza.</p>
       <form method="post" action="{% url 'anagrafica:sessioni_matricole' %}">{% csrf_token %}
@@ -92,7 +97,7 @@ body.theme-dark .sf-fare small { color:var(--text-light); }
           <td><input type="number" name="ultimo_{{ c.pk }}" value="{{ c.ultimo }}" min="0" style="width:110px" aria-label="Ultimo numero usato per {{ c.prefisso }}"></td>
           <td><input type="number" name="cifre_{{ c.pk }}" value="{{ c.cifre }}" min="1" max="8" style="width:70px" aria-label="Cifre per {{ c.prefisso }}"></td>
           <td>{{ c.prossima }}</td>
-          <td><label><input type="checkbox" name="attivo_{{ c.pk }}" value="1"{% if c.attivo %} checked{% endif %}> {% if c.attivo %}Acceso{% else %}Spento{% endif %}</label></td>
+          <td><label class="sf-acceso"><input type="checkbox" name="attivo_{{ c.pk }}" value="1"{% if c.attivo %} checked{% endif %}> {% if c.attivo %}Acceso{% else %}Spento{% endif %}</label></td>
         </tr>{% endfor %}</tbody>
       </table></div>
       <div style="padding:10px 16px 14px"><button type="submit" class="rq-btn rq-btn-p rq-btn-s">Salva i contatori</button></div>
@@ -101,7 +106,7 @@ body.theme-dark .sf-fare small { color:var(--text-light); }
     {% endif %}
 
     {% if da_aprire %}
-    <div class="fx-blocco fx-largo"><section class="es-s-card">
+    <div class="fx-blocco fx-pieno"><section class="es-s-card">
       <h2 class="es-s-h">Richieste approvate senza sessione <span>{{ da_aprire|length }}</span></h2>
       <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-s-tab">
         <thead><tr><th>Persona</th><th>Tipo di richiesta</th><th>Mansione o competenza</th><th>Approvata</th><th></th></tr></thead>

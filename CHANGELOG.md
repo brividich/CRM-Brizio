@@ -9,6 +9,18 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+### Organigramma ufficiale: linee di collegamento trascinabili
+- Nella tela (`…/ufficiale/<id>/disegna/`) il tronco del superiore e le discese verso i riquadri si spostano di lato, le barre comuni e le linee che entrano dal fianco in su e in giù; doppio clic o «Rimetti automatiche» le riporta alla posizione calcolata. Valgono anche in stampa, in pagina e nella revisione pubblicata (`templates/anagrafica/partials/_org_uff_render.html` `percorsi()`/`svgLinee()`, `templates/anagrafica/pages/organigramma_ufficiale_disegna.html`).
+- Nuovi campi facoltativi del disegno `tronco_x`, `linea_y`, `bus_y`, `entra_x`, puliti dal server e contati come modifica grafica nel riepilogo (`services/organigramma_ufficiale.py`, `tests_organigramma_ufficiale.py`). Nessuna migrazione.
+- Firma su portale: un'immagine di firma o timbro il cui file non c'è più risponde 404 invece di 500 (`views_organigramma_firma.py`).
+- Tela a **schermo intero**: pulsante «⛶ Schermo intero» (o tasto F) nella barra; usa l'API Fullscreen del browser e, se non concessa, copre la finestra; si esce con «✕ Esci» o Esc (`organigramma_ufficiale_disegna.html`).
+- Guida: `core/guide_moduli/contenuti/anagrafica.py`; scheda `docs/moduli/anagrafica.md`.
+
+### Sessioni formative (`/anagrafica/competenze/sessioni/`): layout e «Nuova sessione formativa»
+- Pulsante «+ Nuova sessione formativa» verso la creazione di un'edizione di corso, solo per chi può modificare la formazione (`views_sessioni.py`, `sessioni_elenco.html`).
+- Filtri allineati alla ricerca, Elenco a tutta larghezza quando non c'è niente accanto, Matricole e Richieste approvate a tutta larghezza, contatori con campi compatti e «Acceso/Spento» sulla stessa riga; tolto il paragrafo introduttivo (resta nella guida). `rq-filtri` centra i suoi elementi in verticale anche nelle altre pagine delle richieste (`components/_richieste_stili.html`).
+- Guida: `core/guide_moduli/contenuti/anagrafica.py`.
+
 ### Formazione: niente assegnazione e-learning doppia per chi è iscritto all'edizione online
 - L'assegnazione automatica notturna salta chi è già iscritto a un'edizione aperta dello stesso corso (es. «Online: slide + test»): il corso si fa dall'edizione (`services/elearning_assegnazioni.iscritti_edizioni_aperte`).
 - Migrazione `0267`: toglie le assegnazioni automatiche «Obbligo: …» ancora «Assegnato» doppie rispetto a un'iscrizione aperta.
