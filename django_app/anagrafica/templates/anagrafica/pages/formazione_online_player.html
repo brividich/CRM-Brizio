@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load static %}
+{% load static dispense_tags %}
 
 {% block title %}{{ corso.titolo }} | Corsi online{% endblock %}
 
@@ -63,6 +63,7 @@
         </div>
       </section>
     {% endif %}
+    {% dispense_del_corso corso %}
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}

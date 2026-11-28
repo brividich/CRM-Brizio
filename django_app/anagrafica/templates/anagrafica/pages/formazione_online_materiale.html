@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load static %}
+{% load static dispense_tags %}
 
 {% block title %}Materiale · {{ corso.titolo }} | Corsi online{% endblock %}
 
@@ -63,6 +63,7 @@
         {% endif %}
       </section>
     </div>
+    {% dispense_del_corso corso %}
   </div>
 </div>
 {% endblock %}
