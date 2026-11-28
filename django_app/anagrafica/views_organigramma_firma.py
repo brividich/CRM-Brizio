@@ -103,6 +103,14 @@ def contesto_invio(request, org) -> dict:
             "opzioni": opzioni, "usa_totp": firme.usa_totp(request.user)}
 
 
+def _apri(campo):
+    """Immagine archiviata; se il file non c'è più è un 404, non un errore del server."""
+    try:
+        return campo.open("rb")
+    except (FileNotFoundError, OSError):
+        raise Http404() from None
+
+
 @login_required
 @require_POST
 def organigramma_ufficiale_invia(request, pk: int):
@@ -230,7 +238,7 @@ def organigramma_ufficiale_firma_immagine(request, casella_id: int, variante: st
     campo = {"firma": casella.immagine_firma, "timbro": casella.immagine_timbro}.get(variante)
     if not campo:
         raise Http404()
-    risposta = FileResponse(campo.open("rb"), content_type="image/png")
+    risposta = FileResponse(_apri(campo), content_type="image/png")
     risposta["Cache-Control"] = "private, max-age=300"
     risposta["X-Content-Type-Options"] = "nosniff"
     return risposta
@@ -243,7 +251,7 @@ def organigramma_ufficiale_mia_immagine(request, image_id: int):
     img = next((i for i in firme.immagini_proprie(request.user).values() if i.pk == image_id), None)
     if img is None:
         raise Http404()
-    risposta = FileResponse(img.image.open("rb"), content_type="image/png")
+    risposta = FileResponse(_apri(img.image), content_type="image/png")
     risposta["Cache-Control"] = "private, no-store"
     risposta["X-Content-Type-Options"] = "nosniff"
     return risposta

@@ -82,6 +82,20 @@ class NormalizzaTests(TestCase):
                                        "azienda": "", "piede": "Allegato C {rev}", "logo": False, "ruoli_blu": False})
         self.assertEqual(svc.normalizza({"nodi": []})["foglio"]["stile"], "hub")
 
+    def test_linee_spostate_a_mano(self):
+        d = svc.normalizza({"nodi": [
+            _box("a", tronco_x=-120.4), _box("b", padre="a", linea_y="30", bus_y=-5, entra_x=True),
+            _box("c", padre="a", entra_x="abc", linea_y=99999),
+        ]})
+        a, b, c = d["nodi"]
+        self.assertEqual(a["tronco_x"], -120)
+        self.assertEqual((b["linea_y"], b["bus_y"], b["entra_x"]), (30, 0, None))
+        self.assertEqual((c["entra_x"], c["linea_y"], c["bus_y"]), (None, 4000, None))
+        # Spostare solo le linee è una modifica grafica, non di contenuto.
+        dopo = svc.normalizza({"nodi": [_box("a", tronco_x=40), _box("b", padre="a", bus_y=24)]})
+        prima = svc.normalizza({"nodi": [_box("a"), _box("b", padre="a")]})
+        self.assertEqual([r["tipo"] for r in svc.riepilogo(prima, dopo)], ["grafica"])
+
     def test_testo_piede(self):
         f = {"piede": "Azienda – Allegato C {rev} – Organigramma"}
         self.assertEqual(svc.testo_piede(f, 19, "X"), "Azienda – Allegato C Rev.19 – Organigramma")
